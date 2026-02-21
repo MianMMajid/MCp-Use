@@ -6857,6 +6857,173 @@ server.app.post("/api/downstream/dispatch", async (c) => {
   }
 });
 
+// ── ChatGPT Actions adapter ──
+
+let gptOpenApiSpecCache: { spec: Record<string, unknown>; expiresAt: number } | null = null;
+const GPT_SPEC_TTL_MS = 5 * 60 * 1000;
+
+server.get("/.well-known/ai-plugin.json", (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+  return c.json({
+    schema_version: "v1",
+    name_for_human: "Maple MCP Tools",
+    name_for_model: "maple_mcp_tools",
+    description_for_human: "Access curated web, research, and utility tools through Maple's MCP firewall gateway.",
+    description_for_model:
+      "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
+    auth: {
+      type: "service_http",
+      authorization_type: "custom",
+      custom_auth_header: "x-api-key",
+      verification_tokens: {},
+    },
+    api: {
+      type: "openapi",
+      url: `${baseUrl}/gpt/openapi.json`,
+    },
+    logo_url: `${baseUrl}/logo.png`,
+    contact_email: "support@maple.dev",
+    legal_info_url: `${baseUrl}/landing`,
+  });
+});
+
+server.get("/gpt/openapi.json", async (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+
+  if (gptOpenApiSpecCache && Date.now() < gptOpenApiSpecCache.expiresAt) {
+    return c.json(gptOpenApiSpecCache.spec);
+  }
+
+  let allTools: Array<{ name: string; description?: string | null; inputSchema?: unknown }> = [];
+  try {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    for (const appId of appIds) {
+      try {
+        const app = resolveDownstreamApp(appId);
+        const listed = await listToolsFromDownstreamCached(app, {});
+        allTools = allTools.concat(listed.tools);
+      } catch (_appErr) {
+        /* skip unavailable apps */
+      }
+    }
+  } catch (_err) {
+    /* no apps configured */
+  }
+
+  const paths: Record<string, unknown> = {};
+  for (const tool of allTools) {
+    const schema = tool.inputSchema && typeof tool.inputSchema === "object" ? tool.inputSchema : { type: "object", properties: {} };
+    paths[`/gpt/tools/${tool.name}`] = {
+      post: {
+        operationId: tool.name,
+        summary: tool.description ?? tool.name,
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Tool result",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    result: { type: "string" },
+                    data: { type: "object" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  const spec = {
+    openapi: "3.1.0",
+    info: {
+      title: "Maple MCP Tools",
+      description: "REST adapter for Maple MCP gateway tools. Each endpoint dispatches a tool call through Maple's firewall and tracing layer.",
+      version: "1.0.0",
+    },
+    servers: [{ url: baseUrl }],
+    paths,
+    components: {
+      securitySchemes: {
+        apiKey: {
+          type: "apiKey",
+          in: "header",
+          name: "x-api-key",
+        },
+      },
+    },
+    security: [{ apiKey: [] }],
+  };
+
+  gptOpenApiSpecCache = { spec, expiresAt: Date.now() + GPT_SPEC_TTL_MS };
+  return c.json(spec);
+});
+
+server.app.post("/gpt/tools/:toolName", async (c) => {
+  const unauthorized = requireApiKeyResponse(c);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const toolName = c.req.param("toolName");
+  if (!toolName) {
+    return c.json({ ok: false, error: "Tool name is required." }, 400);
+  }
+
+  const body = await readJsonBody(c);
+  const toolArgs: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    toolArgs[key] = value;
+  }
+
+  let appIds: string[];
+  try {
+    appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+  } catch (resolutionError) {
+    return c.json({ ok: false, error: errorMessage(resolutionError) }, 400);
+  }
+
+  try {
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName,
+      toolArgs,
+      sessionId: "gpt-actions",
+      origin: "api",
+    });
+    const result = chainResult.finalResult;
+
+    if (!chainResult.ok) {
+      return c.json({
+        ok: false,
+        error: result.failure ?? "Tool dispatch failed.",
+      }, chainResult.blockedByPolicy ? 403 : 502);
+    }
+
+    const textPreview = result.dispatch?.textPreview ?? "";
+    const rawResult = result.dispatch?.result as Record<string, unknown> | undefined;
+    const structuredData = (rawResult?.structuredContent as Record<string, unknown> | undefined)?.data ?? null;
+
+    return c.json({
+      ok: true,
+      result: textPreview,
+      ...(structuredData ? { data: structuredData } : {}),
+    });
+  } catch (dispatchError) {
+    return c.json({ ok: false, error: errorMessage(dispatchError) }, 500);
+  }
+});
+
 server.get("/api/yc/brief", (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
