@@ -547,16 +547,17 @@ const TREE_NODE_COLORS = {
 
 const ACTION_TREE_STYLE = [
   { selector: 'node', style: {
-    'shape': 'roundrectangle', 'width': 200, 'height': 52,
-    'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': 180,
+    'shape': 'roundrectangle', 'width': 240, 'height': 72,
+    'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': 220,
     'text-valign': 'center', 'text-halign': 'center',
     'font-family': "'Space Grotesk', Arial, sans-serif",
-    'font-size': 11, 'font-weight': 600, 'border-width': 2, 'border-style': 'solid',
+    'font-size': 10, 'font-weight': 500, 'line-height': 1.4, 'border-width': 2, 'border-style': 'solid',
     'background-color': '#1a3a1a', 'border-color': '#2ecc40', 'color': '#c8f0c8',
+    'padding': '6px',
   }},
   { selector: 'node.blocked', style: { 'background-color': '#3d1515', 'border-color': '#e74c3c', 'color': '#f5d0d0', 'border-width': 3 }},
   { selector: 'node.selected', style: { 'border-color': '#e8740c', 'border-width': 3 }},
-  { selector: 'node.fork', style: { 'background-color': '#152535', 'border-color': '#3498db', 'color': '#c8ddf0', 'width': 170 }},
+  { selector: 'node.fork', style: { 'background-color': '#152535', 'border-color': '#3498db', 'color': '#c8ddf0', 'width': 220 }},
   { selector: 'edge.main-edge', style: { 'width': 2, 'line-color': 'rgba(46,204,64,0.5)', 'target-arrow-color': '#2ecc40', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'curve-style': 'bezier', 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'line-dash-offset': 0 }},
   { selector: 'edge.fork-edge', style: { 'width': 2, 'line-color': 'rgba(52,152,219,0.6)', 'target-arrow-color': '#3498db', 'target-arrow-shape': 'triangle', 'curve-style': 'unbundled-bezier', 'control-point-distances': [40], 'control-point-weights': [0.5], 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'line-dash-offset': 0 }},
 ];
@@ -1674,8 +1675,8 @@ function buildActionTreeGraphData(trace, forkContext) {
     return { nodes, edges };
   }
 
-  const ySpacing = 80;
-  const xOffset = 260;
+  const ySpacing = 100;
+  const xOffset = 280;
 
   for (let i = 0; i < trace.steps.length; i++) {
     const step = trace.steps[i];
@@ -1691,7 +1692,9 @@ function buildActionTreeGraphData(trace, forkContext) {
     if (gs === "block") classes.push("blocked");
     if (isSelected) classes.push("selected");
 
-    const label = `Main #${stepIndex} ${type}/${actor}\n${stepTreeSummary(step)} | risk ${rs}`;
+    const guardLabel = gs === "pending" ? "" : `  [${gs.toUpperCase()}]`;
+    const summary = stepTreeSummary(step);
+    const label = `#${stepIndex}  ${type} · ${actor}${guardLabel}\n${summary}\nrisk ${rs} · ${risk}`;
 
     nodes.push({ data: { id: "main_" + i, stepIndex, label, traceId: trace.id }, position: { x: 0, y: i * ySpacing }, classes: classes.join(" ") });
 
@@ -1724,7 +1727,9 @@ function buildActionTreeGraphData(trace, forkContext) {
       if (gs === "block") classes.push("blocked");
       if (isSelected) classes.push("selected");
 
-      const label = `Fork #${stepIndex} ${type}/${actor}\n${stepTreeSummary(step)} | risk ${rs}`;
+      const guardLabel = gs === "pending" ? "" : `  [${gs.toUpperCase()}]`;
+      const summary = stepTreeSummary(step);
+      const label = `Fork #${stepIndex}  ${type} · ${actor}${guardLabel}\n${summary}\nrisk ${rs} · ${risk}`;
 
       nodes.push({ data: { id: "fork_" + i, stepIndex, label, traceId: forkTrace.id }, position: { x: xOffset, y: (clampedForkFrom + i) * ySpacing }, classes: classes.join(" ") });
 
