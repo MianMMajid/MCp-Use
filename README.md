@@ -373,7 +373,7 @@ npm run deploy
 
 Yes, Maple can run on Railway with production safeguards.
 
-Use these settings in Railway:
+This repo now includes `railway.json`, so Railway can use canonical settings automatically:
 
 - Build command: `npm run build`
 - Start command: `npm run start`
@@ -383,7 +383,6 @@ Required environment variables:
 
 ```bash
 NODE_ENV=production
-PORT=${{RAILWAY_PORT}}
 HOST=0.0.0.0
 MCP_URL=https://<your-railway-domain>
 MAPLE_API_KEY=<long-random-key>
@@ -395,6 +394,8 @@ MAPLE_FIREWALL_ENABLED=true
 
 Important notes:
 
+- Railway provides `PORT` automatically; do not hardcode it.
+- `scripts/hackathon-start.sh` is Railway-safe and no longer requires a local `.env` file to boot.
 - In production, Maple enforces API key auth and requires explicit `OPENCLAW_BRIDGE_URL` + `OPENCLAW_BRIDGE_TOKEN`.
 - Do not use `localhost` for `OPENCLAW_BRIDGE_URL` unless the bridge runs in the same container.
 - If bridge connectivity is unavailable during demo, use `source=mock` to keep UI + guardrail flow live.
