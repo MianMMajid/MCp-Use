@@ -3808,18 +3808,10 @@ if (firewallChatInputEl) {
   });
 }
 
-// Click on rotating placeholder sends that suggestion
+// Keep rotating placeholder non-interactive so clicks focus the input.
 if (rotatingPlaceholderEl) {
-  rotatingPlaceholderEl.style.pointerEvents = "auto";
-  rotatingPlaceholderEl.style.cursor = "pointer";
-  rotatingPlaceholderEl.addEventListener("click", () => {
-    const textEl = rotatingPlaceholderEl.querySelector(".placeholder-text");
-    if (!textEl) return;
-    const prompt = textEl.textContent;
-    if (!prompt) return;
-    stopSuggestionRotation();
-    askFirewallChat(prompt, { echoUser: true });
-  });
+  rotatingPlaceholderEl.style.pointerEvents = "none";
+  rotatingPlaceholderEl.style.cursor = "text";
 }
 
 startSuggestionRotation();
@@ -4014,7 +4006,9 @@ window.addEventListener("keydown", (event) => {
 document.addEventListener("mousedown", (event) => {
   if (!state.contextPanelOpen) return;
   const target = event.target;
+  if (!(target instanceof Element)) return;
   if (
+    target.closest("#nodeActionModal") ||
     target.closest(".context-panel") ||
     target.closest(".category-bar") ||
     target.closest(".chat-composer") ||

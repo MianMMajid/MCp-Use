@@ -303,6 +303,28 @@ const legacySmitheryRoutesEnabled =
 const judgeUiRoutesEnabled =
   String(process.env.MAPLE_ENABLE_JUDGE_UI ?? "1").trim().toLowerCase() === "true" ||
   String(process.env.MAPLE_ENABLE_JUDGE_UI ?? "1").trim().toLowerCase() === "1";
+type FirewallChatAiProvider = "openai" | "anthropic";
+const firewallChatOpenAiApiKey =
+  asString(process.env.OPENAI_API_KEY) ?? asString(process.env.MAPLE_OPENAI_API_KEY);
+const firewallChatAnthropicApiKey =
+  asString(process.env.ANTHROPIC_API_KEY) ?? asString(process.env.MAPLE_ANTHROPIC_API_KEY);
+const firewallChatPrimaryProviderRaw = String(process.env.MAPLE_FIREWALL_CHAT_PRIMARY ?? "openai")
+  .trim()
+  .toLowerCase();
+const firewallChatPrimaryProvider: FirewallChatAiProvider =
+  firewallChatPrimaryProviderRaw === "anthropic" ? "anthropic" : "openai";
+const firewallChatOpenAiModel =
+  asString(process.env.MAPLE_FIREWALL_CHAT_OPENAI_MODEL) ?? "gpt-4o-mini";
+const firewallChatAnthropicModel =
+  asString(process.env.MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL) ?? "claude-sonnet-4-6";
+const firewallChatTimeoutMsRaw = Number.parseInt(
+  String(process.env.MAPLE_FIREWALL_CHAT_TIMEOUT_MS ?? "15000"),
+  10
+);
+const firewallChatTimeoutMs = Number.isFinite(firewallChatTimeoutMsRaw)
+  ? Math.max(2_000, Math.min(60_000, firewallChatTimeoutMsRaw))
+  : 15_000;
+const firewallChatAiEnabled = Boolean(firewallChatOpenAiApiKey || firewallChatAnthropicApiKey);
 const sessionCookieName = "maple_session";
 const sessionTtlSeconds = Math.max(
   60,
@@ -4225,6 +4247,20 @@ interface FirewallBlockedStepSummary {
   commandOrUrl: string;
 }
 
+interface FirewallActionSummary {
+  stepIndex: number;
+  actor: TraceStep["actor"];
+  type: TraceStep["type"];
+  timestamp: string;
+  toolName: string | null;
+  command: string | null;
+  url: string | null;
+  prompt: string;
+  outputPreview: string;
+  riskScore: number;
+  guardStatus: TraceStep["guardStatus"];
+}
+
 interface FirewallChatContext {
   generatedAt: string;
   trace:
@@ -4258,6 +4294,13 @@ interface FirewallChatContext {
         quarantinedAt: string | null;
         lastBlockedStep: FirewallBlockedStepSummary | null;
         recentBlockedSteps: FirewallBlockedStepSummary[];
+      }
+    | null;
+  activity:
+    | {
+        recentActions: FirewallActionSummary[];
+        networkActions: FirewallActionSummary[];
+        shellActions: FirewallActionSummary[];
       }
     | null;
   highlights: string[];
@@ -4334,6 +4377,30 @@ function stepFirewallRule(step: TraceStep): string | null {
   return rawRule && rawRule.trim().length > 0 ? rawRule : null;
 }
 
+function toFirewallActionSummary(step: TraceStep): FirewallActionSummary {
+  const prompt = typeof step.prompt === "string" ? step.prompt.trim() : "";
+  const output = typeof step.output === "string" ? step.output.trim() : "";
+  const inferredCommand = extractLikelyCommand([step.command ?? "", prompt, output].join("\n"));
+  const inferredUrl =
+    step.externalUrl ??
+    extractFirstUrl([step.command ?? "", prompt, output, stepCommandOrUrl(step)].join("\n")) ??
+    null;
+
+  return {
+    stepIndex: step.index,
+    actor: step.actor,
+    type: step.type,
+    timestamp: step.timestamp,
+    toolName: step.toolCall?.name ?? null,
+    command: step.command ?? inferredCommand ?? null,
+    url: inferredUrl,
+    prompt: truncateText(prompt, 220),
+    outputPreview: truncateText(output, 220),
+    riskScore: toFiniteNumber(step.riskScore, 0),
+    guardStatus: step.guardStatus,
+  };
+}
+
 function resolveTraceForFirewallContext(options: { traceId?: string; sessionId?: string }): Trace | undefined {
   if (options.traceId) {
     return getTraceForCurrentOwner(options.traceId);
@@ -4385,6 +4452,7 @@ function buildFirewallChatContext(options: { traceId?: string; sessionId?: strin
       generatedAt,
       trace: null,
       firewall: null,
+      activity: null,
       highlights: ["No active trace available yet."],
       recommendations: [],
     };
@@ -4477,6 +4545,27 @@ function buildFirewallChatContext(options: { traceId?: string; sessionId?: strin
   const blockedStepsCount = toFiniteNumber(firewallMetadata.blockedSteps, blockedSteps.length);
   const redactedSteps = toFiniteNumber(firewallMetadata.redactedSteps, redactedStepsComputed);
   const highRiskSteps = trace.steps.filter((step) => toFiniteNumber(step.riskScore, 0) >= 60).length;
+  const recentActions = trace.steps
+    .slice(-20)
+    .map((step) => toFirewallActionSummary(step))
+    .reverse();
+  const networkActions = trace.steps
+    .filter(
+      (step) =>
+        step.type === "network" ||
+        Boolean(step.externalUrl) ||
+        /web_search|web_fetch|wikipedia|weather|hn_search|arxiv_search|openlibrary|github_repo_info/i.test(
+          step.toolCall?.name ?? ""
+        )
+    )
+    .slice(-20)
+    .map((step) => toFirewallActionSummary(step))
+    .reverse();
+  const shellActions = trace.steps
+    .filter((step) => step.type === "shell")
+    .slice(-20)
+    .map((step) => toFirewallActionSummary(step))
+    .reverse();
   const quarantinedAt =
     trace.status === "quarantined"
       ? blockedSteps[blockedSteps.length - 1]?.timestamp ?? trace.updatedAt
@@ -4512,6 +4601,11 @@ function buildFirewallChatContext(options: { traceId?: string; sessionId?: strin
       quarantinedAt,
       lastBlockedStep: blockedSteps.length > 0 ? blockedSteps[blockedSteps.length - 1] : null,
       recentBlockedSteps: blockedSteps.slice(-8).reverse(),
+    },
+    activity: {
+      recentActions,
+      networkActions,
+      shellActions,
     },
     highlights: [],
     recommendations: [],
@@ -4590,6 +4684,18 @@ function answerFirewallChatQuestion(question: string, context: FirewallChatConte
     ].join("\n");
   }
 
+  if (/network|web|http|https|url|request|fetch|download|upload/.test(normalized)) {
+    const networkActions = context.activity?.networkActions ?? [];
+    if (networkActions.length === 0) {
+      return "No network actions are recorded in this trace window.";
+    }
+    const lines = networkActions.slice(0, 8).map((action) => {
+      const surface = action.url ?? action.command ?? action.toolName ?? action.prompt ?? "unknown";
+      return `#${action.stepIndex} ${action.type} ${action.actor}: ${truncateText(surface, 140)}`;
+    });
+    return [`Network actions (${networkActions.length} total in context):`, ...lines].join("\n");
+  }
+
   if (/risk|severity|safe|danger|score/.test(normalized)) {
     return [
       `Current risk is ${trace.overallRiskScore} (${trace.riskSeverity}).`,
@@ -4630,6 +4736,288 @@ function answerFirewallChatQuestion(question: string, context: FirewallChatConte
   ]
     .filter((entry) => Boolean(entry))
     .join("\n");
+}
+
+type FirewallChatRole = "user" | "assistant";
+interface FirewallChatTurn {
+  role: FirewallChatRole;
+  content: string;
+}
+
+interface FirewallChatReplyResult {
+  reply: string;
+  mode: "ai" | "rules";
+  provider: FirewallChatAiProvider | null;
+  attempts: Array<{ provider: FirewallChatAiProvider; ok: boolean; error?: string }>;
+}
+
+function parseChatTurnContent(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => {
+        if (
+          entry &&
+          typeof entry === "object" &&
+          (entry as Record<string, unknown>).type === "text" &&
+          typeof (entry as Record<string, unknown>).text === "string"
+        ) {
+          return String((entry as Record<string, unknown>).text).trim();
+        }
+        return "";
+      })
+      .filter((item) => item.length > 0);
+    if (parts.length > 0) {
+      return parts.join("\n");
+    }
+  }
+  return undefined;
+}
+
+function normalizeFirewallChatHistory(rawMessages: unknown, fallbackQuestion: string): FirewallChatTurn[] {
+  const normalized: FirewallChatTurn[] = [];
+  if (Array.isArray(rawMessages)) {
+    for (const candidate of rawMessages) {
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+        continue;
+      }
+      const roleRaw = asString((candidate as Record<string, unknown>).role);
+      const role: FirewallChatRole | null =
+        roleRaw === "assistant" ? "assistant" : roleRaw === "user" ? "user" : null;
+      if (!role) {
+        continue;
+      }
+      const content = parseChatTurnContent((candidate as Record<string, unknown>).content);
+      if (!content) {
+        continue;
+      }
+      normalized.push({ role, content });
+    }
+  }
+
+  const recent = normalized.slice(-16);
+  if (recent.length === 0 || recent[recent.length - 1]?.role !== "user") {
+    recent.push({ role: "user", content: fallbackQuestion });
+  }
+  return recent;
+}
+
+function buildFirewallChatSystemPrompt(context: FirewallChatContext): string {
+  const contextSnapshot = {
+    generatedAt: context.generatedAt,
+    trace: context.trace,
+    firewall: context.firewall,
+    highlights: context.highlights,
+    recommendations: context.recommendations,
+  };
+
+  return [
+    "You are Maple Firewall Assistant for agent traces.",
+    "Use only the provided context and chat history. Do not invent events, steps, rules, or tools.",
+    "If data is missing in context, explicitly say it is unavailable.",
+    "Keep answers concise and operational; reference concrete step indexes and rule labels when present.",
+    "When recommending next actions, prioritize Maple-native controls like guard_action, /api/firewall/decision, audit_risk, and ml_anomaly_report.",
+    "Context JSON:",
+    JSON.stringify(contextSnapshot, null, 2),
+  ].join("\n");
+}
+
+function isNetworkActionQuery(question: string): boolean {
+  const normalized = question.trim().toLowerCase();
+  return (
+    /(network|web|http|https|url|request|fetch|download|upload)/.test(normalized) &&
+    /(action|actions|occur|occurred|happen|happened|list|show|which|what)/.test(normalized)
+  );
+}
+
+function firewallChatProviderOrder(): FirewallChatAiProvider[] {
+  const ordered: FirewallChatAiProvider[] = [];
+  if (firewallChatPrimaryProvider === "anthropic") {
+    if (firewallChatAnthropicApiKey) {
+      ordered.push("anthropic");
+    }
+    if (firewallChatOpenAiApiKey) {
+      ordered.push("openai");
+    }
+  } else {
+    if (firewallChatOpenAiApiKey) {
+      ordered.push("openai");
+    }
+    if (firewallChatAnthropicApiKey) {
+      ordered.push("anthropic");
+    }
+  }
+  return ordered;
+}
+
+async function callOpenAiFirewallChat(history: FirewallChatTurn[], context: FirewallChatContext): Promise<string> {
+  if (!firewallChatOpenAiApiKey) {
+    throw new Error("OpenAI API key is not configured.");
+  }
+
+  const response = await withAbortTimeout(firewallChatTimeoutMs, (signal) =>
+    fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${firewallChatOpenAiApiKey}`,
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        model: firewallChatOpenAiModel,
+        temperature: 0.2,
+        max_tokens: 700,
+        messages: [
+          { role: "system", content: buildFirewallChatSystemPrompt(context) },
+          ...history.map((turn) => ({ role: turn.role, content: turn.content })),
+        ],
+      }),
+      signal,
+    })
+  );
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`OpenAI HTTP ${response.status}: ${truncateText(responseText, 220)}`);
+  }
+
+  const payload = JSON.parse(responseText) as Record<string, unknown>;
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const firstChoice =
+    choices.length > 0 && choices[0] && typeof choices[0] === "object"
+      ? (choices[0] as Record<string, unknown>)
+      : undefined;
+  const message =
+    firstChoice && typeof firstChoice.message === "object" && firstChoice.message
+      ? (firstChoice.message as Record<string, unknown>)
+      : undefined;
+  const rawContent = message?.content;
+  const content = parseChatTurnContent(rawContent);
+  if (!content) {
+    throw new Error("OpenAI response did not include assistant text.");
+  }
+  return content;
+}
+
+async function callAnthropicFirewallChat(
+  history: FirewallChatTurn[],
+  context: FirewallChatContext
+): Promise<string> {
+  if (!firewallChatAnthropicApiKey) {
+    throw new Error("Anthropic API key is not configured.");
+  }
+
+  const response = await withAbortTimeout(firewallChatTimeoutMs, (signal) =>
+    fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": firewallChatAnthropicApiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        model: firewallChatAnthropicModel,
+        temperature: 0.2,
+        max_tokens: 700,
+        system: buildFirewallChatSystemPrompt(context),
+        messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
+      }),
+      signal,
+    })
+  );
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Anthropic HTTP ${response.status}: ${truncateText(responseText, 220)}`);
+  }
+
+  const payload = JSON.parse(responseText) as Record<string, unknown>;
+  const blocks = Array.isArray(payload.content) ? payload.content : [];
+  const textChunks = blocks
+    .map((block) => {
+      if (
+        block &&
+        typeof block === "object" &&
+        (block as Record<string, unknown>).type === "text" &&
+        typeof (block as Record<string, unknown>).text === "string"
+      ) {
+        return String((block as Record<string, unknown>).text).trim();
+      }
+      return "";
+    })
+    .filter((chunk) => chunk.length > 0);
+
+  if (textChunks.length === 0) {
+    throw new Error("Anthropic response did not include assistant text.");
+  }
+  return textChunks.join("\n");
+}
+
+async function generateFirewallChatReply(options: {
+  question: string;
+  context: FirewallChatContext;
+  messages?: unknown;
+}): Promise<FirewallChatReplyResult> {
+  const fallbackReply = answerFirewallChatQuestion(options.question, options.context);
+  if (
+    isNetworkActionQuery(options.question) &&
+    (options.context.activity?.networkActions?.length ?? 0) > 0
+  ) {
+    return {
+      reply: fallbackReply,
+      mode: "rules",
+      provider: null,
+      attempts: [],
+    };
+  }
+
+  if (!firewallChatAiEnabled) {
+    return {
+      reply: fallbackReply,
+      mode: "rules",
+      provider: null,
+      attempts: [],
+    };
+  }
+
+  const history = normalizeFirewallChatHistory(options.messages, options.question);
+  const providers = firewallChatProviderOrder();
+  const attempts: Array<{ provider: FirewallChatAiProvider; ok: boolean; error?: string }> = [];
+  for (const provider of providers) {
+    try {
+      const reply =
+        provider === "openai"
+          ? await callOpenAiFirewallChat(history, options.context)
+          : await callAnthropicFirewallChat(history, options.context);
+      attempts.push({ provider, ok: true });
+      return {
+        reply,
+        mode: "ai",
+        provider,
+        attempts,
+      };
+    } catch (providerError) {
+      attempts.push({
+        provider,
+        ok: false,
+        error: errorMessage(providerError),
+      });
+    }
+  }
+
+  mapleLog("warn", "firewall.chat.ai_fallback_to_rules", {
+    attempts,
+    traceId: options.context.trace?.id ?? null,
+  });
+
+  return {
+    reply: fallbackReply,
+    mode: "rules",
+    provider: null,
+    attempts,
+  };
 }
 
 async function readJsonBody(c: { req: { json: () => Promise<unknown> } }): Promise<Record<string, unknown>> {
@@ -6527,12 +6915,19 @@ server.app.post("/api/firewall/chat", async (c) => {
   const sessionId = asString(body.sessionId);
   const includeContext = asBoolean(body.includeContext, false);
   const context = buildFirewallChatContext({ traceId, sessionId });
-  const reply = answerFirewallChatQuestion(message, context);
+  const chatResult = await generateFirewallChatReply({
+    question: message,
+    context,
+    messages: [{ role: "user", content: message }],
+  });
 
   return c.json({
     ok: true,
     message,
-    reply,
+    reply: chatResult.reply,
+    mode: chatResult.mode,
+    provider: chatResult.provider,
+    attempts: chatResult.attempts,
     traceId: context.trace?.id ?? null,
     generatedAt: new Date().toISOString(),
     ...(includeContext ? { context } : {}),
@@ -6541,7 +6936,17 @@ server.app.post("/api/firewall/chat", async (c) => {
 
 // ── Chat capabilities + streaming bridge ──
 server.get("/api/chat/capabilities", async (c) => {
-  return c.json({ aiEnabled: false, mode: "rules" });
+  const providers = firewallChatProviderOrder();
+  return c.json({
+    aiEnabled: providers.length > 0,
+    mode: providers.length > 0 ? "ai-fallback" : "rules",
+    primaryProvider: firewallChatPrimaryProvider,
+    providers,
+    models: {
+      openai: providers.includes("openai") ? firewallChatOpenAiModel : null,
+      anthropic: providers.includes("anthropic") ? firewallChatAnthropicModel : null,
+    },
+  });
 });
 
 server.app.post("/api/chat/stream", async (c) => {
@@ -6552,12 +6957,18 @@ server.app.post("/api/chat/stream", async (c) => {
 
   const body = await readJsonBody(c);
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
-  const message = asString(lastUserMessage?.content) ?? "Give me a firewall status update.";
+  const normalizedHistory = normalizeFirewallChatHistory(messages, "Give me a firewall status update.");
+  const userTurns = normalizedHistory.filter((turn) => turn.role === "user");
+  const message = asString(userTurns[userTurns.length - 1]?.content) ?? "Give me a firewall status update.";
   const traceId = asString(body.traceId);
   const sessionId = asString(body.sessionId);
   const context = buildFirewallChatContext({ traceId, sessionId });
-  const reply = answerFirewallChatQuestion(message, context);
+  const chatResult = await generateFirewallChatReply({
+    question: message,
+    context,
+    messages: normalizedHistory,
+  });
+  const reply = chatResult.reply;
 
   // Stream the reply as SSE chunks to match frontend expectations
   const encoder = new TextEncoder();

@@ -277,6 +277,20 @@ For `source=openclaw`, bridge failures are returned as errors (no silent mock do
 - `GET /api/firewall/state` returns normalized live firewall context for a trace/session.
 - `POST /api/firewall/chat` answers status questions using that context.
 - Body accepts `message`, optional `traceId` / `sessionId`, and `includeContext`.
+- `POST /api/chat/stream` powers the Judge UI chatbot and can use AI with provider fallback.
+- If `OPENAI_API_KEY` and/or `ANTHROPIC_API_KEY` are set, Maple enables AI mode with automatic fallback.
+- If both model providers fail, Maple falls back to deterministic rules-based firewall answers.
+
+Optional chat model environment variables:
+
+```bash
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+MAPLE_FIREWALL_CHAT_PRIMARY=openai   # openai | anthropic
+MAPLE_FIREWALL_CHAT_OPENAI_MODEL=gpt-4o-mini
+MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL=claude-sonnet-4-6
+MAPLE_FIREWALL_CHAT_TIMEOUT_MS=15000
+```
 
 ### Firewall Hardening (mcpwall-inspired)
 
@@ -347,7 +361,7 @@ MAPLE_FIREWALL_LOG_DIR=~/.maple/firewall-logs
 
 - Persistence is in-memory for hackathon speed
 - Embedding model is intentionally simple (fast + local)
-- No external model provider required
+- External model providers are optional for firewall chat; rules mode works without them
 
 ## Deploy
 
