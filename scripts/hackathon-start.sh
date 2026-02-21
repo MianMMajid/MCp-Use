@@ -24,7 +24,12 @@ HACKATHON_TOOLHUB_HOST="${HACKATHON_TOOLHUB_HOST:-127.0.0.1}"
 
 is_port_open() {
   local port="$1"
-  lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+  # lsof may not exist in containers (e.g. Railway), fall back gracefully.
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+  else
+    return 1
+  fi
 }
 
 if is_port_open "${MAPLE_PORT}"; then
@@ -118,4 +123,9 @@ if [ "${HACKATHON_OPEN_BROWSER}" = "1" ] && [ "${NODE_ENV}" != "production" ]; t
   ) &
 fi
 
-exec node --env-file=.env node_modules/.bin/mcp-use start
+# On Railway / containers, env vars are injected directly — no .env file needed.
+if [ -f "${ROOT_DIR}/.env" ]; then
+  exec node --env-file=.env node_modules/.bin/mcp-use start
+else
+  exec node node_modules/.bin/mcp-use start
+fi

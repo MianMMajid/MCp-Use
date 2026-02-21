@@ -1048,7 +1048,9 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(TOOLHUB_PORT, "127.0.0.1", () => {
-  console.log(`[toolhub] listening on http://127.0.0.1:${TOOLHUB_PORT}/mcp`);
+const TOOLHUB_HOST = process.env.HACKATHON_TOOLHUB_HOST || "127.0.0.1";
+
+server.listen(TOOLHUB_PORT, TOOLHUB_HOST, () => {
+  console.log(`[toolhub] listening on http://${TOOLHUB_HOST}:${TOOLHUB_PORT}/mcp`);
   console.log(`[toolhub] tools=${TOOL_DEFINITIONS.map((tool) => tool.name).join(",")}`);
 });
