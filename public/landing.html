@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Sign in to Maple AI Firewall control center." />
+    <meta name="theme-color" content="#e8740c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Maple | Sign In</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='kg' cx='45%25' cy='38%25' r='55%25'%3E%3Cstop offset='0%25' stop-color='%23ffb366'/%3E%3Cstop offset='100%25' stop-color='%23e8740c'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='14' r='12' fill='url(%23kg)'/%3E%3Cellipse cx='12' cy='12' rx='1.8' ry='2.2' fill='%23111'/%3E%3Cellipse cx='20' cy='12' rx='1.8' ry='2.2' fill='%23111'/%3E%3Ccircle cx='12.6' cy='11.2' r='0.7' fill='white'/%3E%3Ccircle cx='20.6' cy='11.2' r='0.7' fill='white'/%3E%3Cellipse cx='9' cy='16' rx='2.4' ry='1.6' fill='%23ff9966' opacity='0.5'/%3E%3Cellipse cx='23' cy='16' rx='2.4' ry='1.6' fill='%23ff9966' opacity='0.5'/%3E%3Cpath d='M13 17.5 Q16 20 19 17.5' stroke='%23111' stroke-width='0.8' fill='none' stroke-linecap='round'/%3E%3Cellipse cx='11' cy='27' rx='3.5' ry='2.2' fill='%23d06800'/%3E%3Cellipse cx='21' cy='27' rx='3.5' ry='2.2' fill='%23d06800'/%3E%3C/svg%3E" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+    />
+    <link rel="stylesheet" href="/landing.css" />
+    <script src="https://accounts.google.com/gsi/client" async></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero" aria-label="Maple hero image">
+        <div class="hero-image-wrap">
+          <svg class="kirby-mascot hero-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="kirbyBodyGrad-hero" cx="45%" cy="38%" r="55%">
+                <stop offset="0%" stop-color="#ffb366"/>
+                <stop offset="100%" stop-color="#e8740c"/>
+              </radialGradient>
+            </defs>
+            <!-- Body -->
+            <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-hero)"/>
+            <!-- Eyes -->
+            <g class="kirby-eye">
+              <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111"/>
+              <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111"/>
+              <circle cx="81" cy="73" r="3.5" fill="white"/>
+              <circle cx="125" cy="73" r="3.5" fill="white"/>
+            </g>
+            <!-- Blush -->
+            <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+            <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+            <!-- Smile -->
+            <path d="M85 105 Q100 120 115 105" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <!-- Feet -->
+            <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800"/>
+            <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800"/>
+          </svg>
+        </div>
+        <h1>Maple Control Center</h1>
+        <p>Sign in to access the live dashboard.</p>
+      </section>
+
+      <section class="signin" aria-label="Sign in">
+        <h2>Sign In</h2>
+        <p class="muted">Enter your Maple dashboard credentials.</p>
+
+        <form id="signinForm" novalidate>
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" placeholder="Username" required />
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required />
+          <button type="submit">Open Dashboard</button>
+          <p id="signinError" class="error" role="alert" aria-live="polite"></p>
+        </form>
+
+        <div id="googleSection" class="hidden">
+          <div class="divider">or</div>
+          <div id="googleSignInContainer"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/landing.js"></script>
+  </body>
+</html>
