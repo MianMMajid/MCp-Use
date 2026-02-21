@@ -253,6 +253,22 @@ const mcpSoTimeoutMsRaw = Number.parseInt(String(process.env.MAPLE_MCPSO_TIMEOUT
 const mcpSoTimeoutMs = Number.isFinite(mcpSoTimeoutMsRaw)
   ? Math.max(1_000, Math.min(60_000, mcpSoTimeoutMsRaw))
   : 12_000;
+const downstreamToolsCacheTtlMsRaw = Number.parseInt(
+  String(process.env.MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS ?? "15000"),
+  10
+);
+const downstreamToolsCacheTtlMs = Number.isFinite(downstreamToolsCacheTtlMsRaw)
+  ? Math.max(500, Math.min(60_000, downstreamToolsCacheTtlMsRaw))
+  : 15_000;
+type DownstreamToolsListResult = Awaited<ReturnType<typeof listToolsFromDownstream>>;
+const downstreamToolsCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: DownstreamToolsListResult;
+  }
+>();
+const downstreamToolsInFlight = new Map<string, Promise<DownstreamToolsListResult>>();
 const explicitRouteLock =
   String(process.env.MAPLE_MCP_ROUTE_LOCK ?? "0").trim().toLowerCase() === "true" ||
   String(process.env.MAPLE_MCP_ROUTE_LOCK ?? "0").trim().toLowerCase() === "1";
@@ -1227,6 +1243,62 @@ function normalizeDynamicMcpUrl(rawUrl: string): string {
   return parsed.toString();
 }
 
+function clearDownstreamToolsCache(appId?: string): void {
+  if (appId) {
+    downstreamToolsCache.delete(appId);
+    downstreamToolsInFlight.delete(appId);
+    return;
+  }
+  downstreamToolsCache.clear();
+  downstreamToolsInFlight.clear();
+}
+
+function getCachedDownstreamTools(appId: string): DownstreamToolsListResult | undefined {
+  const cached = downstreamToolsCache.get(appId);
+  if (!cached) {
+    return undefined;
+  }
+  if (Date.now() >= cached.expiresAt) {
+    downstreamToolsCache.delete(appId);
+    return undefined;
+  }
+  return cached.value;
+}
+
+function setCachedDownstreamTools(appId: string, value: DownstreamToolsListResult): void {
+  downstreamToolsCache.set(appId, {
+    expiresAt: Date.now() + downstreamToolsCacheTtlMs,
+    value,
+  });
+}
+
+async function listToolsFromDownstreamCached(
+  app: DownstreamAppConfig,
+  options: { forceRefresh?: boolean } = {}
+): Promise<DownstreamToolsListResult> {
+  if (!options.forceRefresh) {
+    const cached = getCachedDownstreamTools(app.id);
+    if (cached) {
+      return cached;
+    }
+    const inFlight = downstreamToolsInFlight.get(app.id);
+    if (inFlight) {
+      return inFlight;
+    }
+  }
+
+  const task = listToolsFromDownstream(app)
+    .then((listed) => {
+      setCachedDownstreamTools(app.id, listed);
+      return listed;
+    })
+    .finally(() => {
+      downstreamToolsInFlight.delete(app.id);
+    });
+  downstreamToolsInFlight.set(app.id, task);
+  return task;
+}
+
 function truncateText(value: string, maxLength = 2400): string {
   if (value.length <= maxLength) {
     return value;
@@ -1459,6 +1531,8 @@ interface MarketplaceSearchEntry {
   description?: string;
   sourceUrl?: string;
   appIdSuggestion: string;
+  connectable?: boolean;
+  resolvedMcpUrl?: string;
   allowCall?: boolean;
 }
 
@@ -1481,6 +1555,10 @@ interface RegisterMarketplaceDownstreamOptions {
   name?: string;
   enabled?: boolean;
   timeoutMs?: number;
+  resolvedTitle?: string;
+  resolvedDescription?: string;
+  resolvedSourceUrl?: string;
+  resolvedMcpUrl?: string;
   query?: Record<string, string>;
   headers?: Record<string, string>;
   apiKey?: string;
@@ -1543,56 +1621,78 @@ async function searchMarketplaceServers(options: {
   const provider = options.provider ?? "all";
   const limit = options.limit ? Math.max(1, Math.min(100, Math.trunc(options.limit))) : 20;
   const query = asString(options.query);
-  const entries: MarketplaceSearchEntry[] = [];
+  const requests: Array<Promise<MarketplaceSearchEntry[]>> = [];
 
   if ((provider === "all" || provider === "smithery") && smitheryEnabled) {
-    const smithery = await withAbortTimeout(smitheryTimeoutMs, (signal) =>
-      listSmitheryServers({
-        apiBaseUrl: smitheryApiBaseUrl,
-        apiKey: smitheryApiKey,
-        signal,
-        query,
-        page: 1,
-        pageSize: Math.max(limit, 20),
-      })
+    requests.push(
+      withAbortTimeout(smitheryTimeoutMs, (signal) =>
+        listSmitheryServers({
+          apiBaseUrl: smitheryApiBaseUrl,
+          apiKey: smitheryApiKey,
+          signal,
+          query,
+          page: 1,
+          pageSize: Math.max(limit, 20),
+        })
+      ).then((smithery) =>
+        smithery.servers.map((server) => {
+          const id = server.qualifiedName;
+          return {
+            provider: "smithery" as const,
+            id,
+            title: server.displayName ?? id,
+            description: server.description,
+            sourceUrl: `https://smithery.ai/server/${encodeURIComponent(id)}`,
+            appIdSuggestion: toSmitheryDownstreamAppId(id),
+            connectable: server.isDeployed,
+          };
+        })
+      )
     );
-    for (const server of smithery.servers) {
-      const id = server.qualifiedName;
-      entries.push({
-        provider: "smithery",
-        id,
-        title: server.displayName ?? id,
-        description: server.description,
-        sourceUrl: `https://smithery.ai/server/${encodeURIComponent(id)}`,
-        appIdSuggestion: toSmitheryDownstreamAppId(id),
-      });
-    }
   }
 
   if ((provider === "all" || provider === "mcpso") && mcpSoEnabled) {
-    const mcpSo = await withAbortTimeout(mcpSoTimeoutMs, (signal) =>
-      searchMcpSoServers({
-        baseUrl: mcpSoBaseUrl,
-        signal,
-        query,
-        limit: Math.max(limit, 20),
-      })
+    requests.push(
+      withAbortTimeout(mcpSoTimeoutMs, (signal) =>
+        searchMcpSoServers({
+          baseUrl: mcpSoBaseUrl,
+          signal,
+          query,
+          limit: Math.max(limit, 20),
+        })
+      ).then((mcpSo) =>
+        mcpSo.map((server) => {
+          const id = server.slug || server.id;
+          return {
+            provider: "mcpso" as const,
+            id,
+            title: server.title,
+            description: server.description,
+            sourceUrl: server.sourceUrl,
+            allowCall: server.allowCall,
+            appIdSuggestion: toMcpSoDownstreamAppId(server.slug),
+            connectable: Boolean(server.resolvedMcpUrl),
+            resolvedMcpUrl: server.resolvedMcpUrl,
+          };
+        })
+      )
     );
-    for (const server of mcpSo) {
-      const id = server.slug || server.id;
-      entries.push({
-        provider: "mcpso",
-        id,
-        title: server.title,
-        description: server.description,
-        sourceUrl: server.sourceUrl,
-        allowCall: server.allowCall,
-        appIdSuggestion: toMcpSoDownstreamAppId(server.slug),
-      });
-    }
   }
 
-  const deduped = dedupeBy(entries, (entry) => `${entry.provider}:${entry.id.toLowerCase()}`);
+  const entries = (await Promise.all(requests)).flat();
+  const prioritized = [...entries].sort((a, b) => {
+    const rank = (entry: MarketplaceSearchEntry): number => {
+      if (entry.connectable === true) {
+        return 2;
+      }
+      if (entry.connectable === false) {
+        return 0;
+      }
+      return 1;
+    };
+    return rank(b) - rank(a);
+  });
+  const deduped = dedupeBy(prioritized, (entry) => `${entry.provider}:${entry.id.toLowerCase()}`);
   return deduped.slice(0, limit);
 }
 
@@ -1660,10 +1760,24 @@ async function registerMarketplaceDownstream(
   resolved: MarketplaceResolvedServer;
   replaced: boolean;
 }> {
-  const resolved = await resolveMarketplaceServer({
-    provider: options.provider,
-    id: options.id,
-  });
+  const preResolvedMcpUrl = asString(options.resolvedMcpUrl);
+  const resolved = preResolvedMcpUrl
+    ? {
+        provider: options.provider,
+        id: options.id,
+        title: options.resolvedTitle ?? options.name ?? options.id,
+        description: options.resolvedDescription,
+        sourceUrl: options.resolvedSourceUrl,
+        appIdSuggestion:
+          options.provider === "smithery"
+            ? toSmitheryDownstreamAppId(options.id)
+            : toMcpSoDownstreamAppId(options.id),
+        mcpUrl: preResolvedMcpUrl,
+      }
+    : await resolveMarketplaceServer({
+        provider: options.provider,
+        id: options.id,
+      });
   if (!resolved.mcpUrl) {
     throw new Error(
       `${resolved.provider} server "${resolved.id}" does not expose a public HTTP MCP endpoint.`
@@ -1706,6 +1820,7 @@ async function registerMarketplaceDownstream(
     toolAllowlist: allowlist,
   };
   downstreamAppRegistry.set(appId, app);
+  clearDownstreamToolsCache(appId);
   return {
     app,
     appId,
@@ -2102,7 +2217,7 @@ async function buildMarketplaceCatalogForAppIds(
     uniqueAppIds.map(async (appId) => {
       try {
         const app = resolveDownstreamApp(appId);
-        const listed = await listToolsFromDownstream(app);
+        const listed = await listToolsFromDownstreamCached(app);
         return {
           appId,
           app,
@@ -2201,7 +2316,7 @@ async function findConnectedToolMatches(
     candidates.map(async (appId) => {
       try {
         const app = resolveDownstreamApp(appId);
-        const listed = await listToolsFromDownstream(app);
+        const listed = await listToolsFromDownstreamCached(app);
         const allowedTools = filterAllowedDownstreamTools(app, listed.tools);
         const exact = allowedTools.find((tool) => tool.name === normalizedTool);
         if (!exact) {
@@ -2331,13 +2446,32 @@ async function autoConnectAndResolveToolMatch(options: {
     query: options.searchQuery,
     limit: options.searchLimit,
   });
+  const prioritizedEntries = [...entries].sort((a, b) => {
+    const rank = (entry: MarketplaceSearchEntry): number => {
+      if (entry.connectable === true) {
+        return 2;
+      }
+      if (entry.connectable === false) {
+        return 0;
+      }
+      return 1;
+    };
+    return rank(b) - rank(a);
+  });
   const attempted: string[] = [];
   const warnings: string[] = [];
 
-  for (const entry of entries) {
+  for (const entry of prioritizedEntries) {
     const normalizedId = normalizeMarketplaceId(entry.provider, entry.id);
     const appId = entry.appIdSuggestion;
     attempted.push(`${entry.provider}:${entry.id}`);
+
+    if (entry.connectable === false) {
+      warnings.push(
+        `${entry.provider}:${entry.id}: skipped because no request/response HTTP MCP endpoint was advertised`
+      );
+      continue;
+    }
 
     if (!downstreamAppRegistry.has(appId)) {
       try {
@@ -2347,6 +2481,10 @@ async function autoConnectAndResolveToolMatch(options: {
           appId,
           overwrite: false,
           restrictToCatalogTools: true,
+          resolvedTitle: entry.title,
+          resolvedDescription: entry.description,
+          resolvedSourceUrl: entry.sourceUrl,
+          resolvedMcpUrl: entry.resolvedMcpUrl,
         });
       } catch (connectError) {
         warnings.push(`${entry.provider}:${entry.id}: ${errorMessage(connectError)}`);
@@ -2361,7 +2499,7 @@ async function autoConnectAndResolveToolMatch(options: {
           ...matches[0],
           source: "auto_connected",
         },
-        entries,
+        entries: prioritizedEntries,
         attempted,
         warnings,
       };
@@ -2369,7 +2507,7 @@ async function autoConnectAndResolveToolMatch(options: {
   }
 
   return {
-    entries,
+    entries: prioritizedEntries,
     attempted,
     warnings,
   };
@@ -2656,6 +2794,7 @@ async function executeMarketplaceControlTool(
       throw new Error(`Downstream app "${appId}" is not marketplace-managed.`);
     }
     downstreamAppRegistry.delete(appId);
+    clearDownstreamToolsCache(appId);
     return localToolResult({
       ok: true,
       action: "disconnect",
@@ -3527,7 +3666,7 @@ async function handleMcpFirewallProxy(c: {
         );
       }
 
-      const listed = await listToolsFromDownstream(target.app);
+      const listed = await listToolsFromDownstreamCached(target.app);
       const toolsRaw = listed.tools.map((tool) => ({
         name: tool.name,
         ...(tool.description ? { description: tool.description } : {}),
@@ -5742,6 +5881,7 @@ server.app.post("/api/smithery/downstream/register", async (c) => {
   };
 
   downstreamAppRegistry.set(appId, app);
+  clearDownstreamToolsCache(appId);
   return c.json({
     ok: true,
     source: "smithery",
@@ -5793,6 +5933,7 @@ server.app.post("/api/smithery/downstream/unregister", async (c) => {
   }
 
   downstreamAppRegistry.delete(appId);
+  clearDownstreamToolsCache(appId);
   return c.json({
     ok: true,
     source: "smithery",
@@ -6011,6 +6152,7 @@ server.app.post("/api/marketplace/disconnect", async (c) => {
   }
 
   downstreamAppRegistry.delete(appId);
+  clearDownstreamToolsCache(appId);
   return c.json({
     ok: true,
     action: "disconnect",
@@ -6052,7 +6194,10 @@ server.get("/api/downstream/tools", async (c) => {
   }
 
   try {
-    const listed = await listToolsFromDownstream(app);
+    const refresh = c.req.query("refresh") === "true";
+    const listed = await listToolsFromDownstreamCached(app, {
+      forceRefresh: refresh,
+    });
     return c.json({
       appId: app.id,
       toolCount: listed.tools.length,
@@ -6624,6 +6769,24 @@ server.app.post("/api/demo/sync", async (c) => {
     });
   }
 
+  const ingestMode =
+    trace.metadata && typeof trace.metadata.ingestMode === "string"
+      ? String(trace.metadata.ingestMode).toLowerCase()
+      : undefined;
+  if (ingestMode === "push") {
+    return c.json({
+      ok: true,
+      action: "sync",
+      traceId: trace.id,
+      sessionId: trace.sessionId,
+      source: trace.source,
+      synced: false,
+      reason: "Trace is push-ingested; bridge sync skipped.",
+      stepCount: trace.steps.length,
+      status: trace.status,
+    });
+  }
+
   const metadataBridgeUrl =
     trace.metadata && typeof trace.metadata.bridgeUrl === "string"
       ? String(trace.metadata.bridgeUrl)
@@ -6643,6 +6806,29 @@ server.app.post("/api/demo/sync", async (c) => {
       token: bridgeTarget.token,
     });
     const previousStepCount = trace.steps.length;
+    // Preserve push-ingested/manual steps when bridge sync returns no events.
+    if (latest.steps.length === 0) {
+      const report = auditAndPersist(trace, {
+        useCommunityBaseline: asBoolean(body.useCommunityBaseline, true),
+        threshold: asNumber(body.threshold),
+      });
+      return c.json({
+        ok: true,
+        action: "sync",
+        traceId: trace.id,
+        sessionId: trace.sessionId,
+        source: trace.source,
+        synced: true,
+        addedSteps: 0,
+        stepCount: trace.steps.length,
+        overallRiskScore: report.overallRiskScore,
+        severity: report.severity,
+        status: trace.status,
+        bridgeUrl: bridgeTarget.bridgeUrl,
+        bridgeLocked: bridgeTarget.overrideLocked,
+        note: "Bridge returned no events; preserved existing trace steps.",
+      });
+    }
     const merged = mergeLiveOpenClawTrace(trace, latest);
     upsertTraceForCurrentOwner(merged);
     const report = auditAndPersist(merged, {
@@ -7700,7 +7886,7 @@ server.tool(
     }
 
     try {
-      const listed = await listToolsFromDownstream(app);
+      const listed = await listToolsFromDownstreamCached(app);
       return object({
         appId: app.id,
         requestId: listed.requestId,

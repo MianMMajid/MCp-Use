@@ -32,6 +32,7 @@ export interface McpSoSearchResult {
   tags: string[];
   sourceUrl: string;
   sseUrl?: string;
+  resolvedMcpUrl?: string;
   allowCall?: boolean;
   serverConfig?: string;
 }
@@ -277,6 +278,22 @@ function normalizeUrlCandidate(raw?: string | null): string | undefined {
   }
 }
 
+function looksLikeSseEndpoint(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (/(^|\/)sse(\/|$)/i.test(parsed.pathname)) {
+      return true;
+    }
+    const transport = parsed.searchParams.get("transport");
+    if (transport && transport.trim().toLowerCase() === "sse") {
+      return true;
+    }
+    return false;
+  } catch {
+    return /(^|\/)sse(\/|$)/i.test(url);
+  }
+}
+
 export function toMcpSoDownstreamAppId(slug: string): string {
   const normalized = slug
     .toLowerCase()
@@ -296,12 +313,12 @@ export function resolveMcpSoDeploymentUrl(server: Pick<
   McpSoServer,
   "sse_url" | "server_config" | "server_command" | "url"
 >): string | undefined {
+  const candidates: string[] = [];
   const explicitSse = normalizeUrlCandidate(server.sse_url);
   if (explicitSse) {
-    return explicitSse;
+    candidates.push(explicitSse);
   }
 
-  const candidates: string[] = [];
   const config = asString(server.server_config);
   if (config) {
     try {
@@ -346,9 +363,14 @@ export function resolveMcpSoDeploymentUrl(server: Pick<
     candidates.push(homepage);
   }
 
+  const seen = new Set<string>();
   for (const candidate of candidates) {
     const normalized = normalizeUrlCandidate(candidate);
-    if (normalized) {
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    if (!looksLikeSseEndpoint(normalized)) {
       return normalized;
     }
   }
@@ -380,6 +402,7 @@ function toSearchResult(baseUrl: string, project: McpSoServer): McpSoSearchResul
     tags: parseTags(asString(project.tags)),
     sourceUrl,
     sseUrl: normalizeUrlCandidate(project.sse_url),
+    resolvedMcpUrl: resolveMcpSoDeploymentUrl(project),
     allowCall: asBoolean(project.allow_call),
     serverConfig: asString(project.server_config),
   };
