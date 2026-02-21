@@ -160,11 +160,17 @@ const metricEls = {
   highRiskDetections: document.getElementById("highRiskDetections"),
 };
 
-const TRACE_POLL_MS = 1500;
-const METRICS_POLL_MS = 10000;
+const TRACE_POLL_MS = 5000;
+const METRICS_POLL_MS = 30000;
+const POLL_BACKOFF_MAX_MS = 60000;
+const POLL_BACKOFF_BASE_MS = 5000;
+const CONNECT_RETRY_MAX = 5;
 const authModule = typeof window !== "undefined" ? window.MapleAuth : undefined;
 const httpModule = typeof window !== "undefined" ? window.MapleHttp : undefined;
 const API_KEY_STORAGE_KEY = authModule?.STORAGE_KEY ?? "maple_judge_api_key";
+let pollErrorCount = 0;
+let connectRetryCount = 0;
+let connectRetryTimer = undefined;
 
 const state = {
   activeView: "live",
@@ -344,31 +350,11 @@ function setPollState(stateKey, message) {
 }
 
 function resolveApiKeyFromSession() {
-  if (authModule?.resolveApiKeyFromSession) {
-    return authModule.resolveApiKeyFromSession();
-  }
-  const sessionKey = sessionStorage.getItem(API_KEY_STORAGE_KEY);
-  if (typeof sessionKey === "string" && sessionKey.trim()) {
-    return sessionKey.trim();
-  }
-  const localKey = localStorage.getItem(API_KEY_STORAGE_KEY);
-  if (typeof localKey === "string" && localKey.trim()) {
-    const normalized = localKey.trim();
-    sessionStorage.setItem(API_KEY_STORAGE_KEY, normalized);
-    return normalized;
-  }
-  return "";
+  return authModule.resolveApiKeyFromSession();
 }
 
 function headersWithKey() {
-  if (authModule?.headersWithKey) {
-    return authModule.headersWithKey();
-  }
-  const key = resolveApiKeyFromSession();
-  if (!key) {
-    return {};
-  }
-  return { "x-api-key": key };
+  return authModule.headersWithKey();
 }
 
 function escapeHtml(value) {
@@ -812,49 +798,11 @@ function updateMcpSnippet() {
 }
 
 async function fetchJson(path) {
-  if (httpModule?.fetchJson) {
-    return httpModule.fetchJson(path);
-  }
-  const response = await fetch(path, {
-    headers: {
-      ...headersWithKey(),
-    },
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const reason = payload?.reason ? ` (${payload.reason})` : "";
-    throw new Error(`HTTP ${response.status}${reason}`);
-  }
-
-  return payload;
+  return httpModule.fetchJson(path);
 }
 
 async function postJson(path, body) {
-  if (httpModule?.postJson) {
-    return httpModule.postJson(path, body);
-  }
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...headersWithKey(),
-    },
-    body: JSON.stringify(body ?? {}),
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const reason =
-      typeof payload?.error === "string"
-        ? ` (${payload.error})`
-        : payload?.reason
-          ? ` (${payload.reason})`
-          : "";
-    throw new Error(`HTTP ${response.status}${reason}`);
-  }
-
-  return payload;
+  return httpModule.postJson(path, body);
 }
 
 function setFirewallChatBusy(busy) {
@@ -1081,6 +1029,7 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
 
     const response = await fetch("/api/chat/stream", {
       method: "POST",
+      credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
         ...headersWithKey(),
@@ -2649,9 +2598,26 @@ function handleRefreshError(context, error, silent) {
     return;
   }
 
+  pollErrorCount++;
+  if (pollErrorCount >= 5) {
+    const backoffMs = Math.min(POLL_BACKOFF_BASE_MS * Math.pow(2, pollErrorCount - 5), POLL_BACKOFF_MAX_MS);
+    const backoffSec = Math.round(backoffMs / 1000);
+    setPollState("error", `Polling paused — retrying in ${backoffSec}s.`);
+    stopPolling();
+    setTimeout(() => {
+      setPollState("live", "Resuming polling...");
+      startPolling();
+    }, backoffMs);
+    return;
+  }
+
   if (!silent) {
     setPollState("error", "Polling encountered an error.");
   }
+}
+
+function resetPollErrors() {
+  pollErrorCount = 0;
 }
 
 function ensureSelectedTraceId(traces) {
@@ -2749,6 +2715,7 @@ async function refreshTracePanels({ silent = false } = {}) {
     renderStepInspector(trace, state.selectedStepIndex);
     await loadFirewallState({ silent: true }).catch(() => {});
 
+    resetPollErrors();
     if (!silent) {
       setStatus("Connected.", "ok");
     }
@@ -2782,11 +2749,15 @@ function stopPolling() {
     window.clearInterval(metricsPollTimer);
     metricsPollTimer = undefined;
   }
+  if (connectRetryTimer) {
+    clearTimeout(connectRetryTimer);
+    connectRetryTimer = undefined;
+  }
 }
 
 function startPolling() {
   stopPolling();
-  setPollState("live", "Polling traces every 1.5s.");
+  setPollState("live", "Polling traces every 5s.");
 
   tracePollTimer = window.setInterval(() => {
     refreshTracePanels({ silent: true }).catch((error) => handleRefreshError("poll trace", error, true));
@@ -2837,7 +2808,7 @@ async function searchMarketplace() {
       params.set("provider", provider);
     }
     const data = await httpModule.fetchJson(`/api/marketplace/search?${params.toString()}`);
-    state.marketplaceSearchResults = data.results ?? [];
+    state.marketplaceSearchResults = data.entries ?? [];
     renderMarketplaceResults();
   } catch (error) {
     if (marketplaceResultsBody) {
@@ -2855,7 +2826,7 @@ function renderMarketplaceResults() {
   }
   marketplaceResultsBody.innerHTML = results.map((r) => `
     <tr>
-      <td>${escapeHtml(r.name ?? r.id ?? "-")}</td>
+      <td>${escapeHtml(r.title ?? r.id ?? "-")}</td>
       <td>${escapeHtml(r.provider ?? "-")}</td>
       <td>${escapeHtml(trim(r.description ?? "-", 80))}</td>
       <td><button class="demo-btn" data-connect-id="${escapeHtml(r.id ?? "")}" data-connect-provider="${escapeHtml(r.provider ?? "")}">Connect</button></td>
@@ -2902,7 +2873,7 @@ function renderMarketplaceConnected() {
     <tr>
       <td class="mono">${escapeHtml(shortId(app.appId ?? app.id ?? "-", 16))}</td>
       <td>${escapeHtml(app.name ?? "-")}</td>
-      <td class="mono">${escapeHtml(trim(app.url ?? "-", 50))}</td>
+      <td class="mono">${escapeHtml(trim(app.mcpUrl ?? "-", 50))}</td>
       <td><button class="demo-btn" data-disconnect-id="${escapeHtml(app.appId ?? app.id ?? "")}">Disconnect</button></td>
     </tr>
   `).join("");
@@ -2927,8 +2898,25 @@ async function disconnectMarketplaceApp(appId) {
 
 async function refreshMarketplaceTools() {
   try {
-    const data = await httpModule.fetchJson("/api/downstream/tools");
-    state.marketplaceTools = data.tools ?? [];
+    const apps = state.marketplaceConnectedApps;
+    if (!apps.length) {
+      state.marketplaceTools = [];
+      renderMarketplaceTools();
+      return;
+    }
+    const allTools = [];
+    for (const app of apps) {
+      const appId = app.appId ?? app.id;
+      if (!appId) continue;
+      try {
+        const data = await httpModule.fetchJson(`/api/downstream/tools?appId=${encodeURIComponent(appId)}`);
+        const tools = (data.tools ?? []).map((t) => ({ ...t, appId }));
+        allTools.push(...tools);
+      } catch {
+        /* skip apps that fail to list tools */
+      }
+    }
+    state.marketplaceTools = allTools;
     renderMarketplaceTools();
   } catch {
     state.marketplaceTools = [];
@@ -2997,10 +2985,10 @@ function buildPolicyStep() {
 async function previewPolicyDecision() {
   const step = buildPolicyStep();
   const body = {
-    step,
+    ...step,
     traceId: policyTraceIdInput?.value?.trim() || undefined,
     sessionId: policySessionIdInput?.value?.trim() || undefined,
-    mode: "preview",
+    enforce: false,
   };
   try {
     const result = await httpModule.postJson("/api/firewall/decision", body);
@@ -3013,10 +3001,10 @@ async function previewPolicyDecision() {
 async function enforcePolicyDecision() {
   const step = buildPolicyStep();
   const body = {
-    step,
+    ...step,
     traceId: policyTraceIdInput?.value?.trim() || undefined,
     sessionId: policySessionIdInput?.value?.trim() || undefined,
-    mode: "enforce",
+    enforce: true,
   };
   try {
     const result = await httpModule.postJson("/api/firewall/decision", body);
@@ -3093,24 +3081,33 @@ async function connectAndRefresh() {
   try {
     await Promise.all([refreshTracePanels(), refreshMetrics()]);
     state.authenticated = true;
-    const key = resolveApiKeyFromSession();
-    if (key) {
-      sessionStorage.setItem(API_KEY_STORAGE_KEY, key);
-    }
+    connectRetryCount = 0;
     startPolling();
     loadBridgeSessions();
     refreshAdminPanels();
   } catch (error) {
-    const msg = String(error?.message ?? "");
-    if (msg.includes("401") || msg.includes("403")) {
+    const status = error?.status;
+    if (status === 401 || status === 403) {
       state.authenticated = false;
+      connectRetryCount = 0;
       stopPolling();
       clearLivePanels("Sign in required. Open /landing to authenticate.");
       renderCommunityTraces([]);
       setPollState("error", "Authentication required.");
       setStatus("Sign in required. Open /landing and sign in.", "error");
     } else {
-      handleRefreshError("connect", error, false);
+      connectRetryCount++;
+      if (connectRetryCount <= CONNECT_RETRY_MAX) {
+        const delayMs = Math.min(POLL_BACKOFF_BASE_MS * Math.pow(2, connectRetryCount - 1), POLL_BACKOFF_MAX_MS);
+        const delaySec = Math.round(delayMs / 1000);
+        setPollState("error", `Connection failed — retrying in ${delaySec}s (${connectRetryCount}/${CONNECT_RETRY_MAX}).`);
+        setStatus(`Connection failed: ${parseErrorMessage(error)}. Retrying in ${delaySec}s...`, "error");
+        if (connectRetryTimer) clearTimeout(connectRetryTimer);
+        connectRetryTimer = setTimeout(() => connectAndRefresh(), delayMs);
+      } else {
+        setPollState("error", "Connection failed. Refresh the page to try again.");
+        setStatus(`Connection failed after ${CONNECT_RETRY_MAX} attempts: ${parseErrorMessage(error)}`, "error");
+      }
     }
   }
 }
@@ -4005,11 +4002,7 @@ try {
   if (logoutBtn instanceof HTMLButtonElement) {
     logoutBtn.addEventListener("click", async () => {
       try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: headersWithKey(),
-        });
+        await authModule.logout();
       } catch {
         // Best-effort logout
       }

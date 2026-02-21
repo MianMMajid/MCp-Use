@@ -9,9 +9,15 @@
     }
   }
 
+  function httpError(status, message) {
+    const err = new Error(message);
+    err.status = status;
+    return err;
+  }
+
   async function fetchJson(path) {
     const response = await fetch(path, {
-      credentials: "include",
+      credentials: "same-origin",
       headers: {
         ...(auth?.headersWithKey?.() ?? {}),
       },
@@ -20,7 +26,7 @@
     const payload = await readJson(response);
     if (!response.ok) {
       const reason = payload?.reason ? ` (${payload.reason})` : "";
-      throw new Error(`HTTP ${response.status}${reason}`);
+      throw httpError(response.status, `HTTP ${response.status}${reason}`);
     }
 
     return payload;
@@ -29,7 +35,7 @@
   async function postJson(path, body) {
     const response = await fetch(path, {
       method: "POST",
-      credentials: "include",
+      credentials: "same-origin",
       headers: {
         "content-type": "application/json",
         ...(auth?.headersWithKey?.() ?? {}),
@@ -45,7 +51,7 @@
           : payload?.reason
             ? ` (${payload.reason})`
             : "";
-      throw new Error(`HTTP ${response.status}${reason}`);
+      throw httpError(response.status, `HTTP ${response.status}${reason}`);
     }
 
     return payload;

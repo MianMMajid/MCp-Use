@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { GuardAction, Trace, TraceStep } from "./types.js";
 
+/** Pass as ownerKeyFingerprint to explicitly bypass owner scoping (e.g. when auth is disabled). */
+export const OWNER_SCOPE_BYPASS = "__owner_bypass__";
+
 interface TraceStoreOptions {
   maxTraces?: number;
   maxTracesPerSession?: number;
@@ -137,7 +140,7 @@ export class TraceStore {
   }
 
   listSessionIds(ownerKeyFingerprint?: string): string[] {
-    if (!ownerKeyFingerprint) {
+    if (ownerKeyFingerprint === OWNER_SCOPE_BYPASS || !ownerKeyFingerprint) {
       return [...this.sessionIndex.keys()];
     }
     return [...this.sessionIndex.entries()]
@@ -212,8 +215,11 @@ export class TraceStore {
   }
 
   private matchesOwner(trace: Trace, ownerKeyFingerprint?: string): boolean {
-    if (!ownerKeyFingerprint) {
+    if (ownerKeyFingerprint === OWNER_SCOPE_BYPASS) {
       return true;
+    }
+    if (!ownerKeyFingerprint) {
+      return !trace.ownerKeyFingerprint;
     }
     return trace.ownerKeyFingerprint === ownerKeyFingerprint;
   }

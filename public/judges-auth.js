@@ -60,7 +60,7 @@
   async function checkSession() {
     try {
       const response = await fetch("/api/auth/me", {
-        credentials: "include",
+        credentials: "same-origin",
       });
       if (!response.ok) {
         sessionStorage.removeItem(SESSION_KEY);
@@ -83,7 +83,7 @@
     try {
       await fetch("/api/auth/logout", {
         method: "POST",
-        credentials: "include",
+        credentials: "same-origin",
       });
     } finally {
       sessionStorage.removeItem(SESSION_KEY);
