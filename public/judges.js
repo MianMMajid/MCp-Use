@@ -182,7 +182,7 @@ const state = {
   ycMetrics: null,
   authenticated: false,
   runtimeStatus: null,
-  marketplaceProviders: [],
+  marketplaceProviders: {},
   marketplaceSearchResults: [],
   marketplaceConnectedApps: [],
   marketplaceTools: [],
@@ -2817,77 +2817,83 @@ async function loadBridgeSessions() {
 /* ── Admin: Marketplace handlers ── */
 
 async function refreshMarketplaceProviders() {
-  try {
-    const data = await httpModule.fetchJson("/api/marketplace/providers");
-    state.marketplaceProviders = data.providers ?? [];
-  } catch {
-    state.marketplaceProviders = [];
+  // Marketplace execution is disabled in hackathon mode; tab is repurposed to show fixed local tools.
+  state.marketplaceProviders = {
+    hackathon: {
+      enabled: true,
+      source: "local_downstream_apps",
+    },
+  };
+}
+
+function filterMarketplaceTools(query) {
+  const normalized = String(query ?? "").trim().toLowerCase();
+  const tools = Array.isArray(state.marketplaceTools) ? state.marketplaceTools : [];
+  if (!normalized) {
+    return tools;
   }
+  return tools.filter((tool) => {
+    const haystack = [
+      tool?.name,
+      tool?.description,
+      tool?.appId,
+    ]
+      .map((value) => String(value ?? "").toLowerCase())
+      .join(" ");
+    return haystack.includes(normalized);
+  });
 }
 
 async function searchMarketplace() {
   const query = marketplaceSearchInput?.value?.trim() ?? "";
-  const provider = marketplaceProviderSelect?.value ?? "all";
-  if (!query) {
-    return;
+  if (!state.marketplaceTools.length) {
+    await refreshMarketplaceTools();
   }
-  try {
-    const params = new URLSearchParams({ query });
-    if (provider !== "all") {
-      params.set("provider", provider);
-    }
-    const data = await httpModule.fetchJson(`/api/marketplace/search?${params.toString()}`);
-    state.marketplaceSearchResults = data.results ?? [];
-    renderMarketplaceResults();
-  } catch (error) {
-    if (marketplaceResultsBody) {
-      marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">Search failed: ${escapeHtml(error.message)}</td></tr>`;
-    }
-  }
+  state.marketplaceSearchResults = filterMarketplaceTools(query);
+  renderMarketplaceResults();
 }
 
 function renderMarketplaceResults() {
   if (!marketplaceResultsBody) return;
-  const results = state.marketplaceSearchResults;
+  const results = Array.isArray(state.marketplaceSearchResults) ? state.marketplaceSearchResults : [];
   if (!results.length) {
-    marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No results found.</td></tr>`;
+    marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No installed tools found.</td></tr>`;
     return;
   }
   marketplaceResultsBody.innerHTML = results.map((r) => `
     <tr>
-      <td>${escapeHtml(r.name ?? r.id ?? "-")}</td>
-      <td>${escapeHtml(r.provider ?? "-")}</td>
+      <td class="mono">${escapeHtml(r.name ?? "-")}</td>
+      <td class="mono">${escapeHtml(shortId(r.appId ?? "-", 16))}</td>
       <td>${escapeHtml(trim(r.description ?? "-", 80))}</td>
-      <td><button class="demo-btn" data-connect-id="${escapeHtml(r.id ?? "")}" data-connect-provider="${escapeHtml(r.provider ?? "")}">Connect</button></td>
+      <td><button class="demo-btn" data-dispatch-tool="${escapeHtml(r.name ?? "")}" data-dispatch-app="${escapeHtml(r.appId ?? "")}">Dispatch</button></td>
     </tr>
   `).join("");
 
-  marketplaceResultsBody.querySelectorAll("[data-connect-id]").forEach((btn) => {
+  marketplaceResultsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-connect-id");
-      const provider = btn.getAttribute("data-connect-provider");
-      await connectMarketplaceApp(id, provider);
+      const name = btn.getAttribute("data-dispatch-tool");
+      const appId = btn.getAttribute("data-dispatch-app") ?? "";
+      if (dispatchToolNameInput instanceof HTMLInputElement) {
+        dispatchToolNameInput.value = name ?? "";
+        dispatchToolNameInput.dataset.appId = appId;
+      }
     });
   });
 }
 
 async function connectMarketplaceApp(serverId, provider) {
-  try {
-    await httpModule.postJson("/api/marketplace/connect", { serverId, provider });
-    await refreshMarketplaceConnected();
-    await refreshMarketplaceTools();
-  } catch (error) {
-    setStatus(`Connect failed: ${error.message}`, "error");
-  }
+  setStatus("Marketplace connect is disabled in canonical hackathon mode.", "error");
 }
 
 async function refreshMarketplaceConnected() {
   try {
-    const data = await httpModule.fetchJson("/api/marketplace/connected");
-    state.marketplaceConnectedApps = data.apps ?? [];
+    const data = await httpModule.fetchJson("/api/downstream/apps");
+    const apps = Array.isArray(data?.apps) ? data.apps : [];
+    state.marketplaceConnectedApps = apps.filter((app) => app?.enabled !== false);
     renderMarketplaceConnected();
   } catch {
     state.marketplaceConnectedApps = [];
+    renderMarketplaceConnected();
   }
 }
 
@@ -2900,38 +2906,60 @@ function renderMarketplaceConnected() {
   }
   marketplaceConnectedBody.innerHTML = apps.map((app) => `
     <tr>
-      <td class="mono">${escapeHtml(shortId(app.appId ?? app.id ?? "-", 16))}</td>
+      <td class="mono">${escapeHtml(shortId(app.id ?? "-", 16))}</td>
       <td>${escapeHtml(app.name ?? "-")}</td>
-      <td class="mono">${escapeHtml(trim(app.url ?? "-", 50))}</td>
-      <td><button class="demo-btn" data-disconnect-id="${escapeHtml(app.appId ?? app.id ?? "")}">Disconnect</button></td>
+      <td class="mono">${escapeHtml(trim(app.mcpUrl ?? "-", 50))}</td>
+      <td>${escapeHtml(app.id === "toolhub" ? "route-locked" : "available")}</td>
     </tr>
   `).join("");
-
-  marketplaceConnectedBody.querySelectorAll("[data-disconnect-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const appId = btn.getAttribute("data-disconnect-id");
-      await disconnectMarketplaceApp(appId);
-    });
-  });
 }
 
 async function disconnectMarketplaceApp(appId) {
-  try {
-    await httpModule.postJson("/api/marketplace/disconnect", { appId });
-    await refreshMarketplaceConnected();
-    await refreshMarketplaceTools();
-  } catch (error) {
-    setStatus(`Disconnect failed: ${error.message}`, "error");
-  }
+  setStatus("Marketplace disconnect is disabled in canonical hackathon mode.", "error");
 }
 
 async function refreshMarketplaceTools() {
   try {
-    const data = await httpModule.fetchJson("/api/downstream/tools");
-    state.marketplaceTools = data.tools ?? [];
+    let apps = Array.isArray(state.marketplaceConnectedApps) ? state.marketplaceConnectedApps : [];
+    if (!apps.length) {
+      const connected = await httpModule.fetchJson("/api/downstream/apps");
+      apps = Array.isArray(connected.apps) ? connected.apps : [];
+      state.marketplaceConnectedApps = apps;
+      renderMarketplaceConnected();
+    }
+
+    const collected = [];
+    for (const app of apps) {
+      const appId = app?.appId ?? app?.id;
+      if (!appId) {
+        continue;
+      }
+      try {
+        const data = await httpModule.fetchJson(
+          `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
+        );
+        const tools = Array.isArray(data?.tools) ? data.tools : [];
+        for (const tool of tools) {
+          collected.push({
+            ...tool,
+            appId: tool?.appId ?? appId,
+          });
+        }
+      } catch {
+        // Keep rendering other apps if one tools/list call fails.
+      }
+    }
+
+    state.marketplaceTools = collected;
+    const query = marketplaceSearchInput?.value?.trim() ?? "";
+    state.marketplaceSearchResults = filterMarketplaceTools(query);
+    renderMarketplaceResults();
     renderMarketplaceTools();
   } catch {
     state.marketplaceTools = [];
+    state.marketplaceSearchResults = [];
+    renderMarketplaceResults();
+    renderMarketplaceTools();
   }
 }
 
@@ -2947,14 +2975,18 @@ function renderMarketplaceTools() {
       <td class="mono">${escapeHtml(tool.name ?? "-")}</td>
       <td class="mono">${escapeHtml(shortId(tool.appId ?? "-", 16))}</td>
       <td>${escapeHtml(trim(tool.description ?? "-", 60))}</td>
-      <td><button class="demo-btn" data-dispatch-tool="${escapeHtml(tool.name ?? "")}">Dispatch</button></td>
+      <td><button class="demo-btn" data-dispatch-tool="${escapeHtml(tool.name ?? "")}" data-dispatch-app="${escapeHtml(tool.appId ?? "")}">Dispatch</button></td>
     </tr>
   `).join("");
 
   marketplaceToolsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const name = btn.getAttribute("data-dispatch-tool");
-      if (dispatchToolNameInput) dispatchToolNameInput.value = name;
+      const appId = btn.getAttribute("data-dispatch-app") ?? "";
+      if (dispatchToolNameInput instanceof HTMLInputElement) {
+        dispatchToolNameInput.value = name ?? "";
+        dispatchToolNameInput.dataset.appId = appId;
+      }
     });
   });
 }
@@ -2962,6 +2994,12 @@ function renderMarketplaceTools() {
 async function dispatchTool() {
   const toolName = dispatchToolNameInput?.value?.trim() ?? "";
   const argsRaw = dispatchToolArgsInput?.value?.trim() ?? "{}";
+  const selectedAppId =
+    dispatchToolNameInput instanceof HTMLInputElement
+      ? dispatchToolNameInput.dataset.appId?.trim() ?? ""
+      : "";
+  const runtimeStatus = state.runtimeStatus?.status ?? state.runtimeStatus ?? {};
+  const routeLockEnabled = runtimeStatus?.routeLock === true;
   if (!toolName) {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: "Tool name required." }, null, 2);
     return;
@@ -2974,7 +3012,12 @@ async function dispatchTool() {
     return;
   }
   try {
-    const result = await httpModule.postJson("/api/downstream/dispatch", { toolName, arguments: args });
+    const body = {
+      toolName,
+      arguments: args,
+      ...(selectedAppId && !routeLockEnabled ? { appId: selectedAppId } : {}),
+    };
+    const result = await httpModule.postJson("/api/downstream/dispatch", body);
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
@@ -3909,6 +3952,11 @@ if (marketplaceSearchBtn instanceof HTMLButtonElement) {
 if (marketplaceSearchInput instanceof HTMLInputElement) {
   marketplaceSearchInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") searchMarketplace();
+  });
+}
+if (dispatchToolNameInput instanceof HTMLInputElement) {
+  dispatchToolNameInput.addEventListener("input", () => {
+    delete dispatchToolNameInput.dataset.appId;
   });
 }
 if (dispatchToolBtn instanceof HTMLButtonElement) {

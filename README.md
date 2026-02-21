@@ -178,13 +178,20 @@ await logger.logAction({
 
 ### Hackathon Gateway Mode (9 Curated MCP Tools)
 
-If you want Maple to be the single routing gateway for agent web + utility calls, run:
+Canonical startup (local + Railway) for single-source hackathon routing:
+
+```bash
+npm start
+```
+
+Equivalent local alias:
 
 ```bash
 npm run hackathon:up
 ```
 
 This starts a local downstream MCP app (`toolhub`) and route-locks Maple so all downstream calls go through it.
+Marketplace mode is canonically disabled in this build; execution only routes through cleared downstream apps.
 
 Included tools (diverse coverage):
 

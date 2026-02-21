@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 MAPLE_TOOLHUB_PORT="${MAPLE_TOOLHUB_PORT:-8788}"
+MAPLE_PORT="${PORT:-3000}"
 TOOLHUB_PID_FILE="${ROOT_DIR}/.mcp-use/hackathon-toolhub.pid"
 
 kill_port() {
@@ -28,5 +29,5 @@ if [ -f "${TOOLHUB_PID_FILE}" ]; then
   rm -f "${TOOLHUB_PID_FILE}"
 fi
 
-kill_port 3000
+kill_port "${MAPLE_PORT}"
 kill_port "${MAPLE_TOOLHUB_PORT}"
