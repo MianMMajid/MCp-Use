@@ -229,15 +229,19 @@ const mcpExecutionOrderAppIds = String(process.env.MAPLE_MCP_EXECUTION_ORDER ?? 
   .split(",")
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
+const marketplaceHardDisabled = true;
 const mcpMarketplaceEnabled =
-  String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "1").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "1").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "0").trim().toLowerCase() === "1");
 const mcpMarketplaceAutoConnectEnabled =
-  String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "1").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "1").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "0").trim().toLowerCase() === "1");
 const smitheryEnabled =
-  String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "1");
 const smitheryApiBaseUrl =
   asString(process.env.MAPLE_SMITHERY_API_BASE_URL) ?? "https://api.smithery.ai";
 const smitheryApiKey = asString(process.env.MAPLE_SMITHERY_API_KEY);
@@ -246,8 +250,9 @@ const smitheryTimeoutMs = Number.isFinite(smitheryTimeoutMsRaw)
   ? Math.max(1_000, Math.min(60_000, smitheryTimeoutMsRaw))
   : 12_000;
 const mcpSoEnabled =
-  String(process.env.MAPLE_MCPSO_ENABLED ?? "1").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_MCPSO_ENABLED ?? "1").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_MCPSO_ENABLED ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_MCPSO_ENABLED ?? "0").trim().toLowerCase() === "1");
 const mcpSoBaseUrl = asString(process.env.MAPLE_MCPSO_BASE_URL) ?? "https://mcp.so";
 const mcpSoTimeoutMsRaw = Number.parseInt(String(process.env.MAPLE_MCPSO_TIMEOUT_MS ?? "12000"), 10);
 const mcpSoTimeoutMs = Number.isFinite(mcpSoTimeoutMsRaw)
@@ -5947,6 +5952,15 @@ server.get("/api/marketplace/providers", (c) => {
   if (unauthorized) {
     return unauthorized;
   }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
+  }
 
   return c.json({
     providers: {
@@ -5966,6 +5980,15 @@ server.get("/api/marketplace/search", async (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
+  }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
   }
 
   const provider = parseMarketplaceProvider(c.req.query("provider")) ?? "all";
@@ -6001,6 +6024,15 @@ server.get("/api/marketplace/connected", (c) => {
   if (unauthorized) {
     return unauthorized;
   }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
+  }
 
   const provider = parseMarketplaceProvider(c.req.query("provider")) ?? "all";
   const apps = listDownstreamApps(downstreamAppRegistry, true)
@@ -6032,6 +6064,15 @@ server.app.post("/api/marketplace/connect", async (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
+  }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
   }
 
   const body = await readJsonBody(c);
@@ -6118,6 +6159,15 @@ server.app.post("/api/marketplace/disconnect", async (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
+  }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
   }
 
   const body = await readJsonBody(c);
@@ -6225,10 +6275,10 @@ server.get("/api/marketplace/catalog", async (c) => {
   if (!mcpMarketplaceEnabled) {
     return c.json(
       {
-        error: "Marketplace mode is disabled.",
-        hint: "Set MAPLE_MCP_MARKETPLACE_ENABLED=true.",
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
       },
-      400
+      403
     );
   }
 
