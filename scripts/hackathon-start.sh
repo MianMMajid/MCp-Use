@@ -14,6 +14,9 @@ fi
 
 MAPLE_PORT="${PORT:-3000}"
 MAPLE_TOOLHUB_PORT="${MAPLE_TOOLHUB_PORT:-8788}"
+if [ "${MAPLE_TOOLHUB_PORT}" = "${MAPLE_PORT}" ]; then
+  MAPLE_TOOLHUB_PORT="$((MAPLE_PORT + 1))"
+fi
 MAPLE_LOCAL_API_KEY="${MAPLE_LOCAL_API_KEY:-local-demo-key}"
 MAPLE_LOCAL_ADMIN_USERNAME="${MAPLE_LOCAL_ADMIN_USERNAME:-admin}"
 MAPLE_LOCAL_ADMIN_PASSWORD="${MAPLE_LOCAL_ADMIN_PASSWORD:-admin123}"
@@ -21,6 +24,7 @@ MAPLE_LOCAL_ADMIN_EMAIL="${MAPLE_LOCAL_ADMIN_EMAIL:-admin@localhost}"
 HACKATHON_OPEN_BROWSER="${HACKATHON_OPEN_BROWSER:-0}"
 HACKATHON_ENV="${HACKATHON_ENV:-production}"
 HACKATHON_TOOLHUB_HOST="${HACKATHON_TOOLHUB_HOST:-127.0.0.1}"
+MAPLE_PUBLIC_URL="${MCP_URL:-http://localhost:${MAPLE_PORT}}"
 
 is_port_open() {
   local port="$1"
@@ -77,7 +81,7 @@ export MAPLE_API_KEY="${MAPLE_API_KEY:-${MAPLE_LOCAL_API_KEY}}"
 export MAPLE_ADMIN_USERNAME="${MAPLE_ADMIN_USERNAME:-${MAPLE_LOCAL_ADMIN_USERNAME}}"
 export MAPLE_ADMIN_PASSWORD="${MAPLE_ADMIN_PASSWORD:-${MAPLE_LOCAL_ADMIN_PASSWORD}}"
 export MAPLE_ADMIN_EMAIL="${MAPLE_ADMIN_EMAIL:-${MAPLE_LOCAL_ADMIN_EMAIL}}"
-export MCP_URL="${MCP_URL:-http://localhost:${MAPLE_PORT}}"
+export MCP_URL="${MAPLE_PUBLIC_URL}"
 export NODE_ENV="${NODE_ENV:-${HACKATHON_ENV}}"
 export HOST="${HOST:-0.0.0.0}"
 export PORT="${MAPLE_PORT}"
@@ -95,10 +99,10 @@ export MAPLE_MCP_EXECUTION_ORDER=toolhub
 export MAPLE_DOWNSTREAM_APPS="[{\"id\":\"toolhub\",\"name\":\"Hackathon Toolhub\",\"description\":\"Curated local MCP tools for web, wiki, github, weather, research, books, news, and Slack messaging\",\"mcpUrl\":\"http://${HACKATHON_TOOLHUB_HOST}:${MAPLE_TOOLHUB_PORT}/mcp\",\"enabled\":true,\"timeoutMs\":15000,\"authHeader\":\"authorization\",\"authScheme\":\"raw\",\"toolAllowlist\":[\"web_search\",\"web_fetch\",\"wikipedia_summary\",\"github_repo_info\",\"weather_forecast\",\"slack_post_message\",\"hn_search\",\"arxiv_search\",\"openlibrary_search\"]}]"
 
 echo "Starting Maple hackathon gateway..."
-echo "  Maple URL:   http://localhost:${MAPLE_PORT}"
+echo "  Maple URL:   ${MCP_URL}"
 echo "  Toolhub URL: http://${HACKATHON_TOOLHUB_HOST}:${MAPLE_TOOLHUB_PORT}/mcp"
-echo "  Judge:       http://localhost:${MAPLE_PORT}/judge"
-echo "  Inspector:   http://localhost:${MAPLE_PORT}/inspector"
+echo "  Judge:       ${MCP_URL}/judge"
+echo "  Inspector:   ${MCP_URL}/inspector"
 echo ""
 echo "Gateway mode:"
 echo "  routeLock:   true"
@@ -123,9 +127,4 @@ if [ "${HACKATHON_OPEN_BROWSER}" = "1" ] && [ "${NODE_ENV}" != "production" ]; t
   ) &
 fi
 
-# On Railway / containers, env vars are injected directly — no .env file needed.
-if [ -f "${ROOT_DIR}/.env" ]; then
-  exec node --env-file=.env node_modules/.bin/mcp-use start
-else
-  exec node node_modules/.bin/mcp-use start
-fi
+exec node node_modules/.bin/mcp-use start
