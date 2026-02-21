@@ -31,6 +31,7 @@
     "demo:up": "bash scripts/demo-up.sh",
     "demo:down": "bash scripts/demo-down.sh",
     "demo:run": "node scripts/demo-generator.mjs",
+    "trace:demo": "node scripts/agent-trace-demo.mjs",
     "local:up": "bash scripts/local-up.sh",
     "local:down": "bash scripts/local-down.sh",
     "postinstall": "mcp-use generate-types || true"

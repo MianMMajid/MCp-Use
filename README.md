@@ -132,6 +132,50 @@ This uses internal demo APIs:
 
 `demo:up` also auto-opens both pages on macOS (set `DEMO_OPEN_BROWSER=0` to disable).
 
+### Single-Trace Agent Action Logging (Hackathon)
+
+For a reliable judge demo, run one stable trace and append every action to it.
+
+```bash
+MAPLE_API_KEY=local-demo-key npm run trace:demo
+```
+
+What this does:
+
+- Starts (or reuses) one trace for a stable `sessionId`
+- Logs all agent actions through `POST /api/openclaw/events` using the same `traceId`
+- Includes `type`, `actor`, `prompt/message`, `command`, `url`, `toolName`, and unique `eventId`
+- Runs a preflight firewall preview and logs Maple's block/allow message into the same trace
+
+Open `http://localhost:3000/judge`, then select the printed trace ID to see `#0, #1, #2...`.
+
+If you want to integrate this into your own runtime, use:
+
+- `scripts/maple-trace-logger.mjs`
+- `logAction(...)` for generic events
+- `logWebGet(...)`, `logMarketplaceSearch(...)`, `logMarketplaceToolCall(...)` wrappers
+
+Example:
+
+```js
+import { createMapleTraceLogger } from "./scripts/maple-trace-logger.mjs";
+
+const logger = createMapleTraceLogger({
+  baseUrl: "http://localhost:3000",
+  apiKey: process.env.MAPLE_API_KEY,
+  sessionId: "maple-live",
+});
+
+await logger.startRun({ reuseLatest: true });
+await logger.logAction({
+  type: "tool_call",
+  actor: "agent",
+  toolName: "web_get",
+  prompt: "Fetch provider docs",
+  url: "https://docs.mcp.so/providers",
+});
+```
+
 Stop local demo processes:
 
 ```bash
