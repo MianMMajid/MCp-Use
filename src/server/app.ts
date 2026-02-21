@@ -6873,8 +6873,7 @@ server.get("/.well-known/ai-plugin.json", (c) => {
       "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
     auth: {
       type: "service_http",
-      authorization_type: "custom",
-      custom_auth_header: "x-api-key",
+      authorization_type: "bearer",
       verification_tokens: {},
     },
     api: {
@@ -6955,14 +6954,13 @@ server.get("/gpt/openapi.json", async (c) => {
     paths,
     components: {
       securitySchemes: {
-        apiKey: {
-          type: "apiKey",
-          in: "header",
-          name: "x-api-key",
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
         },
       },
     },
-    security: [{ apiKey: [] }],
+    security: [{ bearerAuth: [] }],
   };
 
   gptOpenApiSpecCache = { spec, expiresAt: Date.now() + GPT_SPEC_TTL_MS };
