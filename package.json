@@ -32,6 +32,9 @@
     "demo:down": "bash scripts/demo-down.sh",
     "demo:run": "node scripts/demo-generator.mjs",
     "trace:demo": "node scripts/agent-trace-demo.mjs",
+    "hackathon:up": "bash scripts/hackathon-up.sh",
+    "hackathon:down": "bash scripts/hackathon-down.sh",
+    "hackathon:verify": "bash scripts/hackathon-verify.sh",
     "local:up": "bash scripts/local-up.sh",
     "local:down": "bash scripts/local-down.sh",
     "postinstall": "mcp-use generate-types || true"

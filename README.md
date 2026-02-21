@@ -176,6 +176,52 @@ await logger.logAction({
 });
 ```
 
+### Hackathon Gateway Mode (9 Curated MCP Tools)
+
+If you want Maple to be the single routing gateway for agent web + utility calls, run:
+
+```bash
+npm run hackathon:up
+```
+
+This starts a local downstream MCP app (`toolhub`) and route-locks Maple so all downstream calls go through it.
+
+Included tools (diverse coverage):
+
+1. `web_search` (general web search)
+2. `web_fetch` (browser-style page fetch/extraction)
+3. `wikipedia_summary` (encyclopedia knowledge)
+4. `github_repo_info` (code/repo intelligence)
+5. `weather_forecast` (real-time practical data)
+6. `slack_post_message` (messaging integration via Slack)
+7. `hn_search` (live tech/news discovery on Hacker News)
+8. `arxiv_search` (academic/research paper search)
+9. `openlibrary_search` (books and publication lookup)
+
+Slack config for `slack_post_message`:
+
+- Incoming webhook mode: set `SLACK_WEBHOOK_URL`
+- Bot mode: set `SLACK_BOT_TOKEN` and optionally `SLACK_DEFAULT_CHANNEL`
+
+Verify wiring end-to-end:
+
+```bash
+npm run hackathon:verify
+```
+
+Stop services:
+
+```bash
+npm run hackathon:down
+```
+
+Implementation files:
+
+- `scripts/hackathon-toolhub.mjs` (downstream MCP server with 9 tools)
+- `scripts/hackathon-up.sh` (starts toolhub + Maple in deterministic route-lock mode)
+- `scripts/hackathon-verify.sh` (smoke tests for routed tool calls through Maple)
+- `scripts/hackathon-down.sh` (stops Maple + toolhub)
+
 Stop local demo processes:
 
 ```bash
