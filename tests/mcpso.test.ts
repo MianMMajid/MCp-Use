@@ -14,12 +14,19 @@ test("toMcpSoDownstreamAppId is deterministic and prefixed", () => {
   assert.match(a, /^mcpso-[a-z0-9-]+$/);
 });
 
-test("resolveMcpSoDeploymentUrl prefers sse_url when available", () => {
+test("resolveMcpSoDeploymentUrl prefers request/response HTTP endpoint over sse_url", () => {
   const server: McpSoServer = {
     sse_url: "https://demo.example.com/sse",
-    server_config: "{\"mcpServers\":{\"demo\":{\"url\":\"https://ignored.example.com/mcp\"}}}",
+    server_config: "{\"mcpServers\":{\"demo\":{\"url\":\"https://preferred.example.com/mcp\"}}}",
   };
-  assert.equal(resolveMcpSoDeploymentUrl(server), "https://demo.example.com/sse");
+  assert.equal(resolveMcpSoDeploymentUrl(server), "https://preferred.example.com/mcp");
+});
+
+test("resolveMcpSoDeploymentUrl returns undefined when only SSE endpoint is available", () => {
+  const server: McpSoServer = {
+    sse_url: "https://demo.example.com/sse",
+  };
+  assert.equal(resolveMcpSoDeploymentUrl(server), undefined);
 });
 
 test("resolveMcpSoDeploymentUrl extracts URL from server_config", () => {
