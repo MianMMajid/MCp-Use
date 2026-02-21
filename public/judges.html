@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Maple AI Firewall — real-time agent trace monitoring, guardrails, and risk management." />
+    <meta name="theme-color" content="#e8740c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>Maple | Control Center</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='kg' cx='45%25' cy='38%25' r='55%25'%3E%3Cstop offset='0%25' stop-color='%23ffb366'/%3E%3Cstop offset='100%25' stop-color='%23e8740c'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='14' r='12' fill='url(%23kg)'/%3E%3Cellipse cx='12' cy='12' rx='1.8' ry='2.2' fill='%23111'/%3E%3Cellipse cx='20' cy='12' rx='1.8' ry='2.2' fill='%23111'/%3E%3Ccircle cx='12.6' cy='11.2' r='0.7' fill='white'/%3E%3Ccircle cx='20.6' cy='11.2' r='0.7' fill='white'/%3E%3Cellipse cx='9' cy='16' rx='2.4' ry='1.6' fill='%23ff9966' opacity='0.5'/%3E%3Cellipse cx='23' cy='16' rx='2.4' ry='1.6' fill='%23ff9966' opacity='0.5'/%3E%3Cpath d='M13 17.5 Q16 20 19 17.5' stroke='%23111' stroke-width='0.8' fill='none' stroke-linecap='round'/%3E%3Cellipse cx='11' cy='27' rx='3.5' ry='2.2' fill='%23d06800'/%3E%3Cellipse cx='21' cy='27' rx='3.5' ry='2.2' fill='%23d06800'/%3E%3C/svg%3E" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+    />
+    <link rel="stylesheet" href="/judges.css?v=47" />
+  </head>
+  <body class="product-body">
+    <div class="product-shell">
+      <!-- Top bar (minimal: logo + status) -->
+      <header class="top-bar">
+        <div class="top-bar-brand">
+          <svg class="kirby-mascot top-bar-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Maple mascot">
+            <defs>
+              <radialGradient id="kirbyBodyGrad-brand" cx="45%" cy="38%" r="55%">
+                <stop offset="0%" stop-color="#ffb366"/>
+                <stop offset="100%" stop-color="#e8740c"/>
+              </radialGradient>
+            </defs>
+            <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-brand)"/>
+            <g class="kirby-eye kirby-eye-left">
+              <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111"/>
+              <circle cx="81" cy="73" r="3.5" fill="white"/>
+            </g>
+            <g class="kirby-eye kirby-eye-right">
+              <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111"/>
+              <circle cx="125" cy="73" r="3.5" fill="white"/>
+            </g>
+            <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+            <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+            <path d="M85 105 Q100 120 115 105" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800"/>
+            <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800"/>
+          </svg>
+          <span class="top-bar-title">Maple</span>
+          <span id="chatModeBadge" class="chat-mode-badge rules">Rules</span>
+        </div>
+        <div class="top-bar-end">
+          <button id="firewallChatRefreshBtn" class="top-bar-icon-btn" type="button" title="Refresh Context">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M13.5 8a5.5 5.5 0 01-10.58 2.12M2.5 8a5.5 5.5 0 0110.58-2.12M13.5 3v3.5H10M2.5 13V9.5H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button id="logoutBtn" class="top-bar-icon-btn" type="button" title="Sign Out">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main area: chat-first layout -->
+      <div class="main-area">
+        <div id="status" class="status hidden" role="status" aria-live="polite">
+          <span id="pollDot" class="poll-dot"></span>
+          <span id="pollState">Connecting Maple telemetry.</span>
+        </div>
+        <div class="chat-home" id="chatHome">
+
+          <!-- Welcome state (shown before any messages, hidden when panel open) -->
+          <div class="welcome-state" id="welcomeState">
+            <svg class="kirby-mascot welcome-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Maple mascot">
+              <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-brand)"/>
+              <g class="kirby-eye kirby-eye-left">
+                <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111"/>
+                <circle cx="81" cy="73" r="3.5" fill="white"/>
+              </g>
+              <g class="kirby-eye kirby-eye-right">
+                <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111"/>
+                <circle cx="125" cy="73" r="3.5" fill="white"/>
+              </g>
+              <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+              <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+              <path d="M85 105 Q100 120 115 105" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800"/>
+              <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800"/>
+            </svg>
+            <h1 class="welcome-heading">What can I help with?</h1>
+            <p class="welcome-sub" id="firewallChatContext">No active context yet.</p>
+            <div class="welcome-pills">
+              <button type="button" class="welcome-pill" data-firewall-prompt="Give me a firewall status update.">Status Update</button>
+              <button type="button" class="welcome-pill" data-firewall-prompt="Why was this trace blocked?">Why Blocked?</button>
+              <button type="button" class="welcome-pill" data-firewall-prompt="What should we do next to reduce risk?">Next Action</button>
+              <button type="button" class="welcome-pill" data-firewall-prompt="What is the current risk score?">Risk Score</button>
+            </div>
+          </div>
+
+          <!-- Chat log (scrollable, hidden when panel open) -->
+          <div id="firewallChatLog" class="chat-log chat-log-home"></div>
+
+          <!-- Context panel (replaces chat when a category is selected, drops down / slides up) -->
+          <div class="context-panel" id="contextPanel" aria-hidden="true">
+            <div class="context-panel-body" id="contextPanelBody"></div>
+            <div class="context-panel-foot" id="contextSubRow">
+              <div class="context-sub-tabs" id="contextSubTabs" role="tablist"></div>
+            </div>
+          </div>
+
+          <!-- Category segmented control (pyramid middle) -->
+          <nav class="category-bar" role="tablist" aria-label="Categories">
+            <div class="category-track">
+              <div class="category-indicator"></div>
+              <button class="category-pill" data-category="observe" type="button" role="tab" aria-selected="false" aria-controls="contextPanel">Observe</button>
+              <button class="category-pill" data-category="analyze" type="button" role="tab" aria-selected="false" aria-controls="contextPanel">Analyze</button>
+              <button class="category-pill" data-category="govern" type="button" role="tab" aria-selected="false" aria-controls="contextPanel">Govern</button>
+              <button class="category-pill" data-category="admin" type="button" role="tab" aria-selected="false" aria-controls="contextPanel">Admin</button>
+            </div>
+          </nav>
+
+          <!-- Composer (pyramid base — widest) -->
+          <div class="chat-composer chat-composer-home">
+            <div class="chat-input-row">
+              <div class="chat-input-wrap">
+                <input id="firewallChatInput" type="text" placeholder="" autocomplete="off" />
+                <span class="rotating-placeholder" id="rotatingPlaceholder"></span>
+                <button id="firewallChatSendBtn" class="chat-send-btn" type="button" aria-label="Send">
+                  <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden panel storage (JS moves panels into context panel on demand) -->
+      <div class="panel-storage hidden" id="panelStorage">
+        <section data-view-panel="live" class="view-panel live-view hidden">
+          <article class="panel tree-panel">
+            <div class="tree-shell">
+              <div class="tree-legend">
+                <span><i class="legend-dot legend-main"></i> Main</span>
+                <span><i class="legend-dot legend-fork"></i> Fork</span>
+                <span><i class="legend-dot legend-block"></i> Blocked</span>
+              </div>
+              <div class="action-tree-wrap">
+                <div id="actionTreeCanvas" class="action-tree-canvas">
+                  <p class="action-tree-empty">No trace loaded.</p>
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section data-view-panel="topology" class="view-panel topology-view hidden">
+          <article class="panel topology-canvas-panel">
+            <div id="topologyMap" class="topology-map">
+              <p class="empty-row">No topology data yet.</p>
+            </div>
+            <div id="topologyEndpointPopup" class="topology-endpoint-popup hidden" role="dialog" aria-live="polite">
+              <div class="topology-endpoint-head">
+                <h3>Endpoint Request</h3>
+                <button id="topologyEndpointCloseBtn" type="button" class="topology-endpoint-close" aria-label="Close">
+                  Close
+                </button>
+              </div>
+              <p class="topology-endpoint-sub">Requested domain / IP</p>
+              <div id="topologyEndpointHost" class="topology-endpoint-host mono">-</div>
+              <div class="topology-endpoint-row">
+                <span class="topology-endpoint-label">Current decision</span>
+                <span id="topologyEndpointStatus" class="topology-endpoint-status observed">observed</span>
+              </div>
+              <div class="topology-endpoint-actions">
+                <button id="topologyEndpointApproveBtn" type="button" class="topology-endpoint-approve">
+                  Approve Endpoint
+                </button>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section data-view-panel="control" class="view-panel control-view hidden">
+          <div class="control-split">
+            <!-- Left column: Traces above, Session+Demo below -->
+            <div class="control-left">
+              <article class="panel inventory-panel">
+                <div class="panel-head">
+                  <h2 class="panel-title">Traces</h2>
+                  <span id="traceCount" class="chip">0</span>
+                </div>
+                <input id="traceSearch" class="inventory-search" type="search" placeholder="Search traces..." />
+                <div class="inventory-filter-row">
+                  <select id="traceRisk">
+                    <option value="all">All risk</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <select id="traceSource">
+                    <option value="all">All sources</option>
+                    <option value="openclaw">OpenClaw</option>
+                    <option value="mock">Mock</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </div>
+                <div id="traceList" class="trace-list">
+                  <p class="empty-row">No traces loaded.</p>
+                </div>
+              </article>
+
+              <div class="session-inventory-row">
+                <article class="panel session-panel session-compact">
+                  <div class="panel-head">
+                    <h2 class="panel-title">Session</h2>
+                    <span id="sourceBadge" class="source-badge source-unknown">source=unknown</span>
+                  </div>
+                  <p id="sourceHint" class="source-hint">No trace loaded yet.</p>
+                  <dl class="kv-grid kv-grid-inline">
+                    <div class="kv-row">
+                      <dt>Trace</dt>
+                      <dd id="sessionTraceId" class="mono">-</dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Session</dt>
+                      <dd id="sessionSessionId" class="mono">-</dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Event</dt>
+                      <dd id="sessionLastEvent">-</dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Risk</dt>
+                      <dd><span id="sessionRiskBadge" class="risk-badge risk-low">0 (low)</span></dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Guard</dt>
+                      <dd><span id="liveGuardBadge" class="guard-pill">idle</span> <span id="liveGuardText" class="kv-hint">No guard action yet.</span></dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Fork</dt>
+                      <dd><span id="liveForkBadge" class="guard-pill">none</span> <span id="liveForkText" class="kv-hint">No fork branch detected.</span></dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Risk</dt>
+                      <dd><span id="liveRiskBadge" class="risk-badge risk-low">0 (low)</span> <span id="liveRiskText" class="kv-hint">0 flags across 0 steps.</span></dd>
+                    </div>
+                    <div class="kv-row">
+                      <dt>Growth</dt>
+                      <dd><span id="liveGrowthBadge" class="guard-pill">0 shared</span> <span id="liveGrowthText" class="kv-hint">No shared traces yet.</span></dd>
+                    </div>
+                  </dl>
+                </article>
+
+                <article class="panel demo-panel session-compact">
+                  <div class="panel-head">
+                    <h2 class="panel-title">Actions</h2>
+                    <span class="chip">Live</span>
+                  </div>
+                  <div class="demo-controls">
+                    <div class="demo-field">
+                      <label for="demoSessionId">Session</label>
+                      <input id="demoSessionId" type="text" value="maple-live" autocomplete="off" list="demoSessionList" />
+                      <datalist id="demoSessionList"></datalist>
+                    </div>
+                    <div class="demo-field">
+                      <label for="demoSource">Source</label>
+                      <select id="demoSource">
+                        <option value="openclaw">openclaw</option>
+                      </select>
+                    </div>
+                    <button id="demoStartBtn" class="demo-btn" type="button">Start</button>
+                    <button id="demoAuditBtn" class="demo-btn" type="button">Audit</button>
+                    <button id="demoBlockBtn" class="demo-btn" type="button">Block</button>
+                    <button id="demoForkBtn" class="demo-btn" type="button">Fork</button>
+                    <button id="demoFullBtn" class="demo-btn primary" type="button">Full Flow</button>
+                  </div>
+                  <p id="demoResult" class="demo-result"></p>
+                </article>
+
+                <article class="panel demo-panel session-compact">
+                  <div class="panel-head">
+                    <h2 class="panel-title">Inject Event</h2>
+                    <span class="chip">Live simulation</span>
+                  </div>
+                  <div class="demo-controls" style="flex-wrap:wrap;gap:6px;">
+                    <div class="demo-field">
+                      <label for="injectActor">Actor</label>
+                      <select id="injectActor">
+                        <option value="agent">agent</option>
+                        <option value="tool">tool</option>
+                        <option value="human">human</option>
+                        <option value="system">system</option>
+                      </select>
+                    </div>
+                    <div class="demo-field">
+                      <label for="injectType">Type</label>
+                      <select id="injectType">
+                        <option value="tool_call">tool_call</option>
+                        <option value="shell">shell</option>
+                        <option value="http">http</option>
+                        <option value="chat">chat</option>
+                        <option value="file_read">file_read</option>
+                        <option value="file_write">file_write</option>
+                      </select>
+                    </div>
+                    <div class="demo-field" style="flex:1 1 100%;">
+                      <label for="injectCommand">Command / Prompt</label>
+                      <input id="injectCommand" type="text" placeholder="e.g. rm -rf /tmp/data or fetch('https://example.com')" autocomplete="off" />
+                    </div>
+                    <div class="demo-field" style="flex:1 1 100%;">
+                      <label for="injectOutput">Output (optional)</label>
+                      <input id="injectOutput" type="text" placeholder="e.g. 3 files deleted" autocomplete="off" />
+                    </div>
+                    <div class="demo-field" style="flex:1 1 48%;">
+                      <label for="injectToolName">Tool name (optional)</label>
+                      <input id="injectToolName" type="text" placeholder="e.g. bash, http_request" autocomplete="off" />
+                    </div>
+                    <div class="demo-field" style="flex:1 1 48%;">
+                      <label for="injectUrl">URL (optional)</label>
+                      <input id="injectUrl" type="text" placeholder="e.g. https://api.example.com" autocomplete="off" />
+                    </div>
+                    <button id="injectEventBtn" class="demo-btn primary" type="button">Inject Event</button>
+                  </div>
+                  <p id="injectResult" class="demo-result">Add events to the current trace for live risk analysis.</p>
+                </article>
+              </div>
+            </div>
+
+            <!-- Right column: Trace Detail -->
+            <div class="control-right">
+              <article class="panel detail-panel">
+                <div class="panel-head">
+                  <h2 class="panel-title">Trace Detail</h2>
+                  <span id="selectedTraceInfo" class="chip">No trace selected</span>
+                  <button id="exportTraceBtn" class="top-bar-icon-btn" type="button" title="Export Trace JSON">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2v8M5 7l3 3 3-3M3 12v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="detail-split">
+                  <!-- Left: step list -->
+                  <div class="detail-steps">
+                    <div class="detail-steps-head">Steps</div>
+                    <div id="explorerStepList" class="step-list"></div>
+                  </div>
+
+                  <!-- Right: inspector + evidence -->
+                  <div class="detail-inspect">
+                    <div class="panel-head">
+                      <h3 id="stepInspectorTitle" class="detail-inspect-title">Step Inspector</h3>
+                      <span id="stepInspectorSummary" class="chip">No step selected</span>
+                    </div>
+                    <pre id="stepInspectorJson" class="json-panel">{}</pre>
+
+                    <details class="evidence-drawer">
+                      <summary id="evidenceSummary">No trace payload loaded.</summary>
+                      <pre id="evidenceJson" class="json-panel">{}</pre>
+                    </details>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section data-view-panel="timeline" class="view-panel timeline-view hidden">
+          <article class="panel timeline-panel">
+            <h2 class="panel-title">Incident Timeline</h2>
+            <p class="panel-sub">Auto-refreshing incident feed from live trace APIs.</p>
+            <div class="table-wrap">
+              <table class="timeline-table">
+                <thead>
+                  <tr>
+                    <th>Index</th>
+                    <th>Actor</th>
+                    <th>Type</th>
+                    <th>Command / URL</th>
+                    <th>Risk</th>
+                    <th>Guard</th>
+                  </tr>
+                </thead>
+                <tbody id="timelineBody">
+                  <tr>
+                    <td colspan="6" class="empty-row">No trace loaded.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section data-view-panel="guard" class="view-panel guard-view hidden">
+          <article class="panel guard-panel">
+            <h2 class="panel-title">Guardrail Decision Log</h2>
+            <p class="panel-sub">All allow/block actions with actor rationale and quarantine transitions.</p>
+            <div id="quarantineBanner" class="quarantine-banner hidden"></div>
+            <div id="guardLog" class="guard-log">
+              <p class="empty-row">No guard actions recorded yet.</p>
+            </div>
+          </article>
+        </section>
+
+        <section data-view-panel="fork" class="view-panel fork-view hidden">
+          <!-- Top: compact stat bars side-by-side -->
+          <div class="insights-bars">
+            <div class="pulse-strip">
+              <span class="pulse-label">Pulse</span>
+              <span class="pulse-stat"><span class="pulse-key">Shared</span><span id="sharedTraces" class="pulse-val">-</span></span>
+              <span class="pulse-stat"><span class="pulse-key">Sigs</span><span id="uniqueSignatures" class="pulse-val">-</span></span>
+              <span class="pulse-stat"><span class="pulse-key">OC</span><span id="openclawTraces" class="pulse-val">-</span></span>
+              <span class="pulse-stat"><span class="pulse-key">Hi-Risk</span><span id="highRiskDetections" class="pulse-val">-</span></span>
+            </div>
+            <div class="mcp-bar">
+              <span class="mcp-bar-label">MCP</span>
+              <pre id="mcpSnippet" class="mcp-bar-snippet"></pre>
+            </div>
+          </div>
+
+          <!-- Main: two-column grid -->
+          <div class="fork-growth-split">
+            <!-- Left: Fork Replay Diff -->
+            <div class="fg-left">
+              <article class="panel fork-panel">
+                <h2 class="panel-title">Fork Replay Diff</h2>
+                <div id="forkMeta" class="fork-meta">No forked trace detected yet.</div>
+                <div class="fork-strip">
+                  <div>
+                    <div class="fork-label">Original</div>
+                    <div id="forkOriginalId" class="mono fork-id">-</div>
+                  </div>
+                  <div>
+                    <div class="fork-label">Forked</div>
+                    <div id="forkForkedId" class="mono fork-id">-</div>
+                  </div>
+                  <div>
+                    <div class="fork-label">Step</div>
+                    <div id="forkStepIndex" class="fork-step">-</div>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table class="timeline-table diff-table">
+                    <thead>
+                      <tr><th>Field</th><th>Original</th><th>Forked</th></tr>
+                    </thead>
+                    <tbody id="forkDiffBody">
+                      <tr><td colspan="3" class="empty-row">No fork diff available yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <!-- Right: YC Brief + Community -->
+            <div class="fg-right">
+              <article class="panel brief-panel">
+                <div class="panel-head">
+                  <h2 class="panel-title">YC Brief</h2>
+                  <div class="focus-row" role="tablist" aria-label="YC focus selector">
+                    <button class="focus-btn is-active" data-focus="full" type="button">Full</button>
+                    <button class="focus-btn" data-focus="moat" type="button">Moat</button>
+                    <button class="focus-btn" data-focus="traction" type="button">Traction</button>
+                    <button class="focus-btn" data-focus="revenue" type="button">Revenue</button>
+                  </div>
+                </div>
+                <p id="briefSummary" class="summary">No YC brief loaded yet.</p>
+                <pre id="briefJson" class="json-panel">{}</pre>
+              </article>
+
+              <article class="panel community-panel">
+                <h2 class="panel-title">Community Traces</h2>
+                <div class="table-wrap">
+                  <table class="timeline-table community-table">
+                    <thead>
+                      <tr><th>ID</th><th>Task</th><th>Risk</th><th>Sig</th><th>Tags</th><th>Shared</th></tr>
+                    </thead>
+                    <tbody id="communityTableBody">
+                      <tr><td colspan="6" class="empty-row">No shared traces yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p id="communityCount" class="panel-sub"></p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section data-view-panel="marketplace" class="view-panel marketplace-view hidden">
+          <article class="panel marketplace-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">Marketplace</h2>
+              <span class="chip">MCP</span>
+            </div>
+            <div class="marketplace-controls">
+              <div class="marketplace-field">
+                <label for="marketplaceProvider">Provider</label>
+                <select id="marketplaceProvider">
+                  <option value="all">All providers</option>
+                  <option value="smithery">Smithery</option>
+                  <option value="mcpso">MCP.so</option>
+                </select>
+              </div>
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="marketplaceSearch">Search</label>
+                <input id="marketplaceSearch" type="text" placeholder="Search MCP servers..." autocomplete="off" />
+              </div>
+              <button id="marketplaceSearchBtn" class="demo-btn primary" type="button">Search</button>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Search Results</h3>
+              <div class="table-wrap">
+                <table class="timeline-table marketplace-results-table">
+                  <thead>
+                    <tr><th>Name</th><th>Provider</th><th>Description</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="marketplaceResultsBody">
+                    <tr><td colspan="4" class="empty-row">Search to discover MCP servers.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Connected Apps</h3>
+              <div class="table-wrap">
+                <table class="timeline-table marketplace-connected-table">
+                  <thead>
+                    <tr><th>App ID</th><th>Name</th><th>URL</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="marketplaceConnectedBody">
+                    <tr><td colspan="4" class="empty-row">No connected apps.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Available Tools</h3>
+              <div class="table-wrap">
+                <table class="timeline-table marketplace-tools-table">
+                  <thead>
+                    <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="marketplaceToolsBody">
+                    <tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Dispatch Tool</h3>
+              <div class="marketplace-controls">
+                <div class="marketplace-field marketplace-field-grow">
+                  <label for="dispatchToolName">Tool Name</label>
+                  <input id="dispatchToolName" type="text" placeholder="e.g. read_file" autocomplete="off" />
+                </div>
+                <div class="marketplace-field marketplace-field-grow">
+                  <label for="dispatchToolArgs">Arguments (JSON)</label>
+                  <input id="dispatchToolArgs" type="text" placeholder='e.g. {"path": "/tmp/test.txt"}' autocomplete="off" />
+                </div>
+                <button id="dispatchToolBtn" class="demo-btn primary" type="button">Dispatch</button>
+              </div>
+              <pre id="dispatchResult" class="json-panel dispatch-result">{}</pre>
+            </div>
+          </article>
+        </section>
+
+        <section data-view-panel="policy" class="view-panel policy-view hidden">
+          <article class="panel policy-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">Policy Decisions</h2>
+              <span class="chip">Firewall</span>
+            </div>
+            <div class="policy-controls">
+              <div class="marketplace-field">
+                <label for="policyType">Type</label>
+                <select id="policyType">
+                  <option value="tool_call">tool_call</option>
+                  <option value="shell">shell</option>
+                  <option value="http">http</option>
+                  <option value="chat">chat</option>
+                  <option value="file_read">file_read</option>
+                  <option value="file_write">file_write</option>
+                </select>
+              </div>
+              <div class="marketplace-field">
+                <label for="policyActor">Actor</label>
+                <select id="policyActor">
+                  <option value="agent">agent</option>
+                  <option value="tool">tool</option>
+                  <option value="human">human</option>
+                  <option value="system">system</option>
+                </select>
+              </div>
+            </div>
+            <div class="policy-controls">
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="policyTraceId">Trace ID (optional)</label>
+                <input id="policyTraceId" type="text" placeholder="Trace ID" autocomplete="off" />
+              </div>
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="policySessionId">Session ID (optional)</label>
+                <input id="policySessionId" type="text" placeholder="Session ID" autocomplete="off" />
+              </div>
+            </div>
+            <div class="policy-controls">
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="policyCommand">Command</label>
+                <input id="policyCommand" type="text" placeholder="e.g. rm -rf /tmp/data" autocomplete="off" />
+              </div>
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="policyUrl">URL (optional)</label>
+                <input id="policyUrl" type="text" placeholder="e.g. https://api.example.com" autocomplete="off" />
+              </div>
+            </div>
+            <div class="policy-controls">
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="policyPrompt">Prompt (optional)</label>
+                <input id="policyPrompt" type="text" placeholder="User prompt text" autocomplete="off" />
+              </div>
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="policyToolName">Tool Name (optional)</label>
+                <input id="policyToolName" type="text" placeholder="e.g. bash, http_request" autocomplete="off" />
+              </div>
+            </div>
+            <div class="policy-actions">
+              <button id="policyPreviewBtn" class="demo-btn" type="button">Preview Decision</button>
+              <button id="policyEnforceBtn" class="demo-btn primary" type="button">Enforce Decision</button>
+            </div>
+            <pre id="policyResult" class="json-panel policy-result">{}</pre>
+          </article>
+        </section>
+
+        <section data-view-panel="settings" class="view-panel settings-view hidden">
+          <article class="panel settings-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">Settings</h2>
+              <span class="chip">Admin</span>
+            </div>
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Authentication</h3>
+              <dl class="kv-grid kv-grid-inline">
+                <div class="kv-row">
+                  <dt>Status</dt>
+                  <dd id="settingsAuthStatus">-</dd>
+                </div>
+                <div class="kv-row">
+                  <dt>User</dt>
+                  <dd id="settingsAuthUser" class="mono">-</dd>
+                </div>
+              </dl>
+            </div>
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Runtime Status</h3>
+              <pre id="settingsRuntimeStatus" class="json-panel">{}</pre>
+            </div>
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Actions</h3>
+              <div class="settings-actions">
+                <button id="settingsRefreshBtn" class="demo-btn" type="button">Refresh Status</button>
+                <button id="settingsClearHistoryBtn" class="demo-btn danger" type="button">Clear Trace History</button>
+              </div>
+              <p id="settingsActionResult" class="demo-result"></p>
+            </div>
+          </article>
+        </section>
+      </div>
+    </div>
+
+    <div id="nodeActionModal" class="modal hidden" role="dialog" aria-labelledby="nodeModalTitle">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 id="nodeModalTitle">Node Actions</h2>
+          <button id="nodeModalCloseBtn" class="modal-close-btn" type="button" aria-label="Close">Close</button>
+        </div>
+        <p id="nodeModalSummary" class="modal-sub">Select a node in the Action Tree to manage this step.</p>
+
+        <dl class="modal-meta">
+          <div>
+            <dt>Trace</dt>
+            <dd id="nodeModalTraceId" class="mono">-</dd>
+          </div>
+          <div>
+            <dt>Session</dt>
+            <dd id="nodeModalSessionId" class="mono">-</dd>
+          </div>
+          <div>
+            <dt>Step</dt>
+            <dd id="nodeModalStepIndex">-</dd>
+          </div>
+          <div>
+            <dt>Type</dt>
+            <dd id="nodeModalStepType">-</dd>
+          </div>
+        </dl>
+
+        <div class="modal-panels">
+          <details class="action-group" open>
+            <summary>Guard</summary>
+            <div class="modal-panel">
+              <p class="modal-action-desc">Allow, block, or pause this step.</p>
+              <div class="quick-grid three">
+                <button id="nodeGuardAllowBtn" class="action-btn success" type="button">Allow</button>
+                <button id="nodeGuardBlockBtn" class="action-btn danger" type="button">Block</button>
+                <button id="nodeGuardPendingBtn" class="action-btn muted" type="button">Pending</button>
+              </div>
+              <details class="advanced-wrap">
+                <summary>Add note</summary>
+                <div class="modal-field">
+                  <label for="nodeGuardReason">Reason (optional)</label>
+                  <input id="nodeGuardReason" type="text" placeholder="Why this decision?" autocomplete="off" />
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="action-group">
+            <summary>Fork</summary>
+            <div class="modal-panel">
+              <p class="modal-action-desc">Create a safer branch from this step.</p>
+              <button id="nodeForkCreateBtn" class="action-btn primary wide" type="button">Create Safe Fork</button>
+              <details class="advanced-wrap">
+                <summary>Advanced fork options</summary>
+                <div class="modal-inline">
+                  <div class="modal-field">
+                    <label for="nodeForkCommand">Command override (optional)</label>
+                    <input id="nodeForkCommand" type="text" placeholder="echo 'blocked'; exit 1" autocomplete="off" />
+                  </div>
+                  <div class="modal-field">
+                    <label for="nodeForkNote">Replay note (optional)</label>
+                    <input id="nodeForkNote" type="text" placeholder="Safer branch rationale" autocomplete="off" />
+                  </div>
+                </div>
+                <div class="modal-inline">
+                  <div class="modal-toggle">
+                    <label class="toggle-label" for="nodeForkLaunchRuntime">
+                      <input id="nodeForkLaunchRuntime" type="checkbox" checked />
+                      Launch isolated OpenClaw session
+                    </label>
+                  </div>
+                  <div class="modal-field">
+                    <label for="nodeForkSessionId">Fork session ID (optional)</label>
+                    <input id="nodeForkSessionId" type="text" placeholder="yc-demo-001-fork-a" autocomplete="off" />
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="action-group">
+            <summary>Risk</summary>
+            <div class="modal-panel">
+              <p class="modal-action-desc">Run risk and anomaly checks.</p>
+              <div class="quick-grid two">
+                <button id="nodeAuditBtn" class="action-btn" type="button">Audit Risk</button>
+                <button id="nodeMlBtn" class="action-btn" type="button">ML Anomaly</button>
+              </div>
+            </div>
+          </details>
+
+          <details class="action-group">
+            <summary>Growth</summary>
+            <div class="modal-panel">
+              <p class="modal-action-desc">Share and generate growth artifacts.</p>
+              <div class="quick-grid three">
+                <button id="nodeShareBtn" class="action-btn" type="button">Share Trace</button>
+                <button id="nodeSuggestBtn" class="action-btn" type="button">Suggest Skills</button>
+                <button id="nodeBriefBtn" class="action-btn" type="button">YC Brief</button>
+              </div>
+              <details class="advanced-wrap">
+                <summary>Advanced growth inputs</summary>
+                <div class="modal-inline">
+                  <div class="modal-field">
+                    <label for="nodeShareTask">Task label (optional)</label>
+                    <input id="nodeShareTask" type="text" placeholder="safe inbox triage" autocomplete="off" />
+                  </div>
+                  <div class="modal-field">
+                    <label for="nodeShareObjective">Objective (optional)</label>
+                    <input id="nodeShareObjective" type="text" placeholder="prevent risky autonomous actions" autocomplete="off" />
+                  </div>
+                  <div class="modal-field">
+                    <label for="nodeShareTags">Tags (optional)</label>
+                    <input id="nodeShareTags" type="text" placeholder="security,guardrails,openclaw" autocomplete="off" />
+                  </div>
+                </div>
+                <div class="modal-inline">
+                  <div class="modal-field">
+                    <label for="nodeSuggestQuery">Suggest query (optional)</label>
+                    <input id="nodeSuggestQuery" type="text" placeholder="safe inbox triage automation" autocomplete="off" />
+                  </div>
+                  <div class="modal-field">
+                    <label for="nodeBriefFocus">YC focus</label>
+                    <select id="nodeBriefFocus">
+                      <option value="full">full</option>
+                      <option value="moat">moat</option>
+                      <option value="traction">traction</option>
+                      <option value="revenue">revenue</option>
+                    </select>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <details class="modal-output-wrap">
+            <summary>Latest Action Output</summary>
+            <pre id="nodeModalOutput" class="json-panel modal-output">{}</pre>
+          </details>
+        </div>
+
+        <p id="nodeModalStatus" class="modal-status">Tip: click any node in Action Tree to open this panel.</p>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <script src="/judges-auth.js"></script>
+    <script src="/judges-http.js"></script>
+    <script src="/judges.js?v=47" type="module"></script>
+  </body>
+</html>

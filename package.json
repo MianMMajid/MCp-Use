@@ -1,0 +1,65 @@
+{
+  "name": "maple",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "MCP server: maple",
+  "author": "",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "server",
+    "starter",
+    "tools",
+    "resources",
+    "prompts",
+    "uiresource",
+    "ui",
+    "react",
+    "widgets",
+    "mcp-ui",
+    "apps-sdk"
+  ],
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "mcp-use build",
+    "dev": "mcp-use dev",
+    "start": "HOST=${HOST:-0.0.0.0} node --env-file=.env node_modules/.bin/mcp-use start",
+    "test": "node --test --import tsx tests/**/*.test.ts",
+    "deploy": "mcp-use deploy",
+    "demo:install-openclaw": "bash scripts/install-openclaw.sh",
+    "demo:bridge": "node scripts/openclaw-bridge-hardcoded.mjs",
+    "demo:up": "bash scripts/demo-up.sh",
+    "demo:down": "bash scripts/demo-down.sh",
+    "demo:run": "node scripts/demo-generator.mjs",
+    "local:up": "bash scripts/local-up.sh",
+    "local:down": "bash scripts/local-down.sh",
+    "postinstall": "mcp-use generate-types || true"
+  },
+  "dependencies": {
+    "@openai/apps-sdk-ui": "^0.2.1",
+    "@tanstack/react-query": "^5.90.12",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.6.2",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "mcp-use": "1.20.0",
+    "node-mocks-http": "^1.17.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router": "^7.12.0",
+    "tailwindcss": "^4.1.18",
+    "zod": "4.3.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/node": "^25.0.2",
+    "@vitejs/plugin-react": "^5.1.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "overrides": {
+    "sugarss": "^5.0.1",
+    "lodash": "4.17.23"
+  }
+}
