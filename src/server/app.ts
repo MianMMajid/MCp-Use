@@ -5576,8 +5576,10 @@ server.get("/health", (c) =>
   c.json({
     ok: true,
     name: "maple",
-    version: "1.0.1",
+    version: "1.0.2",
     noAuth: allowNoAuth,
+    noAuthRaw: process.env.MAPLE_ALLOW_NO_AUTH,
+    apiKeyEnabled: apiKeyAuthEnabled,
     timestamp: new Date().toISOString(),
   })
 );
