@@ -6864,7 +6864,30 @@ const GPT_SPEC_TTL_MS = 5 * 60 * 1000;
 const GPT_OAUTH_CLIENT_ID = String(process.env.MAPLE_GPT_OAUTH_CLIENT_ID || "maple-gpt-client");
 const GPT_OAUTH_CLIENT_SECRET = String(process.env.MAPLE_GPT_OAUTH_CLIENT_SECRET || configuredApiKeys[0] || "maple-secret");
 
-// Minimal OAuth2 endpoints for ChatGPT Actions
+// OAuth2 discovery endpoints (MCP spec / ChatGPT requirement)
+server.get("/.well-known/oauth-authorization-server", (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+  return c.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/gpt/oauth/authorize`,
+    token_endpoint: `${baseUrl}/gpt/oauth/token`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code"],
+    token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+    code_challenge_methods_supported: ["S256"],
+  });
+});
+
+server.get("/.well-known/oauth-protected-resource", (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+  return c.json({
+    resource: `${baseUrl}/mcp`,
+    authorization_servers: [baseUrl],
+    bearer_methods_supported: ["header"],
+  });
+});
+
+// OAuth2 authorize/token endpoints for ChatGPT
 server.get("/gpt/oauth/authorize", (c) => {
   const redirectUri = asString(c.req.query("redirect_uri"));
   const state = asString(c.req.query("state")) ?? "";
@@ -6916,12 +6939,7 @@ server.get("/.well-known/ai-plugin.json", (c) => {
     description_for_model:
       "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
     auth: {
-      type: "oauth",
-      client_url: `${baseUrl}/gpt/oauth/authorize`,
-      authorization_url: `${baseUrl}/gpt/oauth/token`,
-      scope: "",
-      authorization_content_type: "application/json",
-      verification_tokens: {},
+      type: "none",
     },
     api: {
       type: "openapi",
@@ -6999,21 +7017,8 @@ server.get("/gpt/openapi.json", async (c) => {
     },
     servers: [{ url: baseUrl }],
     paths,
-    components: {
-      securitySchemes: {
-        oauth2: {
-          type: "oauth2",
-          flows: {
-            authorizationCode: {
-              authorizationUrl: `${baseUrl}/gpt/oauth/authorize`,
-              tokenUrl: `${baseUrl}/gpt/oauth/token`,
-              scopes: {},
-            },
-          },
-        },
-      },
-    },
-    security: [{ oauth2: [] }],
+    components: {},
+    security: [],
   };
 
   gptOpenApiSpecCache = { spec, expiresAt: Date.now() + GPT_SPEC_TTL_MS };
@@ -7021,11 +7026,6 @@ server.get("/gpt/openapi.json", async (c) => {
 });
 
 server.app.post("/gpt/tools/:toolName", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
-  if (unauthorized) {
-    return unauthorized;
-  }
-
   const toolName = c.req.param("toolName");
   if (!toolName) {
     return c.json({ ok: false, error: "Tool name is required." }, 400);
