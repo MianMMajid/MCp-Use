@@ -132,6 +132,103 @@ This uses internal demo APIs:
 
 `demo:up` also auto-opens both pages on macOS (set `DEMO_OPEN_BROWSER=0` to disable).
 
+### Single-Trace Agent Action Logging (Hackathon)
+
+For a reliable judge demo, run one stable trace and append every action to it.
+
+```bash
+MAPLE_API_KEY=local-demo-key npm run trace:demo
+```
+
+What this does:
+
+- Starts (or reuses) one trace for a stable `sessionId`
+- Logs all agent actions through `POST /api/openclaw/events` using the same `traceId`
+- Includes `type`, `actor`, `prompt/message`, `command`, `url`, `toolName`, and unique `eventId`
+- Runs a preflight firewall preview and logs Maple's block/allow message into the same trace
+
+Open `http://localhost:3000/judge`, then select the printed trace ID to see `#0, #1, #2...`.
+
+If you want to integrate this into your own runtime, use:
+
+- `scripts/maple-trace-logger.mjs`
+- `logAction(...)` for generic events
+- `logWebGet(...)`, `logMarketplaceSearch(...)`, `logMarketplaceToolCall(...)` wrappers
+
+Example:
+
+```js
+import { createMapleTraceLogger } from "./scripts/maple-trace-logger.mjs";
+
+const logger = createMapleTraceLogger({
+  baseUrl: "http://localhost:3000",
+  apiKey: process.env.MAPLE_API_KEY,
+  sessionId: "maple-live",
+});
+
+await logger.startRun({ reuseLatest: true });
+await logger.logAction({
+  type: "tool_call",
+  actor: "agent",
+  toolName: "web_get",
+  prompt: "Fetch provider docs",
+  url: "https://docs.mcp.so/providers",
+});
+```
+
+### Hackathon Gateway Mode (9 Curated MCP Tools)
+
+Canonical startup (local + Railway) for single-source hackathon routing:
+
+```bash
+npm start
+```
+
+Equivalent local alias:
+
+```bash
+npm run hackathon:up
+```
+
+This starts a local downstream MCP app (`toolhub`) and route-locks Maple so all downstream calls go through it.
+Marketplace mode is canonically disabled in this build; execution only routes through cleared downstream apps.
+
+Included tools (diverse coverage):
+
+1. `web_search` (general web search)
+2. `web_fetch` (browser-style page fetch/extraction)
+3. `wikipedia_summary` (encyclopedia knowledge)
+4. `github_repo_info` (code/repo intelligence)
+5. `weather_forecast` (real-time practical data)
+6. `slack_post_message` (messaging integration via Slack)
+7. `hn_search` (live tech/news discovery on Hacker News)
+8. `arxiv_search` (academic/research paper search)
+9. `openlibrary_search` (books and publication lookup)
+
+Slack config for `slack_post_message`:
+
+- Incoming webhook mode: set `SLACK_WEBHOOK_URL`
+- Bot mode: set `SLACK_BOT_TOKEN` and optionally `SLACK_DEFAULT_CHANNEL`
+
+Verify wiring end-to-end:
+
+```bash
+npm run hackathon:verify
+```
+
+Stop services:
+
+```bash
+npm run hackathon:down
+```
+
+Implementation files:
+
+- `scripts/hackathon-toolhub.mjs` (downstream MCP server with 9 tools)
+- `scripts/hackathon-up.sh` (starts toolhub + Maple in deterministic route-lock mode)
+- `scripts/hackathon-verify.sh` (smoke tests for routed tool calls through Maple)
+- `scripts/hackathon-down.sh` (stops Maple + toolhub)
+
 Stop local demo processes:
 
 ```bash
@@ -180,6 +277,20 @@ For `source=openclaw`, bridge failures are returned as errors (no silent mock do
 - `GET /api/firewall/state` returns normalized live firewall context for a trace/session.
 - `POST /api/firewall/chat` answers status questions using that context.
 - Body accepts `message`, optional `traceId` / `sessionId`, and `includeContext`.
+- `POST /api/chat/stream` powers the Judge UI chatbot and can use AI with provider fallback.
+- If `OPENAI_API_KEY` and/or `ANTHROPIC_API_KEY` are set, Maple enables AI mode with automatic fallback.
+- If both model providers fail, Maple falls back to deterministic rules-based firewall answers.
+
+Optional chat model environment variables:
+
+```bash
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+MAPLE_FIREWALL_CHAT_PRIMARY=openai   # openai | anthropic
+MAPLE_FIREWALL_CHAT_OPENAI_MODEL=gpt-4o-mini
+MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL=claude-sonnet-4-6
+MAPLE_FIREWALL_CHAT_TIMEOUT_MS=15000
+```
 
 ### Firewall Hardening (mcpwall-inspired)
 
@@ -250,7 +361,7 @@ MAPLE_FIREWALL_LOG_DIR=~/.maple/firewall-logs
 
 - Persistence is in-memory for hackathon speed
 - Embedding model is intentionally simple (fast + local)
-- No external model provider required
+- External model providers are optional for firewall chat; rules mode works without them
 
 ## Deploy
 
@@ -262,7 +373,7 @@ npm run deploy
 
 Yes, Maple can run on Railway with production safeguards.
 
-Use these settings in Railway:
+This repo now includes `railway.json`, so Railway can use canonical settings automatically:
 
 - Build command: `npm run build`
 - Start command: `npm run start`
@@ -272,7 +383,6 @@ Required environment variables:
 
 ```bash
 NODE_ENV=production
-PORT=${{RAILWAY_PORT}}
 HOST=0.0.0.0
 MCP_URL=https://<your-railway-domain>
 MAPLE_API_KEY=<long-random-key>
@@ -284,6 +394,8 @@ MAPLE_FIREWALL_ENABLED=true
 
 Important notes:
 
+- Railway provides `PORT` automatically; do not hardcode it.
+- `scripts/hackathon-start.sh` is Railway-safe and no longer requires a local `.env` file to boot.
 - In production, Maple enforces API key auth and requires explicit `OPENCLAW_BRIDGE_URL` + `OPENCLAW_BRIDGE_TOKEN`.
 - Do not use `localhost` for `OPENCLAW_BRIDGE_URL` unless the bridge runs in the same container.
 - If bridge connectivity is unavailable during demo, use `source=mock` to keep UI + guardrail flow live.
