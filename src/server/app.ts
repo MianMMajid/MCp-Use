@@ -6861,6 +6861,50 @@ server.app.post("/api/downstream/dispatch", async (c) => {
 
 let gptOpenApiSpecCache: { spec: Record<string, unknown>; expiresAt: number } | null = null;
 const GPT_SPEC_TTL_MS = 5 * 60 * 1000;
+const GPT_OAUTH_CLIENT_ID = String(process.env.MAPLE_GPT_OAUTH_CLIENT_ID || "maple-gpt-client");
+const GPT_OAUTH_CLIENT_SECRET = String(process.env.MAPLE_GPT_OAUTH_CLIENT_SECRET || configuredApiKeys[0] || "maple-secret");
+
+// Minimal OAuth2 endpoints for ChatGPT Actions
+server.get("/gpt/oauth/authorize", (c) => {
+  const redirectUri = asString(c.req.query("redirect_uri"));
+  const state = asString(c.req.query("state")) ?? "";
+  if (!redirectUri) {
+    return c.json({ error: "redirect_uri is required" }, 400);
+  }
+  const code = "maple-auth-code-" + Date.now();
+  const separator = redirectUri.includes("?") ? "&" : "?";
+  return c.redirect(`${redirectUri}${separator}code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
+});
+
+server.app.post("/gpt/oauth/token", async (c) => {
+  const body = await readJsonBody(c);
+  const contentType = c.req.header("content-type") ?? "";
+  let clientId = asString(body.client_id);
+  let clientSecret = asString(body.client_secret);
+
+  if (!clientId && contentType.includes("application/x-www-form-urlencoded")) {
+    try {
+      const text = await c.req.text();
+      const params = new URLSearchParams(text);
+      clientId = params.get("client_id") ?? undefined;
+      clientSecret = params.get("client_secret") ?? undefined;
+    } catch (_e) { /* ignore */ }
+  }
+
+  if (clientId && clientId !== GPT_OAUTH_CLIENT_ID) {
+    return c.json({ error: "invalid_client" }, 401);
+  }
+  if (clientSecret && clientSecret !== GPT_OAUTH_CLIENT_SECRET) {
+    return c.json({ error: "invalid_client" }, 401);
+  }
+
+  const accessToken = configuredApiKeys[0] || "maple-access-token";
+  return c.json({
+    access_token: accessToken,
+    token_type: "bearer",
+    expires_in: 86400,
+  });
+});
 
 server.get("/.well-known/ai-plugin.json", (c) => {
   const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
@@ -6872,8 +6916,11 @@ server.get("/.well-known/ai-plugin.json", (c) => {
     description_for_model:
       "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
     auth: {
-      type: "service_http",
-      authorization_type: "bearer",
+      type: "oauth",
+      client_url: `${baseUrl}/gpt/oauth/authorize`,
+      authorization_url: `${baseUrl}/gpt/oauth/token`,
+      scope: "",
+      authorization_content_type: "application/json",
       verification_tokens: {},
     },
     api: {
@@ -6954,13 +7001,19 @@ server.get("/gpt/openapi.json", async (c) => {
     paths,
     components: {
       securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
+        oauth2: {
+          type: "oauth2",
+          flows: {
+            authorizationCode: {
+              authorizationUrl: `${baseUrl}/gpt/oauth/authorize`,
+              tokenUrl: `${baseUrl}/gpt/oauth/token`,
+              scopes: {},
+            },
+          },
         },
       },
     },
-    security: [{ bearerAuth: [] }],
+    security: [{ oauth2: [] }],
   };
 
   gptOpenApiSpecCache = { spec, expiresAt: Date.now() + GPT_SPEC_TTL_MS };
