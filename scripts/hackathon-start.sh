@@ -22,7 +22,7 @@ MAPLE_LOCAL_ADMIN_USERNAME="${MAPLE_LOCAL_ADMIN_USERNAME:-admin}"
 MAPLE_LOCAL_ADMIN_PASSWORD="${MAPLE_LOCAL_ADMIN_PASSWORD:-admin123}"
 MAPLE_LOCAL_ADMIN_EMAIL="${MAPLE_LOCAL_ADMIN_EMAIL:-admin@localhost}"
 HACKATHON_OPEN_BROWSER="${HACKATHON_OPEN_BROWSER:-0}"
-HACKATHON_ENV="${HACKATHON_ENV:-production}"
+HACKATHON_ENV="${HACKATHON_ENV:-development}"
 HACKATHON_TOOLHUB_HOST="${HACKATHON_TOOLHUB_HOST:-127.0.0.1}"
 MAPLE_PUBLIC_URL="${MCP_URL:-http://localhost:${MAPLE_PORT}}"
 
@@ -87,7 +87,7 @@ export HOST="${HOST:-0.0.0.0}"
 export PORT="${MAPLE_PORT}"
 export MAPLE_ENABLE_JUDGE_UI=true
 export MAPLE_ENABLE_DEMO_ROUTES=true
-export MAPLE_ALLOW_NO_AUTH=false
+export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
 export MAPLE_LOCK_BRIDGE_TARGET=false
 export MAPLE_MCP_MARKETPLACE_ENABLED=false
 export MAPLE_MCP_MARKETPLACE_AUTO_CONNECT=false
@@ -127,4 +127,4 @@ if [ "${HACKATHON_OPEN_BROWSER}" = "1" ] && [ "${NODE_ENV}" != "production" ]; t
   ) &
 fi
 
-exec node node_modules/.bin/mcp-use start
+exec node node_modules/.bin/mcp-use dev --no-open
