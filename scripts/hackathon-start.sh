@@ -12,6 +12,17 @@ if [ -f "${ROOT_DIR}/.env" ]; then
   set +a
 fi
 
+# Warn if DATABASE_URL is not set (non-blocking)
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo ""
+  echo "  [WARN] DATABASE_URL is not set. Maple will try postgresql://localhost:5432/maple"
+  echo "         To set up PostgreSQL locally:"
+  echo "           brew install postgresql@16 && brew services start postgresql@16"
+  echo "           createdb maple"
+  echo "         Then add DATABASE_URL=postgresql://localhost:5432/maple to .env"
+  echo ""
+fi
+
 MAPLE_PORT="${PORT:-3000}"
 MAPLE_TOOLHUB_PORT="${MAPLE_TOOLHUB_PORT:-8788}"
 if [ "${MAPLE_TOOLHUB_PORT}" = "${MAPLE_PORT}" ]; then

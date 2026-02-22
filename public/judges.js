@@ -192,7 +192,7 @@ const CATEGORY_VIEWS = {
   observe: ["timeline", "live"],
   analyze: ["control", "topology"],
   govern:  ["fork", "guard"],
-  admin:   ["marketplace", "policy", "settings"],
+  admin:   ["marketplace", "policy", "settings", "account", "pricing"],
 };
 
 const VIEW_LABELS = {
@@ -200,6 +200,7 @@ const VIEW_LABELS = {
   topology: "Topology",
   guard: "Guardrails", fork: "Insights",
   marketplace: "Marketplace", policy: "Policy", settings: "Settings",
+  account: "Account", pricing: "Pricing",
 };
 
 const VIEW_TO_CATEGORY = {};
@@ -1456,6 +1457,9 @@ function moveViewPanelToBody(viewName) {
   if (viewName !== "topology") {
     closeTopologyEndpointPopup();
   }
+
+  if (viewName === "account") loadAccountProfile();
+  if (viewName === "pricing") loadPricingView();
 }
 
 function returnAllPanelsToStorage() {
@@ -3642,6 +3646,190 @@ async function runInjectEvent() {
   }
 }
 
+// ── Account & Pricing ───────────────────────────────────────────────────────
+
+async function loadAccountProfile() {
+  try {
+    const res = await fetch("/api/user/profile", {
+      credentials: "same-origin",
+      headers: headersWithKey(),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const u = data.user;
+    const s = data.subscription;
+
+    const usernameEl = document.getElementById("accountUsername");
+    const emailEl = document.getElementById("accountEmail");
+    const createdEl = document.getElementById("accountCreatedAt");
+    const planEl = document.getElementById("accountPlan");
+    const badgeEl = document.getElementById("accountPlanBadge");
+
+    if (usernameEl) usernameEl.textContent = u.username || "-";
+    if (emailEl) emailEl.textContent = u.email || "-";
+    if (createdEl) createdEl.textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-";
+    if (planEl) planEl.textContent = (s.plan || "free").charAt(0).toUpperCase() + (s.plan || "free").slice(1);
+    if (badgeEl) badgeEl.textContent = (s.plan || "free").charAt(0).toUpperCase() + (s.plan || "free").slice(1);
+  } catch {
+    // Profile load failed silently
+  }
+}
+
+async function handleChangePassword() {
+  const currentPwEl = document.getElementById("accountCurrentPassword");
+  const newPwEl = document.getElementById("accountNewPassword");
+  const resultEl = document.getElementById("accountPasswordResult");
+  if (!(currentPwEl instanceof HTMLInputElement) || !(newPwEl instanceof HTMLInputElement)) return;
+
+  const currentPassword = currentPwEl.value.trim();
+  const newPassword = newPwEl.value.trim();
+  if (!currentPassword || !newPassword) {
+    if (resultEl) { resultEl.textContent = "Both fields are required."; resultEl.className = "demo-result error"; }
+    return;
+  }
+  if (newPassword.length < 8) {
+    if (resultEl) { resultEl.textContent = "New password must be at least 8 characters."; resultEl.className = "demo-result error"; }
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/user/change-password", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { ...headersWithKey(), "content-type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (resultEl) { resultEl.textContent = "Password updated successfully."; resultEl.className = "demo-result ok"; }
+      currentPwEl.value = "";
+      newPwEl.value = "";
+    } else {
+      if (resultEl) { resultEl.textContent = data.error || "Password change failed."; resultEl.className = "demo-result error"; }
+    }
+  } catch {
+    if (resultEl) { resultEl.textContent = "Network error."; resultEl.className = "demo-result error"; }
+  }
+}
+
+async function handleManageBilling() {
+  try {
+    const res = await fetch("/api/billing/portal-session", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { ...headersWithKey(), "content-type": "application/json" },
+      body: "{}",
+    });
+    const data = await res.json();
+    if (res.ok && data.url) {
+      window.open(data.url, "_blank");
+    } else {
+      setStatus(data.error || "Unable to open billing portal.", "error");
+    }
+  } catch {
+    setStatus("Unable to open billing portal.", "error");
+  }
+}
+
+const PRICING_TIERS = [
+  {
+    id: "free", name: "Free", price: "$0", period: "/mo",
+    features: ["1 project", "100 traces/day", "Community support", "Basic guardrails"],
+    highlighted: false,
+  },
+  {
+    id: "pro", name: "Pro", price: "$9", period: "/mo",
+    features: ["5 projects", "10k traces/day", "Email support", "Advanced guardrails", "Fork & replay"],
+    highlighted: true,
+  },
+  {
+    id: "team", name: "Team", price: "$29", period: "/mo",
+    features: ["Unlimited projects", "100k traces/day", "Priority support", "Team collaboration", "Custom policies"],
+    highlighted: false,
+  },
+  {
+    id: "enterprise", name: "Enterprise", price: "$99", period: "/mo",
+    features: ["Unlimited everything", "Dedicated support", "SSO & SAML", "SLA guarantee", "Custom integrations"],
+    highlighted: false,
+  },
+];
+
+async function loadPricingView() {
+  const gridEl = document.getElementById("pricingGrid");
+  const badgeEl = document.getElementById("pricingCurrentPlanBadge");
+  if (!gridEl) return;
+
+  let currentPlan = "free";
+  let billingEnabled = false;
+
+  try {
+    const res = await fetch("/api/billing/subscription", {
+      credentials: "same-origin",
+      headers: headersWithKey(),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      currentPlan = data.subscription?.plan || "free";
+      billingEnabled = data.billingEnabled || false;
+    }
+  } catch {
+    // Fall through with defaults
+  }
+
+  if (badgeEl) badgeEl.textContent = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+
+  gridEl.innerHTML = PRICING_TIERS.map((tier) => {
+    const isCurrent = tier.id === currentPlan;
+    const classes = ["pricing-card"];
+    if (tier.highlighted) classes.push("pricing-highlighted");
+    if (isCurrent) classes.push("pricing-current");
+
+    const featuresHtml = tier.features.map((f) => `<li>${f}</li>`).join("");
+    const ctaLabel = isCurrent ? "Current Plan" : (billingEnabled ? `Upgrade to ${tier.name}` : "Coming Soon");
+    const ctaDisabled = isCurrent || !billingEnabled || tier.id === "free" ? "disabled" : "";
+
+    return `
+      <div class="${classes.join(" ")}">
+        <div class="pricing-card-header">
+          <div class="pricing-card-name">${tier.name}</div>
+          <div class="pricing-card-price">${tier.price}<span class="pricing-card-period">${tier.period}</span></div>
+        </div>
+        <ul class="pricing-card-features">${featuresHtml}</ul>
+        <button class="demo-btn pricing-card-cta" data-plan="${tier.id}" ${ctaDisabled}>${ctaLabel}</button>
+      </div>
+    `;
+  }).join("");
+
+  gridEl.querySelectorAll(".pricing-card-cta[data-plan]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const plan = btn.getAttribute("data-plan");
+      if (!plan || plan === "free" || btn.hasAttribute("disabled")) return;
+      btn.textContent = "Redirecting...";
+      btn.setAttribute("disabled", "true");
+      try {
+        const res = await fetch("/api/billing/create-checkout-session", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { ...headersWithKey(), "content-type": "application/json" },
+          body: JSON.stringify({ plan }),
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          window.location.href = data.url;
+        } else {
+          setStatus(data.error || "Unable to start checkout.", "error");
+          btn.textContent = `Upgrade to ${plan.charAt(0).toUpperCase() + plan.slice(1)}`;
+          btn.removeAttribute("disabled");
+        }
+      } catch {
+        setStatus("Network error starting checkout.", "error");
+        btn.textContent = `Upgrade to ${plan.charAt(0).toUpperCase() + plan.slice(1)}`;
+        btn.removeAttribute("disabled");
+      }
+    });
+  });
+}
+
 traceListEl.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) {
@@ -3970,6 +4158,33 @@ if (settingsRefreshBtn instanceof HTMLButtonElement) {
 }
 if (settingsClearHistoryBtn instanceof HTMLButtonElement) {
   settingsClearHistoryBtn.addEventListener("click", () => clearTraceHistory());
+}
+
+// Account panel event listeners
+const accountChangePasswordBtn = document.getElementById("accountChangePasswordBtn");
+if (accountChangePasswordBtn instanceof HTMLButtonElement) {
+  accountChangePasswordBtn.addEventListener("click", () => handleChangePassword());
+}
+const accountLogoutBtn = document.getElementById("accountLogoutBtn");
+if (accountLogoutBtn instanceof HTMLButtonElement) {
+  accountLogoutBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: headersWithKey(),
+      });
+    } catch { /* best-effort */ }
+    sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+    localStorage.removeItem(API_KEY_STORAGE_KEY);
+    localStorage.removeItem("maple_judge_username");
+    stopPolling();
+    window.location.assign("/landing");
+  });
+}
+const accountManageBillingBtn = document.getElementById("accountManageBillingBtn");
+if (accountManageBillingBtn instanceof HTMLButtonElement) {
+  accountManageBillingBtn.addEventListener("click", () => handleManageBilling());
 }
 
 window.addEventListener("keydown", (event) => {

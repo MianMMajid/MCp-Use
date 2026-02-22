@@ -9,9 +9,9 @@ interface TraceStoreOptions {
 }
 
 interface TraceStorePersistence {
-  loadTraces?: () => Trace[];
-  saveTrace?: (trace: Trace) => void;
-  removeTrace?: (traceId: string) => void;
+  loadTraces?: () => Trace[] | Promise<Trace[]>;
+  saveTrace?: (trace: Trace) => void | Promise<void>;
+  removeTrace?: (traceId: string) => void | Promise<void>;
 }
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
@@ -50,7 +50,10 @@ export class TraceStore {
       options.maxTracesPerSession ?? parsePositiveInt(env.MAPLE_MAX_TRACES_PER_SESSION, 250);
     this.ttlMs = options.ttlMs ?? parsePositiveMs(env.MAPLE_TRACE_TTL_MS, 1000 * 60 * 60 * 24);
     this.persistence = options.persistence;
-    this.loadPersistedTraces();
+  }
+
+  async init(): Promise<void> {
+    await this.loadPersistedTraces();
   }
 
   createTrace(base: Omit<Trace, "id" | "startedAt" | "updatedAt">, ownerKeyFingerprint?: string): Trace {
@@ -283,8 +286,8 @@ export class TraceStore {
     this.removePersistedTrace(traceId);
   }
 
-  private loadPersistedTraces(): void {
-    const persisted = this.persistence?.loadTraces?.() ?? [];
+  private async loadPersistedTraces(): Promise<void> {
+    const persisted = (await this.persistence?.loadTraces?.()) ?? [];
     for (const trace of persisted) {
       this.traces.set(trace.id, trace);
       const bySession = this.sessionIndex.get(trace.sessionId) ?? [];
@@ -298,7 +301,12 @@ export class TraceStore {
 
   private persistTrace(trace: Trace): void {
     try {
-      this.persistence?.saveTrace?.(trace);
+      const result = this.persistence?.saveTrace?.(trace);
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch((error) =>
+          console.error("[PERSISTENCE] Failed to save trace:", error)
+        );
+      }
     } catch (error) {
       console.error("[PERSISTENCE] Failed to save trace:", error);
     }
@@ -306,7 +314,12 @@ export class TraceStore {
 
   private removePersistedTrace(traceId: string): void {
     try {
-      this.persistence?.removeTrace?.(traceId);
+      const result = this.persistence?.removeTrace?.(traceId);
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch((error) =>
+          console.error("[PERSISTENCE] Failed to remove trace:", error)
+        );
+      }
     } catch (error) {
       console.error("[PERSISTENCE] Failed to remove trace:", error);
     }

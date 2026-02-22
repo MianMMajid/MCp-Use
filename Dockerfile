@@ -3,11 +3,6 @@ FROM node:22-slim AS build
 
 WORKDIR /app
 
-# Install build dependencies for native modules (better-sqlite3)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install ALL deps (including devDependencies needed for build)
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -20,11 +15,6 @@ RUN npm run build
 FROM node:22-slim
 
 WORKDIR /app
-
-# Runtime native deps for better-sqlite3
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install production deps only
 COPY package.json package-lock.json ./
@@ -41,9 +31,6 @@ COPY --from=build /app/resources ./resources
 COPY --from=build /app/index.ts ./index.ts
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
-
-# Create data directory for SQLite volume mount
-RUN mkdir -p /app/data
 
 # Install tsx for dev mode TypeScript execution
 RUN npm install tsx

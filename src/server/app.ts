@@ -35,11 +35,13 @@ import {
 import type { OpenClawRawEvent, Trace, TraceForkEdits, TraceStep } from "../core/types.js";
 import { SharedTraceStore } from "../network/shared-trace-store.js";
 import { buildYcAppBrief, type YcBriefFocus } from "../strategy/yc-narrative.js";
+import Stripe from "stripe";
 import {
-  MapleSqliteDatabase,
+  MaplePostgresDatabase,
   type MapleSessionWithUser,
+  type MapleSubscription,
   type MapleUser,
-} from "../persistence/sqlite-db.js";
+} from "../persistence/pg-db.js";
 import {
   extractApiKeyFromHeaders,
   loadApiKeysFromEnv,
@@ -189,7 +191,7 @@ if (!isProductionRuntime) {
   });
 }
 
-const database = new MapleSqliteDatabase();
+const database = new MaplePostgresDatabase();
 const traceStore = new TraceStore({
   persistence: {
     loadTraces: () => database.loadTraces(10_000),
@@ -202,6 +204,34 @@ const sharedTraceStore = new SharedTraceStore(undefined, {
   saveSharedTrace: (trace) => database.upsertSharedTrace(trace),
   removeSharedTrace: (traceId) => database.removeSharedTrace(traceId),
 });
+
+// Initialize PostgreSQL database and load persisted data
+(async () => {
+  try {
+    await database.initialize();
+    await traceStore.init();
+    await sharedTraceStore.init();
+    console.log("[DB] PostgreSQL initialized and data loaded.");
+  } catch (err) {
+    console.error("[DB] PostgreSQL initialization failed:", err);
+    console.warn("[DB] Server will continue but persistence is degraded.");
+  }
+})();
+// ── Stripe billing setup ────────────────────────────────────────────────────
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() || null;
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || null;
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+const STRIPE_PLAN_PRICE_IDS: Record<string, string> = {
+  pro: process.env.STRIPE_PRICE_PRO?.trim() || "",
+  team: process.env.STRIPE_PRICE_TEAM?.trim() || "",
+  enterprise: process.env.STRIPE_PRICE_ENTERPRISE?.trim() || "",
+};
+const STRIPE_PRICE_TO_PLAN: Record<string, string> = {};
+for (const [plan, priceId] of Object.entries(STRIPE_PLAN_PRICE_IDS)) {
+  if (priceId) STRIPE_PRICE_TO_PLAN[priceId] = plan;
+}
+const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY?.trim() || null;
+
 const downstreamAppRegistry = loadDownstreamAppsFromEnv();
 let evolvedSuggestionsServed = 0;
 const configuredApiKeys = loadApiKeysFromEnv();
@@ -487,7 +517,9 @@ if (mcpRouteLockEnabled) {
   }
 }
 
-bootstrapAuthUsers();
+bootstrapAuthUsers().catch((err) =>
+  console.error("[AUTH] Bootstrap failed:", err)
+);
 
 const requestContextStorage = new AsyncLocalStorage<{
   requestId: string;
@@ -760,7 +792,7 @@ function clearSessionCookieHeader(): string {
   return parts.join("; ");
 }
 
-function findRequestSession(cookieHeader?: string): MapleSessionWithUser | undefined {
+async function findRequestSession(cookieHeader?: string): Promise<MapleSessionWithUser | undefined> {
   const sessionId = sessionCookieValue(cookieHeader);
   if (!sessionId) {
     return undefined;
@@ -776,15 +808,15 @@ function toPublicUser(user: Pick<MapleUser, "id" | "username" | "email">) {
   };
 }
 
-function bootstrapAuthUsers() {
-  database.purgeExpiredSessions();
-  const existingUsers = database.countUsers();
+async function bootstrapAuthUsers() {
+  await database.purgeExpiredSessions();
+  const existingUsers = await database.countUsers();
   const adminUsername = envValue(process.env.MAPLE_ADMIN_USERNAME) ?? "";
   const adminPassword = envValue(process.env.MAPLE_ADMIN_PASSWORD) ?? "";
   const adminEmail = envValue(process.env.MAPLE_ADMIN_EMAIL);
 
   if (adminUsername && adminPassword) {
-    const syncedUser = database.syncUserPasswordByUsername({
+    const syncedUser = await database.syncUserPasswordByUsername({
       username: adminUsername,
       email: adminEmail,
       passwordHash: hashPassword(adminPassword),
@@ -806,7 +838,7 @@ function bootstrapAuthUsers() {
     }
     const devUser = envValue(process.env.MAPLE_DEV_USERNAME) || "admin";
     const devPass = envValue(process.env.MAPLE_DEV_PASSWORD) || "maple-demo-password";
-    database.createUser({
+    await database.createUser({
       username: devUser,
       email: envValue(process.env.MAPLE_DEV_EMAIL) || "admin@local.maple",
       passwordHash: hashPassword(devPass),
@@ -851,7 +883,7 @@ interface RequireAuthOptions {
   requireApiKey?: boolean;
 }
 
-function requireApiKeyResponse(c: {
+async function requireApiKeyResponse(c: {
   req: {
     header: (name: string) => string | undefined;
   };
@@ -875,7 +907,7 @@ function requireApiKeyResponse(c: {
   }
 
   if (!requireApiKey && allowSessionAuth) {
-    const session = findRequestSession(cookieHeader);
+    const session = await findRequestSession(cookieHeader);
     if (session) {
       authContextStorage.enterWith({
         method: "session",
@@ -904,7 +936,7 @@ function requireApiKeyResponse(c: {
   return c.json(unauthorizedBody(reason), 401);
 }
 
-server.get("/inspector/demo", (c) => {
+server.get("/inspector/demo", async (c) => {
   const requestUrl = new URL(c.req.url);
   const host =
     requestUrl.hostname === "0.0.0.0" || requestUrl.hostname === "::"
@@ -5479,6 +5511,7 @@ async function readJudgeAsset(
     | "landing.html"
     | "landing.css"
     | "landing.js"
+    | "maple-tokens.css"
 ) {
   const candidates = [
     resolve(process.cwd(), "public", filename),
@@ -5565,6 +5598,23 @@ if (judgeUiRoutesEnabled) {
     }
   });
 
+  server.get("/maple-tokens.css", async (c) => {
+    try {
+      const css = await readJudgeAsset("maple-tokens.css");
+      return c.body(css, 200, {
+        "content-type": "text/css; charset=utf-8",
+        "cache-control": "no-store, max-age=0",
+        pragma: "no-cache",
+        expires: "0",
+      });
+    } catch (assetError) {
+      return c.text(
+        assetError instanceof Error ? assetError.message : "Unable to load maple tokens css.",
+        500
+      );
+    }
+  });
+
   server.get("/landing.js", async (c) => {
     try {
       const js = await readJudgeAsset("landing.js");
@@ -5608,14 +5658,14 @@ server.get("/health", (c) =>
 );
 
 if (judgeUiRoutesEnabled) {
-  const redirectToLandingWhenUnauthenticated = (
+  const redirectToLandingWhenUnauthenticated = async (
     c: {
       req: { header: (name: string) => string | undefined };
       redirect: (location: string, status?: 301 | 302 | 303 | 307 | 308 | undefined) => Response;
     },
     nextPath: string
-  ): Response | undefined => {
-    const session = findRequestSession(c.req.header("cookie"));
+  ): Promise<Response | undefined> => {
+    const session = await findRequestSession(c.req.header("cookie"));
     if (session) {
       return undefined;
     }
@@ -5624,7 +5674,7 @@ if (judgeUiRoutesEnabled) {
   };
 
   server.get("/judge", async (c) => {
-    const redirect = redirectToLandingWhenUnauthenticated(c, "/judge");
+    const redirect = await redirectToLandingWhenUnauthenticated(c, "/judge");
     if (redirect) {
       return redirect;
     }
@@ -5751,8 +5801,8 @@ if (judgeUiRoutesEnabled) {
   });
 }
 
-server.get("/api/auth/me", (c) => {
-  const session = findRequestSession(c.req.header("cookie"));
+server.get("/api/auth/me", async (c) => {
+  const session = await findRequestSession(c.req.header("cookie"));
   if (session) {
     const userScoped = `user:${session.user.id}`;
     const sessionScoped = resolveSessionOwnerFingerprint(session.user.id);
@@ -5801,14 +5851,14 @@ server.app.post("/api/auth/login", async (c) => {
     return c.json({ error: "username and password are required." }, 400);
   }
 
-  const user = database.findUserByUsername(username);
+  const user = await database.findUserByUsername(username);
   console.log(`[LOGIN-DEBUG] userFound=${!!user} hashPrefix=${user?.passwordHash?.slice(0, 20)}`);
   if (!user || !verifyPassword(password, user.passwordHash)) {
     console.log(`[LOGIN-DEBUG] REJECTED — verifyPassword=${user ? verifyPassword(password, user.passwordHash) : "no-user"}`);
     return c.json({ error: "Invalid username or password." }, 401);
   }
 
-  const session = database.createSession(user.id, sessionTtlSeconds);
+  const session = await database.createSession(user.id, sessionTtlSeconds);
   c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
   return c.json({
     ok: true,
@@ -5891,7 +5941,7 @@ async function verifyGoogleJwt(token: string): Promise<{ email: string; name: st
   return { email: payload.email, name: payload.name || "" };
 }
 
-server.app.get("/api/auth/google/client-id", (c) => {
+server.app.get("/api/auth/google/client-id", async (c) => {
   return c.json({ clientId: googleClientId });
 });
 
@@ -5914,24 +5964,24 @@ server.app.post("/api/auth/google", async (c) => {
     return c.json({ error: msg }, 401);
   }
 
-  let user = database.findUserByEmail(googleUser.email);
+  let user = await database.findUserByEmail(googleUser.email);
 
   if (!user) {
     // Auto-create user from Google account
     let baseUsername = googleUser.email.split("@")[0].replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30);
     if (!baseUsername) baseUsername = "user";
     let username = baseUsername;
-    while (database.findUserByUsername(username)) {
+    while (await database.findUserByUsername(username)) {
       username = baseUsername + "_" + randomUUID().slice(0, 6);
     }
-    user = database.createUser({
+    user = await database.createUser({
       username,
       email: googleUser.email,
       passwordHash: "google-oauth:no-password",
     });
   }
 
-  const session = database.createSession(user.id, sessionTtlSeconds);
+  const session = await database.createSession(user.id, sessionTtlSeconds);
   c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
   return c.json({
     ok: true,
@@ -5946,7 +5996,7 @@ server.app.post("/api/auth/google", async (c) => {
 });
 
 server.app.post("/api/auth/register", async (c) => {
-  const existingUsers = database.countUsers();
+  const existingUsers = await database.countUsers();
   if (!allowSelfSignup && existingUsers > 0) {
     return c.json({ error: "Self-signup is disabled." }, 403);
   }
@@ -5962,16 +6012,16 @@ server.app.post("/api/auth/register", async (c) => {
     return c.json({ error: "password must be at least 8 characters." }, 400);
   }
 
-  if (database.findUserByUsername(username)) {
+  if (await database.findUserByUsername(username)) {
     return c.json({ error: "Username already exists." }, 409);
   }
 
-  const user = database.createUser({
+  const user = await database.createUser({
     username,
     email,
     passwordHash: hashPassword(password),
   });
-  const session = database.createSession(user.id, sessionTtlSeconds);
+  const session = await database.createSession(user.id, sessionTtlSeconds);
   c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
   return c.json({
     ok: true,
@@ -5985,17 +6035,229 @@ server.app.post("/api/auth/register", async (c) => {
   });
 });
 
-server.app.post("/api/auth/logout", (c) => {
+server.app.post("/api/auth/logout", async (c) => {
   const sessionId = sessionCookieValue(c.req.header("cookie"));
   if (sessionId) {
-    database.revokeSession(sessionId);
+    await database.revokeSession(sessionId);
   }
   c.header("set-cookie", clearSessionCookieHeader());
   return c.json({ ok: true });
 });
 
-server.get("/api/traces", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+// ── User Profile & Billing Routes ──────────────────────────────────────────
+
+server.get("/api/user/profile", async (c) => {
+  const session = await findRequestSession(c.req.header("cookie"));
+  if (!session) {
+    return c.json({ error: "Authentication required." }, 401);
+  }
+  const user = await database.findUserById(session.user.id);
+  if (!user) {
+    return c.json({ error: "User not found." }, 404);
+  }
+  const subscription = await database.ensureFreeSubscription(user.id);
+  return c.json({
+    ok: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      createdAt: user.createdAt,
+    },
+    subscription: {
+      plan: subscription.plan,
+      status: subscription.status,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+    },
+  });
+});
+
+server.app.post("/api/user/change-password", async (c) => {
+  const session = await findRequestSession(c.req.header("cookie"));
+  if (!session) {
+    return c.json({ error: "Authentication required." }, 401);
+  }
+  const body = await readJsonBody(c);
+  const currentPassword = asString(body.currentPassword);
+  const newPassword = asString(body.newPassword);
+  if (!currentPassword || !newPassword) {
+    return c.json({ error: "currentPassword and newPassword are required." }, 400);
+  }
+  if (newPassword.length < 8) {
+    return c.json({ error: "New password must be at least 8 characters." }, 400);
+  }
+  const user = await database.findUserById(session.user.id);
+  if (!user) {
+    return c.json({ error: "User not found." }, 404);
+  }
+  if (!verifyPassword(currentPassword, user.passwordHash)) {
+    return c.json({ error: "Current password is incorrect." }, 401);
+  }
+  await database.updatePasswordByUserId(user.id, hashPassword(newPassword));
+  return c.json({ ok: true });
+});
+
+server.get("/api/billing/subscription", async (c) => {
+  const session = await findRequestSession(c.req.header("cookie"));
+  if (!session) {
+    return c.json({ error: "Authentication required." }, 401);
+  }
+  const subscription = await database.ensureFreeSubscription(session.user.id);
+  return c.json({
+    ok: true,
+    billingEnabled: !!stripe,
+    subscription: {
+      plan: subscription.plan,
+      status: subscription.status,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+    },
+  });
+});
+
+server.app.post("/api/billing/create-checkout-session", async (c) => {
+  const session = await findRequestSession(c.req.header("cookie"));
+  if (!session) {
+    return c.json({ error: "Authentication required." }, 401);
+  }
+  if (!stripe) {
+    return c.json({ error: "Billing is not configured." }, 501);
+  }
+  const body = await readJsonBody(c);
+  const plan = asString(body.plan);
+  if (!plan || !STRIPE_PLAN_PRICE_IDS[plan]) {
+    return c.json({ error: "Invalid plan." }, 400);
+  }
+  const priceId = STRIPE_PLAN_PRICE_IDS[plan];
+  if (!priceId) {
+    return c.json({ error: "Price not configured for this plan." }, 501);
+  }
+
+  // Ensure subscription record exists
+  const sub = await database.ensureFreeSubscription(session.user.id);
+  let customerId = sub.stripeCustomerId;
+
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      metadata: { mapleUserId: session.user.id },
+      email: session.user.email || undefined,
+    });
+    customerId = customer.id;
+    await database.upsertSubscription({
+      userId: session.user.id,
+      stripeCustomerId: customerId,
+      plan: sub.plan,
+      status: sub.status,
+    });
+  }
+
+  const baseUrl = process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const checkoutSession = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: "subscription",
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${baseUrl}/judge?billing=success`,
+    cancel_url: `${baseUrl}/judge?billing=cancel`,
+    metadata: { mapleUserId: session.user.id, maplePlan: plan },
+  });
+
+  return c.json({ ok: true, url: checkoutSession.url });
+});
+
+server.app.post("/api/billing/portal-session", async (c) => {
+  const session = await findRequestSession(c.req.header("cookie"));
+  if (!session) {
+    return c.json({ error: "Authentication required." }, 401);
+  }
+  if (!stripe) {
+    return c.json({ error: "Billing is not configured." }, 501);
+  }
+  const sub = await database.findSubscriptionByUserId(session.user.id);
+  if (!sub?.stripeCustomerId) {
+    return c.json({ error: "No billing account found." }, 404);
+  }
+  const baseUrl = process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: sub.stripeCustomerId,
+    return_url: `${baseUrl}/judge`,
+  });
+  return c.json({ ok: true, url: portalSession.url });
+});
+
+server.app.post("/api/billing/webhook", async (c) => {
+  if (!stripe || !stripeWebhookSecret) {
+    return c.json({ error: "Webhook not configured." }, 501);
+  }
+  const rawBody = await c.req.text();
+  const sig = c.req.header("stripe-signature");
+  if (!sig) {
+    return c.json({ error: "Missing stripe-signature header." }, 400);
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Signature verification failed";
+    return c.json({ error: msg }, 400);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const checkoutSession = event.data.object as Stripe.Checkout.Session;
+    const userId = checkoutSession.metadata?.mapleUserId;
+    const plan = checkoutSession.metadata?.maplePlan;
+    const customerId = typeof checkoutSession.customer === "string" ? checkoutSession.customer : checkoutSession.customer?.id;
+    const subscriptionId = typeof checkoutSession.subscription === "string" ? checkoutSession.subscription : checkoutSession.subscription?.id;
+    if (userId && plan && customerId) {
+      await database.upsertSubscription({
+        userId,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId || null,
+        plan,
+        status: "active",
+      });
+    }
+  } else if (event.type === "customer.subscription.updated") {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+    if (customerId) {
+      const sub = await database.findSubscriptionByStripeCustomerId(customerId);
+      if (sub) {
+        const priceId = subscription.items.data[0]?.price?.id;
+        const plan = priceId ? (STRIPE_PRICE_TO_PLAN[priceId] || sub.plan) : sub.plan;
+        await database.upsertSubscription({
+          userId: sub.userId,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscription.id,
+          plan,
+          status: subscription.status,
+          currentPeriodEnd: subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000).toISOString()
+            : null,
+        });
+      }
+    }
+  } else if (event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+    if (customerId) {
+      const sub = await database.findSubscriptionByStripeCustomerId(customerId);
+      if (sub) {
+        await database.upsertSubscription({
+          userId: sub.userId,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscription.id,
+          plan: "free",
+          status: "canceled",
+        });
+      }
+    }
+  }
+
+  return c.json({ received: true });
+});
+
+server.get("/api/traces", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6004,8 +6266,8 @@ server.get("/api/traces", (c) => {
   return c.json({ traces, count: traces.length });
 });
 
-server.get("/api/trace", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/trace", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6023,8 +6285,8 @@ server.get("/api/trace", (c) => {
   return c.json(trace);
 });
 
-server.get("/api/traces/:traceId", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/traces/:traceId", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6038,8 +6300,8 @@ server.get("/api/traces/:traceId", (c) => {
   return c.json(trace);
 });
 
-server.get("/api/community/stats", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/community/stats", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6050,8 +6312,8 @@ server.get("/api/community/stats", (c) => {
   });
 });
 
-server.get("/api/community/traces", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/community/traces", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6076,7 +6338,7 @@ server.get("/api/community/traces", (c) => {
 
 if (legacySmitheryRoutesEnabled) {
 server.get("/api/smithery/servers", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6131,7 +6393,7 @@ server.get("/api/smithery/servers", async (c) => {
 });
 
 server.get("/api/smithery/server", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6181,8 +6443,8 @@ server.get("/api/smithery/server", async (c) => {
   }
 });
 
-server.get("/api/smithery/downstream/registered", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/smithery/downstream/registered", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6200,7 +6462,7 @@ server.get("/api/smithery/downstream/registered", (c) => {
 });
 
 server.app.post("/api/smithery/downstream/register", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6325,7 +6587,7 @@ server.app.post("/api/smithery/downstream/register", async (c) => {
 });
 
 server.app.post("/api/smithery/downstream/unregister", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6369,8 +6631,8 @@ server.app.post("/api/smithery/downstream/unregister", async (c) => {
 });
 }
 
-server.get("/api/marketplace/providers", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/marketplace/providers", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6399,7 +6661,7 @@ server.get("/api/marketplace/providers", (c) => {
 });
 
 server.get("/api/marketplace/search", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6441,8 +6703,8 @@ server.get("/api/marketplace/search", async (c) => {
   }
 });
 
-server.get("/api/marketplace/connected", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/marketplace/connected", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6483,7 +6745,7 @@ server.get("/api/marketplace/connected", (c) => {
 });
 
 server.app.post("/api/marketplace/connect", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6578,7 +6840,7 @@ server.app.post("/api/marketplace/connect", async (c) => {
 });
 
 server.app.post("/api/marketplace/disconnect", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6633,8 +6895,8 @@ server.app.post("/api/marketplace/disconnect", async (c) => {
   });
 });
 
-server.get("/api/downstream/apps", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/downstream/apps", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6648,7 +6910,7 @@ server.get("/api/downstream/apps", (c) => {
 });
 
 server.get("/api/downstream/tools", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6689,7 +6951,7 @@ server.get("/api/downstream/tools", async (c) => {
 });
 
 server.get("/api/marketplace/catalog", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6764,7 +7026,7 @@ server.get("/api/marketplace/catalog", async (c) => {
 });
 
 server.app.post("/api/downstream/dispatch", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -6899,7 +7161,7 @@ const GPT_OAUTH_CLIENT_ID = String(process.env.MAPLE_GPT_OAUTH_CLIENT_ID || "map
 const GPT_OAUTH_CLIENT_SECRET = String(process.env.MAPLE_GPT_OAUTH_CLIENT_SECRET || configuredApiKeys[0] || "maple-secret");
 
 // OAuth2 discovery endpoints (MCP spec / ChatGPT requirement)
-server.get("/.well-known/oauth-authorization-server", (c) => {
+server.get("/.well-known/oauth-authorization-server", async (c) => {
   const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
   return c.json({
     issuer: baseUrl,
@@ -6912,7 +7174,7 @@ server.get("/.well-known/oauth-authorization-server", (c) => {
   });
 });
 
-server.get("/.well-known/oauth-protected-resource", (c) => {
+server.get("/.well-known/oauth-protected-resource", async (c) => {
   const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
   return c.json({
     resource: `${baseUrl}/mcp`,
@@ -6922,7 +7184,7 @@ server.get("/.well-known/oauth-protected-resource", (c) => {
 });
 
 // OAuth2 authorize/token endpoints for ChatGPT
-server.get("/gpt/oauth/authorize", (c) => {
+server.get("/gpt/oauth/authorize", async (c) => {
   const redirectUri = asString(c.req.query("redirect_uri"));
   const state = asString(c.req.query("state")) ?? "";
   if (!redirectUri) {
@@ -6963,7 +7225,7 @@ server.app.post("/gpt/oauth/token", async (c) => {
   });
 });
 
-server.get("/.well-known/ai-plugin.json", (c) => {
+server.get("/.well-known/ai-plugin.json", async (c) => {
   const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
   return c.json({
     schema_version: "v1",
@@ -7110,8 +7372,8 @@ server.app.post("/gpt/tools/:toolName", async (c) => {
   }
 });
 
-server.get("/api/yc/brief", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/yc/brief", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7128,8 +7390,8 @@ server.get("/api/yc/brief", (c) => {
   });
 });
 
-server.get("/api/runtime/status", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/runtime/status", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7140,8 +7402,8 @@ server.get("/api/runtime/status", (c) => {
   });
 });
 
-server.get("/api/firewall/state", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.get("/api/firewall/state", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7157,7 +7419,7 @@ server.get("/api/firewall/state", (c) => {
 });
 
 server.app.post("/api/firewall/chat", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7203,7 +7465,7 @@ server.get("/api/chat/capabilities", async (c) => {
 });
 
 server.app.post("/api/chat/stream", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7256,7 +7518,7 @@ server.app.post("/api/chat/stream", async (c) => {
 });
 
 server.app.post("/api/firewall/decision", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7373,7 +7635,7 @@ server.app.post("/api/firewall/decision", async (c) => {
 
 if (demoRoutesEnabled) {
 server.app.get("/api/demo/sessions", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) return unauthorized;
   if (!configuredBridgeUrl || !configuredBridgeToken) {
     return c.json({ sessions: [] });
@@ -7399,7 +7661,7 @@ server.app.get("/api/demo/sessions", async (c) => {
 });
 
 server.app.post("/api/demo/start", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7455,7 +7717,7 @@ server.app.post("/api/demo/start", async (c) => {
 });
 
 server.app.post("/api/demo/sync", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7580,7 +7842,7 @@ server.app.post("/api/demo/sync", async (c) => {
 });
 
 server.app.post("/api/demo/audit", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7609,7 +7871,7 @@ server.app.post("/api/demo/audit", async (c) => {
 });
 
 server.app.post("/api/demo/ml", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7648,7 +7910,7 @@ server.app.post("/api/demo/ml", async (c) => {
 });
 
 server.app.post("/api/demo/block", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7690,7 +7952,7 @@ server.app.post("/api/demo/block", async (c) => {
 });
 
 server.app.post("/api/demo/guard", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7743,7 +8005,7 @@ server.app.post("/api/demo/guard", async (c) => {
 });
 
 server.app.post("/api/demo/fork", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7837,7 +8099,7 @@ server.app.post("/api/demo/fork", async (c) => {
 });
 
 server.app.post("/api/demo/full", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7942,7 +8204,7 @@ server.app.post("/api/demo/full", async (c) => {
 });
 
 server.app.post("/api/demo/ingest", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -7993,7 +8255,7 @@ server.app.post("/api/demo/ingest", async (c) => {
 });
 
 server.app.post("/api/demo/share", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -8035,7 +8297,7 @@ server.app.post("/api/demo/share", async (c) => {
 });
 
 server.app.post("/api/demo/suggest", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -8066,7 +8328,7 @@ server.app.post("/api/demo/suggest", async (c) => {
 });
 
 server.app.post("/api/demo/brief", async (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -8087,8 +8349,8 @@ server.app.post("/api/demo/brief", async (c) => {
 });
 }
 
-server.app.post("/api/traces/clear", (c) => {
-  const unauthorized = requireApiKeyResponse(c);
+server.app.post("/api/traces/clear", async (c) => {
+  const unauthorized = await requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
   }
@@ -8102,7 +8364,7 @@ server.app.post("/api/traces/clear", (c) => {
 });
 
 server.app.post("/api/openclaw/events", async (c) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
+  const unauthorized = await requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
   if (unauthorized) {
     return unauthorized;
   }
@@ -8266,7 +8528,7 @@ for (const mcpEndpoint of ["/mcp", "/sse"] as const) {
 }
 
 server.app.use("/mcp", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
+  const unauthorized = await requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }
@@ -8280,7 +8542,7 @@ server.app.use("/mcp", async (c, next) => {
 });
 
 server.app.use("/sse", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
+  const unauthorized = await requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }

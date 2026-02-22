@@ -16,9 +16,9 @@ interface SuggestOptions {
 }
 
 interface SharedTraceStorePersistence {
-  loadSharedTraces?: () => SharedTrace[];
-  saveSharedTrace?: (trace: SharedTrace) => void;
-  removeSharedTrace?: (traceId: string) => void;
+  loadSharedTraces?: () => SharedTrace[] | Promise<SharedTrace[]>;
+  saveSharedTrace?: (trace: SharedTrace) => void | Promise<void>;
+  removeSharedTrace?: (traceId: string) => void | Promise<void>;
 }
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
@@ -89,7 +89,10 @@ export class SharedTraceStore {
   ) {
     this.maxSharedTraces = maxSharedTraces;
     this.persistence = persistence;
-    this.loadPersistedSharedTraces();
+  }
+
+  async init(): Promise<void> {
+    await this.loadPersistedSharedTraces();
   }
 
   shareTrace(trace: Trace, options: ShareTraceOptions = {}): SharedTrace {
@@ -219,8 +222,8 @@ export class SharedTraceStore {
     }
   }
 
-  private loadPersistedSharedTraces(): void {
-    const persisted = this.persistence?.loadSharedTraces?.() ?? [];
+  private async loadPersistedSharedTraces(): Promise<void> {
+    const persisted = (await this.persistence?.loadSharedTraces?.()) ?? [];
     for (const trace of persisted) {
       this.traces.set(trace.id, trace);
     }
@@ -229,7 +232,12 @@ export class SharedTraceStore {
 
   private saveSharedTrace(trace: SharedTrace): void {
     try {
-      this.persistence?.saveSharedTrace?.(trace);
+      const result = this.persistence?.saveSharedTrace?.(trace);
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch((error) =>
+          console.error("[PERSISTENCE] Failed to save shared trace:", error)
+        );
+      }
     } catch (error) {
       console.error("[PERSISTENCE] Failed to save shared trace:", error);
     }
@@ -237,7 +245,12 @@ export class SharedTraceStore {
 
   private removeSharedTrace(traceId: string): void {
     try {
-      this.persistence?.removeSharedTrace?.(traceId);
+      const result = this.persistence?.removeSharedTrace?.(traceId);
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch((error) =>
+          console.error("[PERSISTENCE] Failed to remove shared trace:", error)
+        );
+      }
     } catch (error) {
       console.error("[PERSISTENCE] Failed to remove shared trace:", error);
     }
