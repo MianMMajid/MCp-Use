@@ -8197,7 +8197,7 @@ server.app.use("/mcp", async (c, next) => {
 });
 
 server.app.use("/sse", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
+  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }
