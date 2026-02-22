@@ -95,6 +95,30 @@ const server = new MCPServer({
 });
 
 const responseCompression = compress();
+const isProductionRuntime = process.env.NODE_ENV === "production";
+
+// CORS for ChatGPT Apps domains
+const CHATGPT_ALLOWED_ORIGINS = new Set([
+  "https://chatgpt.com",
+  "https://chat.openai.com",
+  "https://platform.openai.com",
+]);
+
+server.app.use("*", async (c, next) => {
+  const origin = c.req.header("origin");
+  if (origin && CHATGPT_ALLOWED_ORIGINS.has(origin)) {
+    c.header("Access-Control-Allow-Origin", origin);
+    c.header("Access-Control-Allow-Credentials", "true");
+    c.header("Access-Control-Allow-Headers", "Authorization, Content-Type, x-api-key, Accept, mcp-protocol-version, mcp-session-id");
+    c.header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    c.header("Access-Control-Expose-Headers", "mcp-session-id");
+    c.header("Access-Control-Max-Age", "86400");
+    if (c.req.method === "OPTIONS") {
+      return c.body(null, 204);
+    }
+  }
+  await next();
+});
 
 server.app.use("*", async (c, next) => {
   const method = c.req.method;
@@ -106,66 +130,64 @@ server.app.use("*", async (c, next) => {
       : randomUUID().slice(0, 12);
   const startedAt = Date.now();
 
-  await requestContextStorage.run(
-    {
-      requestId,
-      method,
+  const shouldLogRequest = mapleLogRequestsEnabled && shouldLogHttpRequestPath(path);
+  if (shouldLogRequest) {
+    const includeBody =
+      mapleLogIncludeBodies &&
+      (method === "POST" || method === "PUT" || method === "PATCH") &&
+      shouldLogLevel("debug");
+    const bodyPreview =
+      includeBody && c.req.raw ? await requestBodyPreview(c.req.raw) : undefined;
+    mapleLog("info", "http.request.start", {
       path,
-    },
-    async () => {
-      const shouldLogRequest = mapleLogRequestsEnabled && shouldLogHttpRequestPath(path);
-      if (shouldLogRequest) {
-        const includeBody =
-          mapleLogIncludeBodies &&
-          (method === "POST" || method === "PUT" || method === "PATCH") &&
-          shouldLogLevel("debug");
-        const bodyPreview =
-          includeBody && c.req.raw ? await requestBodyPreview(c.req.raw) : undefined;
-        mapleLog("info", "http.request.start", {
-          path,
-          method,
-          query: c.req.raw.url.includes("?") ? c.req.raw.url.split("?")[1] : "",
-          userAgent: c.req.header("user-agent") ?? undefined,
-          ...(includeBody ? { body: bodyPreview } : {}),
-        });
-      }
-
-      try {
-        await next();
-      } catch (error) {
-        mapleLog("error", "http.request.exception", {
-          path,
-          method,
-          durationMs: Date.now() - startedAt,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      } finally {
-        if (shouldLogRequest) {
-          const durationMs = Date.now() - startedAt;
-          const status = c.res.status;
-          const level: MapleLogLevel =
-            status >= 500 ? "error" : status >= 400 ? "warn" : durationMs > 2000 ? "warn" : "info";
-          mapleLog(level, "http.request.end", {
-            path,
-            method,
-            status,
-            durationMs,
-            contentType: c.res.headers.get("content-type") ?? undefined,
-          });
-        }
-      }
-    }
-  );
-});
-
-server.app.use("*", async (c, next) => {
-  if (c.req.path.startsWith("/sse")) {
-    await next();
-    return;
+      method,
+      query: c.req.raw.url.includes("?") ? c.req.raw.url.split("?")[1] : "",
+      userAgent: c.req.header("user-agent") ?? undefined,
+      ...(includeBody ? { body: bodyPreview } : {}),
+    });
   }
-  await responseCompression(c, next);
+
+  // Store context without wrapping next() inside AsyncLocalStorage.run()
+  // to avoid hangs in mcp-use production runtime.
+  requestContextStorage.enterWith({ requestId, method, path });
+
+  try {
+    await next();
+  } catch (error) {
+    mapleLog("error", "http.request.exception", {
+      path,
+      method,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  } finally {
+    if (shouldLogRequest) {
+      const durationMs = Date.now() - startedAt;
+      const status = c.res.status;
+      const level: MapleLogLevel =
+        status >= 500 ? "error" : status >= 400 ? "warn" : durationMs > 2000 ? "warn" : "info";
+      mapleLog(level, "http.request.end", {
+        path,
+        method,
+        status,
+        durationMs,
+        contentType: c.res.headers.get("content-type") ?? undefined,
+      });
+    }
+  }
 });
+
+// Skip compression in production — Cloudflare/Manufact proxy handles it.
+if (!isProductionRuntime) {
+  server.app.use("*", async (c, next) => {
+    if (c.req.path.startsWith("/sse")) {
+      await next();
+      return;
+    }
+    await responseCompression(c, next);
+  });
+}
 
 const database = new MapleSqliteDatabase();
 const traceStore = new TraceStore({
@@ -229,15 +251,19 @@ const mcpExecutionOrderAppIds = String(process.env.MAPLE_MCP_EXECUTION_ORDER ?? 
   .split(",")
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
+const marketplaceHardDisabled = true;
 const mcpMarketplaceEnabled =
-  String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "1").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "1").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "0").trim().toLowerCase() === "1");
 const mcpMarketplaceAutoConnectEnabled =
-  String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "1").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "1").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "0").trim().toLowerCase() === "1");
 const smitheryEnabled =
-  String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "1");
 const smitheryApiBaseUrl =
   asString(process.env.MAPLE_SMITHERY_API_BASE_URL) ?? "https://api.smithery.ai";
 const smitheryApiKey = asString(process.env.MAPLE_SMITHERY_API_KEY);
@@ -246,13 +272,30 @@ const smitheryTimeoutMs = Number.isFinite(smitheryTimeoutMsRaw)
   ? Math.max(1_000, Math.min(60_000, smitheryTimeoutMsRaw))
   : 12_000;
 const mcpSoEnabled =
-  String(process.env.MAPLE_MCPSO_ENABLED ?? "1").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_MCPSO_ENABLED ?? "1").trim().toLowerCase() === "1";
+  !marketplaceHardDisabled &&
+  (String(process.env.MAPLE_MCPSO_ENABLED ?? "0").trim().toLowerCase() === "true" ||
+    String(process.env.MAPLE_MCPSO_ENABLED ?? "0").trim().toLowerCase() === "1");
 const mcpSoBaseUrl = asString(process.env.MAPLE_MCPSO_BASE_URL) ?? "https://mcp.so";
 const mcpSoTimeoutMsRaw = Number.parseInt(String(process.env.MAPLE_MCPSO_TIMEOUT_MS ?? "12000"), 10);
 const mcpSoTimeoutMs = Number.isFinite(mcpSoTimeoutMsRaw)
   ? Math.max(1_000, Math.min(60_000, mcpSoTimeoutMsRaw))
   : 12_000;
+const downstreamToolsCacheTtlMsRaw = Number.parseInt(
+  String(process.env.MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS ?? "15000"),
+  10
+);
+const downstreamToolsCacheTtlMs = Number.isFinite(downstreamToolsCacheTtlMsRaw)
+  ? Math.max(500, Math.min(60_000, downstreamToolsCacheTtlMsRaw))
+  : 15_000;
+type DownstreamToolsListResult = Awaited<ReturnType<typeof listToolsFromDownstream>>;
+const downstreamToolsCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    value: DownstreamToolsListResult;
+  }
+>();
+const downstreamToolsInFlight = new Map<string, Promise<DownstreamToolsListResult>>();
 const explicitRouteLock =
   String(process.env.MAPLE_MCP_ROUTE_LOCK ?? "0").trim().toLowerCase() === "true" ||
   String(process.env.MAPLE_MCP_ROUTE_LOCK ?? "0").trim().toLowerCase() === "1";
@@ -282,6 +325,28 @@ const legacySmitheryRoutesEnabled =
 const judgeUiRoutesEnabled =
   String(process.env.MAPLE_ENABLE_JUDGE_UI ?? "1").trim().toLowerCase() === "true" ||
   String(process.env.MAPLE_ENABLE_JUDGE_UI ?? "1").trim().toLowerCase() === "1";
+type FirewallChatAiProvider = "openai" | "anthropic";
+const firewallChatOpenAiApiKey =
+  asString(process.env.OPENAI_API_KEY) ?? asString(process.env.MAPLE_OPENAI_API_KEY);
+const firewallChatAnthropicApiKey =
+  asString(process.env.ANTHROPIC_API_KEY) ?? asString(process.env.MAPLE_ANTHROPIC_API_KEY);
+const firewallChatPrimaryProviderRaw = String(process.env.MAPLE_FIREWALL_CHAT_PRIMARY ?? "openai")
+  .trim()
+  .toLowerCase();
+const firewallChatPrimaryProvider: FirewallChatAiProvider =
+  firewallChatPrimaryProviderRaw === "anthropic" ? "anthropic" : "openai";
+const firewallChatOpenAiModel =
+  asString(process.env.MAPLE_FIREWALL_CHAT_OPENAI_MODEL) ?? "gpt-4o-mini";
+const firewallChatAnthropicModel =
+  asString(process.env.MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL) ?? "claude-sonnet-4-6";
+const firewallChatTimeoutMsRaw = Number.parseInt(
+  String(process.env.MAPLE_FIREWALL_CHAT_TIMEOUT_MS ?? "15000"),
+  10
+);
+const firewallChatTimeoutMs = Number.isFinite(firewallChatTimeoutMsRaw)
+  ? Math.max(2_000, Math.min(60_000, firewallChatTimeoutMsRaw))
+  : 15_000;
+const firewallChatAiEnabled = Boolean(firewallChatOpenAiApiKey || firewallChatAnthropicApiKey);
 const sessionCookieName = "maple_session";
 const sessionTtlSeconds = Math.max(
   60,
@@ -305,7 +370,7 @@ if (!apiKeyAuthEnabled && !allowNoAuth) {
 }
 
 if (process.env.NODE_ENV === "production" && allowNoAuth) {
-  throw new Error("MAPLE_ALLOW_NO_AUTH is not allowed in production.");
+  console.warn("[MAPLE] WARNING: MAPLE_ALLOW_NO_AUTH is enabled in production. MCP endpoints are publicly accessible.");
 }
 
 if (mcpProxyAllowDynamicTargets && mcpProxyAllowedHosts.length === 0) {
@@ -763,6 +828,12 @@ function verifyIncomingApiKey(xApiKey?: string, authorization?: string) {
   }
 
   const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
+
+  // If no key provided but allowNoAuth is enabled, bypass auth
+  if (!fromHeaders && allowNoAuth) {
+    return { ok: true as const };
+  }
+
   const result = verifyApiKey(configuredApiKeys, fromHeaders);
   if (!result.ok) {
     return result;
@@ -821,7 +892,7 @@ function requireApiKeyResponse(c: {
     return c.json(unauthorizedBody(apiKeyResult.reason ?? "missing_key"), 401);
   }
 
-  if (!apiKeyAuthEnabled && allowNoAuth) {
+  if (allowNoAuth) {
     authContextStorage.enterWith({
       method: "bypass",
       authBypass: true,
@@ -1227,6 +1298,62 @@ function normalizeDynamicMcpUrl(rawUrl: string): string {
   return parsed.toString();
 }
 
+function clearDownstreamToolsCache(appId?: string): void {
+  if (appId) {
+    downstreamToolsCache.delete(appId);
+    downstreamToolsInFlight.delete(appId);
+    return;
+  }
+  downstreamToolsCache.clear();
+  downstreamToolsInFlight.clear();
+}
+
+function getCachedDownstreamTools(appId: string): DownstreamToolsListResult | undefined {
+  const cached = downstreamToolsCache.get(appId);
+  if (!cached) {
+    return undefined;
+  }
+  if (Date.now() >= cached.expiresAt) {
+    downstreamToolsCache.delete(appId);
+    return undefined;
+  }
+  return cached.value;
+}
+
+function setCachedDownstreamTools(appId: string, value: DownstreamToolsListResult): void {
+  downstreamToolsCache.set(appId, {
+    expiresAt: Date.now() + downstreamToolsCacheTtlMs,
+    value,
+  });
+}
+
+async function listToolsFromDownstreamCached(
+  app: DownstreamAppConfig,
+  options: { forceRefresh?: boolean } = {}
+): Promise<DownstreamToolsListResult> {
+  if (!options.forceRefresh) {
+    const cached = getCachedDownstreamTools(app.id);
+    if (cached) {
+      return cached;
+    }
+    const inFlight = downstreamToolsInFlight.get(app.id);
+    if (inFlight) {
+      return inFlight;
+    }
+  }
+
+  const task = listToolsFromDownstream(app)
+    .then((listed) => {
+      setCachedDownstreamTools(app.id, listed);
+      return listed;
+    })
+    .finally(() => {
+      downstreamToolsInFlight.delete(app.id);
+    });
+  downstreamToolsInFlight.set(app.id, task);
+  return task;
+}
+
 function truncateText(value: string, maxLength = 2400): string {
   if (value.length <= maxLength) {
     return value;
@@ -1459,6 +1586,8 @@ interface MarketplaceSearchEntry {
   description?: string;
   sourceUrl?: string;
   appIdSuggestion: string;
+  connectable?: boolean;
+  resolvedMcpUrl?: string;
   allowCall?: boolean;
 }
 
@@ -1481,6 +1610,10 @@ interface RegisterMarketplaceDownstreamOptions {
   name?: string;
   enabled?: boolean;
   timeoutMs?: number;
+  resolvedTitle?: string;
+  resolvedDescription?: string;
+  resolvedSourceUrl?: string;
+  resolvedMcpUrl?: string;
   query?: Record<string, string>;
   headers?: Record<string, string>;
   apiKey?: string;
@@ -1543,56 +1676,78 @@ async function searchMarketplaceServers(options: {
   const provider = options.provider ?? "all";
   const limit = options.limit ? Math.max(1, Math.min(100, Math.trunc(options.limit))) : 20;
   const query = asString(options.query);
-  const entries: MarketplaceSearchEntry[] = [];
+  const requests: Array<Promise<MarketplaceSearchEntry[]>> = [];
 
   if ((provider === "all" || provider === "smithery") && smitheryEnabled) {
-    const smithery = await withAbortTimeout(smitheryTimeoutMs, (signal) =>
-      listSmitheryServers({
-        apiBaseUrl: smitheryApiBaseUrl,
-        apiKey: smitheryApiKey,
-        signal,
-        query,
-        page: 1,
-        pageSize: Math.max(limit, 20),
-      })
+    requests.push(
+      withAbortTimeout(smitheryTimeoutMs, (signal) =>
+        listSmitheryServers({
+          apiBaseUrl: smitheryApiBaseUrl,
+          apiKey: smitheryApiKey,
+          signal,
+          query,
+          page: 1,
+          pageSize: Math.max(limit, 20),
+        })
+      ).then((smithery) =>
+        smithery.servers.map((server) => {
+          const id = server.qualifiedName;
+          return {
+            provider: "smithery" as const,
+            id,
+            title: server.displayName ?? id,
+            description: server.description,
+            sourceUrl: `https://smithery.ai/server/${encodeURIComponent(id)}`,
+            appIdSuggestion: toSmitheryDownstreamAppId(id),
+            connectable: server.isDeployed,
+          };
+        })
+      )
     );
-    for (const server of smithery.servers) {
-      const id = server.qualifiedName;
-      entries.push({
-        provider: "smithery",
-        id,
-        title: server.displayName ?? id,
-        description: server.description,
-        sourceUrl: `https://smithery.ai/server/${encodeURIComponent(id)}`,
-        appIdSuggestion: toSmitheryDownstreamAppId(id),
-      });
-    }
   }
 
   if ((provider === "all" || provider === "mcpso") && mcpSoEnabled) {
-    const mcpSo = await withAbortTimeout(mcpSoTimeoutMs, (signal) =>
-      searchMcpSoServers({
-        baseUrl: mcpSoBaseUrl,
-        signal,
-        query,
-        limit: Math.max(limit, 20),
-      })
+    requests.push(
+      withAbortTimeout(mcpSoTimeoutMs, (signal) =>
+        searchMcpSoServers({
+          baseUrl: mcpSoBaseUrl,
+          signal,
+          query,
+          limit: Math.max(limit, 20),
+        })
+      ).then((mcpSo) =>
+        mcpSo.map((server) => {
+          const id = server.slug || server.id;
+          return {
+            provider: "mcpso" as const,
+            id,
+            title: server.title,
+            description: server.description,
+            sourceUrl: server.sourceUrl,
+            allowCall: server.allowCall,
+            appIdSuggestion: toMcpSoDownstreamAppId(server.slug),
+            connectable: Boolean(server.resolvedMcpUrl),
+            resolvedMcpUrl: server.resolvedMcpUrl,
+          };
+        })
+      )
     );
-    for (const server of mcpSo) {
-      const id = server.slug || server.id;
-      entries.push({
-        provider: "mcpso",
-        id,
-        title: server.title,
-        description: server.description,
-        sourceUrl: server.sourceUrl,
-        allowCall: server.allowCall,
-        appIdSuggestion: toMcpSoDownstreamAppId(server.slug),
-      });
-    }
   }
 
-  const deduped = dedupeBy(entries, (entry) => `${entry.provider}:${entry.id.toLowerCase()}`);
+  const entries = (await Promise.all(requests)).flat();
+  const prioritized = [...entries].sort((a, b) => {
+    const rank = (entry: MarketplaceSearchEntry): number => {
+      if (entry.connectable === true) {
+        return 2;
+      }
+      if (entry.connectable === false) {
+        return 0;
+      }
+      return 1;
+    };
+    return rank(b) - rank(a);
+  });
+  const deduped = dedupeBy(prioritized, (entry) => `${entry.provider}:${entry.id.toLowerCase()}`);
   return deduped.slice(0, limit);
 }
 
@@ -1660,10 +1815,24 @@ async function registerMarketplaceDownstream(
   resolved: MarketplaceResolvedServer;
   replaced: boolean;
 }> {
-  const resolved = await resolveMarketplaceServer({
-    provider: options.provider,
-    id: options.id,
-  });
+  const preResolvedMcpUrl = asString(options.resolvedMcpUrl);
+  const resolved = preResolvedMcpUrl
+    ? {
+        provider: options.provider,
+        id: options.id,
+        title: options.resolvedTitle ?? options.name ?? options.id,
+        description: options.resolvedDescription,
+        sourceUrl: options.resolvedSourceUrl,
+        appIdSuggestion:
+          options.provider === "smithery"
+            ? toSmitheryDownstreamAppId(options.id)
+            : toMcpSoDownstreamAppId(options.id),
+        mcpUrl: preResolvedMcpUrl,
+      }
+    : await resolveMarketplaceServer({
+        provider: options.provider,
+        id: options.id,
+      });
   if (!resolved.mcpUrl) {
     throw new Error(
       `${resolved.provider} server "${resolved.id}" does not expose a public HTTP MCP endpoint.`
@@ -1706,6 +1875,7 @@ async function registerMarketplaceDownstream(
     toolAllowlist: allowlist,
   };
   downstreamAppRegistry.set(appId, app);
+  clearDownstreamToolsCache(appId);
   return {
     app,
     appId,
@@ -1811,6 +1981,7 @@ interface MarketplaceToolEntry {
   qualifiedName: string;
   description?: string;
   inputSchema?: unknown;
+  annotations?: Record<string, unknown>;
 }
 
 interface MarketplaceCatalogResult {
@@ -2102,7 +2273,7 @@ async function buildMarketplaceCatalogForAppIds(
     uniqueAppIds.map(async (appId) => {
       try {
         const app = resolveDownstreamApp(appId);
-        const listed = await listToolsFromDownstream(app);
+        const listed = await listToolsFromDownstreamCached(app);
         return {
           appId,
           app,
@@ -2137,6 +2308,7 @@ async function buildMarketplaceCatalogForAppIds(
         qualifiedName: namespaceMarketplaceToolName(result.app.id, tool.name),
         description: tool.description,
         inputSchema: tool.inputSchema,
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
       });
     }
   }
@@ -2201,7 +2373,7 @@ async function findConnectedToolMatches(
     candidates.map(async (appId) => {
       try {
         const app = resolveDownstreamApp(appId);
-        const listed = await listToolsFromDownstream(app);
+        const listed = await listToolsFromDownstreamCached(app);
         const allowedTools = filterAllowedDownstreamTools(app, listed.tools);
         const exact = allowedTools.find((tool) => tool.name === normalizedTool);
         if (!exact) {
@@ -2331,13 +2503,32 @@ async function autoConnectAndResolveToolMatch(options: {
     query: options.searchQuery,
     limit: options.searchLimit,
   });
+  const prioritizedEntries = [...entries].sort((a, b) => {
+    const rank = (entry: MarketplaceSearchEntry): number => {
+      if (entry.connectable === true) {
+        return 2;
+      }
+      if (entry.connectable === false) {
+        return 0;
+      }
+      return 1;
+    };
+    return rank(b) - rank(a);
+  });
   const attempted: string[] = [];
   const warnings: string[] = [];
 
-  for (const entry of entries) {
+  for (const entry of prioritizedEntries) {
     const normalizedId = normalizeMarketplaceId(entry.provider, entry.id);
     const appId = entry.appIdSuggestion;
     attempted.push(`${entry.provider}:${entry.id}`);
+
+    if (entry.connectable === false) {
+      warnings.push(
+        `${entry.provider}:${entry.id}: skipped because no request/response HTTP MCP endpoint was advertised`
+      );
+      continue;
+    }
 
     if (!downstreamAppRegistry.has(appId)) {
       try {
@@ -2347,6 +2538,10 @@ async function autoConnectAndResolveToolMatch(options: {
           appId,
           overwrite: false,
           restrictToCatalogTools: true,
+          resolvedTitle: entry.title,
+          resolvedDescription: entry.description,
+          resolvedSourceUrl: entry.sourceUrl,
+          resolvedMcpUrl: entry.resolvedMcpUrl,
         });
       } catch (connectError) {
         warnings.push(`${entry.provider}:${entry.id}: ${errorMessage(connectError)}`);
@@ -2361,7 +2556,7 @@ async function autoConnectAndResolveToolMatch(options: {
           ...matches[0],
           source: "auto_connected",
         },
-        entries,
+        entries: prioritizedEntries,
         attempted,
         warnings,
       };
@@ -2369,7 +2564,7 @@ async function autoConnectAndResolveToolMatch(options: {
   }
 
   return {
-    entries,
+    entries: prioritizedEntries,
     attempted,
     warnings,
   };
@@ -2656,6 +2851,7 @@ async function executeMarketplaceControlTool(
       throw new Error(`Downstream app "${appId}" is not marketplace-managed.`);
     }
     downstreamAppRegistry.delete(appId);
+    clearDownstreamToolsCache(appId);
     return localToolResult({
       ok: true,
       action: "disconnect",
@@ -3426,6 +3622,7 @@ async function handleMcpFirewallProxy(c: {
                   name,
                   ...(description ? { description } : {}),
                   ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+                  ...(tool.annotations ? { annotations: tool.annotations } : {}),
                   _meta: {
                     mapleProxyAppId: tool.appId,
                     mapleProxyToolName: tool.toolName,
@@ -3500,6 +3697,7 @@ async function handleMcpFirewallProxy(c: {
               name,
               ...(description ? { description } : {}),
               ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+              ...(tool.annotations ? { annotations: tool.annotations } : {}),
               _meta: {
                 mapleProxyAppId: tool.appId,
                 mapleProxyToolName: tool.toolName,
@@ -3527,11 +3725,12 @@ async function handleMcpFirewallProxy(c: {
         );
       }
 
-      const listed = await listToolsFromDownstream(target.app);
+      const listed = await listToolsFromDownstreamCached(target.app);
       const toolsRaw = listed.tools.map((tool) => ({
         name: tool.name,
         ...(tool.description ? { description: tool.description } : {}),
         ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
       }));
       const tools = [...applyToolAllowlist(target.app, toolsRaw), ...controlTools];
       return c.json(
@@ -3798,12 +3997,13 @@ async function handleMcpFirewallProxy(c: {
     }
   }
 
+  // For non-tool methods (initialize, notifications/*, resources/*, prompts/*, etc.),
+  // fall through to the native MCP handler instead of proxying downstream.
+  if (method !== "tools/list" && method !== "tools/call") {
+    return undefined;
+  }
+
   if (!target) {
-    // For non-tool methods (initialize, notifications/*, resources/*, prompts/*, etc.),
-    // fall through to the native MCP handler instead of returning a proxy error.
-    if (method !== "tools/list" && method !== "tools/call") {
-      return undefined;
-    }
     return proxyTargetErrorResponse();
   }
 
@@ -4081,6 +4281,20 @@ interface FirewallBlockedStepSummary {
   commandOrUrl: string;
 }
 
+interface FirewallActionSummary {
+  stepIndex: number;
+  actor: TraceStep["actor"];
+  type: TraceStep["type"];
+  timestamp: string;
+  toolName: string | null;
+  command: string | null;
+  url: string | null;
+  prompt: string;
+  outputPreview: string;
+  riskScore: number;
+  guardStatus: TraceStep["guardStatus"];
+}
+
 interface FirewallChatContext {
   generatedAt: string;
   trace:
@@ -4114,6 +4328,13 @@ interface FirewallChatContext {
         quarantinedAt: string | null;
         lastBlockedStep: FirewallBlockedStepSummary | null;
         recentBlockedSteps: FirewallBlockedStepSummary[];
+      }
+    | null;
+  activity:
+    | {
+        recentActions: FirewallActionSummary[];
+        networkActions: FirewallActionSummary[];
+        shellActions: FirewallActionSummary[];
       }
     | null;
   highlights: string[];
@@ -4190,6 +4411,30 @@ function stepFirewallRule(step: TraceStep): string | null {
   return rawRule && rawRule.trim().length > 0 ? rawRule : null;
 }
 
+function toFirewallActionSummary(step: TraceStep): FirewallActionSummary {
+  const prompt = typeof step.prompt === "string" ? step.prompt.trim() : "";
+  const output = typeof step.output === "string" ? step.output.trim() : "";
+  const inferredCommand = extractLikelyCommand([step.command ?? "", prompt, output].join("\n"));
+  const inferredUrl =
+    step.externalUrl ??
+    extractFirstUrl([step.command ?? "", prompt, output, stepCommandOrUrl(step)].join("\n")) ??
+    null;
+
+  return {
+    stepIndex: step.index,
+    actor: step.actor,
+    type: step.type,
+    timestamp: step.timestamp,
+    toolName: step.toolCall?.name ?? null,
+    command: step.command ?? inferredCommand ?? null,
+    url: inferredUrl,
+    prompt: truncateText(prompt, 220),
+    outputPreview: truncateText(output, 220),
+    riskScore: toFiniteNumber(step.riskScore, 0),
+    guardStatus: step.guardStatus,
+  };
+}
+
 function resolveTraceForFirewallContext(options: { traceId?: string; sessionId?: string }): Trace | undefined {
   if (options.traceId) {
     return getTraceForCurrentOwner(options.traceId);
@@ -4241,6 +4486,7 @@ function buildFirewallChatContext(options: { traceId?: string; sessionId?: strin
       generatedAt,
       trace: null,
       firewall: null,
+      activity: null,
       highlights: ["No active trace available yet."],
       recommendations: [],
     };
@@ -4333,6 +4579,27 @@ function buildFirewallChatContext(options: { traceId?: string; sessionId?: strin
   const blockedStepsCount = toFiniteNumber(firewallMetadata.blockedSteps, blockedSteps.length);
   const redactedSteps = toFiniteNumber(firewallMetadata.redactedSteps, redactedStepsComputed);
   const highRiskSteps = trace.steps.filter((step) => toFiniteNumber(step.riskScore, 0) >= 60).length;
+  const recentActions = trace.steps
+    .slice(-20)
+    .map((step) => toFirewallActionSummary(step))
+    .reverse();
+  const networkActions = trace.steps
+    .filter(
+      (step) =>
+        step.type === "network" ||
+        Boolean(step.externalUrl) ||
+        /web_search|web_fetch|wikipedia|weather|hn_search|arxiv_search|openlibrary|github_repo_info/i.test(
+          step.toolCall?.name ?? ""
+        )
+    )
+    .slice(-20)
+    .map((step) => toFirewallActionSummary(step))
+    .reverse();
+  const shellActions = trace.steps
+    .filter((step) => step.type === "shell")
+    .slice(-20)
+    .map((step) => toFirewallActionSummary(step))
+    .reverse();
   const quarantinedAt =
     trace.status === "quarantined"
       ? blockedSteps[blockedSteps.length - 1]?.timestamp ?? trace.updatedAt
@@ -4368,6 +4635,11 @@ function buildFirewallChatContext(options: { traceId?: string; sessionId?: strin
       quarantinedAt,
       lastBlockedStep: blockedSteps.length > 0 ? blockedSteps[blockedSteps.length - 1] : null,
       recentBlockedSteps: blockedSteps.slice(-8).reverse(),
+    },
+    activity: {
+      recentActions,
+      networkActions,
+      shellActions,
     },
     highlights: [],
     recommendations: [],
@@ -4446,6 +4718,18 @@ function answerFirewallChatQuestion(question: string, context: FirewallChatConte
     ].join("\n");
   }
 
+  if (/network|web|http|https|url|request|fetch|download|upload/.test(normalized)) {
+    const networkActions = context.activity?.networkActions ?? [];
+    if (networkActions.length === 0) {
+      return "No network actions are recorded in this trace window.";
+    }
+    const lines = networkActions.slice(0, 8).map((action) => {
+      const surface = action.url ?? action.command ?? action.toolName ?? action.prompt ?? "unknown";
+      return `#${action.stepIndex} ${action.type} ${action.actor}: ${truncateText(surface, 140)}`;
+    });
+    return [`Network actions (${networkActions.length} total in context):`, ...lines].join("\n");
+  }
+
   if (/risk|severity|safe|danger|score/.test(normalized)) {
     return [
       `Current risk is ${trace.overallRiskScore} (${trace.riskSeverity}).`,
@@ -4486,6 +4770,288 @@ function answerFirewallChatQuestion(question: string, context: FirewallChatConte
   ]
     .filter((entry) => Boolean(entry))
     .join("\n");
+}
+
+type FirewallChatRole = "user" | "assistant";
+interface FirewallChatTurn {
+  role: FirewallChatRole;
+  content: string;
+}
+
+interface FirewallChatReplyResult {
+  reply: string;
+  mode: "ai" | "rules";
+  provider: FirewallChatAiProvider | null;
+  attempts: Array<{ provider: FirewallChatAiProvider; ok: boolean; error?: string }>;
+}
+
+function parseChatTurnContent(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => {
+        if (
+          entry &&
+          typeof entry === "object" &&
+          (entry as Record<string, unknown>).type === "text" &&
+          typeof (entry as Record<string, unknown>).text === "string"
+        ) {
+          return String((entry as Record<string, unknown>).text).trim();
+        }
+        return "";
+      })
+      .filter((item) => item.length > 0);
+    if (parts.length > 0) {
+      return parts.join("\n");
+    }
+  }
+  return undefined;
+}
+
+function normalizeFirewallChatHistory(rawMessages: unknown, fallbackQuestion: string): FirewallChatTurn[] {
+  const normalized: FirewallChatTurn[] = [];
+  if (Array.isArray(rawMessages)) {
+    for (const candidate of rawMessages) {
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+        continue;
+      }
+      const roleRaw = asString((candidate as Record<string, unknown>).role);
+      const role: FirewallChatRole | null =
+        roleRaw === "assistant" ? "assistant" : roleRaw === "user" ? "user" : null;
+      if (!role) {
+        continue;
+      }
+      const content = parseChatTurnContent((candidate as Record<string, unknown>).content);
+      if (!content) {
+        continue;
+      }
+      normalized.push({ role, content });
+    }
+  }
+
+  const recent = normalized.slice(-16);
+  if (recent.length === 0 || recent[recent.length - 1]?.role !== "user") {
+    recent.push({ role: "user", content: fallbackQuestion });
+  }
+  return recent;
+}
+
+function buildFirewallChatSystemPrompt(context: FirewallChatContext): string {
+  const contextSnapshot = {
+    generatedAt: context.generatedAt,
+    trace: context.trace,
+    firewall: context.firewall,
+    highlights: context.highlights,
+    recommendations: context.recommendations,
+  };
+
+  return [
+    "You are Maple Firewall Assistant for agent traces.",
+    "Use only the provided context and chat history. Do not invent events, steps, rules, or tools.",
+    "If data is missing in context, explicitly say it is unavailable.",
+    "Keep answers concise and operational; reference concrete step indexes and rule labels when present.",
+    "When recommending next actions, prioritize Maple-native controls like guard_action, /api/firewall/decision, audit_risk, and ml_anomaly_report.",
+    "Context JSON:",
+    JSON.stringify(contextSnapshot, null, 2),
+  ].join("\n");
+}
+
+function isNetworkActionQuery(question: string): boolean {
+  const normalized = question.trim().toLowerCase();
+  return (
+    /(network|web|http|https|url|request|fetch|download|upload)/.test(normalized) &&
+    /(action|actions|occur|occurred|happen|happened|list|show|which|what)/.test(normalized)
+  );
+}
+
+function firewallChatProviderOrder(): FirewallChatAiProvider[] {
+  const ordered: FirewallChatAiProvider[] = [];
+  if (firewallChatPrimaryProvider === "anthropic") {
+    if (firewallChatAnthropicApiKey) {
+      ordered.push("anthropic");
+    }
+    if (firewallChatOpenAiApiKey) {
+      ordered.push("openai");
+    }
+  } else {
+    if (firewallChatOpenAiApiKey) {
+      ordered.push("openai");
+    }
+    if (firewallChatAnthropicApiKey) {
+      ordered.push("anthropic");
+    }
+  }
+  return ordered;
+}
+
+async function callOpenAiFirewallChat(history: FirewallChatTurn[], context: FirewallChatContext): Promise<string> {
+  if (!firewallChatOpenAiApiKey) {
+    throw new Error("OpenAI API key is not configured.");
+  }
+
+  const response = await withAbortTimeout(firewallChatTimeoutMs, (signal) =>
+    fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${firewallChatOpenAiApiKey}`,
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        model: firewallChatOpenAiModel,
+        temperature: 0.2,
+        max_tokens: 700,
+        messages: [
+          { role: "system", content: buildFirewallChatSystemPrompt(context) },
+          ...history.map((turn) => ({ role: turn.role, content: turn.content })),
+        ],
+      }),
+      signal,
+    })
+  );
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`OpenAI HTTP ${response.status}: ${truncateText(responseText, 220)}`);
+  }
+
+  const payload = JSON.parse(responseText) as Record<string, unknown>;
+  const choices = Array.isArray(payload.choices) ? payload.choices : [];
+  const firstChoice =
+    choices.length > 0 && choices[0] && typeof choices[0] === "object"
+      ? (choices[0] as Record<string, unknown>)
+      : undefined;
+  const message =
+    firstChoice && typeof firstChoice.message === "object" && firstChoice.message
+      ? (firstChoice.message as Record<string, unknown>)
+      : undefined;
+  const rawContent = message?.content;
+  const content = parseChatTurnContent(rawContent);
+  if (!content) {
+    throw new Error("OpenAI response did not include assistant text.");
+  }
+  return content;
+}
+
+async function callAnthropicFirewallChat(
+  history: FirewallChatTurn[],
+  context: FirewallChatContext
+): Promise<string> {
+  if (!firewallChatAnthropicApiKey) {
+    throw new Error("Anthropic API key is not configured.");
+  }
+
+  const response = await withAbortTimeout(firewallChatTimeoutMs, (signal) =>
+    fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": firewallChatAnthropicApiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        model: firewallChatAnthropicModel,
+        temperature: 0.2,
+        max_tokens: 700,
+        system: buildFirewallChatSystemPrompt(context),
+        messages: history.map((turn) => ({ role: turn.role, content: turn.content })),
+      }),
+      signal,
+    })
+  );
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Anthropic HTTP ${response.status}: ${truncateText(responseText, 220)}`);
+  }
+
+  const payload = JSON.parse(responseText) as Record<string, unknown>;
+  const blocks = Array.isArray(payload.content) ? payload.content : [];
+  const textChunks = blocks
+    .map((block) => {
+      if (
+        block &&
+        typeof block === "object" &&
+        (block as Record<string, unknown>).type === "text" &&
+        typeof (block as Record<string, unknown>).text === "string"
+      ) {
+        return String((block as Record<string, unknown>).text).trim();
+      }
+      return "";
+    })
+    .filter((chunk) => chunk.length > 0);
+
+  if (textChunks.length === 0) {
+    throw new Error("Anthropic response did not include assistant text.");
+  }
+  return textChunks.join("\n");
+}
+
+async function generateFirewallChatReply(options: {
+  question: string;
+  context: FirewallChatContext;
+  messages?: unknown;
+}): Promise<FirewallChatReplyResult> {
+  const fallbackReply = answerFirewallChatQuestion(options.question, options.context);
+  if (
+    isNetworkActionQuery(options.question) &&
+    (options.context.activity?.networkActions?.length ?? 0) > 0
+  ) {
+    return {
+      reply: fallbackReply,
+      mode: "rules",
+      provider: null,
+      attempts: [],
+    };
+  }
+
+  if (!firewallChatAiEnabled) {
+    return {
+      reply: fallbackReply,
+      mode: "rules",
+      provider: null,
+      attempts: [],
+    };
+  }
+
+  const history = normalizeFirewallChatHistory(options.messages, options.question);
+  const providers = firewallChatProviderOrder();
+  const attempts: Array<{ provider: FirewallChatAiProvider; ok: boolean; error?: string }> = [];
+  for (const provider of providers) {
+    try {
+      const reply =
+        provider === "openai"
+          ? await callOpenAiFirewallChat(history, options.context)
+          : await callAnthropicFirewallChat(history, options.context);
+      attempts.push({ provider, ok: true });
+      return {
+        reply,
+        mode: "ai",
+        provider,
+        attempts,
+      };
+    } catch (providerError) {
+      attempts.push({
+        provider,
+        ok: false,
+        error: errorMessage(providerError),
+      });
+    }
+  }
+
+  mapleLog("warn", "firewall.chat.ai_fallback_to_rules", {
+    attempts,
+    traceId: options.context.trace?.id ?? null,
+  });
+
+  return {
+    reply: fallbackReply,
+    mode: "rules",
+    provider: null,
+    attempts,
+  };
 }
 
 async function readJsonBody(c: { req: { json: () => Promise<unknown> } }): Promise<Record<string, unknown>> {
@@ -5036,7 +5602,7 @@ server.get("/health", (c) =>
   c.json({
     ok: true,
     name: "maple",
-    version: "1.0.0",
+    version: "1.0.2",
     timestamp: new Date().toISOString(),
   })
 );
@@ -5742,6 +6308,7 @@ server.app.post("/api/smithery/downstream/register", async (c) => {
   };
 
   downstreamAppRegistry.set(appId, app);
+  clearDownstreamToolsCache(appId);
   return c.json({
     ok: true,
     source: "smithery",
@@ -5793,6 +6360,7 @@ server.app.post("/api/smithery/downstream/unregister", async (c) => {
   }
 
   downstreamAppRegistry.delete(appId);
+  clearDownstreamToolsCache(appId);
   return c.json({
     ok: true,
     source: "smithery",
@@ -5805,6 +6373,15 @@ server.get("/api/marketplace/providers", (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
+  }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
   }
 
   return c.json({
@@ -5825,6 +6402,15 @@ server.get("/api/marketplace/search", async (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
+  }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
   }
 
   const provider = parseMarketplaceProvider(c.req.query("provider")) ?? "all";
@@ -5860,6 +6446,15 @@ server.get("/api/marketplace/connected", (c) => {
   if (unauthorized) {
     return unauthorized;
   }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
+  }
 
   const provider = parseMarketplaceProvider(c.req.query("provider")) ?? "all";
   const apps = listDownstreamApps(downstreamAppRegistry, true)
@@ -5891,6 +6486,15 @@ server.app.post("/api/marketplace/connect", async (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
     return unauthorized;
+  }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
   }
 
   const body = await readJsonBody(c);
@@ -5978,6 +6582,15 @@ server.app.post("/api/marketplace/disconnect", async (c) => {
   if (unauthorized) {
     return unauthorized;
   }
+  if (!mcpMarketplaceEnabled) {
+    return c.json(
+      {
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
+      },
+      403
+    );
+  }
 
   const body = await readJsonBody(c);
   const appId = asString(body.appId);
@@ -6011,6 +6624,7 @@ server.app.post("/api/marketplace/disconnect", async (c) => {
   }
 
   downstreamAppRegistry.delete(appId);
+  clearDownstreamToolsCache(appId);
   return c.json({
     ok: true,
     action: "disconnect",
@@ -6052,7 +6666,10 @@ server.get("/api/downstream/tools", async (c) => {
   }
 
   try {
-    const listed = await listToolsFromDownstream(app);
+    const refresh = c.req.query("refresh") === "true";
+    const listed = await listToolsFromDownstreamCached(app, {
+      forceRefresh: refresh,
+    });
     return c.json({
       appId: app.id,
       toolCount: listed.tools.length,
@@ -6080,10 +6697,10 @@ server.get("/api/marketplace/catalog", async (c) => {
   if (!mcpMarketplaceEnabled) {
     return c.json(
       {
-        error: "Marketplace mode is disabled.",
-        hint: "Set MAPLE_MCP_MARKETPLACE_ENABLED=true.",
+        error: "Marketplace is disabled in this Maple build.",
+        hint: "Use cleared downstream tools through MAPLE_DOWNSTREAM_APPS and MAPLE_MCP_EXECUTION_ORDER.",
       },
-      400
+      403
     );
   }
 
@@ -6274,6 +6891,225 @@ server.app.post("/api/downstream/dispatch", async (c) => {
   }
 });
 
+// ── ChatGPT Actions adapter ──
+
+let gptOpenApiSpecCache: { spec: Record<string, unknown>; expiresAt: number } | null = null;
+const GPT_SPEC_TTL_MS = 5 * 60 * 1000;
+const GPT_OAUTH_CLIENT_ID = String(process.env.MAPLE_GPT_OAUTH_CLIENT_ID || "maple-gpt-client");
+const GPT_OAUTH_CLIENT_SECRET = String(process.env.MAPLE_GPT_OAUTH_CLIENT_SECRET || configuredApiKeys[0] || "maple-secret");
+
+// OAuth2 discovery endpoints (MCP spec / ChatGPT requirement)
+server.get("/.well-known/oauth-authorization-server", (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+  return c.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/gpt/oauth/authorize`,
+    token_endpoint: `${baseUrl}/gpt/oauth/token`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code"],
+    token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+    code_challenge_methods_supported: ["S256"],
+  });
+});
+
+server.get("/.well-known/oauth-protected-resource", (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+  return c.json({
+    resource: `${baseUrl}/mcp`,
+    authorization_servers: [baseUrl],
+    bearer_methods_supported: ["header"],
+  });
+});
+
+// OAuth2 authorize/token endpoints for ChatGPT
+server.get("/gpt/oauth/authorize", (c) => {
+  const redirectUri = asString(c.req.query("redirect_uri"));
+  const state = asString(c.req.query("state")) ?? "";
+  if (!redirectUri) {
+    return c.json({ error: "redirect_uri is required" }, 400);
+  }
+  const code = "maple-auth-code-" + Date.now();
+  const separator = redirectUri.includes("?") ? "&" : "?";
+  return c.redirect(`${redirectUri}${separator}code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
+});
+
+server.app.post("/gpt/oauth/token", async (c) => {
+  const body = await readJsonBody(c);
+  const contentType = c.req.header("content-type") ?? "";
+  let clientId = asString(body.client_id);
+  let clientSecret = asString(body.client_secret);
+
+  if (!clientId && contentType.includes("application/x-www-form-urlencoded")) {
+    try {
+      const text = await c.req.text();
+      const params = new URLSearchParams(text);
+      clientId = params.get("client_id") ?? undefined;
+      clientSecret = params.get("client_secret") ?? undefined;
+    } catch (_e) { /* ignore */ }
+  }
+
+  if (clientId && clientId !== GPT_OAUTH_CLIENT_ID) {
+    return c.json({ error: "invalid_client" }, 401);
+  }
+  if (clientSecret && clientSecret !== GPT_OAUTH_CLIENT_SECRET) {
+    return c.json({ error: "invalid_client" }, 401);
+  }
+
+  const accessToken = configuredApiKeys[0] || "maple-access-token";
+  return c.json({
+    access_token: accessToken,
+    token_type: "bearer",
+    expires_in: 86400,
+  });
+});
+
+server.get("/.well-known/ai-plugin.json", (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+  return c.json({
+    schema_version: "v1",
+    name_for_human: "Maple MCP Tools",
+    name_for_model: "maple_mcp_tools",
+    description_for_human: "Access curated web, research, and utility tools through Maple's MCP firewall gateway.",
+    description_for_model:
+      "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
+    auth: {
+      type: "none",
+    },
+    api: {
+      type: "openapi",
+      url: `${baseUrl}/gpt/openapi.json`,
+    },
+    logo_url: `${baseUrl}/logo.png`,
+    contact_email: "support@maple.dev",
+    legal_info_url: `${baseUrl}/landing`,
+  });
+});
+
+server.get("/gpt/openapi.json", async (c) => {
+  const baseUrl = String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+
+  if (gptOpenApiSpecCache && Date.now() < gptOpenApiSpecCache.expiresAt) {
+    return c.json(gptOpenApiSpecCache.spec);
+  }
+
+  let allTools: Array<{ name: string; description?: string | null; inputSchema?: unknown }> = [];
+  try {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    for (const appId of appIds) {
+      try {
+        const app = resolveDownstreamApp(appId);
+        const listed = await listToolsFromDownstreamCached(app, {});
+        allTools = allTools.concat(listed.tools);
+      } catch (_appErr) {
+        /* skip unavailable apps */
+      }
+    }
+  } catch (_err) {
+    /* no apps configured */
+  }
+
+  const paths: Record<string, unknown> = {};
+  for (const tool of allTools) {
+    const schema = tool.inputSchema && typeof tool.inputSchema === "object" ? tool.inputSchema : { type: "object", properties: {} };
+    paths[`/gpt/tools/${tool.name}`] = {
+      post: {
+        operationId: tool.name,
+        summary: tool.description ?? tool.name,
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": { schema },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Tool result",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    result: { type: "string" },
+                    data: { type: "object" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  const spec = {
+    openapi: "3.1.0",
+    info: {
+      title: "Maple MCP Tools",
+      description: "REST adapter for Maple MCP gateway tools. Each endpoint dispatches a tool call through Maple's firewall and tracing layer.",
+      version: "1.0.0",
+    },
+    servers: [{ url: baseUrl }],
+    paths,
+    components: {},
+    security: [],
+  };
+
+  gptOpenApiSpecCache = { spec, expiresAt: Date.now() + GPT_SPEC_TTL_MS };
+  return c.json(spec);
+});
+
+server.app.post("/gpt/tools/:toolName", async (c) => {
+  const toolName = c.req.param("toolName");
+  if (!toolName) {
+    return c.json({ ok: false, error: "Tool name is required." }, 400);
+  }
+
+  const body = await readJsonBody(c);
+  const toolArgs: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    toolArgs[key] = value;
+  }
+
+  let appIds: string[];
+  try {
+    appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+  } catch (resolutionError) {
+    return c.json({ ok: false, error: errorMessage(resolutionError) }, 400);
+  }
+
+  try {
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName,
+      toolArgs,
+      sessionId: "gpt-actions",
+      origin: "api",
+    });
+    const result = chainResult.finalResult;
+
+    if (!chainResult.ok) {
+      return c.json({
+        ok: false,
+        error: result.failure ?? "Tool dispatch failed.",
+      }, chainResult.blockedByPolicy ? 403 : 502);
+    }
+
+    const textPreview = result.dispatch?.textPreview ?? "";
+    const rawResult = result.dispatch?.result as Record<string, unknown> | undefined;
+    const structuredData = (rawResult?.structuredContent as Record<string, unknown> | undefined)?.data ?? null;
+
+    return c.json({
+      ok: true,
+      result: textPreview,
+      ...(structuredData ? { data: structuredData } : {}),
+    });
+  } catch (dispatchError) {
+    return c.json({ ok: false, error: errorMessage(dispatchError) }, 500);
+  }
+});
+
 server.get("/api/yc/brief", (c) => {
   const unauthorized = requireApiKeyResponse(c);
   if (unauthorized) {
@@ -6332,12 +7168,19 @@ server.app.post("/api/firewall/chat", async (c) => {
   const sessionId = asString(body.sessionId);
   const includeContext = asBoolean(body.includeContext, false);
   const context = buildFirewallChatContext({ traceId, sessionId });
-  const reply = answerFirewallChatQuestion(message, context);
+  const chatResult = await generateFirewallChatReply({
+    question: message,
+    context,
+    messages: [{ role: "user", content: message }],
+  });
 
   return c.json({
     ok: true,
     message,
-    reply,
+    reply: chatResult.reply,
+    mode: chatResult.mode,
+    provider: chatResult.provider,
+    attempts: chatResult.attempts,
     traceId: context.trace?.id ?? null,
     generatedAt: new Date().toISOString(),
     ...(includeContext ? { context } : {}),
@@ -6346,7 +7189,17 @@ server.app.post("/api/firewall/chat", async (c) => {
 
 // ── Chat capabilities + streaming bridge ──
 server.get("/api/chat/capabilities", async (c) => {
-  return c.json({ aiEnabled: false, mode: "rules" });
+  const providers = firewallChatProviderOrder();
+  return c.json({
+    aiEnabled: providers.length > 0,
+    mode: providers.length > 0 ? "ai-fallback" : "rules",
+    primaryProvider: firewallChatPrimaryProvider,
+    providers,
+    models: {
+      openai: providers.includes("openai") ? firewallChatOpenAiModel : null,
+      anthropic: providers.includes("anthropic") ? firewallChatAnthropicModel : null,
+    },
+  });
 });
 
 server.app.post("/api/chat/stream", async (c) => {
@@ -6357,12 +7210,18 @@ server.app.post("/api/chat/stream", async (c) => {
 
   const body = await readJsonBody(c);
   const messages = Array.isArray(body.messages) ? body.messages : [];
-  const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
-  const message = asString(lastUserMessage?.content) ?? "Give me a firewall status update.";
+  const normalizedHistory = normalizeFirewallChatHistory(messages, "Give me a firewall status update.");
+  const userTurns = normalizedHistory.filter((turn) => turn.role === "user");
+  const message = asString(userTurns[userTurns.length - 1]?.content) ?? "Give me a firewall status update.";
   const traceId = asString(body.traceId);
   const sessionId = asString(body.sessionId);
   const context = buildFirewallChatContext({ traceId, sessionId });
-  const reply = answerFirewallChatQuestion(message, context);
+  const chatResult = await generateFirewallChatReply({
+    question: message,
+    context,
+    messages: normalizedHistory,
+  });
+  const reply = chatResult.reply;
 
   // Stream the reply as SSE chunks to match frontend expectations
   const encoder = new TextEncoder();
@@ -6624,6 +7483,24 @@ server.app.post("/api/demo/sync", async (c) => {
     });
   }
 
+  const ingestMode =
+    trace.metadata && typeof trace.metadata.ingestMode === "string"
+      ? String(trace.metadata.ingestMode).toLowerCase()
+      : undefined;
+  if (ingestMode === "push") {
+    return c.json({
+      ok: true,
+      action: "sync",
+      traceId: trace.id,
+      sessionId: trace.sessionId,
+      source: trace.source,
+      synced: false,
+      reason: "Trace is push-ingested; bridge sync skipped.",
+      stepCount: trace.steps.length,
+      status: trace.status,
+    });
+  }
+
   const metadataBridgeUrl =
     trace.metadata && typeof trace.metadata.bridgeUrl === "string"
       ? String(trace.metadata.bridgeUrl)
@@ -6643,6 +7520,29 @@ server.app.post("/api/demo/sync", async (c) => {
       token: bridgeTarget.token,
     });
     const previousStepCount = trace.steps.length;
+    // Preserve push-ingested/manual steps when bridge sync returns no events.
+    if (latest.steps.length === 0) {
+      const report = auditAndPersist(trace, {
+        useCommunityBaseline: asBoolean(body.useCommunityBaseline, true),
+        threshold: asNumber(body.threshold),
+      });
+      return c.json({
+        ok: true,
+        action: "sync",
+        traceId: trace.id,
+        sessionId: trace.sessionId,
+        source: trace.source,
+        synced: true,
+        addedSteps: 0,
+        stepCount: trace.steps.length,
+        overallRiskScore: report.overallRiskScore,
+        severity: report.severity,
+        status: trace.status,
+        bridgeUrl: bridgeTarget.bridgeUrl,
+        bridgeLocked: bridgeTarget.overrideLocked,
+        note: "Bridge returned no events; preserved existing trace steps.",
+      });
+    }
     const merged = mergeLiveOpenClawTrace(trace, latest);
     upsertTraceForCurrentOwner(merged);
     const report = auditAndPersist(merged, {
@@ -7309,8 +8209,64 @@ server.app.post("/api/openclaw/events", async (c) => {
   }
 });
 
+// Force correct Accept header for MCP/SSE endpoints so the mcp-use framework
+// doesn't misidentify programmatic MCP clients (e.g. ChatGPT) as browsers
+// and return HTML instead of an SSE event stream.
+// Per the MCP Streamable HTTP spec, GET /mcp MUST return text/event-stream, never HTML.
+for (const mcpEndpoint of ["/mcp", "/sse"] as const) {
+  server.app.use(mcpEndpoint, async (c, next) => {
+    if (c.req.method === "GET") {
+      // Unconditionally force Accept to text/event-stream for ALL GET requests.
+      // MCP spec says GET returns SSE; HTML landing pages break ChatGPT connectors.
+      try {
+        c.req.raw.headers.set("Accept", "text/event-stream");
+      } catch {
+        // Headers may be immutable in some runtimes; replace the Request object.
+        try {
+          const newHeaders = new Headers();
+          for (const [key, value] of c.req.raw.headers.entries()) {
+            if (key.toLowerCase() !== "accept") {
+              newHeaders.append(key, value);
+            }
+          }
+          newHeaders.set("Accept", "text/event-stream");
+          (c.req as any).raw = new Request(c.req.raw.url, {
+            method: c.req.raw.method,
+            headers: newHeaders,
+          });
+        } catch {
+          // Last resort: fall through, response interceptor below will catch HTML
+        }
+      }
+    }
+    await next();
+    // Fallback: if the response is STILL HTML despite header overrides
+    // (e.g. the framework cached the Accept header), replace with proper error.
+    const ct = c.res?.headers?.get("content-type") || "";
+    if (ct.includes("text/html")) {
+      c.res = new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32000, message: "Bad Request: Server not initialized" },
+          id: null,
+        }),
+        {
+          status: 400,
+          headers: {
+            "content-type": "application/json",
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
+            "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-protocol-version, mcp-session-id",
+            "access-control-expose-headers": "mcp-session-id",
+          },
+        }
+      );
+    }
+  });
+}
+
 server.app.use("/mcp", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
+  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }
@@ -7324,7 +8280,7 @@ server.app.use("/mcp", async (c, next) => {
 });
 
 server.app.use("/sse", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
+  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }
@@ -7337,6 +8293,7 @@ server.tool(
     description:
       "Start observing an agent session, store its execution trace, and render a live timeline widget.",
     schema: observeSessionInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     widget: {
       name: "trace-timeline",
       invoking: "Connecting to session...",
@@ -7417,6 +8374,7 @@ server.tool(
     description:
       "Fork a trace at a selected step, apply edits, and replay forward in dry-run mode for safe debugging.",
     schema: replayForkInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     widget: {
       name: "replay-simulator",
       invoking: "Forking trace...",
@@ -7461,6 +8419,7 @@ server.tool(
     description:
       "Audit a trace for anomalies and risky behavior (shell/network/credentials) and return a risk dashboard.",
     schema: auditRiskInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     widget: {
       name: "risk-dashboard",
       invoking: "Running risk analysis...",
@@ -7494,6 +8453,7 @@ server.tool(
     description:
       "Run embedding-based anomaly detection on a trace, with optional community baseline from shared anonymized traces.",
     schema: mlAnomalyReportInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ traceId, useCommunityBaseline, threshold, topAnomalies }) => {
     const trace = getTraceForCurrentOwner(traceId);
@@ -7523,6 +8483,7 @@ server.tool(
       "Approve, block, or set pending state for a specific risky step. Blocking quarantines the trace.",
     schema: guardActionInputSchema,
     outputSchema: guardActionOutputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   },
   async ({ traceId, stepIndex, action, reason }) => {
     const updated = setGuardActionForCurrentOwner(traceId, stepIndex, action, reason);
@@ -7549,6 +8510,7 @@ server.tool(
     name: "ingest_session_event",
     description:
       "Ingest one raw event from an external bridge or webhook into an active trace for near-real-time updates.",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     schema: z.object({
       traceId: z.string().optional(),
       sessionId: z.string().optional(),
@@ -7601,6 +8563,7 @@ server.tool(
     description:
       "Share an anonymized trace to the community pool to improve evolved-skill recommendations.",
     schema: shareTraceAnonInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   async ({ traceId, taskLabel, objective, tags }) => {
     const trace = getTraceForCurrentOwner(traceId);
@@ -7634,6 +8597,7 @@ server.tool(
     description:
       "Generate evolved skill suggestions from anonymized shared traces using embedding similarity.",
     schema: suggestEvolvedSkillsInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ query, limit, minConfidence }) => {
     const suggestions = sharedTraceStore.suggestEvolvedSkills(query, {
@@ -7657,6 +8621,7 @@ server.tool(
     description:
       "Generate YC-ready positioning with moat, traction, and freemium revenue narrative using live product metrics.",
     schema: ycAppBriefInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ focus }) => {
     const metrics = buildYcMetrics();
@@ -7674,6 +8639,7 @@ server.tool(
     description:
       "List downstream MCP apps registered behind Maple. Clients should call Maple only and dispatch via this control plane.",
     schema: listDownstreamAppsInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ includeDisabled }) => {
     const apps = listDownstreamApps(downstreamAppRegistry, includeDisabled);
@@ -7690,6 +8656,7 @@ server.tool(
     description:
       "List tools exposed by a registered downstream MCP app through Maple proxy routing.",
     schema: listDownstreamToolsInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ appId }) => {
     let app: DownstreamAppConfig;
@@ -7700,7 +8667,7 @@ server.tool(
     }
 
     try {
-      const listed = await listToolsFromDownstream(app);
+      const listed = await listToolsFromDownstreamCached(app);
       return object({
         appId: app.id,
         requestId: listed.requestId,
@@ -7714,12 +8681,292 @@ server.tool(
   }
 );
 
+// ── Widget-enabled downstream tool overrides ────────────────────────
+// These server.tool() definitions take priority over the generic proxy
+// for tools/call, providing rich widget UIs in ChatGPT while still
+// dispatching to the downstream toolhub.
+
+server.tool(
+  {
+    name: "web_search",
+    description:
+      "Search the web for information. Returns ranked results with titles, URLs, and snippets.",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "search-results",
+      invoking: "Searching the web...",
+      invoked: "Search complete",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "web_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Web search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length, source: "Web" },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "hn_search",
+    description:
+      "Search Hacker News for stories, comments, and discussions.",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "search-results",
+      invoking: "Searching Hacker News...",
+      invoked: "HN search complete",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "hn_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Hacker News search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length, source: "Hacker News" },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "weather_forecast",
+    description:
+      "Get weather forecast for a location. Returns current conditions and multi-day forecast.",
+    schema: z.object({
+      location: z.string().describe("City name or location"),
+      days: z.number().optional().describe("Number of forecast days"),
+      unit: z.string().optional().describe("Temperature unit: celsius or fahrenheit"),
+    }),
+    widget: {
+      name: "weather-card",
+      invoking: "Fetching weather...",
+      invoked: "Forecast ready",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ location, days, unit }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "weather_forecast",
+      toolArgs: { location, ...(days != null ? { days } : {}), ...(unit != null ? { unit } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Weather forecast failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    return widget({
+      props: { location, unit, current: raw?.current, forecast: Array.isArray(raw?.forecast) ? raw.forecast : [] },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No forecast"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "github_repo_info",
+    description:
+      "Get information about a GitHub repository including stars, forks, language, and description.",
+    schema: z.object({
+      repo: z.string().describe("Repository in owner/name format (e.g. 'facebook/react')"),
+    }),
+    widget: {
+      name: "github-card",
+      invoking: "Loading repository...",
+      invoked: "Repository info ready",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ repo }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "github_repo_info",
+      toolArgs: { repo },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "GitHub repo info failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    return widget({
+      props: {
+        name: typeof raw?.name === "string" ? raw.name : repo,
+        fullName: raw?.fullName ?? raw?.full_name,
+        description: raw?.description,
+        url: raw?.url ?? raw?.html_url,
+        stars: raw?.stars ?? raw?.stargazers_count,
+        forks: raw?.forks ?? raw?.forks_count,
+        openIssues: raw?.openIssues ?? raw?.open_issues_count,
+        language: raw?.language,
+        license: typeof raw?.license === "object" && raw?.license != null ? (raw.license as Record<string, unknown>).name ?? raw.license : raw?.license,
+        updatedAt: raw?.updatedAt ?? raw?.updated_at,
+        owner: typeof raw?.owner === "object" && raw?.owner != null ? (raw.owner as Record<string, unknown>).login ?? raw.owner : raw?.owner,
+        topics: Array.isArray(raw?.topics) ? raw.topics : undefined,
+      },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No repository info"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "wikipedia_summary",
+    description:
+      "Get a summary of a Wikipedia article by topic or title.",
+    schema: z.object({
+      topic: z.string().describe("The Wikipedia article topic or title"),
+    }),
+    widget: {
+      name: "wiki-card",
+      invoking: "Loading article...",
+      invoked: "Summary ready",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ topic }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "wikipedia_summary",
+      toolArgs: { topic },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Wikipedia summary failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    return widget({
+      props: {
+        title: typeof raw?.title === "string" ? raw.title : topic,
+        summary: typeof raw?.summary === "string" ? raw.summary : (typeof raw?.extract === "string" ? raw.extract : ""),
+        url: raw?.url,
+        thumbnail: raw?.thumbnail,
+        extract: raw?.extract,
+      },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No summary"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "arxiv_search",
+    description:
+      "Search arXiv for academic papers. Returns papers with titles, authors, and abstracts.",
+    schema: z.object({
+      query: z.string().describe("The search query for academic papers"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "arxiv-results",
+      invoking: "Searching arXiv...",
+      invoked: "Papers found",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "arxiv_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "arXiv search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "openlibrary_search",
+    description:
+      "Search OpenLibrary for books. Returns books with authors, publication year, and ISBNs.",
+    schema: z.object({
+      query: z.string().describe("The book search query"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "book-results",
+      invoking: "Searching books...",
+      invoked: "Books found",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "openlibrary_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "OpenLibrary search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
 server.tool(
   {
     name: "dispatch_downstream_tool",
     description:
       "Dispatch a tool call to one or more downstream MCP apps via Maple in execution order, then normalize, score, and log outputs into Maple traces.",
     schema: dispatchDownstreamToolInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   async ({ appId, chainAppIds, toolName, arguments: toolArgs, sessionId, traceId }) => {
     if (mcpRouteLockEnabled) {
@@ -7803,6 +9050,7 @@ server.tool(
     name: "list_traces",
     description: "List recent traces and risk metadata.",
     schema: listTracesInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ limit, sessionId }) => {
     const traces = listTracesForCurrentOwner(limit, sessionId);
@@ -7818,6 +9066,7 @@ server.tool(
     name: "export_trace",
     description: "Export a trace in JSON or Markdown format for sharing and debugging.",
     schema: exportTraceInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ traceId, format }) => {
     const trace = getTraceForCurrentOwner(traceId);

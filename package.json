@@ -22,8 +22,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "mcp-use build",
-    "dev": "mcp-use dev",
-    "start": "HOST=${HOST:-0.0.0.0} node --env-file=.env node_modules/.bin/mcp-use start",
+    "dev": "bash scripts/hackathon-start.sh",
+    "start": "bash scripts/hackathon-start.sh",
     "test": "node --test --import tsx tests/**/*.test.ts",
     "deploy": "mcp-use deploy",
     "demo:install-openclaw": "bash scripts/install-openclaw.sh",
@@ -31,6 +31,10 @@
     "demo:up": "bash scripts/demo-up.sh",
     "demo:down": "bash scripts/demo-down.sh",
     "demo:run": "node scripts/demo-generator.mjs",
+    "trace:demo": "node scripts/agent-trace-demo.mjs",
+    "hackathon:up": "bash scripts/hackathon-start.sh",
+    "hackathon:down": "bash scripts/hackathon-down.sh",
+    "hackathon:verify": "bash scripts/hackathon-verify.sh",
     "local:up": "bash scripts/local-up.sh",
     "local:down": "bash scripts/local-down.sh",
     "postinstall": "mcp-use generate-types || true"

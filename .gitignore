@@ -30,5 +30,11 @@ Thumbs.db
 *.swo
 *~
 
+# SQLite database files
+data/
+*.db
+*.db-shm
+*.db-wal
+
 # Local external research clones
 mcp-firewall-reference/
