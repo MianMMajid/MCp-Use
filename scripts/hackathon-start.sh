@@ -127,8 +127,7 @@ if [ "${HACKATHON_OPEN_BROWSER}" = "1" ] && [ "${NODE_ENV}" != "production" ]; t
   ) &
 fi
 
-if [ -f "index.ts" ]; then
-  exec node node_modules/.bin/mcp-use dev --no-open
-else
-  exec node node_modules/.bin/mcp-use start
-fi
+# Always use mcp-use dev — mcp-use start (v2.x) only serves MCP protocol
+# and health, it does NOT serve custom Hono routes (API, ChatGPT adapter,
+# judge UI, etc.). mcp-use dev serves everything correctly.
+exec node node_modules/.bin/mcp-use dev --no-open
