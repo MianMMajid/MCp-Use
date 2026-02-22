@@ -348,7 +348,9 @@ if (!apiKeyAuthEnabled && !allowNoAuth) {
 }
 
 if (process.env.NODE_ENV === "production" && allowNoAuth) {
-  throw new Error("MAPLE_ALLOW_NO_AUTH is not allowed in production.");
+  mapleLog("warn", "startup.allow_no_auth_production", {
+    message: "MAPLE_ALLOW_NO_AUTH is enabled in production. MCP endpoints are publicly accessible.",
+  });
 }
 
 if (mcpProxyAllowDynamicTargets && mcpProxyAllowedHosts.length === 0) {
