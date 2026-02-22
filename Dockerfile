@@ -36,8 +36,17 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/resources ./resources
 
+# Keep index.ts so hackathon-start.sh uses mcp-use dev (serves custom routes).
+# mcp-use start in v2.x only serves MCP protocol + health, not custom Hono routes.
+COPY --from=build /app/index.ts ./index.ts
+COPY --from=build /app/src ./src
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+
 # Create data directory for SQLite volume mount
 RUN mkdir -p /app/data
+
+# Install tsx for dev mode TypeScript execution
+RUN npm install tsx
 
 # Railway injects PORT automatically
 ENV NODE_ENV=production
