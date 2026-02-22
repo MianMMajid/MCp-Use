@@ -109,8 +109,10 @@ server.app.use("*", async (c, next) => {
   if (origin && CHATGPT_ALLOWED_ORIGINS.has(origin)) {
     c.header("Access-Control-Allow-Origin", origin);
     c.header("Access-Control-Allow-Credentials", "true");
-    c.header("Access-Control-Allow-Headers", "Authorization, Content-Type, x-api-key, Accept");
-    c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    c.header("Access-Control-Allow-Headers", "Authorization, Content-Type, x-api-key, Accept, mcp-protocol-version, mcp-session-id");
+    c.header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    c.header("Access-Control-Expose-Headers", "mcp-session-id");
+    c.header("Access-Control-Max-Age", "86400");
     if (c.req.method === "OPTIONS") {
       return c.body(null, 204);
     }
@@ -8210,22 +8212,56 @@ server.app.post("/api/openclaw/events", async (c) => {
 // Force correct Accept header for MCP/SSE endpoints so the mcp-use framework
 // doesn't misidentify programmatic MCP clients (e.g. ChatGPT) as browsers
 // and return HTML instead of an SSE event stream.
+// Per the MCP Streamable HTTP spec, GET /mcp MUST return text/event-stream, never HTML.
 for (const mcpEndpoint of ["/mcp", "/sse"] as const) {
   server.app.use(mcpEndpoint, async (c, next) => {
     if (c.req.method === "GET") {
-      const accept = c.req.header("Accept") || c.req.header("accept") || "";
-      // If the client already asks for text/event-stream, or doesn't ask for
-      // text/html (i.e. not a real browser), force Accept to text/event-stream
-      // so the framework serves SSE instead of HTML.
-      if (accept.includes("text/event-stream") || !accept.includes("text/html")) {
+      // Unconditionally force Accept to text/event-stream for ALL GET requests.
+      // MCP spec says GET returns SSE; HTML landing pages break ChatGPT connectors.
+      try {
+        c.req.raw.headers.set("Accept", "text/event-stream");
+      } catch {
+        // Headers may be immutable in some runtimes; replace the Request object.
         try {
-          c.req.raw.headers.set("Accept", "text/event-stream");
+          const newHeaders = new Headers();
+          for (const [key, value] of c.req.raw.headers.entries()) {
+            if (key.toLowerCase() !== "accept") {
+              newHeaders.append(key, value);
+            }
+          }
+          newHeaders.set("Accept", "text/event-stream");
+          (c.req as any).raw = new Request(c.req.raw.url, {
+            method: c.req.raw.method,
+            headers: newHeaders,
+          });
         } catch {
-          // Headers may be immutable in some runtimes; fall through
+          // Last resort: fall through, response interceptor below will catch HTML
         }
       }
     }
     await next();
+    // Fallback: if the response is STILL HTML despite header overrides
+    // (e.g. the framework cached the Accept header), replace with proper error.
+    const ct = c.res?.headers?.get("content-type") || "";
+    if (ct.includes("text/html")) {
+      c.res = new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32000, message: "Bad Request: Server not initialized" },
+          id: null,
+        }),
+        {
+          status: 400,
+          headers: {
+            "content-type": "application/json",
+            "access-control-allow-origin": "*",
+            "access-control-allow-methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
+            "access-control-allow-headers": "Content-Type, Accept, Authorization, mcp-protocol-version, mcp-session-id",
+            "access-control-expose-headers": "mcp-session-id",
+          },
+        }
+      );
+    }
   });
 }
 
