@@ -182,7 +182,7 @@ const state = {
   ycMetrics: null,
   authenticated: false,
   runtimeStatus: null,
-  marketplaceProviders: [],
+  marketplaceProviders: {},
   marketplaceSearchResults: [],
   marketplaceConnectedApps: [],
   marketplaceTools: [],
@@ -547,16 +547,17 @@ const TREE_NODE_COLORS = {
 
 const ACTION_TREE_STYLE = [
   { selector: 'node', style: {
-    'shape': 'roundrectangle', 'width': 200, 'height': 52,
-    'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': 180,
+    'shape': 'roundrectangle', 'width': 240, 'height': 72,
+    'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': 220,
     'text-valign': 'center', 'text-halign': 'center',
     'font-family': "'Space Grotesk', Arial, sans-serif",
-    'font-size': 11, 'font-weight': 600, 'border-width': 2, 'border-style': 'solid',
+    'font-size': 10, 'font-weight': 500, 'line-height': 1.4, 'border-width': 2, 'border-style': 'solid',
     'background-color': '#1a3a1a', 'border-color': '#2ecc40', 'color': '#c8f0c8',
+    'padding': '6px',
   }},
   { selector: 'node.blocked', style: { 'background-color': '#3d1515', 'border-color': '#e74c3c', 'color': '#f5d0d0', 'border-width': 3 }},
   { selector: 'node.selected', style: { 'border-color': '#e8740c', 'border-width': 3 }},
-  { selector: 'node.fork', style: { 'background-color': '#152535', 'border-color': '#3498db', 'color': '#c8ddf0', 'width': 170 }},
+  { selector: 'node.fork', style: { 'background-color': '#152535', 'border-color': '#3498db', 'color': '#c8ddf0', 'width': 220 }},
   { selector: 'edge.main-edge', style: { 'width': 2, 'line-color': 'rgba(46,204,64,0.5)', 'target-arrow-color': '#2ecc40', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'curve-style': 'bezier', 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'line-dash-offset': 0 }},
   { selector: 'edge.fork-edge', style: { 'width': 2, 'line-color': 'rgba(52,152,219,0.6)', 'target-arrow-color': '#3498db', 'target-arrow-shape': 'triangle', 'curve-style': 'unbundled-bezier', 'control-point-distances': [40], 'control-point-weights': [0.5], 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'line-dash-offset': 0 }},
 ];
@@ -1674,8 +1675,8 @@ function buildActionTreeGraphData(trace, forkContext) {
     return { nodes, edges };
   }
 
-  const ySpacing = 80;
-  const xOffset = 260;
+  const ySpacing = 100;
+  const xOffset = 280;
 
   for (let i = 0; i < trace.steps.length; i++) {
     const step = trace.steps[i];
@@ -1691,7 +1692,9 @@ function buildActionTreeGraphData(trace, forkContext) {
     if (gs === "block") classes.push("blocked");
     if (isSelected) classes.push("selected");
 
-    const label = `Main #${stepIndex} ${type}/${actor}\n${stepTreeSummary(step)} | risk ${rs}`;
+    const guardLabel = gs === "pending" ? "" : `  [${gs.toUpperCase()}]`;
+    const summary = stepTreeSummary(step);
+    const label = `#${stepIndex}  ${type} · ${actor}${guardLabel}\n${summary}\nrisk ${rs} · ${risk}`;
 
     nodes.push({ data: { id: "main_" + i, stepIndex, label, traceId: trace.id }, position: { x: 0, y: i * ySpacing }, classes: classes.join(" ") });
 
@@ -1724,7 +1727,9 @@ function buildActionTreeGraphData(trace, forkContext) {
       if (gs === "block") classes.push("blocked");
       if (isSelected) classes.push("selected");
 
-      const label = `Fork #${stepIndex} ${type}/${actor}\n${stepTreeSummary(step)} | risk ${rs}`;
+      const guardLabel = gs === "pending" ? "" : `  [${gs.toUpperCase()}]`;
+      const summary = stepTreeSummary(step);
+      const label = `Fork #${stepIndex}  ${type} · ${actor}${guardLabel}\n${summary}\nrisk ${rs} · ${risk}`;
 
       nodes.push({ data: { id: "fork_" + i, stepIndex, label, traceId: forkTrace.id }, position: { x: xOffset, y: (clampedForkFrom + i) * ySpacing }, classes: classes.join(" ") });
 
@@ -2817,77 +2822,83 @@ async function loadBridgeSessions() {
 /* ── Admin: Marketplace handlers ── */
 
 async function refreshMarketplaceProviders() {
-  try {
-    const data = await httpModule.fetchJson("/api/marketplace/providers");
-    state.marketplaceProviders = data.providers ?? [];
-  } catch {
-    state.marketplaceProviders = [];
+  // Marketplace execution is disabled in hackathon mode; tab is repurposed to show fixed local tools.
+  state.marketplaceProviders = {
+    hackathon: {
+      enabled: true,
+      source: "local_downstream_apps",
+    },
+  };
+}
+
+function filterMarketplaceTools(query) {
+  const normalized = String(query ?? "").trim().toLowerCase();
+  const tools = Array.isArray(state.marketplaceTools) ? state.marketplaceTools : [];
+  if (!normalized) {
+    return tools;
   }
+  return tools.filter((tool) => {
+    const haystack = [
+      tool?.name,
+      tool?.description,
+      tool?.appId,
+    ]
+      .map((value) => String(value ?? "").toLowerCase())
+      .join(" ");
+    return haystack.includes(normalized);
+  });
 }
 
 async function searchMarketplace() {
   const query = marketplaceSearchInput?.value?.trim() ?? "";
-  const provider = marketplaceProviderSelect?.value ?? "all";
-  if (!query) {
-    return;
+  if (!state.marketplaceTools.length) {
+    await refreshMarketplaceTools();
   }
-  try {
-    const params = new URLSearchParams({ query });
-    if (provider !== "all") {
-      params.set("provider", provider);
-    }
-    const data = await httpModule.fetchJson(`/api/marketplace/search?${params.toString()}`);
-    state.marketplaceSearchResults = data.results ?? [];
-    renderMarketplaceResults();
-  } catch (error) {
-    if (marketplaceResultsBody) {
-      marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">Search failed: ${escapeHtml(error.message)}</td></tr>`;
-    }
-  }
+  state.marketplaceSearchResults = filterMarketplaceTools(query);
+  renderMarketplaceResults();
 }
 
 function renderMarketplaceResults() {
   if (!marketplaceResultsBody) return;
-  const results = state.marketplaceSearchResults;
+  const results = Array.isArray(state.marketplaceSearchResults) ? state.marketplaceSearchResults : [];
   if (!results.length) {
-    marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No results found.</td></tr>`;
+    marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No installed tools found.</td></tr>`;
     return;
   }
   marketplaceResultsBody.innerHTML = results.map((r) => `
     <tr>
-      <td>${escapeHtml(r.name ?? r.id ?? "-")}</td>
-      <td>${escapeHtml(r.provider ?? "-")}</td>
+      <td class="mono">${escapeHtml(r.name ?? "-")}</td>
+      <td class="mono">${escapeHtml(shortId(r.appId ?? "-", 16))}</td>
       <td>${escapeHtml(trim(r.description ?? "-", 80))}</td>
-      <td><button class="demo-btn" data-connect-id="${escapeHtml(r.id ?? "")}" data-connect-provider="${escapeHtml(r.provider ?? "")}">Connect</button></td>
+      <td><button class="demo-btn" data-dispatch-tool="${escapeHtml(r.name ?? "")}" data-dispatch-app="${escapeHtml(r.appId ?? "")}">Dispatch</button></td>
     </tr>
   `).join("");
 
-  marketplaceResultsBody.querySelectorAll("[data-connect-id]").forEach((btn) => {
+  marketplaceResultsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-connect-id");
-      const provider = btn.getAttribute("data-connect-provider");
-      await connectMarketplaceApp(id, provider);
+      const name = btn.getAttribute("data-dispatch-tool");
+      const appId = btn.getAttribute("data-dispatch-app") ?? "";
+      if (dispatchToolNameInput instanceof HTMLInputElement) {
+        dispatchToolNameInput.value = name ?? "";
+        dispatchToolNameInput.dataset.appId = appId;
+      }
     });
   });
 }
 
 async function connectMarketplaceApp(serverId, provider) {
-  try {
-    await httpModule.postJson("/api/marketplace/connect", { serverId, provider });
-    await refreshMarketplaceConnected();
-    await refreshMarketplaceTools();
-  } catch (error) {
-    setStatus(`Connect failed: ${error.message}`, "error");
-  }
+  setStatus("Marketplace connect is disabled in canonical hackathon mode.", "error");
 }
 
 async function refreshMarketplaceConnected() {
   try {
-    const data = await httpModule.fetchJson("/api/marketplace/connected");
-    state.marketplaceConnectedApps = data.apps ?? [];
+    const data = await httpModule.fetchJson("/api/downstream/apps");
+    const apps = Array.isArray(data?.apps) ? data.apps : [];
+    state.marketplaceConnectedApps = apps.filter((app) => app?.enabled !== false);
     renderMarketplaceConnected();
   } catch {
     state.marketplaceConnectedApps = [];
+    renderMarketplaceConnected();
   }
 }
 
@@ -2900,38 +2911,60 @@ function renderMarketplaceConnected() {
   }
   marketplaceConnectedBody.innerHTML = apps.map((app) => `
     <tr>
-      <td class="mono">${escapeHtml(shortId(app.appId ?? app.id ?? "-", 16))}</td>
+      <td class="mono">${escapeHtml(shortId(app.id ?? "-", 16))}</td>
       <td>${escapeHtml(app.name ?? "-")}</td>
-      <td class="mono">${escapeHtml(trim(app.url ?? "-", 50))}</td>
-      <td><button class="demo-btn" data-disconnect-id="${escapeHtml(app.appId ?? app.id ?? "")}">Disconnect</button></td>
+      <td class="mono">${escapeHtml(trim(app.mcpUrl ?? "-", 50))}</td>
+      <td>${escapeHtml(app.id === "toolhub" ? "route-locked" : "available")}</td>
     </tr>
   `).join("");
-
-  marketplaceConnectedBody.querySelectorAll("[data-disconnect-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const appId = btn.getAttribute("data-disconnect-id");
-      await disconnectMarketplaceApp(appId);
-    });
-  });
 }
 
 async function disconnectMarketplaceApp(appId) {
-  try {
-    await httpModule.postJson("/api/marketplace/disconnect", { appId });
-    await refreshMarketplaceConnected();
-    await refreshMarketplaceTools();
-  } catch (error) {
-    setStatus(`Disconnect failed: ${error.message}`, "error");
-  }
+  setStatus("Marketplace disconnect is disabled in canonical hackathon mode.", "error");
 }
 
 async function refreshMarketplaceTools() {
   try {
-    const data = await httpModule.fetchJson("/api/downstream/tools");
-    state.marketplaceTools = data.tools ?? [];
+    let apps = Array.isArray(state.marketplaceConnectedApps) ? state.marketplaceConnectedApps : [];
+    if (!apps.length) {
+      const connected = await httpModule.fetchJson("/api/downstream/apps");
+      apps = Array.isArray(connected.apps) ? connected.apps : [];
+      state.marketplaceConnectedApps = apps;
+      renderMarketplaceConnected();
+    }
+
+    const collected = [];
+    for (const app of apps) {
+      const appId = app?.appId ?? app?.id;
+      if (!appId) {
+        continue;
+      }
+      try {
+        const data = await httpModule.fetchJson(
+          `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
+        );
+        const tools = Array.isArray(data?.tools) ? data.tools : [];
+        for (const tool of tools) {
+          collected.push({
+            ...tool,
+            appId: tool?.appId ?? appId,
+          });
+        }
+      } catch {
+        // Keep rendering other apps if one tools/list call fails.
+      }
+    }
+
+    state.marketplaceTools = collected;
+    const query = marketplaceSearchInput?.value?.trim() ?? "";
+    state.marketplaceSearchResults = filterMarketplaceTools(query);
+    renderMarketplaceResults();
     renderMarketplaceTools();
   } catch {
     state.marketplaceTools = [];
+    state.marketplaceSearchResults = [];
+    renderMarketplaceResults();
+    renderMarketplaceTools();
   }
 }
 
@@ -2947,14 +2980,18 @@ function renderMarketplaceTools() {
       <td class="mono">${escapeHtml(tool.name ?? "-")}</td>
       <td class="mono">${escapeHtml(shortId(tool.appId ?? "-", 16))}</td>
       <td>${escapeHtml(trim(tool.description ?? "-", 60))}</td>
-      <td><button class="demo-btn" data-dispatch-tool="${escapeHtml(tool.name ?? "")}">Dispatch</button></td>
+      <td><button class="demo-btn" data-dispatch-tool="${escapeHtml(tool.name ?? "")}" data-dispatch-app="${escapeHtml(tool.appId ?? "")}">Dispatch</button></td>
     </tr>
   `).join("");
 
   marketplaceToolsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const name = btn.getAttribute("data-dispatch-tool");
-      if (dispatchToolNameInput) dispatchToolNameInput.value = name;
+      const appId = btn.getAttribute("data-dispatch-app") ?? "";
+      if (dispatchToolNameInput instanceof HTMLInputElement) {
+        dispatchToolNameInput.value = name ?? "";
+        dispatchToolNameInput.dataset.appId = appId;
+      }
     });
   });
 }
@@ -2962,6 +2999,12 @@ function renderMarketplaceTools() {
 async function dispatchTool() {
   const toolName = dispatchToolNameInput?.value?.trim() ?? "";
   const argsRaw = dispatchToolArgsInput?.value?.trim() ?? "{}";
+  const selectedAppId =
+    dispatchToolNameInput instanceof HTMLInputElement
+      ? dispatchToolNameInput.dataset.appId?.trim() ?? ""
+      : "";
+  const runtimeStatus = state.runtimeStatus?.status ?? state.runtimeStatus ?? {};
+  const routeLockEnabled = runtimeStatus?.routeLock === true;
   if (!toolName) {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: "Tool name required." }, null, 2);
     return;
@@ -2974,7 +3017,12 @@ async function dispatchTool() {
     return;
   }
   try {
-    const result = await httpModule.postJson("/api/downstream/dispatch", { toolName, arguments: args });
+    const body = {
+      toolName,
+      arguments: args,
+      ...(selectedAppId && !routeLockEnabled ? { appId: selectedAppId } : {}),
+    };
+    const result = await httpModule.postJson("/api/downstream/dispatch", body);
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
@@ -3765,18 +3813,10 @@ if (firewallChatInputEl) {
   });
 }
 
-// Click on rotating placeholder sends that suggestion
+// Keep rotating placeholder non-interactive so clicks focus the input.
 if (rotatingPlaceholderEl) {
-  rotatingPlaceholderEl.style.pointerEvents = "auto";
-  rotatingPlaceholderEl.style.cursor = "pointer";
-  rotatingPlaceholderEl.addEventListener("click", () => {
-    const textEl = rotatingPlaceholderEl.querySelector(".placeholder-text");
-    if (!textEl) return;
-    const prompt = textEl.textContent;
-    if (!prompt) return;
-    stopSuggestionRotation();
-    askFirewallChat(prompt, { echoUser: true });
-  });
+  rotatingPlaceholderEl.style.pointerEvents = "none";
+  rotatingPlaceholderEl.style.cursor = "text";
 }
 
 startSuggestionRotation();
@@ -3911,6 +3951,11 @@ if (marketplaceSearchInput instanceof HTMLInputElement) {
     if (event.key === "Enter") searchMarketplace();
   });
 }
+if (dispatchToolNameInput instanceof HTMLInputElement) {
+  dispatchToolNameInput.addEventListener("input", () => {
+    delete dispatchToolNameInput.dataset.appId;
+  });
+}
 if (dispatchToolBtn instanceof HTMLButtonElement) {
   dispatchToolBtn.addEventListener("click", () => dispatchTool());
 }
@@ -3966,7 +4011,9 @@ window.addEventListener("keydown", (event) => {
 document.addEventListener("mousedown", (event) => {
   if (!state.contextPanelOpen) return;
   const target = event.target;
+  if (!(target instanceof Element)) return;
   if (
+    target.closest("#nodeActionModal") ||
     target.closest(".context-panel") ||
     target.closest(".category-bar") ||
     target.closest(".chat-composer") ||

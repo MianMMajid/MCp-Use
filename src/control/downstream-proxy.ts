@@ -32,6 +32,7 @@ export interface DownstreamToolInfo {
   name: string;
   description?: string;
   inputSchema?: unknown;
+  annotations?: Record<string, unknown>;
 }
 
 export interface DownstreamCallResult {
@@ -431,10 +432,14 @@ export async function listToolsFromDownstream(
     if (!name) {
       continue;
     }
+    const annotations = tool.annotations && typeof tool.annotations === "object" && !Array.isArray(tool.annotations)
+      ? (tool.annotations as Record<string, unknown>)
+      : undefined;
     tools.push({
       name,
       description: asString(tool.description),
       inputSchema: tool.inputSchema,
+      ...(annotations ? { annotations } : {}),
     });
   }
 

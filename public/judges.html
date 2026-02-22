@@ -493,42 +493,34 @@
               <span class="chip">MCP</span>
             </div>
             <div class="marketplace-controls">
-              <div class="marketplace-field">
-                <label for="marketplaceProvider">Provider</label>
-                <select id="marketplaceProvider">
-                  <option value="all">All providers</option>
-                  <option value="smithery">Smithery</option>
-                  <option value="mcpso">MCP.so</option>
-                </select>
-              </div>
               <div class="marketplace-field marketplace-field-grow">
-                <label for="marketplaceSearch">Search</label>
-                <input id="marketplaceSearch" type="text" placeholder="Search MCP servers..." autocomplete="off" />
+                <label for="marketplaceSearch">Filter Installed Tools</label>
+                <input id="marketplaceSearch" type="text" placeholder="Filter tool name/description..." autocomplete="off" />
               </div>
-              <button id="marketplaceSearchBtn" class="demo-btn primary" type="button">Search</button>
+              <button id="marketplaceSearchBtn" class="demo-btn primary" type="button">Filter</button>
             </div>
             <div class="marketplace-section">
-              <h3 class="marketplace-section-title">Search Results</h3>
+              <h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3>
               <div class="table-wrap">
                 <table class="timeline-table marketplace-results-table">
                   <thead>
-                    <tr><th>Name</th><th>Provider</th><th>Description</th><th>Action</th></tr>
+                    <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
                   </thead>
                   <tbody id="marketplaceResultsBody">
-                    <tr><td colspan="4" class="empty-row">Search to discover MCP servers.</td></tr>
+                    <tr><td colspan="4" class="empty-row">Loading installed tools...</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
             <div class="marketplace-section">
-              <h3 class="marketplace-section-title">Connected Apps</h3>
+              <h3 class="marketplace-section-title">Registered Downstream Apps</h3>
               <div class="table-wrap">
                 <table class="timeline-table marketplace-connected-table">
                   <thead>
-                    <tr><th>App ID</th><th>Name</th><th>URL</th><th>Action</th></tr>
+                    <tr><th>App ID</th><th>Name</th><th>URL</th><th>Scope</th></tr>
                   </thead>
                   <tbody id="marketplaceConnectedBody">
-                    <tr><td colspan="4" class="empty-row">No connected apps.</td></tr>
+                    <tr><td colspan="4" class="empty-row">No downstream apps found.</td></tr>
                   </tbody>
                 </table>
               </div>
