@@ -872,7 +872,7 @@ function requireApiKeyResponse(c: {
     return c.json(unauthorizedBody(apiKeyResult.reason ?? "missing_key"), 401);
   }
 
-  if (!apiKeyAuthEnabled && allowNoAuth) {
+  if (allowNoAuth) {
     authContextStorage.enterWith({
       method: "bypass",
       authBypass: true,
@@ -3972,12 +3972,13 @@ async function handleMcpFirewallProxy(c: {
     }
   }
 
+  // For non-tool methods (initialize, notifications/*, resources/*, prompts/*, etc.),
+  // fall through to the native MCP handler instead of proxying downstream.
+  if (method !== "tools/list" && method !== "tools/call") {
+    return undefined;
+  }
+
   if (!target) {
-    // For non-tool methods (initialize, notifications/*, resources/*, prompts/*, etc.),
-    // fall through to the native MCP handler instead of returning a proxy error.
-    if (method !== "tools/list" && method !== "tools/call") {
-      return undefined;
-    }
     return proxyTargetErrorResponse();
   }
 

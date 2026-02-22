@@ -29,7 +29,7 @@ function rowTone(score: number) {
 const ReplaySimulatorWidget: React.FC = () => {
   const { props, isPending } = useWidget<ReplaySimulatorProps>();
 
-  if (isPending) {
+  if (isPending || !props.originalSteps) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
