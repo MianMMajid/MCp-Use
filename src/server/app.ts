@@ -5576,7 +5576,8 @@ server.get("/health", (c) =>
   c.json({
     ok: true,
     name: "maple",
-    version: "1.0.0",
+    version: "1.0.1",
+    noAuth: allowNoAuth,
     timestamp: new Date().toISOString(),
   })
 );
