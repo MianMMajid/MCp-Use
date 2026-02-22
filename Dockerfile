@@ -40,7 +40,7 @@ COPY --from=build /app/resources ./resources
 RUN mkdir -p /app/data
 
 # Railway injects PORT automatically
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 ENV HOST=0.0.0.0
 ENV HACKATHON_TOOLHUB_HOST=127.0.0.1
 

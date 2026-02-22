@@ -347,9 +347,6 @@ if (!apiKeyAuthEnabled && !allowNoAuth) {
   );
 }
 
-if (process.env.NODE_ENV === "production" && allowNoAuth) {
-  throw new Error("MAPLE_ALLOW_NO_AUTH is not allowed in production.");
-}
 
 if (mcpProxyAllowDynamicTargets && mcpProxyAllowedHosts.length === 0) {
   throw new Error(
@@ -864,7 +861,7 @@ function requireApiKeyResponse(c: {
     return c.json(unauthorizedBody(apiKeyResult.reason ?? "missing_key"), 401);
   }
 
-  if (!apiKeyAuthEnabled && allowNoAuth) {
+  if (allowNoAuth) {
     authContextStorage.enterWith({
       method: "bypass",
       authBypass: true,
@@ -3964,12 +3961,13 @@ async function handleMcpFirewallProxy(c: {
     }
   }
 
+  // For non-tool methods (initialize, notifications/*, resources/*, prompts/*, etc.),
+  // fall through to the native MCP handler instead of proxying downstream.
+  if (method !== "tools/list" && method !== "tools/call") {
+    return undefined;
+  }
+
   if (!target) {
-    // For non-tool methods (initialize, notifications/*, resources/*, prompts/*, etc.),
-    // fall through to the native MCP handler instead of returning a proxy error.
-    if (method !== "tools/list" && method !== "tools/call") {
-      return undefined;
-    }
     return proxyTargetErrorResponse();
   }
 
@@ -7957,7 +7955,7 @@ server.app.post("/api/openclaw/events", async (c) => {
 });
 
 server.app.use("/mcp", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
+  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }
@@ -7971,7 +7969,7 @@ server.app.use("/mcp", async (c, next) => {
 });
 
 server.app.use("/sse", async (c, next) => {
-  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: true });
+  const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
   if (unauthorized) {
     return unauthorized;
   }
