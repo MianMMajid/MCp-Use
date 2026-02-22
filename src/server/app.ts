@@ -95,6 +95,7 @@ const server = new MCPServer({
 });
 
 const responseCompression = compress();
+const isProductionRuntime = process.env.NODE_ENV === "production";
 
 server.app.use("*", async (c, next) => {
   const method = c.req.method;
@@ -106,66 +107,64 @@ server.app.use("*", async (c, next) => {
       : randomUUID().slice(0, 12);
   const startedAt = Date.now();
 
-  await requestContextStorage.run(
-    {
-      requestId,
-      method,
+  const shouldLogRequest = mapleLogRequestsEnabled && shouldLogHttpRequestPath(path);
+  if (shouldLogRequest) {
+    const includeBody =
+      mapleLogIncludeBodies &&
+      (method === "POST" || method === "PUT" || method === "PATCH") &&
+      shouldLogLevel("debug");
+    const bodyPreview =
+      includeBody && c.req.raw ? await requestBodyPreview(c.req.raw) : undefined;
+    mapleLog("info", "http.request.start", {
       path,
-    },
-    async () => {
-      const shouldLogRequest = mapleLogRequestsEnabled && shouldLogHttpRequestPath(path);
-      if (shouldLogRequest) {
-        const includeBody =
-          mapleLogIncludeBodies &&
-          (method === "POST" || method === "PUT" || method === "PATCH") &&
-          shouldLogLevel("debug");
-        const bodyPreview =
-          includeBody && c.req.raw ? await requestBodyPreview(c.req.raw) : undefined;
-        mapleLog("info", "http.request.start", {
-          path,
-          method,
-          query: c.req.raw.url.includes("?") ? c.req.raw.url.split("?")[1] : "",
-          userAgent: c.req.header("user-agent") ?? undefined,
-          ...(includeBody ? { body: bodyPreview } : {}),
-        });
-      }
-
-      try {
-        await next();
-      } catch (error) {
-        mapleLog("error", "http.request.exception", {
-          path,
-          method,
-          durationMs: Date.now() - startedAt,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      } finally {
-        if (shouldLogRequest) {
-          const durationMs = Date.now() - startedAt;
-          const status = c.res.status;
-          const level: MapleLogLevel =
-            status >= 500 ? "error" : status >= 400 ? "warn" : durationMs > 2000 ? "warn" : "info";
-          mapleLog(level, "http.request.end", {
-            path,
-            method,
-            status,
-            durationMs,
-            contentType: c.res.headers.get("content-type") ?? undefined,
-          });
-        }
-      }
-    }
-  );
-});
-
-server.app.use("*", async (c, next) => {
-  if (c.req.path.startsWith("/sse")) {
-    await next();
-    return;
+      method,
+      query: c.req.raw.url.includes("?") ? c.req.raw.url.split("?")[1] : "",
+      userAgent: c.req.header("user-agent") ?? undefined,
+      ...(includeBody ? { body: bodyPreview } : {}),
+    });
   }
-  await responseCompression(c, next);
+
+  // Store context without wrapping next() inside AsyncLocalStorage.run()
+  // to avoid hangs in mcp-use production runtime.
+  requestContextStorage.enterWith({ requestId, method, path });
+
+  try {
+    await next();
+  } catch (error) {
+    mapleLog("error", "http.request.exception", {
+      path,
+      method,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  } finally {
+    if (shouldLogRequest) {
+      const durationMs = Date.now() - startedAt;
+      const status = c.res.status;
+      const level: MapleLogLevel =
+        status >= 500 ? "error" : status >= 400 ? "warn" : durationMs > 2000 ? "warn" : "info";
+      mapleLog(level, "http.request.end", {
+        path,
+        method,
+        status,
+        durationMs,
+        contentType: c.res.headers.get("content-type") ?? undefined,
+      });
+    }
+  }
 });
+
+// Skip compression in production — Cloudflare/Manufact proxy handles it.
+if (!isProductionRuntime) {
+  server.app.use("*", async (c, next) => {
+    if (c.req.path.startsWith("/sse")) {
+      await next();
+      return;
+    }
+    await responseCompression(c, next);
+  });
+}
 
 const database = new MapleSqliteDatabase();
 const traceStore = new TraceStore({
