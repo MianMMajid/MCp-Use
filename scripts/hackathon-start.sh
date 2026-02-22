@@ -127,4 +127,8 @@ if [ "${HACKATHON_OPEN_BROWSER}" = "1" ] && [ "${NODE_ENV}" != "production" ]; t
   ) &
 fi
 
-exec node node_modules/.bin/mcp-use dev --no-open
+if [ -f "index.ts" ]; then
+  exec node node_modules/.bin/mcp-use dev --no-open
+else
+  exec node node_modules/.bin/mcp-use start
+fi
