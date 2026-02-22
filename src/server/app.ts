@@ -97,6 +97,27 @@ const server = new MCPServer({
 const responseCompression = compress();
 const isProductionRuntime = process.env.NODE_ENV === "production";
 
+// CORS for ChatGPT Apps domains
+const CHATGPT_ALLOWED_ORIGINS = new Set([
+  "https://chatgpt.com",
+  "https://chat.openai.com",
+  "https://platform.openai.com",
+]);
+
+server.app.use("*", async (c, next) => {
+  const origin = c.req.header("origin");
+  if (origin && CHATGPT_ALLOWED_ORIGINS.has(origin)) {
+    c.header("Access-Control-Allow-Origin", origin);
+    c.header("Access-Control-Allow-Credentials", "true");
+    c.header("Access-Control-Allow-Headers", "Authorization, Content-Type, x-api-key, Accept");
+    c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    if (c.req.method === "OPTIONS") {
+      return c.body(null, 204);
+    }
+  }
+  await next();
+});
+
 server.app.use("*", async (c, next) => {
   const method = c.req.method;
   const path = c.req.path;
@@ -1958,6 +1979,7 @@ interface MarketplaceToolEntry {
   qualifiedName: string;
   description?: string;
   inputSchema?: unknown;
+  annotations?: Record<string, unknown>;
 }
 
 interface MarketplaceCatalogResult {
@@ -2284,6 +2306,7 @@ async function buildMarketplaceCatalogForAppIds(
         qualifiedName: namespaceMarketplaceToolName(result.app.id, tool.name),
         description: tool.description,
         inputSchema: tool.inputSchema,
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
       });
     }
   }
@@ -3597,6 +3620,7 @@ async function handleMcpFirewallProxy(c: {
                   name,
                   ...(description ? { description } : {}),
                   ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+                  ...(tool.annotations ? { annotations: tool.annotations } : {}),
                   _meta: {
                     mapleProxyAppId: tool.appId,
                     mapleProxyToolName: tool.toolName,
@@ -3671,6 +3695,7 @@ async function handleMcpFirewallProxy(c: {
               name,
               ...(description ? { description } : {}),
               ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+              ...(tool.annotations ? { annotations: tool.annotations } : {}),
               _meta: {
                 mapleProxyAppId: tool.appId,
                 mapleProxyToolName: tool.toolName,
@@ -3703,6 +3728,7 @@ async function handleMcpFirewallProxy(c: {
         name: tool.name,
         ...(tool.description ? { description: tool.description } : {}),
         ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
       }));
       const tools = [...applyToolAllowlist(target.app, toolsRaw), ...controlTools];
       return c.json(
@@ -5575,9 +5601,6 @@ server.get("/health", (c) =>
     ok: true,
     name: "maple",
     version: "1.0.2",
-    noAuth: allowNoAuth,
-    noAuthRaw: process.env.MAPLE_ALLOW_NO_AUTH,
-    apiKeyEnabled: apiKeyAuthEnabled,
     timestamp: new Date().toISOString(),
   })
 );
@@ -8191,9 +8214,10 @@ for (const mcpEndpoint of ["/mcp", "/sse"] as const) {
   server.app.use(mcpEndpoint, async (c, next) => {
     if (c.req.method === "GET") {
       const accept = c.req.header("Accept") || c.req.header("accept") || "";
-      // If the client didn't explicitly ask for text/html (a real browser would),
-      // ensure Accept includes text/event-stream so the framework serves SSE.
-      if (!accept.includes("text/html") || accept.includes("text/event-stream")) {
+      // If the client already asks for text/event-stream, or doesn't ask for
+      // text/html (i.e. not a real browser), force Accept to text/event-stream
+      // so the framework serves SSE instead of HTML.
+      if (accept.includes("text/event-stream") || !accept.includes("text/html")) {
         try {
           c.req.raw.headers.set("Accept", "text/event-stream");
         } catch {
@@ -8233,6 +8257,7 @@ server.tool(
     description:
       "Start observing an agent session, store its execution trace, and render a live timeline widget.",
     schema: observeSessionInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     widget: {
       name: "trace-timeline",
       invoking: "Connecting to session...",
@@ -8313,6 +8338,7 @@ server.tool(
     description:
       "Fork a trace at a selected step, apply edits, and replay forward in dry-run mode for safe debugging.",
     schema: replayForkInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     widget: {
       name: "replay-simulator",
       invoking: "Forking trace...",
@@ -8357,6 +8383,7 @@ server.tool(
     description:
       "Audit a trace for anomalies and risky behavior (shell/network/credentials) and return a risk dashboard.",
     schema: auditRiskInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     widget: {
       name: "risk-dashboard",
       invoking: "Running risk analysis...",
@@ -8390,6 +8417,7 @@ server.tool(
     description:
       "Run embedding-based anomaly detection on a trace, with optional community baseline from shared anonymized traces.",
     schema: mlAnomalyReportInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ traceId, useCommunityBaseline, threshold, topAnomalies }) => {
     const trace = getTraceForCurrentOwner(traceId);
@@ -8419,6 +8447,7 @@ server.tool(
       "Approve, block, or set pending state for a specific risky step. Blocking quarantines the trace.",
     schema: guardActionInputSchema,
     outputSchema: guardActionOutputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   },
   async ({ traceId, stepIndex, action, reason }) => {
     const updated = setGuardActionForCurrentOwner(traceId, stepIndex, action, reason);
@@ -8445,6 +8474,7 @@ server.tool(
     name: "ingest_session_event",
     description:
       "Ingest one raw event from an external bridge or webhook into an active trace for near-real-time updates.",
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     schema: z.object({
       traceId: z.string().optional(),
       sessionId: z.string().optional(),
@@ -8497,6 +8527,7 @@ server.tool(
     description:
       "Share an anonymized trace to the community pool to improve evolved-skill recommendations.",
     schema: shareTraceAnonInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   async ({ traceId, taskLabel, objective, tags }) => {
     const trace = getTraceForCurrentOwner(traceId);
@@ -8530,6 +8561,7 @@ server.tool(
     description:
       "Generate evolved skill suggestions from anonymized shared traces using embedding similarity.",
     schema: suggestEvolvedSkillsInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ query, limit, minConfidence }) => {
     const suggestions = sharedTraceStore.suggestEvolvedSkills(query, {
@@ -8553,6 +8585,7 @@ server.tool(
     description:
       "Generate YC-ready positioning with moat, traction, and freemium revenue narrative using live product metrics.",
     schema: ycAppBriefInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ focus }) => {
     const metrics = buildYcMetrics();
@@ -8570,6 +8603,7 @@ server.tool(
     description:
       "List downstream MCP apps registered behind Maple. Clients should call Maple only and dispatch via this control plane.",
     schema: listDownstreamAppsInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ includeDisabled }) => {
     const apps = listDownstreamApps(downstreamAppRegistry, includeDisabled);
@@ -8586,6 +8620,7 @@ server.tool(
     description:
       "List tools exposed by a registered downstream MCP app through Maple proxy routing.",
     schema: listDownstreamToolsInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ appId }) => {
     let app: DownstreamAppConfig;
@@ -8610,12 +8645,292 @@ server.tool(
   }
 );
 
+// ── Widget-enabled downstream tool overrides ────────────────────────
+// These server.tool() definitions take priority over the generic proxy
+// for tools/call, providing rich widget UIs in ChatGPT while still
+// dispatching to the downstream toolhub.
+
+server.tool(
+  {
+    name: "web_search",
+    description:
+      "Search the web for information. Returns ranked results with titles, URLs, and snippets.",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "search-results",
+      invoking: "Searching the web...",
+      invoked: "Search complete",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "web_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Web search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length, source: "Web" },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "hn_search",
+    description:
+      "Search Hacker News for stories, comments, and discussions.",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "search-results",
+      invoking: "Searching Hacker News...",
+      invoked: "HN search complete",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "hn_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Hacker News search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length, source: "Hacker News" },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "weather_forecast",
+    description:
+      "Get weather forecast for a location. Returns current conditions and multi-day forecast.",
+    schema: z.object({
+      location: z.string().describe("City name or location"),
+      days: z.number().optional().describe("Number of forecast days"),
+      unit: z.string().optional().describe("Temperature unit: celsius or fahrenheit"),
+    }),
+    widget: {
+      name: "weather-card",
+      invoking: "Fetching weather...",
+      invoked: "Forecast ready",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ location, days, unit }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "weather_forecast",
+      toolArgs: { location, ...(days != null ? { days } : {}), ...(unit != null ? { unit } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Weather forecast failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    return widget({
+      props: { location, unit, current: raw?.current, forecast: Array.isArray(raw?.forecast) ? raw.forecast : [] },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No forecast"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "github_repo_info",
+    description:
+      "Get information about a GitHub repository including stars, forks, language, and description.",
+    schema: z.object({
+      repo: z.string().describe("Repository in owner/name format (e.g. 'facebook/react')"),
+    }),
+    widget: {
+      name: "github-card",
+      invoking: "Loading repository...",
+      invoked: "Repository info ready",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ repo }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "github_repo_info",
+      toolArgs: { repo },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "GitHub repo info failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    return widget({
+      props: {
+        name: typeof raw?.name === "string" ? raw.name : repo,
+        fullName: raw?.fullName ?? raw?.full_name,
+        description: raw?.description,
+        url: raw?.url ?? raw?.html_url,
+        stars: raw?.stars ?? raw?.stargazers_count,
+        forks: raw?.forks ?? raw?.forks_count,
+        openIssues: raw?.openIssues ?? raw?.open_issues_count,
+        language: raw?.language,
+        license: typeof raw?.license === "object" && raw?.license != null ? (raw.license as Record<string, unknown>).name ?? raw.license : raw?.license,
+        updatedAt: raw?.updatedAt ?? raw?.updated_at,
+        owner: typeof raw?.owner === "object" && raw?.owner != null ? (raw.owner as Record<string, unknown>).login ?? raw.owner : raw?.owner,
+        topics: Array.isArray(raw?.topics) ? raw.topics : undefined,
+      },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No repository info"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "wikipedia_summary",
+    description:
+      "Get a summary of a Wikipedia article by topic or title.",
+    schema: z.object({
+      topic: z.string().describe("The Wikipedia article topic or title"),
+    }),
+    widget: {
+      name: "wiki-card",
+      invoking: "Loading article...",
+      invoked: "Summary ready",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ topic }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "wikipedia_summary",
+      toolArgs: { topic },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "Wikipedia summary failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    return widget({
+      props: {
+        title: typeof raw?.title === "string" ? raw.title : topic,
+        summary: typeof raw?.summary === "string" ? raw.summary : (typeof raw?.extract === "string" ? raw.extract : ""),
+        url: raw?.url,
+        thumbnail: raw?.thumbnail,
+        extract: raw?.extract,
+      },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No summary"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "arxiv_search",
+    description:
+      "Search arXiv for academic papers. Returns papers with titles, authors, and abstracts.",
+    schema: z.object({
+      query: z.string().describe("The search query for academic papers"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "arxiv-results",
+      invoking: "Searching arXiv...",
+      invoked: "Papers found",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "arxiv_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "arXiv search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
+server.tool(
+  {
+    name: "openlibrary_search",
+    description:
+      "Search OpenLibrary for books. Returns books with authors, publication year, and ISBNs.",
+    schema: z.object({
+      query: z.string().describe("The book search query"),
+      maxResults: z.number().optional().describe("Maximum number of results to return"),
+    }),
+    widget: {
+      name: "book-results",
+      invoking: "Searching books...",
+      invoked: "Books found",
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ query, maxResults }) => {
+    const appIds = resolveDispatchAppIds({ includeDefaultExecutionOrder: true });
+    const chainResult = await dispatchDownstreamChainAndLog({
+      appIds,
+      toolName: "openlibrary_search",
+      toolArgs: { query, ...(maxResults != null ? { maxResults } : {}) },
+      sessionId: "chatgpt",
+      origin: "mcp",
+    });
+    if (!chainResult.ok) {
+      return error(chainResult.failure ?? "OpenLibrary search failed.");
+    }
+    const raw = chainResult.finalResult.dispatch?.result as Record<string, unknown> | undefined;
+    const results = Array.isArray(raw?.results) ? raw.results : [];
+    return widget({
+      props: { query, results, totalResults: typeof raw?.totalResults === "number" ? raw.totalResults : results.length },
+      output: text(chainResult.finalResult.dispatch?.textPreview ?? "No results"),
+    });
+  }
+);
+
 server.tool(
   {
     name: "dispatch_downstream_tool",
     description:
       "Dispatch a tool call to one or more downstream MCP apps via Maple in execution order, then normalize, score, and log outputs into Maple traces.",
     schema: dispatchDownstreamToolInputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   },
   async ({ appId, chainAppIds, toolName, arguments: toolArgs, sessionId, traceId }) => {
     if (mcpRouteLockEnabled) {
@@ -8699,6 +9014,7 @@ server.tool(
     name: "list_traces",
     description: "List recent traces and risk metadata.",
     schema: listTracesInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ limit, sessionId }) => {
     const traces = listTracesForCurrentOwner(limit, sessionId);
@@ -8714,6 +9030,7 @@ server.tool(
     name: "export_trace",
     description: "Export a trace in JSON or Markdown format for sharing and debugging.",
     schema: exportTraceInputSchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   async ({ traceId, format }) => {
     const trace = getTraceForCurrentOwner(traceId);
