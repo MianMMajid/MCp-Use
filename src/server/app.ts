@@ -808,6 +808,12 @@ function verifyIncomingApiKey(xApiKey?: string, authorization?: string) {
   }
 
   const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
+
+  // If no key provided but allowNoAuth is enabled, bypass auth
+  if (!fromHeaders && allowNoAuth) {
+    return { ok: true as const };
+  }
+
   const result = verifyApiKey(configuredApiKeys, fromHeaders);
   if (!result.ok) {
     return result;
