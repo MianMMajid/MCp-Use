@@ -1,21 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { MapleSqliteDatabase } from "../src/persistence/sqlite-db.js";
+import { MaplePostgresDatabase } from "../src/persistence/pg-db.js";
 import { hashPassword, verifyPassword } from "../src/security/password-auth.js";
 import type { Trace } from "../src/core/types.js";
 
-test("MapleSqliteDatabase persists trace payloads", () => {
-  const dir = mkdtempSync(join(tmpdir(), "maple-db-test-"));
-  const dbPath = join(dir, "maple.sqlite");
-  const db = new MapleSqliteDatabase(dbPath);
+// These tests require a running PostgreSQL instance.
+// Set DATABASE_URL or MAPLE_TEST_DATABASE_URL to run them.
+// They are skipped if no database URL is available.
+
+const testDbUrl =
+  process.env.MAPLE_TEST_DATABASE_URL ??
+  process.env.DATABASE_URL ??
+  "";
+
+const skip = !testDbUrl;
+
+test("MaplePostgresDatabase persists trace payloads", { skip }, async () => {
+  const db = new MaplePostgresDatabase(testDbUrl);
+  await db.initialize();
 
   const now = new Date().toISOString();
   const trace: Trace = {
-    id: "trace-db-1",
-    sessionId: "session-db-1",
+    id: `trace-pg-test-${Date.now()}`,
+    sessionId: `session-pg-test-${Date.now()}`,
     source: "manual",
     status: "active",
     startedAt: now,
@@ -23,52 +30,62 @@ test("MapleSqliteDatabase persists trace payloads", () => {
     steps: [],
   };
 
-  db.upsertTrace(trace);
-  const loaded = db.loadTraces(10);
+  await db.upsertTrace(trace);
+  const loaded = await db.loadTraces(10);
   assert.equal(loaded.some((entry) => entry.id === trace.id), true);
+
+  // Cleanup
+  await db.removeTrace(trace.id);
+  await db.close();
 });
 
-test("MapleSqliteDatabase supports user/session auth records", () => {
-  const dir = mkdtempSync(join(tmpdir(), "maple-auth-test-"));
-  const dbPath = join(dir, "maple.sqlite");
-  const db = new MapleSqliteDatabase(dbPath);
+test("MaplePostgresDatabase supports user/session auth records", { skip }, async () => {
+  const db = new MaplePostgresDatabase(testDbUrl);
+  await db.initialize();
 
+  const uniqueSuffix = Date.now().toString(36);
   const password = "strong-password-123";
-  const user = db.createUser({
-    username: "omar",
-    email: "omar@example.com",
+  const user = await db.createUser({
+    username: `testuser_${uniqueSuffix}`,
+    email: `test_${uniqueSuffix}@example.com`,
     passwordHash: hashPassword(password),
   });
 
-  const fetched = db.findUserByUsername("OMAR");
+  const fetched = await db.findUserByUsername(`TESTUSER_${uniqueSuffix}`);
   assert.ok(fetched);
   assert.equal(verifyPassword(password, fetched.passwordHash), true);
 
-  const session = db.createSession(user.id, 3600);
-  const active = db.findActiveSession(session.id);
+  const session = await db.createSession(user.id, 3600);
+  const active = await db.findActiveSession(session.id);
   assert.ok(active);
-  assert.equal(active.user.username, "omar");
+  assert.equal(active.user.username, `testuser_${uniqueSuffix}`);
+
+  // Cleanup
+  await db.revokeSession(session.id);
+  await db.close();
 });
 
-test("MapleSqliteDatabase syncs admin password by username", () => {
-  const dir = mkdtempSync(join(tmpdir(), "maple-auth-sync-test-"));
-  const dbPath = join(dir, "maple.sqlite");
-  const db = new MapleSqliteDatabase(dbPath);
+test("MaplePostgresDatabase syncs admin password by username", { skip }, async () => {
+  const db = new MaplePostgresDatabase(testDbUrl);
+  await db.initialize();
 
-  const created = db.syncUserPasswordByUsername({
-    username: "admin",
-    email: "admin@example.com",
+  const uniqueSuffix = Date.now().toString(36);
+  const username = `admin_sync_${uniqueSuffix}`;
+
+  const created = await db.syncUserPasswordByUsername({
+    username,
+    email: `admin_sync_${uniqueSuffix}@example.com`,
     passwordHash: hashPassword("first-pass"),
   });
-  assert.equal(created.username, "admin");
-  assert.equal(db.countUsers(), 1);
+  assert.equal(created.username, username);
   assert.equal(verifyPassword("first-pass", created.passwordHash), true);
 
-  const updated = db.syncUserPasswordByUsername({
-    username: "ADMIN",
+  const updated = await db.syncUserPasswordByUsername({
+    username: username.toUpperCase(),
     passwordHash: hashPassword("second-pass"),
   });
   assert.equal(updated.id, created.id);
-  assert.equal(db.countUsers(), 1);
   assert.equal(verifyPassword("second-pass", updated.passwordHash), true);
+
+  await db.close();
 });

@@ -1,0 +1,74 @@
+/* ─── Maple Design Tokens ─── Shared across all Maple UI surfaces ─── */
+:root {
+  /* ── Core palette ── */
+  --maple-bg: #ffffff;
+  --maple-bg-soft: #f8f5f0;
+  --maple-panel: rgba(255, 255, 255, 0.97);
+  --maple-panel-2: rgba(248, 244, 238, 0.97);
+  --maple-ink: #1a1a1a;
+  --maple-muted: #6b6b6b;
+  --maple-line: #e5ddd4;
+  --maple-line-strong: #d1c5b8;
+  --maple-brand: #e8740c;
+  --maple-brand-strong: #c55d00;
+  --maple-accent: #ff8f2e;
+  --maple-accent-light: rgba(232, 116, 12, 0.08);
+  --maple-accent-border: rgba(232, 116, 12, 0.15);
+  --maple-ok: #39a36f;
+  --maple-warn: #cf5e5e;
+  --maple-critical: #ef6b8b;
+
+  /* ── Surfaces & shadows ── */
+  --maple-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.06);
+  --maple-shadow-strong: 0 16px 38px rgba(0, 0, 0, 0.08);
+
+  /* ── Motion ── */
+  --maple-ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1.0);
+  --maple-dur-spring: 0.4s;
+
+  /* ── Dot-grid background ── */
+  --maple-dot-grid-bg: #faf7f2;
+  --maple-dot-grid-image:
+    radial-gradient(circle, rgba(232, 116, 12, 0.18) 1.15px, transparent 1.15px),
+    radial-gradient(circle, rgba(255, 143, 46, 0.10) 1.15px, transparent 1.15px);
+  --maple-dot-grid-size: 24px 24px;
+  --maple-dot-grid-position-a: 0 0;
+  --maple-dot-grid-position-b: 12px 12px;
+
+  /* ── Typography ── */
+  --maple-font-sans: "Nunito", "Space Grotesk", system-ui, sans-serif;
+  --maple-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* ── Backward-compat aliases: judges.css (--ink, --brand, --line) ── */
+  --bg: var(--maple-bg);
+  --bg-soft: var(--maple-bg-soft);
+  --panel: var(--maple-panel);
+  --panel-2: var(--maple-panel-2);
+  --ink: var(--maple-ink);
+  --muted: var(--maple-muted);
+  --line: var(--maple-line);
+  --line-strong: var(--maple-line-strong);
+  --brand: var(--maple-brand);
+  --brand-strong: var(--maple-brand-strong);
+  --accent: var(--maple-accent);
+  --ok: var(--maple-ok);
+  --warn: var(--maple-warn);
+  --critical: var(--maple-critical);
+  --shadow-soft: var(--maple-shadow-soft);
+  --shadow-strong: var(--maple-shadow-strong);
+  --ease-spring: var(--maple-ease-spring);
+  --dur-spring: var(--maple-dur-spring);
+  --dot-grid-bg: var(--maple-dot-grid-bg);
+  --dot-grid-image: var(--maple-dot-grid-image);
+  --dot-grid-size: var(--maple-dot-grid-size);
+  --dot-grid-position-a: var(--maple-dot-grid-position-a);
+  --dot-grid-position-b: var(--maple-dot-grid-position-b);
+
+  /* ── Backward-compat aliases: landing.css (--text, --accent, --border) ── */
+  --text: var(--maple-ink);
+  --accent-hover: var(--maple-brand-strong);
+  --accent-strong: var(--maple-accent);
+  --accent-light: var(--maple-accent-light);
+  --accent-border: var(--maple-accent-border);
+  --border: var(--maple-line);
+}

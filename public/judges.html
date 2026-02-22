@@ -13,6 +13,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
     />
+    <link rel="stylesheet" href="/maple-tokens.css" />
     <link rel="stylesheet" href="/judges.css?v=47" />
   </head>
   <body class="product-body">
@@ -653,6 +654,65 @@
               </div>
               <p id="settingsActionResult" class="demo-result"></p>
             </div>
+          </article>
+        </section>
+
+        <section data-view-panel="account" class="view-panel account-view hidden">
+          <article class="panel account-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">Account</h2>
+              <span class="chip" id="accountPlanBadge">Free</span>
+            </div>
+
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Profile</h3>
+              <dl class="kv-grid kv-grid-inline">
+                <div class="kv-row">
+                  <dt>Username</dt>
+                  <dd id="accountUsername" class="mono">-</dd>
+                </div>
+                <div class="kv-row">
+                  <dt>Email</dt>
+                  <dd id="accountEmail">-</dd>
+                </div>
+                <div class="kv-row">
+                  <dt>Member since</dt>
+                  <dd id="accountCreatedAt">-</dd>
+                </div>
+                <div class="kv-row">
+                  <dt>Current plan</dt>
+                  <dd id="accountPlan">Free</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Change Password</h3>
+              <div class="account-password-form">
+                <input id="accountCurrentPassword" type="password" class="demo-field" placeholder="Current password" autocomplete="current-password" />
+                <input id="accountNewPassword" type="password" class="demo-field" placeholder="New password (min 8 chars)" autocomplete="new-password" />
+                <button id="accountChangePasswordBtn" class="demo-btn" type="button">Update Password</button>
+                <p id="accountPasswordResult" class="demo-result"></p>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Actions</h3>
+              <div class="settings-actions">
+                <button id="accountManageBillingBtn" class="demo-btn" type="button">Manage Billing</button>
+                <button id="accountLogoutBtn" class="demo-btn danger" type="button">Sign Out</button>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section data-view-panel="pricing" class="view-panel pricing-view hidden">
+          <article class="panel pricing-panel">
+            <div class="panel-head">
+              <h2 class="panel-title">Pricing</h2>
+              <span class="chip" id="pricingCurrentPlanBadge">Free</span>
+            </div>
+            <div id="pricingGrid" class="pricing-grid"></div>
           </article>
         </section>
       </div>
