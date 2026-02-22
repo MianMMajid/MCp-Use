@@ -6993,6 +6993,7 @@ server.get("/gpt/openapi.json", async (c) => {
       post: {
         operationId: tool.name,
         summary: tool.description ?? tool.name,
+        security: [],
         requestBody: {
           required: true,
           content: {
@@ -8185,6 +8186,27 @@ server.app.post("/api/openclaw/events", async (c) => {
     );
   }
 });
+
+// Force correct Accept header for MCP/SSE endpoints so the mcp-use framework
+// doesn't misidentify programmatic MCP clients (e.g. ChatGPT) as browsers
+// and return HTML instead of an SSE event stream.
+for (const mcpEndpoint of ["/mcp", "/sse"] as const) {
+  server.app.use(mcpEndpoint, async (c, next) => {
+    if (c.req.method === "GET") {
+      const accept = c.req.header("Accept") || c.req.header("accept") || "";
+      // If the client didn't explicitly ask for text/html (a real browser would),
+      // ensure Accept includes text/event-stream so the framework serves SSE.
+      if (!accept.includes("text/html") || accept.includes("text/event-stream")) {
+        try {
+          c.req.raw.headers.set("Accept", "text/event-stream");
+        } catch {
+          // Headers may be immutable in some runtimes; fall through
+        }
+      }
+    }
+    await next();
+  });
+}
 
 server.app.use("/mcp", async (c, next) => {
   const unauthorized = requireApiKeyResponse(c, { allowSession: false, requireApiKey: !allowNoAuth });
