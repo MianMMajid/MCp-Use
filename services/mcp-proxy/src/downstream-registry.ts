@@ -11,6 +11,13 @@ export interface DownstreamApp {
   tools: Array<{ name: string; description: string; inputSchema?: unknown }>;
 }
 
+function normalizeToolInputSchema(raw: unknown): Record<string, unknown> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+  return raw as Record<string, unknown>;
+}
+
 export class DownstreamRegistry {
   private apps = new Map<string, DownstreamApp>();
 
@@ -52,6 +59,7 @@ export class DownstreamRegistry {
                   return {
                     name: String(t.name ?? "").trim(),
                     description: String(t.description ?? "").trim(),
+                    inputSchema: normalizeToolInputSchema(t.inputSchema ?? t.input_schema ?? t.schema),
                   };
                 })
                 .filter((tool) => tool.name.length > 0)
@@ -119,16 +127,29 @@ export class DownstreamRegistry {
     return includeDisabled ? all : all.filter((a) => a.enabled);
   }
 
-  getToolsForApp(appId: string): Array<{ name: string; description: string }> {
+  getToolsForApp(appId: string): Array<{ name: string; description: string; inputSchema?: unknown }> {
     return this.apps.get(appId)?.tools ?? [];
   }
 
-  getAllTools(): Array<{ name: string; description: string; appId: string }> {
-    const tools: Array<{ name: string; description: string; appId: string }> = [];
+  setToolsForApp(appId: string, tools: Array<{ name: string; description: string; inputSchema?: unknown }>): void {
+    const app = this.apps.get(appId);
+    if (!app) return;
+    app.tools = tools
+      .map((tool) => ({
+        name: String(tool?.name ?? "").trim(),
+        description: String(tool?.description ?? "").trim(),
+        inputSchema: normalizeToolInputSchema(tool?.inputSchema),
+      }))
+      .filter((tool) => tool.name.length > 0);
+    this.apps.set(appId, app);
+  }
+
+  getAllTools(): Array<{ name: string; description: string; inputSchema?: unknown; appId: string }> {
+    const tools: Array<{ name: string; description: string; inputSchema?: unknown; appId: string }> = [];
     for (const app of this.apps.values()) {
       if (!app.enabled) continue;
       for (const tool of app.tools) {
-        tools.push({ name: tool.name, description: tool.description, appId: app.appId });
+        tools.push({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, appId: app.appId });
       }
     }
     return tools;

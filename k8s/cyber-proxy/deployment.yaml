@@ -28,12 +28,17 @@ spec:
           image: cyber-proxy:latest
           ports:
             - containerPort: 8080
-            - containerPort: 8888
           env:
             - name: CYBER_PROXY_PORT
               value: "8080"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
+            - name: CYBER_ALLOWED_DOMAINS
+              value: ""
+            - name: CYBER_BLOCKED_DOMAINS
+              value: ""
+            - name: CYBER_TOOL_ALLOWED_DOMAINS_JSON
+              value: ""
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/grpc-tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -79,9 +84,6 @@ spec:
     - name: grpc
       port: 8080
       targetPort: 8080
-    - name: http-connect
-      port: 8888
-      targetPort: 8888
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -103,7 +105,6 @@ spec:
               app: tool-runner
       ports:
         - port: 8080
-        - port: 8888
   egress:
     - to:
         - namespaceSelector:

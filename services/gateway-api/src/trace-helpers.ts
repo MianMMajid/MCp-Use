@@ -130,20 +130,26 @@ export async function generateViaGrpc(
   try {
     const authContext = authContextStorage.getStore();
     const requestLogContext = requestContextStorage.getStore();
+    const tenantId = requestContext?.tenantId ?? requestLogContext?.tenantId ?? "default";
+    const userId = requestContext?.userId ?? authContext?.userId ?? authContext?.keyFingerprint ?? "anonymous";
+    const deviceId = requestContext?.deviceId ?? requestLogContext?.deviceId ?? "unknown-device";
     const contextPayload = {
       requestId: requestLogContext?.requestId ?? "",
       sessionId: requestContext?.sessionId ?? requestLogContext?.sessionId ?? "",
       traceId: requestContext?.traceId ?? requestLogContext?.traceId ?? "",
-      userId: requestContext?.userId ?? authContext?.userId ?? "",
+      userId,
       keyFingerprint: authContext?.keyFingerprint ?? "",
       sourceService: "gateway-api",
-      tenantId: requestContext?.tenantId ?? requestLogContext?.tenantId ?? "",
-      deviceId: requestContext?.deviceId ?? requestLogContext?.deviceId ?? "",
+      tenantId,
+      deviceId,
     };
 
-    const tools = await loadOrchestrationToolsViaGrpc(clients);
+    // Tool discovery for chat orchestration is owned by context-wall.
+    // Gateway always sends an explicit empty list here so context-wall can
+    // resolve tools from mcp-proxy inside the policy plane.
+    const tools: OrchestrationToolInfo[] = [];
 
-    mapleLog("debug", "grpc_orchestrate_chat", { messageCount: messages.length, toolCount: tools.length });
+    mapleLog("debug", "grpc_orchestrate_chat", { messageCount: messages.length, toolCount: 0 });
     const response = await grpcUnary<any>(clients.contextWall, "orchestrateChat", {
       context: contextPayload,
       messages: messages.map((m) => ({
@@ -176,76 +182,6 @@ interface OrchestrationToolInfo {
   description: string;
   inputSchemaJson: Buffer;
   appId: string;
-}
-
-const ORCHESTRATION_TOOLS_CACHE_TTL_MS = 30_000;
-let orchestrationToolsCache:
-  | {
-      expiresAt: number;
-      tools: OrchestrationToolInfo[];
-    }
-  | null = null;
-
-function normalizeToolSchemaBytes(raw: unknown): Buffer {
-  if (!raw) {
-    return Buffer.from("{}");
-  }
-  try {
-    const json = typeof raw === "string" ? raw : Buffer.from(raw as any).toString("utf-8");
-    const parsed = JSON.parse(json);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return Buffer.from("{}");
-    }
-    return Buffer.from(JSON.stringify(parsed));
-  } catch {
-    return Buffer.from("{}");
-  }
-}
-
-async function loadOrchestrationToolsViaGrpc(clients: ReturnType<typeof getGrpcClients>): Promise<OrchestrationToolInfo[]> {
-  if (!clients?.mcpProxy) {
-    return [];
-  }
-
-  if (orchestrationToolsCache && orchestrationToolsCache.expiresAt > Date.now()) {
-    return orchestrationToolsCache.tools;
-  }
-
-  try {
-    const response = await grpcUnary<any>(clients.mcpProxy, "listTools", {
-      appId: "",
-    });
-    const rawTools = Array.isArray(response?.tools) ? response.tools : [];
-    const seenNames = new Set<string>();
-    const tools: OrchestrationToolInfo[] = [];
-
-    for (const rawTool of rawTools) {
-      const name = String(rawTool?.name || "").trim();
-      const appId = String(rawTool?.appId || "").trim();
-      if (!name || !appId) {
-        continue;
-      }
-      if (seenNames.has(name)) {
-        continue;
-      }
-      seenNames.add(name);
-      tools.push({
-        name,
-        description: String(rawTool?.description || ""),
-        inputSchemaJson: normalizeToolSchemaBytes(rawTool?.inputSchemaJson),
-        appId,
-      });
-    }
-
-    orchestrationToolsCache = {
-      expiresAt: Date.now() + ORCHESTRATION_TOOLS_CACHE_TTL_MS,
-      tools,
-    };
-    return tools;
-  } catch (err) {
-    mapleLog("warn", "grpc_list_tools_for_chat_failed", { error: errorMessage(err) });
-    return [];
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

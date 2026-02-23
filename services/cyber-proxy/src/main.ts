@@ -6,6 +6,7 @@ import { checkUrl } from "./ssrf-guard.js";
 import { config } from "./config.js";
 
 const HTTP_PROXY_PORT = Number(process.env.CYBER_HTTP_PROXY_PORT ?? 8888);
+const HTTP_CONNECT_PROXY_ENABLED = String(process.env.CYBER_HTTP_CONNECT_ENABLED ?? "0") === "1";
 
 function startHttpConnectProxy() {
   const server = http.createServer((_req, res) => {
@@ -69,12 +70,12 @@ async function main() {
   const grpcServer = createCyberProxyService();
   await startGrpcServer(grpcServer, { port: config.port, host: config.host, serviceName: "cyber-proxy" });
 
-  // Start HTTP CONNECT proxy on a separate port
-  const httpProxy = startHttpConnectProxy();
+  // Optional legacy HTTP CONNECT proxy.
+  const httpProxy = HTTP_CONNECT_PROXY_ENABLED ? startHttpConnectProxy() : null;
 
   gracefulShutdown(grpcServer, "cyber-proxy");
-  process.on("SIGTERM", () => httpProxy.close());
-  process.on("SIGINT", () => httpProxy.close());
+  process.on("SIGTERM", () => httpProxy?.close());
+  process.on("SIGINT", () => httpProxy?.close());
 }
 
 main().catch((err) => {

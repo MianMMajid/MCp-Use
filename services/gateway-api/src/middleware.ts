@@ -12,6 +12,7 @@ import {
   type MapleLogLevel,
 } from "./logging.js";
 import { server } from "./state.js";
+import { emitAuditEvent } from "./audit-emitter.js";
 
 const responseCompression = compress();
 
@@ -62,6 +63,7 @@ server.app.use("*", async (c, next) => {
     c.req.header("x-maple-trace-id") ??
     c.req.header("x-trace-id") ??
     "";
+  const forwardedUserId = c.req.header("x-user-id") ?? "";
   const startedAt = Date.now();
 
   const shouldLogRequest = mapleLogRequestsEnabled && shouldLogHttpRequestPath(path);
@@ -92,6 +94,23 @@ server.app.use("*", async (c, next) => {
     sessionId,
     traceId,
   });
+
+  if (method !== "OPTIONS" && shouldLogRequest) {
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_PROXY_REQUEST",
+      sourceService: "maple-edge",
+      traceId: traceId || undefined,
+      sessionId: sessionId || undefined,
+      userId: forwardedUserId || undefined,
+      summary: `Edge ingress ${method} ${path}`,
+      payload: {
+        requestId,
+        tenantId,
+        deviceId,
+        origin: c.req.header("origin") ?? "",
+      },
+    });
+  }
 
   try {
     await next();

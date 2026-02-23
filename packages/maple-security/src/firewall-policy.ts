@@ -33,6 +33,13 @@ interface FirewallDecision {
   secretPattern?: string;
 }
 
+interface PolicyContext {
+  tenantId: string;
+  userId: string;
+  deviceId: string;
+  sourceService: string;
+}
+
 interface FirewallAuditEntry {
   ts: string;
   traceId: string;
@@ -243,10 +250,43 @@ function summarizeStepEvidence(step: TraceStep): string {
   return `${step.actor}:${step.type}`;
 }
 
+function extractPolicyContext(step: TraceStep): PolicyContext {
+  const metadata = step.metadata && typeof step.metadata === "object"
+    ? step.metadata as Record<string, unknown>
+    : {};
+  return {
+    tenantId: typeof metadata.tenantId === "string" ? metadata.tenantId.trim() : "",
+    userId: typeof metadata.userId === "string" ? metadata.userId.trim() : "",
+    deviceId: typeof metadata.deviceId === "string" ? metadata.deviceId.trim() : "",
+    sourceService: typeof metadata.sourceService === "string" ? metadata.sourceService.trim() : "",
+  };
+}
+
 function evaluateStep(step: TraceStep, externalRules?: FirewallRule[]): FirewallDecision {
   const payloadText = stepToPayloadText(step);
   const payloadBytes = Buffer.byteLength(payloadText, "utf8");
   const secretHit = scanForSecret(step);
+  const context = extractPolicyContext(step);
+
+  if (
+    (step.type === "tool_call" || step.type === "network" || step.type === "shell") &&
+    (!context.tenantId || !context.userId || !context.deviceId)
+  ) {
+    const missing = [
+      !context.tenantId ? "tenant_id" : "",
+      !context.userId ? "user_id" : "",
+      !context.deviceId ? "device_id" : "",
+    ].filter((entry) => entry.length > 0);
+    const contextRule: FirewallRule = {
+      name: "block-missing-request-context",
+      action: "deny",
+      severity: "high",
+      message: `Blocked: missing request context fields (${missing.join(", ")}).`,
+      recommendation: "Propagate tenant_id, user_id, and device_id on every privileged action.",
+      match: {},
+    };
+    return { action: "deny", rule: contextRule, secretPattern: secretHit ?? undefined };
+  }
 
   // Prompt injection check: if step is prompt-type and injection confidence >= 0.7, deny
   if (step.type === "prompt" && step.prompt) {

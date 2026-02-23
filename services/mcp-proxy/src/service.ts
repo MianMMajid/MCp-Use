@@ -106,6 +106,13 @@ interface MintedCredential {
   scopes: string[];
 }
 
+class CredentialMintError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialMintError";
+  }
+}
+
 function scopeToCredentialScopes(scope: any): string[] {
   const scopes: string[] = ["execute"];
   if (scope?.allowedDomains && Array.isArray(scope.allowedDomains) && scope.allowedDomains.length > 0) {
@@ -126,7 +133,7 @@ async function mintCredentialForToolWithScopes(
   toolName: string,
   appId: string,
   scopes: string[],
-): Promise<MintedCredential | null> {
+): Promise<MintedCredential> {
   try {
     const response = await grpcUnary<any>(getSecretsBroker(), "mintCredential", {
       toolName,
@@ -136,14 +143,18 @@ async function mintCredentialForToolWithScopes(
     });
     const credentialId = response?.credential?.credentialId ?? "";
     const token = response?.token ? String(response.token) : "";
-    if (credentialId) {
-      mapleLog("info", "credential_minted", { toolName, appId, credentialId });
-      return { credentialId, token, scopes };
+    if (!credentialId || !token) {
+      throw new CredentialMintError(
+        `Scoped credential mint returned incomplete data for ${appId}.${toolName}.`,
+      );
     }
-    return null;
+    mapleLog("info", "credential_minted", { toolName, appId, credentialId });
+    return { credentialId, token, scopes };
   } catch (err: any) {
-    mapleLog("warn", "credential_mint_failed", { toolName, appId, error: err.message });
-    return null;
+    mapleLog("error", "credential_mint_failed", { toolName, appId, error: err.message });
+    throw new CredentialMintError(
+      `Scoped credential mint failed for ${appId}.${toolName}: ${err.message}`,
+    );
   }
 }
 
@@ -153,6 +164,39 @@ function setJobDispatcher(dispatcher: K8sJobDispatcher | null): void {
   jobDispatcher = dispatcher;
 }
 
+interface NormalizedCyberReport {
+  urlReputation: string;
+  sanitized: boolean;
+  malware: boolean;
+  quarantined: boolean;
+  threatsFound: string[];
+  quarantineReason: string;
+  resolvedIp: string;
+}
+
+interface ToolRunnerDispatchResult {
+  success: boolean;
+  payload: unknown;
+  statusCode: number;
+  errorMessage: string;
+  cyberReport: NormalizedCyberReport;
+}
+
+function normalizeCyberReport(raw: any, statusCode: number): NormalizedCyberReport {
+  const threatsFound = Array.isArray(raw?.threatsFound)
+    ? raw.threatsFound.map((threat: unknown) => String(threat))
+    : [];
+  return {
+    urlReputation: String(raw?.urlReputation || (statusCode >= 400 ? "blocked" : "ok")),
+    sanitized: Boolean(raw?.sanitized),
+    malware: Boolean(raw?.malware) || threatsFound.length > 0,
+    quarantined: Boolean(raw?.quarantined),
+    threatsFound,
+    quarantineReason: String(raw?.quarantineReason || ""),
+    resolvedIp: String(raw?.resolvedIp || ""),
+  };
+}
+
 async function dispatchViaToolRunner(
   appId: string,
   url: string,
@@ -160,7 +204,7 @@ async function dispatchViaToolRunner(
   timeoutMs: number,
   traceId?: string,
   credential?: MintedCredential | null,
-): Promise<unknown> {
+): Promise<ToolRunnerDispatchResult> {
   // Job mode: dispatch as isolated K8s Job
   if (config.toolRunnerMode === "job" && jobDispatcher) {
     try {
@@ -174,10 +218,19 @@ async function dispatchViaToolRunner(
         credentialToken: credential?.token ?? "",
         credentialScopes: credential?.scopes ?? [],
       });
-      if (!result.success) {
-        throw new Error(result.errorMessage || `Job returned failure status ${result.statusCode}`);
+      let payload: unknown = {};
+      try {
+        payload = JSON.parse(result.responseJson);
+      } catch {
+        payload = {};
       }
-      return JSON.parse(result.responseJson);
+      return {
+        success: Boolean(result.success),
+        payload,
+        statusCode: Number(result.statusCode ?? 0),
+        errorMessage: String(result.errorMessage || ""),
+        cyberReport: normalizeCyberReport(result.cyberReport, Number(result.statusCode ?? 0)),
+      };
     } catch (err: any) {
       mapleLog("warn", "k8s_job_dispatch_failed", { appId, url, error: err.message });
       throw err;
@@ -199,14 +252,24 @@ async function dispatchViaToolRunner(
       credentialToken: credential?.token ?? "",
       credentialScopes: credential?.scopes ?? [],
     });
-    if (!response?.success) {
-      throw new Error(response?.errorMessage || `tool-runner returned failure status ${response?.statusCode ?? "unknown"}`);
-    }
     const responseRaw = response?.responseJson;
     const responseJson = responseRaw
       ? (typeof responseRaw === "string" ? responseRaw : Buffer.from(responseRaw).toString("utf-8"))
       : "{}";
-    return JSON.parse(responseJson);
+    let payload: unknown = {};
+    try {
+      payload = JSON.parse(responseJson);
+    } catch {
+      payload = {};
+    }
+    const statusCode = Number(response?.statusCode ?? 0);
+    return {
+      success: Boolean(response?.success),
+      payload,
+      statusCode,
+      errorMessage: String(response?.errorMessage || ""),
+      cyberReport: normalizeCyberReport(response?.cyberReport, statusCode),
+    };
   } catch (err: any) {
     mapleLog("warn", "tool_runner_dispatch_failed", { appId, url, error: err.message });
     throw err;
@@ -231,6 +294,110 @@ function resolveTargetUrl(registry: DownstreamRegistry, appId: string, targetUrl
   };
 }
 
+function parseToolInputSchema(raw: unknown): Record<string, unknown> | undefined {
+  if (!raw) return undefined;
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  try {
+    const json = typeof raw === "string"
+      ? raw
+      : Buffer.isBuffer(raw)
+        ? raw.toString("utf-8")
+        : String(raw);
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return undefined;
+}
+
+function parseDiscoveredTools(response: unknown, appId: string): Array<{ name: string; description: string; inputSchema?: unknown; appId: string }> {
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    return [];
+  }
+  const rpc = response as Record<string, unknown>;
+  const result = rpc.result;
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return [];
+  }
+  const rawTools = (result as Record<string, unknown>).tools;
+  if (!Array.isArray(rawTools)) {
+    return [];
+  }
+  return rawTools
+    .filter((tool) => tool && typeof tool === "object" && !Array.isArray(tool))
+    .map((tool) => {
+      const value = tool as Record<string, unknown>;
+      return {
+        name: String(value.name || "").trim(),
+        description: String(value.description || "").trim(),
+        inputSchema: parseToolInputSchema(value.inputSchema ?? value.input_schema ?? value.schema ?? value.inputSchemaJson),
+        appId,
+      };
+    })
+    .filter((tool) => tool.name.length > 0);
+}
+
+async function discoverToolsForApp(
+  registry: DownstreamRegistry,
+  appId: string,
+  traceId?: string,
+): Promise<Array<{ name: string; description: string; inputSchema?: unknown; appId: string }>> {
+  const app = registry.get(appId);
+  if (!app || !app.enabled) {
+    return [];
+  }
+  try {
+    const response = await dispatchViaToolRunner(
+      appId,
+      app.url,
+      {
+        jsonrpc: "2.0",
+        id: `tools-discovery-${appId}-${Date.now()}`,
+        method: "tools/list",
+        params: {},
+      },
+      Math.min(config.toolExecutionTimeoutMs, 10_000),
+      traceId,
+      null,
+    );
+    if (!response.success) {
+      mapleLog("warn", "downstream_tools_discovery_transport_failed", {
+        appId,
+        statusCode: response.statusCode,
+        error: response.errorMessage,
+      });
+      return [];
+    }
+    const discovered = parseDiscoveredTools(response.payload, appId);
+    if (discovered.length > 0) {
+      registry.setToolsForApp(
+        appId,
+        discovered.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        })),
+      );
+      mapleLog("info", "downstream_tools_discovered", { appId, count: discovered.length });
+      emitAuditEvent({
+        eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+        summary: `Discovered ${discovered.length} tools for ${appId}`,
+        traceId,
+        payload: { appId, count: discovered.length },
+      });
+    }
+    return discovered;
+  } catch (err: any) {
+    mapleLog("warn", "downstream_tools_discovery_failed", { appId, error: err.message });
+    return [];
+  }
+}
+
 const PROTO_PATH = resolve(import.meta.dirname, "../../../../proto/maple/proxy/v1/mcp_proxy.proto");
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
@@ -249,6 +416,7 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
     async ExecuteTool(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
         const { appId, toolName, argumentsJson, sessionId, traceId, targetUrl } = call.request;
+        const toolCallId = String(call.request.toolCallId || traceId || `tool-call-${appId}-${Date.now()}`);
         const target = resolveTargetUrl(registry, appId, targetUrl);
         if (!target.appEnabled) {
           callback({ code: grpc.status.FAILED_PRECONDITION, message: `App ${appId} is disabled` });
@@ -258,13 +426,28 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
         const start = Date.now();
         mapleLog("info", "tool_execute", { appId, toolName, sessionId, traceId });
 
-        // Mint a short-lived scoped credential before execution (non-blocking).
+        // Mint a short-lived scoped credential before execution (fail-closed).
         const requestedScope = call.request.scope;
-        const mintedCredential = await mintCredentialForToolWithScopes(
-          toolName,
-          appId,
-          scopeToCredentialScopes(requestedScope),
-        );
+        let mintedCredential: MintedCredential;
+        try {
+          mintedCredential = await mintCredentialForToolWithScopes(
+            toolName,
+            appId,
+            scopeToCredentialScopes(requestedScope),
+          );
+        } catch (err: any) {
+          emitAuditEvent({
+            eventType: "AUDIT_EVENT_TYPE_TOOL_FAILED",
+            summary: `Credential mint failed for ${appId}.${toolName}`,
+            traceId,
+            payload: { appId, toolName, error: err.message },
+          });
+          callback({
+            code: grpc.status.FAILED_PRECONDITION,
+            message: err.message,
+          });
+          return;
+        }
 
         // Parse the arguments from the gRPC request
         let toolArgs: Record<string, unknown> = {};
@@ -285,7 +468,7 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
         // Build MCP JSON-RPC tools/call request
         const jsonRpcRequest = {
           jsonrpc: "2.0",
-          id: traceId || `tool-${appId}-${Date.now()}`,
+          id: toolCallId,
           method: "tools/call",
           params: {
             name: toolName,
@@ -313,9 +496,9 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
         }
 
         // Route all tool execution through tool-runner.
-        let response: unknown;
+        let dispatched: ToolRunnerDispatchResult;
         try {
-          response = await dispatchViaToolRunner(
+          dispatched = await dispatchViaToolRunner(
             appId,
             target.url,
             jsonRpcRequest,
@@ -331,7 +514,23 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
         }
 
         const durationMs = Date.now() - start;
-        const rpcResponse = response as Record<string, unknown> | undefined;
+        const rpcResponse = dispatched.payload as Record<string, unknown> | undefined;
+        if (!dispatched.success) {
+          const toolStatus = dispatched.statusCode === 403 ? "blocked" : "error";
+          const errorMessage = dispatched.errorMessage || `Tool runner returned HTTP ${dispatched.statusCode}`;
+          callback(null, {
+            success: false,
+            resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage })),
+            errorMessage,
+            durationMs,
+            appId,
+            toolName,
+            toolCallId,
+            status: toolStatus,
+            cyberReport: dispatched.cyberReport,
+          });
+          return;
+        }
 
         // Check for JSON-RPC error in the response
         if (rpcResponse?.error) {
@@ -345,9 +544,13 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
           callback(null, {
             success: false,
             resultJson: Buffer.from(JSON.stringify(rpcResponse.error)),
+            errorMessage: typeof rpcResponse.error === "string" ? rpcResponse.error : "Tool execution returned JSON-RPC error",
             durationMs,
             appId,
             toolName,
+            toolCallId,
+            status: "error",
+            cyberReport: dispatched.cyberReport,
           });
           return;
         }
@@ -361,9 +564,13 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
         callback(null, {
           success: true,
           resultJson: Buffer.from(JSON.stringify(rpcResponse?.result ?? {})),
+          errorMessage: "",
           durationMs,
           appId,
           toolName,
+          toolCallId,
+          status: "ok",
+          cyberReport: dispatched.cyberReport,
         });
       } catch (err: any) {
         mapleLog("error", "tool_execute_failed", { error: err.message });
@@ -398,6 +605,10 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
           durationMs: number;
           appId: string;
           toolName: string;
+          toolCallId?: string;
+          errorMessage?: string;
+          status?: string;
+          cyberReport?: NormalizedCyberReport;
         }> = [];
         let chainSuccess = true;
 
@@ -411,6 +622,9 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
               durationMs: 0,
               appId,
               toolName,
+              toolCallId: "",
+              errorMessage: `App ${appId} not found`,
+              status: "error",
             });
             chainSuccess = false;
             continue;
@@ -423,6 +637,9 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
               durationMs: 0,
               appId,
               toolName,
+              toolCallId: "",
+              errorMessage: `App ${appId} is disabled`,
+              status: "blocked",
             });
             chainSuccess = false;
             continue;
@@ -431,14 +648,31 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
           const start = Date.now();
 
           try {
-            const mintedCredential = await mintCredentialForToolWithScopes(
-              toolName,
-              appId,
-              ["execute", "chain"],
-            );
+            let mintedCredential: MintedCredential;
+            try {
+              mintedCredential = await mintCredentialForToolWithScopes(
+                toolName,
+                appId,
+                ["execute", "chain"],
+              );
+            } catch (err: any) {
+              results.push({
+                success: false,
+                resultJson: Buffer.from(JSON.stringify({ error: err.message })),
+                durationMs: Date.now() - start,
+                appId,
+                toolName,
+                toolCallId: "",
+                errorMessage: err.message,
+                status: "error",
+              });
+              chainSuccess = false;
+              continue;
+            }
+            const toolCallId = `chain-${traceId || "trace"}-${appId}-${Date.now()}`;
             const jsonRpcRequest = {
               jsonrpc: "2.0",
-              id: `chain-${appId}-${Date.now()}`,
+              id: toolCallId,
               method: "tools/call",
               params: {
                 name: toolName,
@@ -456,15 +690,33 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
             );
 
             const durationMs = Date.now() - start;
-            const rpcResponse = response as Record<string, unknown> | undefined;
+            const rpcResponse = response.payload as Record<string, unknown> | undefined;
 
-            if (rpcResponse?.error) {
+            if (!response.success) {
+              const status = response.statusCode === 403 ? "blocked" : "error";
+              results.push({
+                success: false,
+                resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: response.errorMessage })),
+                durationMs,
+                appId,
+                toolName,
+                toolCallId,
+                errorMessage: response.errorMessage || `Tool runner returned HTTP ${response.statusCode}`,
+                status,
+                cyberReport: response.cyberReport,
+              });
+              chainSuccess = false;
+            } else if (rpcResponse?.error) {
               results.push({
                 success: false,
                 resultJson: Buffer.from(JSON.stringify(rpcResponse.error)),
                 durationMs,
                 appId,
                 toolName,
+                toolCallId,
+                errorMessage: typeof rpcResponse.error === "string" ? rpcResponse.error : "Tool execution returned JSON-RPC error",
+                status: "error",
+                cyberReport: response.cyberReport,
               });
               chainSuccess = false;
             } else {
@@ -474,6 +726,10 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
                 durationMs,
                 appId,
                 toolName,
+                toolCallId,
+                errorMessage: "",
+                status: "ok",
+                cyberReport: response.cyberReport,
               });
             }
           } catch (err: any) {
@@ -485,6 +741,9 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
               durationMs,
               appId,
               toolName,
+              toolCallId: "",
+              errorMessage: err.message,
+              status: "error",
             });
             chainSuccess = false;
           }
@@ -508,11 +767,36 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
       }
     },
 
-    ListTools(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
+    async ListTools(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
-        const appId = call.request.appId;
-        const tools = appId ? registry.getToolsForApp(appId).map((t) => ({ name: t.name, description: t.description, appId })) : registry.getAllTools();
-        callback(null, { tools: tools.map((t) => ({ name: t.name, description: t.description, appId: t.appId })) });
+        const appId = String(call.request.appId || "").trim();
+        let tools = appId
+          ? registry.getToolsForApp(appId).map((tool) => ({ ...tool, appId }))
+          : registry.getAllTools();
+
+        if (appId && tools.length === 0) {
+          tools = await discoverToolsForApp(registry, appId, call.request?.context?.traceId);
+        }
+        if (!appId) {
+          const appsMissingTools = registry.list(false).filter((app) => app.tools.length === 0);
+          for (const app of appsMissingTools) {
+            await discoverToolsForApp(registry, app.appId, call.request?.context?.traceId);
+          }
+          tools = registry.getAllTools();
+        }
+
+        callback(null, {
+          tools: tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            appId: tool.appId,
+            inputSchemaJson: Buffer.from(JSON.stringify(
+              tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+                ? tool.inputSchema
+                : {}
+            )),
+          })),
+        });
       } catch (err: any) {
         callback({ code: grpc.status.INTERNAL, message: err.message });
       }
@@ -524,7 +808,18 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
         callback(null, {
           apps: apps.map((a) => ({
             appId: a.appId, name: a.name, url: a.url, transport: a.transport,
-            enabled: a.enabled, status: a.status, tools: a.tools.map((t) => ({ name: t.name, description: t.description })),
+            enabled: a.enabled,
+            status: a.status,
+            tools: a.tools.map((tool) => ({
+              name: tool.name,
+              description: tool.description,
+              inputSchemaJson: Buffer.from(JSON.stringify(
+                tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+                  ? tool.inputSchema
+                  : {}
+              )),
+              appId: a.appId,
+            })),
           })),
         });
       } catch (err: any) {
@@ -557,11 +852,20 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
           return;
         }
 
-        const mintedCredential = await mintCredentialForToolWithScopes(
-          "jsonrpc.forward",
-          appId,
-          ["execute", "forward_jsonrpc"],
-        );
+        let mintedCredential: MintedCredential;
+        try {
+          mintedCredential = await mintCredentialForToolWithScopes(
+            "jsonrpc.forward",
+            appId,
+            ["execute", "forward_jsonrpc"],
+          );
+        } catch (err: any) {
+          callback({
+            code: grpc.status.FAILED_PRECONDITION,
+            message: err.message,
+          });
+          return;
+        }
         const response = await dispatchViaToolRunner(
           appId,
           target.url,
@@ -570,16 +874,26 @@ export function createMcpProxyService(registry: DownstreamRegistry, dispatcher?:
           call.request.context?.traceId,
           mintedCredential,
         );
+        const responsePayload = response.payload as Record<string, unknown> | undefined;
+        const responseBody = responsePayload ?? { jsonrpc: "2.0", id: null, result: null };
 
         emitAuditEvent({
-          eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
-          summary: `ForwardJsonRpc completed for ${appId}`,
+          eventType: response.success ? "AUDIT_EVENT_TYPE_POLICY_EVALUATED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",
+          summary: `ForwardJsonRpc ${response.success ? "completed" : "failed"} for ${appId}`,
           traceId: call.request.context?.traceId,
-          payload: { appId, targetUrl: target.url },
+          payload: {
+            appId,
+            targetUrl: target.url,
+            success: response.success,
+            statusCode: response.statusCode,
+            errorMessage: response.errorMessage,
+            cyberReport: response.cyberReport,
+          },
         });
         callback(null, {
-          responseJson: Buffer.from(JSON.stringify(response ?? { jsonrpc: "2.0", id: null, result: null })),
-          success: true,
+          responseJson: Buffer.from(JSON.stringify(responseBody)),
+          success: Boolean(response.success),
+          errorMessage: response.success ? "" : (response.errorMessage || `Tool runner returned HTTP ${response.statusCode}`),
         });
       } catch (err: any) {
         mapleLog("error", "jsonrpc_forward_failed", { error: err.message });

@@ -12,7 +12,7 @@ import { getEnvOrDefault, getEnvPort } from "@maple/common";
  *
  * 2. **HTTP_PROXY enforcement**: The `HTTP_PROXY` / `HTTPS_PROXY` env vars
  *    (set in docker-compose.yml and k8s deployment) route all HTTP(S) traffic
- *    from this container through cyber-proxy's HTTP CONNECT proxy on port 8888.
+ *    from this container through cyber-proxy on port 8080.
  *    This ensures even non-gRPC outbound calls (e.g. from tool code) are
  *    inspected. `NO_PROXY` excludes internal services.
  */

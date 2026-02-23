@@ -69,7 +69,6 @@ const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_AUTH_HEADER = "x-api-key";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../../proto");
 const CONTEXT_WALL_ADDRESS = process.env.CONTEXT_WALL_ADDRESS?.trim() || "localhost:9000";
-const MCP_PROXY_ADDRESS = process.env.MCP_PROXY_ADDRESS?.trim() || "localhost:9200";
 const grpcTlsConfig = loadGrpcTlsConfig();
 
 function loadProtoClient(protoFile: string, servicePath: string, address: string): any {
@@ -92,7 +91,6 @@ function grpcUnary<T>(client: any, method: string, request: any): Promise<T> {
 }
 
 let contextWallClient: any;
-let mcpProxyClient: any;
 
 function getContextWallClient(): any {
   if (!contextWallClient) {
@@ -105,31 +103,33 @@ function getContextWallClient(): any {
   return contextWallClient;
 }
 
-function getMcpProxyClient(): any {
-  if (!mcpProxyClient) {
-    mcpProxyClient = loadProtoClient(
-      "maple/proxy/v1/mcp_proxy.proto",
-      "maple.proxy.v1.McpProxyService",
-      MCP_PROXY_ADDRESS,
-    );
-  }
-  return mcpProxyClient;
-}
-
 function buildGatewayRequestContext(
   overrides: GatewayRequestContextOverrides = {},
 ): Record<string, string> {
   const authContext = authContextStorage.getStore();
   const requestLogContext = requestContextStorage.getStore();
+  const derivedTenantId =
+    overrides.tenantId ??
+    requestLogContext?.tenantId ??
+    "default";
+  const derivedUserId =
+    overrides.userId ??
+    authContext?.userId ??
+    authContext?.keyFingerprint ??
+    "anonymous";
+  const derivedDeviceId =
+    overrides.deviceId ??
+    requestLogContext?.deviceId ??
+    "unknown-device";
   return {
     requestId: overrides.requestId ?? requestLogContext?.requestId ?? randomUUID().slice(0, 12),
     sessionId: overrides.sessionId ?? requestLogContext?.sessionId ?? "",
     traceId: overrides.traceId ?? requestLogContext?.traceId ?? "",
-    userId: overrides.userId ?? authContext?.userId ?? "",
+    userId: derivedUserId,
     keyFingerprint: authContext?.keyFingerprint ?? "",
     sourceService: "gateway-api",
-    tenantId: overrides.tenantId ?? requestLogContext?.tenantId ?? "",
-    deviceId: overrides.deviceId ?? requestLogContext?.deviceId ?? "",
+    tenantId: derivedTenantId,
+    deviceId: derivedDeviceId,
   };
 }
 
@@ -384,16 +384,48 @@ async function mcpJsonRpcRequest(
   const gatewayRequestContext = buildGatewayRequestContext(requestContextOverrides);
 
   if (method === "tools/list") {
-    const response = await grpcUnary<any>(getMcpProxyClient(), "listTools", {
+    const forwardResponse = await grpcUnary<any>(getContextWallClient(), "forwardJsonRpcWithPolicy", {
+      context: gatewayRequestContext,
       appId: app.id,
+      targetUrl: app.mcpUrl,
+      payloadJson: Buffer.from(JSON.stringify({
+        jsonrpc: "2.0",
+        id: requestId,
+        method: "tools/list",
+        params,
+      })),
     });
-    const normalizedTools = (response?.tools || []).map((tool: any) => {
+    if (forwardResponse?.allowed === false) {
+      throw new Error(`Policy blocked ${app.id}.tools/list: ${forwardResponse.blockedReason || "blocked"}`);
+    }
+    if (!forwardResponse?.success) {
+      throw new Error(forwardResponse?.errorMessage || `tools/list failed for ${app.id}`);
+    }
+    const forwardPayloadRaw = forwardResponse?.responseJson;
+    let forwardPayload: Record<string, unknown> = {};
+    if (forwardPayloadRaw) {
+      const json = typeof forwardPayloadRaw === "string"
+        ? forwardPayloadRaw
+        : Buffer.from(forwardPayloadRaw).toString("utf-8");
+      try {
+        forwardPayload = asObject(JSON.parse(json));
+      } catch {
+        forwardPayload = {};
+      }
+    }
+    const result = asObject(forwardPayload.result);
+    const upstreamTools = Array.isArray(result.tools) ? result.tools : [];
+    const normalizedTools = upstreamTools.map((tool: any) => {
       let inputSchema: unknown;
-      const raw = tool?.inputSchemaJson;
-      if (raw) {
+      const rawSchema = tool?.inputSchema ?? tool?.input_schema ?? tool?.schema ?? tool?.inputSchemaJson;
+      if (rawSchema) {
         try {
-          const json = typeof raw === "string" ? raw : Buffer.from(raw).toString("utf-8");
-          inputSchema = JSON.parse(json);
+          if (typeof rawSchema === "object" && !Array.isArray(rawSchema)) {
+            inputSchema = rawSchema;
+          } else {
+            const json = typeof rawSchema === "string" ? rawSchema : Buffer.from(rawSchema).toString("utf-8");
+            inputSchema = JSON.parse(json);
+          }
         } catch {
           inputSchema = undefined;
         }

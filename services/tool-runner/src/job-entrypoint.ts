@@ -18,7 +18,7 @@ import { loadGrpcTlsConfig, loadServiceClientSecure } from "@maple/common";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
 
-const CYBER_PROXY_ADDRESS = process.env.CYBER_PROXY_ADDRESS || "cyber-proxy.maple-cyber:8080";
+const CYBER_PROXY_ADDRESS = process.env.CYBER_PROXY_ADDRESS || "cyber-proxy.maple-cyber.svc:8080";
 const INPUT_PATH = process.env.MAPLE_JOB_INPUT_PATH || "/job-input/request.json";
 const OUTPUT_PATH = process.env.MAPLE_JOB_OUTPUT_PATH || "/job-output/result.json";
 
@@ -39,6 +39,37 @@ interface JobResult {
   statusCode: number;
   durationMs: number;
   errorMessage?: string;
+  cyberReport?: {
+    urlReputation: string;
+    sanitized: boolean;
+    malware: boolean;
+    quarantined: boolean;
+    threatsFound: string[];
+    quarantineReason: string;
+    resolvedIp: string;
+  };
+}
+
+function inferToolNameFromJsonRpcPayload(payloadRaw: string): string {
+  try {
+    const parsed = JSON.parse(payloadRaw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "jsonrpc.forward";
+    }
+    const payload = parsed as Record<string, unknown>;
+    const method = String(payload.method || "").trim();
+    if (method === "tools/call") {
+      const params = payload.params && typeof payload.params === "object" && !Array.isArray(payload.params)
+        ? payload.params as Record<string, unknown>
+        : {};
+      const toolName = String(params.name || "").trim();
+      if (toolName) return toolName;
+    }
+    if (method) return `jsonrpc.${method}`;
+    return "jsonrpc.forward";
+  } catch {
+    return "jsonrpc.forward";
+  }
 }
 
 function loadServiceClient(protoFile: string, servicePath: string, address: string): any {
@@ -110,6 +141,8 @@ async function run(): Promise<void> {
       url: request.targetUrl,
       headers,
       body: Buffer.from(request.payloadJson),
+      toolName: inferToolNameFromJsonRpcPayload(request.payloadJson),
+      appId: request.appId || "",
       timeoutMs: request.timeoutMs || 30000,
     });
 
@@ -117,6 +150,9 @@ async function run(): Promise<void> {
     const responseBody = response?.body
       ? (Buffer.isBuffer(response.body) ? response.body.toString("utf-8") : String(response.body))
       : "{}";
+    const threatsFound = Array.isArray(response?.threatsFound)
+      ? response.threatsFound.map((threat: unknown) => String(threat))
+      : [];
 
     const result: JobResult = {
       success: statusCode < 400,
@@ -124,6 +160,15 @@ async function run(): Promise<void> {
       statusCode,
       durationMs: Date.now() - start,
       errorMessage: statusCode >= 400 ? `HTTP ${statusCode}` : undefined,
+      cyberReport: {
+        urlReputation: statusCode >= 400 ? "blocked" : "ok",
+        sanitized: Boolean(response?.sanitized),
+        malware: Boolean(response?.malwareDetected) || threatsFound.length > 0,
+        quarantined: Boolean(response?.quarantined),
+        threatsFound,
+        quarantineReason: String(response?.quarantineReason || response?.policyReason || ""),
+        resolvedIp: String(response?.resolvedIp || ""),
+      },
     };
 
     emitResult(result);

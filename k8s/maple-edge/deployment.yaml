@@ -159,6 +159,16 @@ spec:
               app: otel-collector
       ports:
         - port: 4317
+        - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - port: 9400
     - ports:
         - port: 443
     - to:

@@ -22,6 +22,9 @@ service ContextWallService {
   // Watch the HITL approval queue (server-streaming)
   rpc WatchApprovalQueue(WatchApprovalQueueRequest) returns (stream WatchApprovalQueueResponse);
 
+  // List pending HITL approvals (snapshot)
+  rpc ListPendingApprovals(ListPendingApprovalsRequest) returns (ListPendingApprovalsResponse);
+
   // Full risk audit on a trace
   rpc AuditTrace(AuditTraceRequest) returns (AuditTraceResponse);
 
@@ -69,6 +72,12 @@ message EvaluateTraceResponse {
 message GetPolicyDecisionRequest {
   string trace_id = 1;
   int32 step_index = 2;
+  string action = 3;
+  string tool_name = 4;
+  string tenant_id = 5;
+  string user_id = 6;
+  string device_id = 7;
+  maple.common.v1.RequestContext context = 8;
 }
 
 message GetPolicyDecisionResponse {
@@ -100,6 +109,14 @@ message WatchApprovalQueueResponse {
   maple.common.v1.TraceStep step = 3;
   maple.common.v1.PolicyDecision pending_decision = 4;
   string requested_at = 5;
+}
+
+message ListPendingApprovalsRequest {
+  string session_id = 1;
+}
+
+message ListPendingApprovalsResponse {
+  repeated WatchApprovalQueueResponse approvals = 1;
 }
 
 message AuditTraceRequest {

@@ -32,7 +32,7 @@ spec:
             - name: MODEL_ROUTER_PORT
               value: "9100"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/grpc-tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY

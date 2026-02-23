@@ -32,11 +32,11 @@ spec:
             - name: CONTEXT_WALL_PORT
               value: "9000"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: MODEL_ROUTER_ADDRESS
-              value: model-router.maple-model:9100
+              value: model-router.maple-model.svc:9100
             - name: MCP_PROXY_ADDRESS
-              value: mcp-proxy.maple-tools:9200
+              value: mcp-proxy.maple-tools.svc:9200
             - name: CONTEXT_WALL_HITL_TIMEOUT_MS
               value: "120000"
             - name: MAPLE_GRPC_TLS_CERT
@@ -151,3 +151,12 @@ spec:
       ports:
         - port: 4317
         - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

@@ -29,6 +29,15 @@ services:
       timeout: 3s
       retries: 10
 
+  cert-bootstrap:
+    image: alpine:3.20
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-dev-certs.sh"]
+    environment:
+      CERT_DIR: /certs
+    volumes:
+      - maple-certs:/certs
+      - ./scripts/bootstrap-dev-certs.sh:/bootstrap/bootstrap-dev-certs.sh:ro
+
   # ── [Z6] Observability ────────────────────────────────────────────────────
 
   otel-collector:
@@ -53,7 +62,14 @@ services:
     environment:
       AUDIT_WRITER_PORT: 9400
       DATABASE_URL: postgresql://maple:maple@postgres:5432/maple
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
+      cert-bootstrap:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
 
@@ -71,8 +87,16 @@ services:
       MODEL_ROUTER_ADDRESS: model-router:9100
       MCP_PROXY_ADDRESS: mcp-proxy:9200
       CONTEXT_WALL_HITL_TIMEOUT_MS: ${CONTEXT_WALL_HITL_TIMEOUT_MS:-120000}
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      audit-writer:
+        condition: service_started
 
   # ── [Z3] Model Router ────────────────────────────────────────────────────
 
@@ -91,8 +115,16 @@ services:
       MAPLE_FIREWALL_CHAT_OPENAI_MODEL: ${MAPLE_FIREWALL_CHAT_OPENAI_MODEL:-gpt-4o-mini}
       MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL: ${MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL:-claude-sonnet-4-6}
       MAPLE_FIREWALL_CHAT_TIMEOUT_MS: ${MAPLE_FIREWALL_CHAT_TIMEOUT_MS:-15000}
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      audit-writer:
+        condition: service_started
 
   # ── [Z4] MCP Proxy ───────────────────────────────────────────────────────
 
@@ -110,12 +142,24 @@ services:
       CYBER_PROXY_ADDRESS: cyber-proxy:8080
       AUDIT_WRITER_ADDRESS: audit-writer:9400
       MAPLE_DOWNSTREAM_APPS: ${MAPLE_DOWNSTREAM_APPS:-}
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
-      - context-wall
-      - secrets-broker
-      - tool-runner
-      - cyber-proxy
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      context-wall:
+        condition: service_started
+      secrets-broker:
+        condition: service_started
+      tool-runner:
+        condition: service_started
+      cyber-proxy:
+        condition: service_started
+      audit-writer:
+        condition: service_started
 
   # ── [Z4] Secrets Broker ──────────────────────────────────────────────────
 
@@ -128,8 +172,16 @@ services:
     environment:
       SECRETS_BROKER_PORT: 9300
       AUDIT_WRITER_ADDRESS: audit-writer:9400
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      audit-writer:
+        condition: service_started
 
   # ── [Z4] Tool Runner ─────────────────────────────────────────────────────
 
@@ -143,12 +195,21 @@ services:
       TOOL_RUNNER_PORT: 9250
       CYBER_PROXY_ADDRESS: cyber-proxy:8080
       AUDIT_WRITER_ADDRESS: audit-writer:9400
-      HTTP_PROXY: http://cyber-proxy:8888
-      HTTPS_PROXY: http://cyber-proxy:8888
+      HTTP_PROXY: http://cyber-proxy:8080
+      HTTPS_PROXY: http://cyber-proxy:8080
       NO_PROXY: cyber-proxy,audit-writer,localhost,127.0.0.1
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
-      - cyber-proxy
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      cyber-proxy:
+        condition: service_started
+      audit-writer:
+        condition: service_started
 
   # ── [Z5] Cyber Proxy ─────────────────────────────────────────────────────
 
@@ -158,12 +219,22 @@ services:
       dockerfile: services/cyber-proxy/Dockerfile
     ports:
       - "8080:8080"
-      - "8888:8888"
     environment:
       CYBER_PROXY_PORT: 8080
       AUDIT_WRITER_ADDRESS: audit-writer:9400
+      CYBER_ALLOWED_DOMAINS: ${CYBER_ALLOWED_DOMAINS:-}
+      CYBER_BLOCKED_DOMAINS: ${CYBER_BLOCKED_DOMAINS:-}
+      CYBER_TOOL_ALLOWED_DOMAINS_JSON: ${CYBER_TOOL_ALLOWED_DOMAINS_JSON:-}
+      MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/grpc-tls/ca.crt
+    volumes:
+      - maple-certs:/etc/maple/grpc-tls:ro
     depends_on:
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      audit-writer:
+        condition: service_started
 
   # ── [Z1] Gateway API ─────────────────────────────────────────────────────
 
@@ -185,6 +256,9 @@ services:
       MAPLE_GATEWAY_TLS_CERT: /etc/maple/gateway-tls/tls.crt
       MAPLE_GATEWAY_TLS_KEY: /etc/maple/gateway-tls/tls.key
       MAPLE_GATEWAY_TLS_CA: /etc/maple/gateway-tls/ca.crt
+      MAPLE_GRPC_TLS_CERT: /etc/maple/gateway-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/gateway-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/gateway-tls/ca.crt
       # Auth
       MAPLE_API_KEY: ${MAPLE_API_KEY:-}
       MAPLE_ADMIN_USERNAME: ${MAPLE_ADMIN_USERNAME:-admin}
@@ -251,8 +325,10 @@ services:
       MAPLE_LOG_LEVEL: ${MAPLE_LOG_LEVEL:-info}
       MCP_URL: ${MCP_URL:-https://gateway-api:8443}
     volumes:
-      - ./services/maple-edge/certs:/etc/maple/gateway-tls:ro
+      - maple-certs:/etc/maple/gateway-tls:ro
     depends_on:
+      cert-bootstrap:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       context-wall:
@@ -282,10 +358,14 @@ services:
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-maple-gateway}
       MAPLE_OTEL_COLLECTOR_HOST: ${MAPLE_OTEL_COLLECTOR_HOST:-otel-collector}
     volumes:
-      - ./services/maple-edge/certs:/etc/envoy/certs:ro
+      - maple-certs:/etc/envoy/certs:ro
     depends_on:
-      - gateway-api
-      - admin-console
+      cert-bootstrap:
+        condition: service_completed_successfully
+      gateway-api:
+        condition: service_started
+      admin-console:
+        condition: service_started
 
   # ── [Z6] Admin Console ───────────────────────────────────────────────────
 
@@ -302,10 +382,17 @@ services:
       MAPLE_ADMIN_TLS_CERT: /etc/maple/admin-tls/tls.crt
       MAPLE_ADMIN_TLS_KEY: /etc/maple/admin-tls/tls.key
       MAPLE_ADMIN_TLS_CA: /etc/maple/admin-tls/ca.crt
+      MAPLE_GRPC_TLS_CERT: /etc/maple/admin-tls/tls.crt
+      MAPLE_GRPC_TLS_KEY: /etc/maple/admin-tls/tls.key
+      MAPLE_GRPC_TLS_CA: /etc/maple/admin-tls/ca.crt
     volumes:
-      - ./services/maple-edge/certs:/etc/maple/admin-tls:ro
+      - maple-certs:/etc/maple/admin-tls:ro
     depends_on:
-      - audit-writer
+      cert-bootstrap:
+        condition: service_completed_successfully
+      audit-writer:
+        condition: service_started
 
 volumes:
   pgdata:
+  maple-certs:
