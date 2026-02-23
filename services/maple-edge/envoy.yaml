@@ -259,9 +259,6 @@ static_resources:
                         transport_api_version: V3
                       body:
                         string_value: '%START_TIME% %REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %RESPONSE_CODE% %REQ(X-REQUEST-ID)%'
-                  - name: envoy.access_loggers.stdout
-                    typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
 
   clusters:
     - name: gateway_api

@@ -32,15 +32,15 @@ spec:
             - name: MCP_PROXY_PORT
               value: "9200"
             - name: CONTEXT_WALL_ADDRESS
-              value: context-wall.maple-context:9000
+              value: context-wall.maple-context.svc:9000
             - name: SECRETS_BROKER_ADDRESS
-              value: secrets-broker.maple-tools:9300
+              value: secrets-broker.maple-tools.svc:9300
             - name: TOOL_RUNNER_ADDRESS
-              value: tool-runner.maple-tools:9250
+              value: tool-runner.maple-tools.svc:9250
             - name: CYBER_PROXY_ADDRESS
-              value: cyber-proxy.maple-cyber:8080
+              value: cyber-proxy.maple-cyber.svc:8080
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: MAPLE_DOWNSTREAM_APPS
               value: ""
             - name: MAPLE_TOOL_RUNNER_MODE
@@ -148,3 +148,12 @@ spec:
       ports:
         - port: 4317
         - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

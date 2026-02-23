@@ -272,16 +272,128 @@ function deriveScopeFromArguments(
   }
 }
 
+interface NormalizedRequestContext {
+  requestId: string;
+  sessionId: string;
+  traceId: string;
+  userId: string;
+  keyFingerprint: string;
+  sourceService: string;
+  tenantId: string;
+  deviceId: string;
+}
+
+function normalizeRequestContext(raw: any): NormalizedRequestContext {
+  return {
+    requestId: String(raw?.requestId || ""),
+    sessionId: String(raw?.sessionId || ""),
+    traceId: String(raw?.traceId || ""),
+    userId: String(raw?.userId || ""),
+    keyFingerprint: String(raw?.keyFingerprint || ""),
+    sourceService: String(raw?.sourceService || ""),
+    tenantId: String(raw?.tenantId || ""),
+    deviceId: String(raw?.deviceId || ""),
+  };
+}
+
+function withContextMetadata(
+  step: any,
+  context: NormalizedRequestContext,
+): any {
+  return {
+    ...step,
+    metadata: {
+      ...(step.metadata && typeof step.metadata === "object" ? step.metadata : {}),
+      requestId: context.requestId,
+      sessionId: context.sessionId,
+      traceId: context.traceId,
+      tenantId: context.tenantId,
+      userId: context.userId,
+      deviceId: context.deviceId,
+      keyFingerprint: context.keyFingerprint,
+      sourceService: context.sourceService || "context-wall",
+    },
+  };
+}
+
+function stepSessionId(step: any): string {
+  return step?.metadata && typeof step.metadata === "object"
+    ? String((step.metadata as Record<string, unknown>).sessionId || "")
+    : "";
+}
+
+interface OrchestrationTool {
+  name: string;
+  description: string;
+  inputSchemaJson: Buffer;
+  appId: string;
+}
+
+const ORCHESTRATION_TOOLS_CACHE_TTL_MS = 30_000;
+let orchestrationToolsCache:
+  | {
+      expiresAt: number;
+      tools: OrchestrationTool[];
+    }
+  | null = null;
+
+function normalizeToolSchemaBytes(raw: unknown): Buffer {
+  if (!raw) {
+    return Buffer.from("{}");
+  }
+  try {
+    const json = typeof raw === "string" ? raw : Buffer.from(raw as any).toString("utf-8");
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return Buffer.from("{}");
+    }
+    return Buffer.from(JSON.stringify(parsed));
+  } catch {
+    return Buffer.from("{}");
+  }
+}
+
+async function loadOrchestrationToolsFromMcpProxy(): Promise<OrchestrationTool[]> {
+  if (orchestrationToolsCache && orchestrationToolsCache.expiresAt > Date.now()) {
+    return orchestrationToolsCache.tools;
+  }
+
+  const response = await grpcUnary<any>(getMcpProxy(), "listTools", { appId: "" });
+  const rawTools = Array.isArray(response?.tools) ? response.tools : [];
+  const seenNames = new Set<string>();
+  const tools: OrchestrationTool[] = [];
+  for (const rawTool of rawTools) {
+    const name = String(rawTool?.name || "").trim();
+    const appId = String(rawTool?.appId || "").trim();
+    if (!name || !appId || seenNames.has(name)) {
+      continue;
+    }
+    seenNames.add(name);
+    tools.push({
+      name,
+      description: String(rawTool?.description || ""),
+      inputSchemaJson: normalizeToolSchemaBytes(rawTool?.inputSchemaJson),
+      appId,
+    });
+  }
+  orchestrationToolsCache = {
+    expiresAt: Date.now() + ORCHESTRATION_TOOLS_CACHE_TTL_MS,
+    tools,
+  };
+  return tools;
+}
+
 export function createContextWallService(approvalQueue: ApprovalQueue, policyStore?: PolicyStore): grpc.Server {
   const getExternalRules = () => policyStore?.getExternalRules();
   const server = new grpc.Server();
 
   const executeToolWithPolicyInternal = async (request: any): Promise<any> => {
+    const normalizedContext = normalizeRequestContext(request.context);
     const appId = String(request.appId || "");
     const targetUrl = String(request.targetUrl || "");
     const toolName = String(request.toolName || "");
-    const traceId = String(request.traceId || request.context?.traceId || "unknown");
-    const sessionId = String(request.sessionId || request.context?.sessionId || "");
+    const traceId = String(request.traceId || normalizedContext.traceId || "unknown");
+    const sessionId = String(request.sessionId || normalizedContext.sessionId || "");
     const requestedStepIndex = Number(request.stepIndex);
     const approvalStepIndex = Number.isFinite(requestedStepIndex)
       ? Math.max(0, Math.trunc(requestedStepIndex))
@@ -291,8 +403,12 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
       throw new Error("argumentsJson must be valid JSON");
     }
     const parsedArgs = parsedArgsResult.value;
+    const toolCallId = String(
+      request.toolCallId ||
+      `${traceId || "trace"}.${approvalStepIndex}.${appId}.${toolName}`,
+    );
 
-    const candidateStep = {
+    const candidateStep = withContextMetadata({
       index: approvalStepIndex,
       timestamp: new Date().toISOString(),
       actor: "agent" as const,
@@ -306,7 +422,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
       riskScore: 0,
       riskFlags: [] as any[],
       guardStatus: "pending" as const,
-    };
+    }, normalizedContext);
 
     const decision = evaluateFirewallStep(candidateStep, getExternalRules());
     let effectiveDecision = decision;
@@ -419,13 +535,14 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
     const derivedScope = deriveScopeFromArguments(parsedArgs);
     const mergedScope = requestedScope ?? derivedScope;
     const response = await grpcUnary<any>(getMcpProxy(), "executeTool", {
-      context: request.context ?? {},
+      context: normalizedContext,
       appId,
       toolName,
       argumentsJson: Buffer.from(JSON.stringify(parsedArgs)),
       sessionId: request.sessionId || "",
       traceId: request.traceId || "",
       targetUrl,
+      toolCallId,
       scope: mergedScope ? {
         allowedDomains: mergedScope.allowedDomains ?? [],
         maxBytes: mergedScope.maxBytes ?? 0,
@@ -462,11 +579,12 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
   const serviceImpl = {
     EvaluateStep(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
-        const step = stepFromProto(call.request.step);
+        const context = normalizeRequestContext(call.request.context);
+        const step = withContextMetadata(stepFromProto(call.request.step), context);
         const decision = evaluateFirewallStep(step, getExternalRules());
         mapleLog("debug", "context_wall_evaluate_step", { stepIndex: step.index, action: decision.action });
         if (decision.action === "deny") {
-          approvalQueue.enqueue(call.request.context?.traceId || "unknown", step.index, step);
+          approvalQueue.enqueue(context.traceId || "unknown", step.index, step);
         }
         callback(null, {
           decision: toProtoPolicyDecision(decision),
@@ -501,21 +619,41 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
 
     GetPolicyDecision(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
-        const { tenantId, userId, action, toolName } = call.request;
-        const syntheticStep = {
+        const context = normalizeRequestContext(call.request.context);
+        const action = String(call.request.action || "").trim().toLowerCase();
+        const toolName = String(call.request.toolName || "").trim();
+        const tenantId = String(call.request.tenantId || context.tenantId || "").trim();
+        const userId = String(call.request.userId || context.userId || "").trim();
+        const deviceId = String(call.request.deviceId || context.deviceId || "").trim();
+        const syntheticStep = withContextMetadata({
           index: 0,
           timestamp: new Date().toISOString(),
           actor: "agent" as const,
-          type: action === "tool_call" ? "tool_call" as const : "prompt" as const,
+          type: action === "tool_call"
+            ? "tool_call" as const
+            : action === "network"
+              ? "network" as const
+              : action === "shell"
+                ? "shell" as const
+                : "prompt" as const,
           toolCall: toolName ? { name: toolName } : undefined,
-          metadata: { tenantId, userId },
+          metadata: { tenantId, userId, deviceId },
           riskScore: 0,
           riskFlags: [] as any[],
           guardStatus: "pending" as const,
-        };
+        }, {
+          ...context,
+          tenantId,
+          userId,
+          deviceId,
+        });
         const decision = evaluateFirewallStep(syntheticStep, getExternalRules());
         mapleLog("debug", "context_wall_get_policy_decision", {
-          tenantId, userId, action: decision.action, rule: decision.rule,
+          tenantId,
+          userId,
+          deviceId,
+          action: decision.action,
+          rule: decision.rule,
         });
         callback(null, { decision: toProtoPolicyDecision(decision) });
       } catch (err: any) {
@@ -529,6 +667,19 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
         const { traceId, stepIndex, action, reason, approverId } = call.request;
         const guardAction = action === "GUARD_ACTION_ALLOW" ? "allow" : action === "GUARD_ACTION_BLOCK" ? "block" : "pending";
         const result = approvalQueue.resolve(traceId, stepIndex, guardAction, reason || "", approverId || "");
+        if (result) {
+          emitAuditEvent({
+            eventType: guardAction === "allow" ? "AUDIT_EVENT_TYPE_HITL_APPROVED" : "AUDIT_EVENT_TYPE_HITL_REJECTED",
+            summary: `HITL decision recorded for ${traceId}:${stepIndex}`,
+            traceId,
+            payload: {
+              stepIndex,
+              action: guardAction,
+              reason: reason || "",
+              approverId: approverId || "",
+            },
+          });
+        }
         callback(null, {
           accepted: result !== null,
           traceId,
@@ -541,16 +692,42 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
     },
 
     WatchApprovalQueue(call: grpc.ServerWritableStream<any, any>) {
+      const requestedSessionId = String(call.request?.sessionId || "");
       const unwatch = approvalQueue.watch((event) => {
+        if (requestedSessionId && stepSessionId(event.step) !== requestedSessionId) {
+          return;
+        }
+        const decision = evaluateFirewallStep(event.step, getExternalRules());
         call.write({
           traceId: event.traceId,
           stepIndex: event.stepIndex,
           step: toProtoStep(event.step),
+          pendingDecision: toProtoPolicyDecision(decision),
           requestedAt: event.requestedAt,
         });
       });
       call.on("cancelled", unwatch);
       call.on("close", unwatch);
+    },
+
+    ListPendingApprovals(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
+      try {
+        const requestedSessionId = String(call.request?.sessionId || "");
+        const pending = approvalQueue.getPending();
+        callback(null, {
+          approvals: pending
+            .filter((event) => !requestedSessionId || stepSessionId(event.step) === requestedSessionId)
+            .map((event) => ({
+              traceId: event.traceId,
+              stepIndex: event.stepIndex,
+              step: toProtoStep(event.step),
+              pendingDecision: toProtoPolicyDecision(evaluateFirewallStep(event.step, getExternalRules())),
+              requestedAt: event.requestedAt,
+            })),
+        });
+      } catch (err: any) {
+        callback({ code: grpc.status.INTERNAL, message: err.message });
+      }
     },
 
     AuditTrace(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
@@ -585,6 +762,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
     SanitizePrompt(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
         const prompt = call.request.prompt || "";
+        const context = normalizeRequestContext(call.request.context);
 
         // Run prompt injection detection
         const injectionResult = detectPromptInjection(prompt);
@@ -606,7 +784,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
           return;
         }
 
-        const syntheticStep = {
+        const syntheticStep = withContextMetadata({
           index: 0,
           timestamp: new Date().toISOString(),
           actor: "agent" as const,
@@ -615,7 +793,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
           riskScore: 0,
           riskFlags: [] as any[],
           guardStatus: "pending" as const,
-        };
+        }, context);
         const decision = evaluateFirewallStep(syntheticStep, getExternalRules());
         let sanitizedPrompt = decision.step?.prompt ?? prompt;
         const allRedactedPatterns = [...(decision.redactedPatterns ?? [])];
@@ -646,11 +824,12 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
 
     GetAllowedTools(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
+        const context = normalizeRequestContext(call.request.context);
         const toolNames: string[] = call.request.toolNames || [];
         const allowed: string[] = [];
         const denied: string[] = [];
         for (const toolName of toolNames) {
-          const syntheticStep = {
+          const syntheticStep = withContextMetadata({
             index: 0,
             timestamp: new Date().toISOString(),
             actor: "tool" as const,
@@ -659,7 +838,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
             riskScore: 0,
             riskFlags: [] as any[],
             guardStatus: "pending" as const,
-          };
+          }, context);
           const decision = evaluateFirewallStep(syntheticStep, getExternalRules());
           if (decision.shouldBlock) {
             denied.push(toolName);
@@ -677,13 +856,14 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
 
     async OrchestrateChat(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
+        const requestContext = normalizeRequestContext(call.request.context);
         const turns = Array.isArray(call.request.messages) ? call.request.messages : [];
         const latestUserTurnIndex = turns.map((t: any) => String(t.role || "").toLowerCase()).lastIndexOf("user");
         const latestPrompt = latestUserTurnIndex >= 0
           ? String(turns[latestUserTurnIndex]?.content ?? "")
           : String(turns[turns.length - 1]?.content ?? "");
 
-        const candidateStep = {
+        const candidateStep = withContextMetadata({
           index: 0,
           timestamp: new Date().toISOString(),
           actor: "agent" as const,
@@ -692,7 +872,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
           riskScore: 0,
           riskFlags: [] as any[],
           guardStatus: "pending" as const,
-        };
+        }, requestContext);
         const decision = evaluateFirewallStep(candidateStep, getExternalRules());
 
         if (decision.shouldBlock) {
@@ -700,7 +880,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
             eventType: "AUDIT_EVENT_TYPE_POLICY_DENIED",
             summary: `Blocked chat prompt: ${decision.message}`,
             severity: `RISK_SEVERITY_${decision.severity.toUpperCase()}`,
-            traceId: call.request.context?.traceId,
+            traceId: requestContext.traceId,
             payload: { action: decision.action, rule: decision.rule },
           });
           callback(null, {
@@ -713,7 +893,16 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
           return;
         }
 
-        const rawTools = Array.isArray(call.request.tools) ? call.request.tools : [];
+        const requestTools = Array.isArray(call.request.tools) ? call.request.tools : [];
+        let rawTools = requestTools;
+        if (rawTools.length === 0) {
+          try {
+            rawTools = await loadOrchestrationToolsFromMcpProxy();
+          } catch (err: any) {
+            mapleLog("warn", "context_wall_load_orchestration_tools_failed", { error: err.message });
+            rawTools = [];
+          }
+        }
         const modelTools = rawTools
           .map((tool: any) => ({
             name: String(tool.name || ""),
@@ -745,7 +934,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
 
         for (let round = 0; round <= maxToolRounds; round += 1) {
           const response = await grpcUnary<any>(getModelRouter(), "generate", {
-            context: call.request.context ?? {},
+            context: requestContext,
             messages: modelMessages,
             tools: modelTools,
             model: call.request.model || "",
@@ -789,20 +978,21 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
                 eventType: "AUDIT_EVENT_TYPE_POLICY_DENIED",
                 summary: `Tool ${toolName} missing app mapping`,
                 severity: "RISK_SEVERITY_MEDIUM",
-                traceId: call.request.context?.traceId,
+                traceId: requestContext.traceId,
                 payload: { toolName, toolCallId: toolId },
               });
               continue;
             }
 
             const executeResult = await executeToolWithPolicyInternal({
-              context: call.request.context ?? {},
+              context: requestContext,
               appId,
               targetUrl: "",
               toolName,
+              toolCallId: toolId,
               argumentsJson: toolCall?.argumentsJson ?? Buffer.from("{}"),
-              sessionId: call.request.context?.sessionId || "",
-              traceId: call.request.context?.traceId || "",
+              sessionId: requestContext.sessionId,
+              traceId: requestContext.traceId,
               scope: argsResult.ok ? deriveScopeFromArguments(argsResult.value) : undefined,
             });
 
@@ -827,7 +1017,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
         emitAuditEvent({
           eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
           summary: `Chat orchestrated via context-wall (${reply.length} chars).`,
-          traceId: call.request.context?.traceId,
+          traceId: requestContext.traceId,
           payload: {
             promptRedactions: decision.redactedPatterns ?? [],
             model,
@@ -857,7 +1047,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
         }
 
         const response = await executeToolWithPolicyInternal({
-          context: call.request.context ?? {},
+          context: normalizeRequestContext(call.request.context),
           appId: call.request.appId || "",
           targetUrl: call.request.targetUrl || "",
           toolName: call.request.toolName || "",
@@ -875,6 +1065,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
 
     async ForwardJsonRpcWithPolicy(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
+        const requestContext = normalizeRequestContext(call.request.context);
         const appId = String(call.request.appId || "");
         const targetUrl = String(call.request.targetUrl || "");
         const payloadParsed = parseJsonObject(call.request.payloadJson, {});
@@ -884,7 +1075,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
         }
         const payload = payloadParsed.value;
 
-        const candidateStep = {
+        const candidateStep = withContextMetadata({
           index: 0,
           timestamp: new Date().toISOString(),
           actor: "agent" as const,
@@ -895,14 +1086,14 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
           riskScore: 0,
           riskFlags: [] as any[],
           guardStatus: "pending" as const,
-        };
+        }, requestContext);
         const decision = evaluateFirewallStep(candidateStep, getExternalRules());
         if (decision.shouldBlock) {
           emitAuditEvent({
             eventType: "AUDIT_EVENT_TYPE_POLICY_DENIED",
             summary: `Blocked JSON-RPC forward ${appId}`,
             severity: `RISK_SEVERITY_${decision.severity.toUpperCase()}`,
-            traceId: call.request.context?.traceId,
+            traceId: requestContext.traceId,
             payload: { appId, targetUrl, reason: decision.message },
           });
           callback(null, {
@@ -917,7 +1108,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
         }
 
         const response = await grpcUnary<any>(getMcpProxy(), "forwardJsonRpc", {
-          context: call.request.context ?? {},
+          context: requestContext,
           appId,
           payloadJson: Buffer.from(JSON.stringify(payload)),
           targetUrl,
@@ -926,7 +1117,7 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
         emitAuditEvent({
           eventType: response?.success ? "AUDIT_EVENT_TYPE_POLICY_EVALUATED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",
           summary: `JSON-RPC forward ${appId} ${response?.success ? "completed" : "failed"}`,
-          traceId: call.request.context?.traceId,
+          traceId: requestContext.traceId,
           payload: {
             appId,
             targetUrl,

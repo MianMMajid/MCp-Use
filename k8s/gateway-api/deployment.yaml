@@ -32,13 +32,13 @@ spec:
             - name: GATEWAY_PORT
               value: "8443"
             - name: CONTEXT_WALL_ADDRESS
-              value: context-wall.maple-context:9000
+              value: context-wall.maple-context.svc:9000
             - name: MCP_PROXY_ADDRESS
-              value: mcp-proxy.maple-tools:9200
+              value: mcp-proxy.maple-tools.svc:9200
             - name: SECRETS_BROKER_ADDRESS
-              value: secrets-broker.maple-tools:9300
+              value: secrets-broker.maple-tools.svc:9300
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: MAPLE_GATEWAY_TLS_CERT
               value: /etc/maple/gateway-tls/tls.crt
             - name: MAPLE_GATEWAY_TLS_KEY
@@ -143,3 +143,12 @@ spec:
       ports:
         - port: 4317
         - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

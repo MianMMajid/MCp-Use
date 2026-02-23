@@ -42,7 +42,7 @@ spec:
           command: ["node", "dist/job-entrypoint.js"]
           env:
             - name: CYBER_PROXY_ADDRESS
-              value: cyber-proxy.maple-cyber:8080
+              value: cyber-proxy.maple-cyber.svc:8080
             - name: MAPLE_JOB_INPUT_PATH
               value: /job-input/request.json
             - name: MAPLE_JOB_OUTPUT_PATH

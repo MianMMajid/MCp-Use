@@ -32,7 +32,7 @@ spec:
             - name: SECRETS_BROKER_PORT
               value: "9300"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/grpc-tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -104,3 +104,12 @@ spec:
         - port: 9400
         - port: 4317
         - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

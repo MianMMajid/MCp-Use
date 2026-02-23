@@ -92,6 +92,38 @@ function emitAuditEvent(opts: {
   }
 }
 
+function inferToolNameFromJsonRpcPayload(payload: Record<string, unknown>): string {
+  const method = String(payload.method || "").trim();
+  if (method === "tools/call") {
+    const params = payload.params && typeof payload.params === "object" && !Array.isArray(payload.params)
+      ? payload.params as Record<string, unknown>
+      : {};
+    const toolName = String(params.name || "").trim();
+    if (toolName) {
+      return toolName;
+    }
+  }
+  if (method) {
+    return `jsonrpc.${method}`;
+  }
+  return "jsonrpc.forward";
+}
+
+function toCyberReport(response: any, statusCode: number): any {
+  const threatsFound = Array.isArray(response?.threatsFound)
+    ? response.threatsFound.map((threat: unknown) => String(threat))
+    : [];
+  return {
+    urlReputation: statusCode >= 400 ? "blocked" : "ok",
+    sanitized: Boolean(response?.sanitized),
+    malware: Boolean(response?.malwareDetected) || threatsFound.length > 0,
+    quarantined: Boolean(response?.quarantined),
+    threatsFound,
+    quarantineReason: String(response?.quarantineReason || response?.policyReason || ""),
+    resolvedIp: String(response?.resolvedIp || ""),
+  };
+}
+
 export function createToolRunnerService(): grpc.Server {
   const server = new grpc.Server();
 
@@ -125,13 +157,18 @@ export function createToolRunnerService(): grpc.Server {
               : String(payloadRaw);
         }
 
+        let payload: Record<string, unknown> = {};
         // Validate payload shape once here so downstream services can trust it.
         try {
-          JSON.parse(payloadJson);
+          const parsed = JSON.parse(payloadJson);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            payload = parsed as Record<string, unknown>;
+          }
         } catch {
           callback({ code: grpc.status.INVALID_ARGUMENT, message: "payloadJson must be valid JSON" });
           return;
         }
+        const toolName = inferToolNameFromJsonRpcPayload(payload);
 
         const outboundHeaders: Record<string, string> = {
           "content-type": "application/json",
@@ -153,6 +190,8 @@ export function createToolRunnerService(): grpc.Server {
           url: targetUrl,
           headers: outboundHeaders,
           body: Buffer.from(payloadJson),
+          toolName,
+          appId,
           timeoutMs,
         });
 
@@ -160,6 +199,7 @@ export function createToolRunnerService(): grpc.Server {
         const responseJson = response?.body
           ? (Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body))
           : Buffer.from("{}");
+        const cyberReport = toCyberReport(response, statusCode);
 
         if (statusCode >= 400) {
           const errorMessage = `tool-runner cyber-proxy returned HTTP ${statusCode}`;
@@ -168,7 +208,7 @@ export function createToolRunnerService(): grpc.Server {
             summary: errorMessage,
             severity: statusCode === 403 ? "RISK_SEVERITY_HIGH" : "RISK_SEVERITY_MEDIUM",
             traceId: call.request.context?.traceId,
-            payload: { appId, targetUrl, statusCode, credentialId },
+            payload: { appId, targetUrl, statusCode, credentialId, toolName },
           });
           callback(null, {
             success: false,
@@ -176,6 +216,7 @@ export function createToolRunnerService(): grpc.Server {
             errorMessage,
             durationMs: Date.now() - startedAt,
             statusCode,
+            cyberReport,
           });
           return;
         }
@@ -191,6 +232,7 @@ export function createToolRunnerService(): grpc.Server {
             durationMs: Date.now() - startedAt,
             credentialId,
             credentialScopes,
+            toolName,
           },
         });
 
@@ -200,6 +242,7 @@ export function createToolRunnerService(): grpc.Server {
           errorMessage: "",
           durationMs: Date.now() - startedAt,
           statusCode,
+          cyberReport,
         });
       } catch (err: any) {
         mapleLog("error", "tool_runner_execute_jsonrpc_failed", { error: err.message });

@@ -32,9 +32,9 @@ spec:
             - name: ADMIN_CONSOLE_PORT
               value: "9443"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: CONTEXT_WALL_ADDRESS
-              value: context-wall.maple-context:9000
+              value: context-wall.maple-context.svc:9000
             - name: MAPLE_ADMIN_TLS_CERT
               value: /etc/maple/admin-tls/tls.crt
             - name: MAPLE_ADMIN_TLS_KEY
@@ -142,3 +142,12 @@ spec:
       ports:
         - port: 4317
         - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

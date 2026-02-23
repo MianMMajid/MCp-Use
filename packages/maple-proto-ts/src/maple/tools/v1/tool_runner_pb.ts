@@ -12,7 +12,54 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maple/tools/v1/tool_runner.proto.
  */
 export const file_maple_tools_v1_tool_runner: GenFile = /*@__PURE__*/
-  fileDesc("CiBtYXBsZS90b29scy92MS90b29sX3J1bm5lci5wcm90bxIObWFwbGUudG9vbHMudjEi4wEKFUV4ZWN1dGVKc29uUnBjUmVxdWVzdBIwCgdjb250ZXh0GAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlJlcXVlc3RDb250ZXh0Eg4KBmFwcF9pZBgCIAEoCRISCgp0YXJnZXRfdXJsGAMgASgJEhQKDHBheWxvYWRfanNvbhgEIAEoDBISCgp0aW1lb3V0X21zGAUgASgFEhUKDWNyZWRlbnRpYWxfaWQYBiABKAkSGAoQY3JlZGVudGlhbF90b2tlbhgHIAEoCRIZChFjcmVkZW50aWFsX3Njb3BlcxgIIAMoCSKBAQoWRXhlY3V0ZUpzb25ScGNSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhUKDXJlc3BvbnNlX2pzb24YAiABKAwSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCRITCgtkdXJhdGlvbl9tcxgEIAEoAxITCgtzdGF0dXNfY29kZRgFIAEoBTJ0ChFUb29sUnVubmVyU2VydmljZRJfCg5FeGVjdXRlSnNvblJwYxIlLm1hcGxlLnRvb2xzLnYxLkV4ZWN1dGVKc29uUnBjUmVxdWVzdBomLm1hcGxlLnRvb2xzLnYxLkV4ZWN1dGVKc29uUnBjUmVzcG9uc2ViBnByb3RvMw", [file_maple_common_v1_common]);
+  fileDesc("CiBtYXBsZS90b29scy92MS90b29sX3J1bm5lci5wcm90bxIObWFwbGUudG9vbHMudjEipQEKC0N5YmVyUmVwb3J0EhYKDnVybF9yZXB1dGF0aW9uGAEgASgJEhEKCXNhbml0aXplZBgCIAEoCBIPCgdtYWx3YXJlGAMgASgIEhMKC3F1YXJhbnRpbmVkGAQgASgIEhUKDXRocmVhdHNfZm91bmQYBSADKAkSGQoRcXVhcmFudGluZV9yZWFzb24YBiABKAkSEwoLcmVzb2x2ZWRfaXAYByABKAki4wEKFUV4ZWN1dGVKc29uUnBjUmVxdWVzdBIwCgdjb250ZXh0GAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlJlcXVlc3RDb250ZXh0Eg4KBmFwcF9pZBgCIAEoCRISCgp0YXJnZXRfdXJsGAMgASgJEhQKDHBheWxvYWRfanNvbhgEIAEoDBISCgp0aW1lb3V0X21zGAUgASgFEhUKDWNyZWRlbnRpYWxfaWQYBiABKAkSGAoQY3JlZGVudGlhbF90b2tlbhgHIAEoCRIZChFjcmVkZW50aWFsX3Njb3BlcxgIIAMoCSK0AQoWRXhlY3V0ZUpzb25ScGNSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhUKDXJlc3BvbnNlX2pzb24YAiABKAwSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCRITCgtkdXJhdGlvbl9tcxgEIAEoAxITCgtzdGF0dXNfY29kZRgFIAEoBRIxCgxjeWJlcl9yZXBvcnQYBiABKAsyGy5tYXBsZS50b29scy52MS5DeWJlclJlcG9ydDJ0ChFUb29sUnVubmVyU2VydmljZRJfCg5FeGVjdXRlSnNvblJwYxIlLm1hcGxlLnRvb2xzLnYxLkV4ZWN1dGVKc29uUnBjUmVxdWVzdBomLm1hcGxlLnRvb2xzLnYxLkV4ZWN1dGVKc29uUnBjUmVzcG9uc2ViBnByb3RvMw", [file_maple_common_v1_common]);
+
+/**
+ * @generated from message maple.tools.v1.CyberReport
+ */
+export type CyberReport = Message<"maple.tools.v1.CyberReport"> & {
+  /**
+   * @generated from field: string url_reputation = 1;
+   */
+  urlReputation: string;
+
+  /**
+   * @generated from field: bool sanitized = 2;
+   */
+  sanitized: boolean;
+
+  /**
+   * @generated from field: bool malware = 3;
+   */
+  malware: boolean;
+
+  /**
+   * @generated from field: bool quarantined = 4;
+   */
+  quarantined: boolean;
+
+  /**
+   * @generated from field: repeated string threats_found = 5;
+   */
+  threatsFound: string[];
+
+  /**
+   * @generated from field: string quarantine_reason = 6;
+   */
+  quarantineReason: string;
+
+  /**
+   * @generated from field: string resolved_ip = 7;
+   */
+  resolvedIp: string;
+};
+
+/**
+ * Describes the message maple.tools.v1.CyberReport.
+ * Use `create(CyberReportSchema)` to create a new message.
+ */
+export const CyberReportSchema: GenMessage<CyberReport> = /*@__PURE__*/
+  messageDesc(file_maple_tools_v1_tool_runner, 0);
 
 /**
  * @generated from message maple.tools.v1.ExecuteJsonRpcRequest
@@ -64,7 +111,7 @@ export type ExecuteJsonRpcRequest = Message<"maple.tools.v1.ExecuteJsonRpcReques
  * Use `create(ExecuteJsonRpcRequestSchema)` to create a new message.
  */
 export const ExecuteJsonRpcRequestSchema: GenMessage<ExecuteJsonRpcRequest> = /*@__PURE__*/
-  messageDesc(file_maple_tools_v1_tool_runner, 0);
+  messageDesc(file_maple_tools_v1_tool_runner, 1);
 
 /**
  * @generated from message maple.tools.v1.ExecuteJsonRpcResponse
@@ -94,6 +141,11 @@ export type ExecuteJsonRpcResponse = Message<"maple.tools.v1.ExecuteJsonRpcRespo
    * @generated from field: int32 status_code = 5;
    */
   statusCode: number;
+
+  /**
+   * @generated from field: maple.tools.v1.CyberReport cyber_report = 6;
+   */
+  cyberReport?: CyberReport;
 };
 
 /**
@@ -101,7 +153,7 @@ export type ExecuteJsonRpcResponse = Message<"maple.tools.v1.ExecuteJsonRpcRespo
  * Use `create(ExecuteJsonRpcResponseSchema)` to create a new message.
  */
 export const ExecuteJsonRpcResponseSchema: GenMessage<ExecuteJsonRpcResponse> = /*@__PURE__*/
-  messageDesc(file_maple_tools_v1_tool_runner, 1);
+  messageDesc(file_maple_tools_v1_tool_runner, 2);
 
 /**
  * @generated from service maple.tools.v1.ToolRunnerService

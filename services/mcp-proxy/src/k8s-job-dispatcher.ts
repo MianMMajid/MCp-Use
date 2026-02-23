@@ -37,6 +37,15 @@ interface JobDispatchResult {
   statusCode: number;
   durationMs: number;
   errorMessage?: string;
+  cyberReport?: {
+    urlReputation: string;
+    sanitized: boolean;
+    malware: boolean;
+    quarantined: boolean;
+    threatsFound: string[];
+    quarantineReason: string;
+    resolvedIp: string;
+  };
 }
 
 interface K8sApiOptions {
@@ -162,13 +171,17 @@ export class K8sJobDispatcher {
                 image: this.image,
                 command: ["node", "dist/job-entrypoint.js"],
                 env: [
-                  { name: "CYBER_PROXY_ADDRESS", value: `cyber-proxy.maple-cyber:8080` },
+                  { name: "CYBER_PROXY_ADDRESS", value: `cyber-proxy.maple-cyber.svc:8080` },
                   { name: "MAPLE_JOB_INPUT_PATH", value: "/job-input/request.json" },
                   { name: "MAPLE_JOB_OUTPUT_PATH", value: "/job-output/result.json" },
+                  { name: "MAPLE_GRPC_TLS_CERT", value: "/etc/maple/grpc-tls/tls.crt" },
+                  { name: "MAPLE_GRPC_TLS_KEY", value: "/etc/maple/grpc-tls/tls.key" },
+                  { name: "MAPLE_GRPC_TLS_CA", value: "/etc/maple/grpc-tls/ca.crt" },
                 ],
                 volumeMounts: [
                   { name: "job-input", mountPath: "/job-input", readOnly: true },
                   { name: "job-output", mountPath: "/job-output" },
+                  { name: "grpc-tls", mountPath: "/etc/maple/grpc-tls", readOnly: true },
                 ],
                 securityContext: {
                   readOnlyRootFilesystem: true,
@@ -189,6 +202,10 @@ export class K8sJobDispatcher {
               {
                 name: "job-output",
                 emptyDir: {},
+              },
+              {
+                name: "grpc-tls",
+                secret: { secretName: "maple-grpc-tls", optional: true },
               },
             ],
           },

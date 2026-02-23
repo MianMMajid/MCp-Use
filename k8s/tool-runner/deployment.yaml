@@ -32,15 +32,15 @@ spec:
             - name: TOOL_RUNNER_PORT
               value: "9250"
             - name: CYBER_PROXY_ADDRESS
-              value: cyber-proxy.maple-cyber:8080
+              value: cyber-proxy.maple-cyber.svc:8080
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple-observability:9400
+              value: audit-writer.maple-observability.svc:9400
             - name: HTTP_PROXY
-              value: http://cyber-proxy.maple-cyber:8888
+              value: http://cyber-proxy.maple-cyber.svc:8080
             - name: HTTPS_PROXY
-              value: http://cyber-proxy.maple-cyber:8888
+              value: http://cyber-proxy.maple-cyber.svc:8080
             - name: NO_PROXY
-              value: cyber-proxy.maple-cyber,audit-writer.maple-observability,localhost,127.0.0.1,.svc,.svc.cluster.local
+              value: cyber-proxy.maple-cyber.svc,audit-writer.maple-observability.svc,localhost,127.0.0.1,.svc,.svc.cluster.local
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/grpc-tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -116,7 +116,6 @@ spec:
               app: cyber-proxy
       ports:
         - port: 8080
-        - port: 8888
     - to:
         - namespaceSelector:
             matchLabels:
@@ -136,3 +135,12 @@ spec:
       ports:
         - port: 4317
         - port: 4318
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

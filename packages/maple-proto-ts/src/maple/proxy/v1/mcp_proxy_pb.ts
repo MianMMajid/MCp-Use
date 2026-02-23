@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maple/proxy/v1/mcp_proxy.proto.
  */
 export const file_maple_proxy_v1_mcp_proxy: GenFile = /*@__PURE__*/
-  fileDesc("Ch5tYXBsZS9wcm94eS92MS9tY3BfcHJveHkucHJvdG8SDm1hcGxlLnByb3h5LnYxIpgBCg1Eb3duc3RyZWFtQXBwEg4KBmFwcF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIOCgZzdGF0dXMYBiABKAkSKAoFdG9vbHMYByADKAsyGS5tYXBsZS5jb21tb24udjEuVG9vbEluZm8iVAoJVG9vbFNjb3BlEhcKD2FsbG93ZWRfZG9tYWlucxgBIAMoCRIRCgltYXhfYnl0ZXMYAiABKAMSGwoTYWxsb3dfZmlsZV9kb3dubG9hZBgDIAEoCCLlAQoSRXhlY3V0ZVRvb2xSZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDgoGYXBwX2lkGAIgASgJEhEKCXRvb2xfbmFtZRgDIAEoCRIWCg5hcmd1bWVudHNfanNvbhgEIAEoDBISCgpzZXNzaW9uX2lkGAUgASgJEhAKCHRyYWNlX2lkGAYgASgJEigKBXNjb3BlGAcgASgLMhkubWFwbGUucHJveHkudjEuVG9vbFNjb3BlEhIKCnRhcmdldF91cmwYCCABKAkiigEKE0V4ZWN1dGVUb29sUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBITCgtyZXN1bHRfanNvbhgCIAEoDBIVCg1lcnJvcl9tZXNzYWdlGAMgASgJEhMKC2R1cmF0aW9uX21zGAQgASgDEg4KBmFwcF9pZBgFIAEoCRIRCgl0b29sX25hbWUYBiABKAkirQEKF0V4ZWN1dGVUb29sQ2hhaW5SZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDwoHYXBwX2lkcxgCIAMoCRIRCgl0b29sX25hbWUYAyABKAkSFgoOYXJndW1lbnRzX2pzb24YBCABKAwSEgoKc2Vzc2lvbl9pZBgFIAEoCRIQCgh0cmFjZV9pZBgGIAEoCSJ4ChhFeGVjdXRlVG9vbENoYWluUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBI0CgdyZXN1bHRzGAIgAygLMiMubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xSZXNwb25zZRIVCg1lcnJvcl9tZXNzYWdlGAMgASgJIiIKEExpc3RUb29sc1JlcXVlc3QSDgoGYXBwX2lkGAEgASgJIj0KEUxpc3RUb29sc1Jlc3BvbnNlEigKBXRvb2xzGAEgAygLMhkubWFwbGUuY29tbW9uLnYxLlRvb2xJbmZvIjUKGUxpc3REb3duc3RyZWFtQXBwc1JlcXVlc3QSGAoQaW5jbHVkZV9kaXNhYmxlZBgBIAEoCCJJChpMaXN0RG93bnN0cmVhbUFwcHNSZXNwb25zZRIrCgRhcHBzGAEgAygLMh0ubWFwbGUucHJveHkudjEuRG93bnN0cmVhbUFwcCKDAQoVRm9yd2FyZEpzb25ScGNSZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDgoGYXBwX2lkGAIgASgJEhQKDHBheWxvYWRfanNvbhgDIAEoDBISCgp0YXJnZXRfdXJsGAQgASgJIlcKFkZvcndhcmRKc29uUnBjUmVzcG9uc2USFQoNcmVzcG9uc2VfanNvbhgBIAEoDBIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkiJwoVUGluZ0Rvd25zdHJlYW1SZXF1ZXN0Eg4KBmFwcF9pZBgBIAEoCSJPChZQaW5nRG93bnN0cmVhbVJlc3BvbnNlEhEKCXJlYWNoYWJsZRgBIAEoCBISCgpsYXRlbmN5X21zGAIgASgDEg4KBnN0YXR1cxgDIAEoCTLRBAoPTWNwUHJveHlTZXJ2aWNlElYKC0V4ZWN1dGVUb29sEiIubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xSZXF1ZXN0GiMubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xSZXNwb25zZRJlChBFeGVjdXRlVG9vbENoYWluEicubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xDaGFpblJlcXVlc3QaKC5tYXBsZS5wcm94eS52MS5FeGVjdXRlVG9vbENoYWluUmVzcG9uc2USUAoJTGlzdFRvb2xzEiAubWFwbGUucHJveHkudjEuTGlzdFRvb2xzUmVxdWVzdBohLm1hcGxlLnByb3h5LnYxLkxpc3RUb29sc1Jlc3BvbnNlEmsKEkxpc3REb3duc3RyZWFtQXBwcxIpLm1hcGxlLnByb3h5LnYxLkxpc3REb3duc3RyZWFtQXBwc1JlcXVlc3QaKi5tYXBsZS5wcm94eS52MS5MaXN0RG93bnN0cmVhbUFwcHNSZXNwb25zZRJfCg5Gb3J3YXJkSnNvblJwYxIlLm1hcGxlLnByb3h5LnYxLkZvcndhcmRKc29uUnBjUmVxdWVzdBomLm1hcGxlLnByb3h5LnYxLkZvcndhcmRKc29uUnBjUmVzcG9uc2USXwoOUGluZ0Rvd25zdHJlYW0SJS5tYXBsZS5wcm94eS52MS5QaW5nRG93bnN0cmVhbVJlcXVlc3QaJi5tYXBsZS5wcm94eS52MS5QaW5nRG93bnN0cmVhbVJlc3BvbnNlYgZwcm90bzM", [file_maple_common_v1_common]);
+  fileDesc("Ch5tYXBsZS9wcm94eS92MS9tY3BfcHJveHkucHJvdG8SDm1hcGxlLnByb3h5LnYxIpgBCg1Eb3duc3RyZWFtQXBwEg4KBmFwcF9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRIRCgl0cmFuc3BvcnQYBCABKAkSDwoHZW5hYmxlZBgFIAEoCBIOCgZzdGF0dXMYBiABKAkSKAoFdG9vbHMYByADKAsyGS5tYXBsZS5jb21tb24udjEuVG9vbEluZm8iVAoJVG9vbFNjb3BlEhcKD2FsbG93ZWRfZG9tYWlucxgBIAMoCRIRCgltYXhfYnl0ZXMYAiABKAMSGwoTYWxsb3dfZmlsZV9kb3dubG9hZBgDIAEoCCKlAQoLQ3liZXJSZXBvcnQSFgoOdXJsX3JlcHV0YXRpb24YASABKAkSEQoJc2FuaXRpemVkGAIgASgIEg8KB21hbHdhcmUYAyABKAgSEwoLcXVhcmFudGluZWQYBCABKAgSFQoNdGhyZWF0c19mb3VuZBgFIAMoCRIZChFxdWFyYW50aW5lX3JlYXNvbhgGIAEoCRITCgtyZXNvbHZlZF9pcBgHIAEoCSL7AQoSRXhlY3V0ZVRvb2xSZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDgoGYXBwX2lkGAIgASgJEhEKCXRvb2xfbmFtZRgDIAEoCRIWCg5hcmd1bWVudHNfanNvbhgEIAEoDBISCgpzZXNzaW9uX2lkGAUgASgJEhAKCHRyYWNlX2lkGAYgASgJEigKBXNjb3BlGAcgASgLMhkubWFwbGUucHJveHkudjEuVG9vbFNjb3BlEhIKCnRhcmdldF91cmwYCCABKAkSFAoMdG9vbF9jYWxsX2lkGAkgASgJIuMBChNFeGVjdXRlVG9vbFJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgSEwoLcmVzdWx0X2pzb24YAiABKAwSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCRITCgtkdXJhdGlvbl9tcxgEIAEoAxIOCgZhcHBfaWQYBSABKAkSEQoJdG9vbF9uYW1lGAYgASgJEhQKDHRvb2xfY2FsbF9pZBgHIAEoCRIOCgZzdGF0dXMYCCABKAkSMQoMY3liZXJfcmVwb3J0GAkgASgLMhsubWFwbGUucHJveHkudjEuQ3liZXJSZXBvcnQirQEKF0V4ZWN1dGVUb29sQ2hhaW5SZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDwoHYXBwX2lkcxgCIAMoCRIRCgl0b29sX25hbWUYAyABKAkSFgoOYXJndW1lbnRzX2pzb24YBCABKAwSEgoKc2Vzc2lvbl9pZBgFIAEoCRIQCgh0cmFjZV9pZBgGIAEoCSJ4ChhFeGVjdXRlVG9vbENoYWluUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBI0CgdyZXN1bHRzGAIgAygLMiMubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xSZXNwb25zZRIVCg1lcnJvcl9tZXNzYWdlGAMgASgJIiIKEExpc3RUb29sc1JlcXVlc3QSDgoGYXBwX2lkGAEgASgJIj0KEUxpc3RUb29sc1Jlc3BvbnNlEigKBXRvb2xzGAEgAygLMhkubWFwbGUuY29tbW9uLnYxLlRvb2xJbmZvIjUKGUxpc3REb3duc3RyZWFtQXBwc1JlcXVlc3QSGAoQaW5jbHVkZV9kaXNhYmxlZBgBIAEoCCJJChpMaXN0RG93bnN0cmVhbUFwcHNSZXNwb25zZRIrCgRhcHBzGAEgAygLMh0ubWFwbGUucHJveHkudjEuRG93bnN0cmVhbUFwcCKDAQoVRm9yd2FyZEpzb25ScGNSZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDgoGYXBwX2lkGAIgASgJEhQKDHBheWxvYWRfanNvbhgDIAEoDBISCgp0YXJnZXRfdXJsGAQgASgJIlcKFkZvcndhcmRKc29uUnBjUmVzcG9uc2USFQoNcmVzcG9uc2VfanNvbhgBIAEoDBIPCgdzdWNjZXNzGAIgASgIEhUKDWVycm9yX21lc3NhZ2UYAyABKAkiJwoVUGluZ0Rvd25zdHJlYW1SZXF1ZXN0Eg4KBmFwcF9pZBgBIAEoCSJPChZQaW5nRG93bnN0cmVhbVJlc3BvbnNlEhEKCXJlYWNoYWJsZRgBIAEoCBISCgpsYXRlbmN5X21zGAIgASgDEg4KBnN0YXR1cxgDIAEoCTLRBAoPTWNwUHJveHlTZXJ2aWNlElYKC0V4ZWN1dGVUb29sEiIubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xSZXF1ZXN0GiMubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xSZXNwb25zZRJlChBFeGVjdXRlVG9vbENoYWluEicubWFwbGUucHJveHkudjEuRXhlY3V0ZVRvb2xDaGFpblJlcXVlc3QaKC5tYXBsZS5wcm94eS52MS5FeGVjdXRlVG9vbENoYWluUmVzcG9uc2USUAoJTGlzdFRvb2xzEiAubWFwbGUucHJveHkudjEuTGlzdFRvb2xzUmVxdWVzdBohLm1hcGxlLnByb3h5LnYxLkxpc3RUb29sc1Jlc3BvbnNlEmsKEkxpc3REb3duc3RyZWFtQXBwcxIpLm1hcGxlLnByb3h5LnYxLkxpc3REb3duc3RyZWFtQXBwc1JlcXVlc3QaKi5tYXBsZS5wcm94eS52MS5MaXN0RG93bnN0cmVhbUFwcHNSZXNwb25zZRJfCg5Gb3J3YXJkSnNvblJwYxIlLm1hcGxlLnByb3h5LnYxLkZvcndhcmRKc29uUnBjUmVxdWVzdBomLm1hcGxlLnByb3h5LnYxLkZvcndhcmRKc29uUnBjUmVzcG9uc2USXwoOUGluZ0Rvd25zdHJlYW0SJS5tYXBsZS5wcm94eS52MS5QaW5nRG93bnN0cmVhbVJlcXVlc3QaJi5tYXBsZS5wcm94eS52MS5QaW5nRG93bnN0cmVhbVJlc3BvbnNlYgZwcm90bzM", [file_maple_common_v1_common]);
 
 /**
  * @generated from message maple.proxy.v1.DownstreamApp
@@ -89,6 +89,53 @@ export const ToolScopeSchema: GenMessage<ToolScope> = /*@__PURE__*/
   messageDesc(file_maple_proxy_v1_mcp_proxy, 1);
 
 /**
+ * @generated from message maple.proxy.v1.CyberReport
+ */
+export type CyberReport = Message<"maple.proxy.v1.CyberReport"> & {
+  /**
+   * @generated from field: string url_reputation = 1;
+   */
+  urlReputation: string;
+
+  /**
+   * @generated from field: bool sanitized = 2;
+   */
+  sanitized: boolean;
+
+  /**
+   * @generated from field: bool malware = 3;
+   */
+  malware: boolean;
+
+  /**
+   * @generated from field: bool quarantined = 4;
+   */
+  quarantined: boolean;
+
+  /**
+   * @generated from field: repeated string threats_found = 5;
+   */
+  threatsFound: string[];
+
+  /**
+   * @generated from field: string quarantine_reason = 6;
+   */
+  quarantineReason: string;
+
+  /**
+   * @generated from field: string resolved_ip = 7;
+   */
+  resolvedIp: string;
+};
+
+/**
+ * Describes the message maple.proxy.v1.CyberReport.
+ * Use `create(CyberReportSchema)` to create a new message.
+ */
+export const CyberReportSchema: GenMessage<CyberReport> = /*@__PURE__*/
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 2);
+
+/**
  * @generated from message maple.proxy.v1.ExecuteToolRequest
  */
 export type ExecuteToolRequest = Message<"maple.proxy.v1.ExecuteToolRequest"> & {
@@ -131,6 +178,11 @@ export type ExecuteToolRequest = Message<"maple.proxy.v1.ExecuteToolRequest"> & 
    * @generated from field: string target_url = 8;
    */
   targetUrl: string;
+
+  /**
+   * @generated from field: string tool_call_id = 9;
+   */
+  toolCallId: string;
 };
 
 /**
@@ -138,7 +190,7 @@ export type ExecuteToolRequest = Message<"maple.proxy.v1.ExecuteToolRequest"> & 
  * Use `create(ExecuteToolRequestSchema)` to create a new message.
  */
 export const ExecuteToolRequestSchema: GenMessage<ExecuteToolRequest> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 2);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 3);
 
 /**
  * @generated from message maple.proxy.v1.ExecuteToolResponse
@@ -173,6 +225,21 @@ export type ExecuteToolResponse = Message<"maple.proxy.v1.ExecuteToolResponse"> 
    * @generated from field: string tool_name = 6;
    */
   toolName: string;
+
+  /**
+   * @generated from field: string tool_call_id = 7;
+   */
+  toolCallId: string;
+
+  /**
+   * @generated from field: string status = 8;
+   */
+  status: string;
+
+  /**
+   * @generated from field: maple.proxy.v1.CyberReport cyber_report = 9;
+   */
+  cyberReport?: CyberReport;
 };
 
 /**
@@ -180,7 +247,7 @@ export type ExecuteToolResponse = Message<"maple.proxy.v1.ExecuteToolResponse"> 
  * Use `create(ExecuteToolResponseSchema)` to create a new message.
  */
 export const ExecuteToolResponseSchema: GenMessage<ExecuteToolResponse> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 3);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 4);
 
 /**
  * @generated from message maple.proxy.v1.ExecuteToolChainRequest
@@ -222,7 +289,7 @@ export type ExecuteToolChainRequest = Message<"maple.proxy.v1.ExecuteToolChainRe
  * Use `create(ExecuteToolChainRequestSchema)` to create a new message.
  */
 export const ExecuteToolChainRequestSchema: GenMessage<ExecuteToolChainRequest> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 4);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 5);
 
 /**
  * @generated from message maple.proxy.v1.ExecuteToolChainResponse
@@ -249,7 +316,7 @@ export type ExecuteToolChainResponse = Message<"maple.proxy.v1.ExecuteToolChainR
  * Use `create(ExecuteToolChainResponseSchema)` to create a new message.
  */
 export const ExecuteToolChainResponseSchema: GenMessage<ExecuteToolChainResponse> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 5);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 6);
 
 /**
  * @generated from message maple.proxy.v1.ListToolsRequest
@@ -266,7 +333,7 @@ export type ListToolsRequest = Message<"maple.proxy.v1.ListToolsRequest"> & {
  * Use `create(ListToolsRequestSchema)` to create a new message.
  */
 export const ListToolsRequestSchema: GenMessage<ListToolsRequest> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 6);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 7);
 
 /**
  * @generated from message maple.proxy.v1.ListToolsResponse
@@ -283,7 +350,7 @@ export type ListToolsResponse = Message<"maple.proxy.v1.ListToolsResponse"> & {
  * Use `create(ListToolsResponseSchema)` to create a new message.
  */
 export const ListToolsResponseSchema: GenMessage<ListToolsResponse> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 7);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 8);
 
 /**
  * @generated from message maple.proxy.v1.ListDownstreamAppsRequest
@@ -300,7 +367,7 @@ export type ListDownstreamAppsRequest = Message<"maple.proxy.v1.ListDownstreamAp
  * Use `create(ListDownstreamAppsRequestSchema)` to create a new message.
  */
 export const ListDownstreamAppsRequestSchema: GenMessage<ListDownstreamAppsRequest> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 8);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 9);
 
 /**
  * @generated from message maple.proxy.v1.ListDownstreamAppsResponse
@@ -317,7 +384,7 @@ export type ListDownstreamAppsResponse = Message<"maple.proxy.v1.ListDownstreamA
  * Use `create(ListDownstreamAppsResponseSchema)` to create a new message.
  */
 export const ListDownstreamAppsResponseSchema: GenMessage<ListDownstreamAppsResponse> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 9);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 10);
 
 /**
  * @generated from message maple.proxy.v1.ForwardJsonRpcRequest
@@ -349,7 +416,7 @@ export type ForwardJsonRpcRequest = Message<"maple.proxy.v1.ForwardJsonRpcReques
  * Use `create(ForwardJsonRpcRequestSchema)` to create a new message.
  */
 export const ForwardJsonRpcRequestSchema: GenMessage<ForwardJsonRpcRequest> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 10);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 11);
 
 /**
  * @generated from message maple.proxy.v1.ForwardJsonRpcResponse
@@ -376,7 +443,7 @@ export type ForwardJsonRpcResponse = Message<"maple.proxy.v1.ForwardJsonRpcRespo
  * Use `create(ForwardJsonRpcResponseSchema)` to create a new message.
  */
 export const ForwardJsonRpcResponseSchema: GenMessage<ForwardJsonRpcResponse> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 11);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 12);
 
 /**
  * @generated from message maple.proxy.v1.PingDownstreamRequest
@@ -393,7 +460,7 @@ export type PingDownstreamRequest = Message<"maple.proxy.v1.PingDownstreamReques
  * Use `create(PingDownstreamRequestSchema)` to create a new message.
  */
 export const PingDownstreamRequestSchema: GenMessage<PingDownstreamRequest> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 12);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 13);
 
 /**
  * @generated from message maple.proxy.v1.PingDownstreamResponse
@@ -420,7 +487,7 @@ export type PingDownstreamResponse = Message<"maple.proxy.v1.PingDownstreamRespo
  * Use `create(PingDownstreamResponseSchema)` to create a new message.
  */
 export const PingDownstreamResponseSchema: GenMessage<PingDownstreamResponse> = /*@__PURE__*/
-  messageDesc(file_maple_proxy_v1_mcp_proxy, 13);
+  messageDesc(file_maple_proxy_v1_mcp_proxy, 14);
 
 /**
  * @generated from service maple.proxy.v1.McpProxyService

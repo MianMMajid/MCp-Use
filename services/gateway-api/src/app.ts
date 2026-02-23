@@ -1,6 +1,7 @@
 import { server, database, initializeDatabase, setGrpcClients } from "./state.js";
 import { bootstrapAuthUsers } from "./auth.js";
 import { createGrpcClients } from "./grpc-clients.js";
+import { startHitlBroker } from "./hitl-broker.js";
 import { healthRoutes } from "./routes/health.js";
 import { redirectRoutes } from "./routes/redirect-routes.js";
 import { registerTraceRoutes } from "./routes/trace-routes.js";
@@ -13,6 +14,7 @@ import "./routes/mcp-middleware.js";
 import "./routes/auth-routes.js";
 import "./routes/billing-routes.js";
 import "./routes/firewall-routes.js";
+import "./routes/hitl-routes.js";
 import "./routes/demo-routes.js";
 import "./routes/gpt-adapter.js";
 import "./routes/mcp-tools.js";
@@ -21,6 +23,7 @@ export async function createApp() {
   const app = server.app;
   const grpcClients = createGrpcClients();
   setGrpcClients(grpcClients);
+  startHitlBroker();
 
   // Function-based route registration
   app.route("/", healthRoutes);
