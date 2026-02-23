@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway-api
+  namespace: maple-gateway
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-api
+  namespace: maple-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway-api
+  template:
+    metadata:
+      labels:
+        app: gateway-api
+    spec:
+      serviceAccountName: gateway-api
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: gateway-api
+          image: gateway-api:latest
+          ports:
+            - containerPort: 8443
+          env:
+            - name: GATEWAY_PORT
+              value: "8443"
+            - name: CONTEXT_WALL_ADDRESS
+              value: context-wall.maple-context:9000
+            - name: MCP_PROXY_ADDRESS
+              value: mcp-proxy.maple-tools:9200
+            - name: SECRETS_BROKER_ADDRESS
+              value: secrets-broker.maple-tools:9300
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple-observability:9400
+            - name: MAPLE_GATEWAY_TLS_CERT
+              value: /etc/maple/gateway-tls/tls.crt
+            - name: MAPLE_GATEWAY_TLS_KEY
+              value: /etc/maple/gateway-tls/tls.key
+            - name: MAPLE_GATEWAY_TLS_CA
+              value: /etc/maple/gateway-tls/ca.crt
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/grpc-tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/grpc-tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/grpc-tls/ca.crt
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://otel-collector.maple-observability:4318
+            - name: OTEL_SERVICE_NAME
+              value: gateway-api
+          volumeMounts:
+            - name: grpc-tls
+              mountPath: /etc/maple/grpc-tls
+              readOnly: true
+            - name: gateway-tls
+              mountPath: /etc/maple/gateway-tls
+              readOnly: true
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      volumes:
+        - name: grpc-tls
+          secret:
+            secretName: maple-grpc-tls
+            optional: true
+        - name: gateway-tls
+          secret:
+            secretName: maple-gateway-tls
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-api
+  namespace: maple-gateway
+spec:
+  selector:
+    app: gateway-api
+  ports:
+    - port: 8443
+      targetPort: 8443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-api-policy
+  namespace: maple-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: maple-edge
+      ports:
+        - port: 8443
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: context-wall
+      ports:
+        - port: 9000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - port: 9400
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4317
+        - port: 4318

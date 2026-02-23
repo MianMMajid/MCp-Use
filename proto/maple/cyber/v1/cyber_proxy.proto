@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package maple.cyber.v1;
+
+import "maple/common/v1/common.proto";
+
+// ── Service ──────────────────────────────────────────────────────────────────
+
+service CyberProxyService {
+  // Check a URL against SSRF guards and allowlists
+  rpc CheckUrl(CheckUrlRequest) returns (CheckUrlResponse);
+
+  // Scan response content for XSS, malware, etc.
+  rpc ScanContent(ScanContentRequest) returns (ScanContentResponse);
+
+  // Get URL reputation score
+  rpc GetReputation(GetReputationRequest) returns (GetReputationResponse);
+
+  // Full HTTP proxy pass-through (unary)
+  rpc ProxyHttpRequest(ProxyHttpRequestRequest) returns (ProxyHttpRequestResponse);
+
+  // Streaming HTTP proxy for large responses
+  rpc ProxyHttpRequestStream(ProxyHttpRequestStreamRequest) returns (stream ProxyHttpRequestStreamResponse);
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+message CheckUrlRequest {
+  maple.common.v1.RequestContext context = 1;
+  string url = 2;
+  string tool_name = 3;
+  string app_id = 4;
+}
+
+message CheckUrlResponse {
+  bool allowed = 1;
+  string reason = 2;
+  bool is_private_ip = 3;
+  string resolved_ip = 4;
+  string normalized_url = 5;
+}
+
+message ScanContentRequest {
+  maple.common.v1.RequestContext context = 1;
+  bytes content = 2;
+  string content_type = 3;
+  string source_url = 4;
+}
+
+message ScanContentResponse {
+  bool safe = 1;
+  repeated string threats_found = 2;
+  bytes sanitized_content = 3;
+  string scan_summary = 4;
+  bool quarantined = 5;
+}
+
+message GetReputationRequest {
+  string url = 1;
+}
+
+message GetReputationResponse {
+  double reputation_score = 1;
+  string category = 2;
+  bool known_malicious = 3;
+  string last_checked = 4;
+}
+
+message ProxyHttpRequestRequest {
+  maple.common.v1.RequestContext context = 1;
+  string method = 2;
+  string url = 3;
+  map<string, string> headers = 4;
+  bytes body = 5;
+  string tool_name = 6;
+  string app_id = 7;
+  int32 timeout_ms = 8;
+}
+
+message ProxyHttpRequestResponse {
+  int32 status_code = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;
+  int64 duration_ms = 4;
+  string resolved_ip = 5;
+}
+
+message ProxyHttpRequestStreamRequest {
+  maple.common.v1.RequestContext context = 1;
+  string method = 2;
+  string url = 3;
+  map<string, string> headers = 4;
+  bytes body = 5;
+  string tool_name = 6;
+  string app_id = 7;
+  int32 timeout_ms = 8;
+}
+
+message ProxyHttpRequestStreamResponse {
+  bytes data = 1;
+  bool is_final = 2;
+  int32 status_code = 3;
+  map<string, string> headers = 4;
+}

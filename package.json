@@ -1,70 +1,29 @@
 {
-  "name": "maple",
+  "name": "maple-firewall",
+  "private": true,
   "type": "module",
-  "version": "1.0.0",
-  "description": "MCP server: maple",
-  "author": "",
+  "version": "2.0.0",
+  "description": "Multi-service MCP firewall architecture",
   "license": "MIT",
-  "keywords": [
-    "mcp",
-    "server",
-    "starter",
-    "tools",
-    "resources",
-    "prompts",
-    "uiresource",
-    "ui",
-    "react",
-    "widgets",
-    "mcp-ui",
-    "apps-sdk"
+  "workspaces": [
+    "packages/*",
+    "services/*"
   ],
-  "main": "dist/index.js",
   "scripts": {
-    "build": "mcp-use build",
-    "dev": "bash scripts/hackathon-start.sh",
-    "start": "bash scripts/hackathon-start.sh",
-    "test": "node --test --import tsx tests/**/*.test.ts",
-    "deploy": "mcp-use deploy",
-    "demo:install-openclaw": "bash scripts/install-openclaw.sh",
-    "demo:bridge": "node scripts/openclaw-bridge-hardcoded.mjs",
-    "demo:up": "bash scripts/demo-up.sh",
-    "demo:down": "bash scripts/demo-down.sh",
-    "demo:run": "node scripts/demo-generator.mjs",
-    "trace:demo": "node scripts/agent-trace-demo.mjs",
-    "hackathon:up": "bash scripts/hackathon-start.sh",
-    "hackathon:down": "bash scripts/hackathon-down.sh",
-    "hackathon:verify": "bash scripts/hackathon-verify.sh",
-    "local:up": "bash scripts/local-up.sh",
-    "local:down": "bash scripts/local-down.sh",
-    "postinstall": "mcp-use generate-types || true"
-  },
-  "dependencies": {
-    "@openai/apps-sdk-ui": "^0.2.1",
-    "@tanstack/react-query": "^5.90.12",
-    "pg": "^8.13.1",
-    "stripe": "^17.0.0",
-    "cors": "^2.8.5",
-    "express": "^5.2.1",
-    "mcp-use": "1.20.0",
-    "node-mocks-http": "^1.17.2",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-router": "^7.12.0",
-    "tailwindcss": "^4.1.18",
-    "zod": "4.3.5"
+    "proto:gen": "buf generate",
+    "proto:lint": "buf lint",
+    "build": "npm run proto:gen && npm run build:packages && npm run build:services",
+    "build:packages": "npm run build -w @maple/types -w @maple/proto && npm run build -w @maple/common -w @maple/security -w @maple/risk-engine -w @maple/persistence",
+    "build:services": "npm run build -w @maple/audit-writer -w @maple/context-wall -w @maple/model-router -w @maple/secrets-broker -w @maple/tool-runner -w @maple/mcp-proxy -w @maple/cyber-proxy -w @maple/gateway-api -w @maple/admin-console",
+    "dev": "docker compose up --build",
+    "test": "npm -ws --if-present run test",
+    "lint": "npm -ws --if-present run lint",
+    "clean": "npm -ws --if-present run clean"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.18",
-    "@types/node": "^25.0.2",
-    "@types/pg": "^8.11.6",
-    "@vitejs/plugin-react": "^5.1.2",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.0"
-  },
-  "overrides": {
-    "sugarss": "^5.0.1",
-    "lodash": "4.17.23"
+    "@bufbuild/buf": "^1.65.0",
+    "@bufbuild/protobuf": "^2.11.0",
+    "@bufbuild/protoc-gen-es": "^2.11.0",
+    "typescript": "^5.9.3"
   }
 }

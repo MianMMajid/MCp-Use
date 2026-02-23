@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tool-runner
+  namespace: maple-tools
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tool-runner
+  namespace: maple-tools
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tool-runner
+  template:
+    metadata:
+      labels:
+        app: tool-runner
+    spec:
+      serviceAccountName: tool-runner
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: tool-runner
+          image: tool-runner:latest
+          ports:
+            - containerPort: 9250
+          env:
+            - name: TOOL_RUNNER_PORT
+              value: "9250"
+            - name: CYBER_PROXY_ADDRESS
+              value: cyber-proxy.maple-cyber:8080
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple-observability:9400
+            - name: HTTP_PROXY
+              value: http://cyber-proxy.maple-cyber:8888
+            - name: HTTPS_PROXY
+              value: http://cyber-proxy.maple-cyber:8888
+            - name: NO_PROXY
+              value: cyber-proxy.maple-cyber,audit-writer.maple-observability,localhost,127.0.0.1,.svc,.svc.cluster.local
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/grpc-tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/grpc-tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/grpc-tls/ca.crt
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://otel-collector.maple-observability:4318
+            - name: OTEL_SERVICE_NAME
+              value: tool-runner
+          volumeMounts:
+            - name: grpc-tls
+              mountPath: /etc/maple/grpc-tls
+              readOnly: true
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      volumes:
+        - name: grpc-tls
+          secret:
+            secretName: maple-grpc-tls
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tool-runner
+  namespace: maple-tools
+spec:
+  selector:
+    app: tool-runner
+  ports:
+    - port: 9250
+      targetPort: 9250
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tool-runner-policy
+  namespace: maple-tools
+spec:
+  podSelector:
+    matchLabels:
+      app: tool-runner
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: mcp-proxy
+      ports:
+        - port: 9250
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: cyber-proxy
+      ports:
+        - port: 8080
+        - port: 8888
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - port: 9400
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4317
+        - port: 4318

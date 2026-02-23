@@ -1,0 +1,195 @@
+# ── gRPC TLS Certificates (per-namespace) ─────────────────────────────────────
+#
+# One Certificate per namespace for inter-service gRPC mTLS.
+# Each uses secretName "maple-grpc-tls" matching the volume mounts
+# in service deployments (see deployment.yaml files).
+#
+# All certificates are issued by the maple-internal-ca-issuer.
+
+---
+# maple-gateway namespace (gateway-api)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-gateway
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - gateway-api
+    - gateway-api.maple-gateway.svc
+    - gateway-api.maple-gateway.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# maple-context namespace (context-wall)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-context
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - context-wall
+    - context-wall.maple-context.svc
+    - context-wall.maple-context.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# maple-model namespace (model-router)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-model
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - model-router
+    - model-router.maple-model.svc
+    - model-router.maple-model.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# maple-tools namespace (mcp-proxy, tool-runner, secrets-broker)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-tools
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - mcp-proxy
+    - mcp-proxy.maple-tools.svc
+    - mcp-proxy.maple-tools.svc.cluster.local
+    - tool-runner
+    - tool-runner.maple-tools.svc
+    - tool-runner.maple-tools.svc.cluster.local
+    - secrets-broker
+    - secrets-broker.maple-tools.svc
+    - secrets-broker.maple-tools.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# maple-cyber namespace (cyber-proxy)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-cyber
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - cyber-proxy
+    - cyber-proxy.maple-cyber.svc
+    - cyber-proxy.maple-cyber.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# maple-observability namespace (audit-writer)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-observability
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - audit-writer
+    - audit-writer.maple-observability.svc
+    - audit-writer.maple-observability.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+# maple-admin namespace (admin-console)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-grpc-tls
+  namespace: maple-admin
+spec:
+  secretName: maple-grpc-tls
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - admin-console
+    - admin-console.maple-admin.svc
+    - admin-console.maple-admin.svc.cluster.local
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

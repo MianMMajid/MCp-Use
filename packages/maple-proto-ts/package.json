@@ -1,0 +1,17 @@
+{
+  "name": "@maple/proto",
+  "version": "2.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist src/maple"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.11.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

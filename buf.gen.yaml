@@ -1,0 +1,8 @@
+version: v2
+plugins:
+  - local: protoc-gen-es
+    out: packages/maple-proto-ts/src
+    opt:
+      - target=ts
+inputs:
+  - directory: proto

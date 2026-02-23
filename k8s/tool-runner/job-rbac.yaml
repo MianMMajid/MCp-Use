@@ -1,0 +1,55 @@
+# ── Tool Runner Job RBAC ──────────────────────────────────────────────────────
+#
+# Grants the mcp-proxy ServiceAccount permissions to create and manage
+# tool-runner Jobs, ConfigMaps, and read Pod logs in the maple-tools namespace.
+#
+# Also creates a minimal ServiceAccount for the Job pods themselves
+# (tool-runner-job) which has no extra permissions.
+
+---
+# ServiceAccount for Job pods (minimal, no extra permissions)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tool-runner-job
+  namespace: maple-tools
+
+---
+# Role granting mcp-proxy the ability to manage tool-runner Jobs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-proxy-job-manager
+  namespace: maple-tools
+rules:
+  # Create/watch/delete Jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # Create/delete ConfigMaps for job input
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "delete"]
+  # List pods and read logs for result retrieval
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+
+---
+# Bind the role to the mcp-proxy ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-proxy-job-manager-binding
+  namespace: maple-tools
+subjects:
+  - kind: ServiceAccount
+    name: mcp-proxy
+    namespace: maple-tools
+roleRef:
+  kind: Role
+  name: mcp-proxy-job-manager
+  apiGroup: rbac.authorization.k8s.io

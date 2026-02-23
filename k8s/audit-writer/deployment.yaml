@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: audit-writer
+  namespace: maple-observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-writer
+  namespace: maple-observability
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: audit-writer
+  template:
+    metadata:
+      labels:
+        app: audit-writer
+    spec:
+      serviceAccountName: audit-writer
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: audit-writer
+          image: audit-writer:latest
+          ports:
+            - containerPort: 9400
+          env:
+            - name: AUDIT_WRITER_PORT
+              value: "9400"
+            - name: DATABASE_URL
+              value: postgresql://maple:maple@postgres.maple-observability:5432/maple
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/grpc-tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/grpc-tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/grpc-tls/ca.crt
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://otel-collector.maple-observability:4318
+            - name: OTEL_SERVICE_NAME
+              value: audit-writer
+          volumeMounts:
+            - name: grpc-tls
+              mountPath: /etc/maple/grpc-tls
+              readOnly: true
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      volumes:
+        - name: grpc-tls
+          secret:
+            secretName: maple-grpc-tls
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-writer
+  namespace: maple-observability
+spec:
+  selector:
+    app: audit-writer
+  ports:
+    - port: 9400
+      targetPort: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audit-writer-policy
+  namespace: maple-observability
+spec:
+  podSelector:
+    matchLabels:
+      app: audit-writer
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+      ports:
+        - port: 9400
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4317
+        - port: 4318

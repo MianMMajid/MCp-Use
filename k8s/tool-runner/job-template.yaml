@@ -1,0 +1,74 @@
+# ── Tool Runner Job Template ──────────────────────────────────────────────────
+#
+# Reference Job spec for tool-runner sandbox execution.
+# In production, Jobs are created programmatically by K8sJobDispatcher
+# in the mcp-proxy service. This template documents the expected shape.
+#
+# Each Job:
+# - Runs as non-root (UID 1000)
+# - Has a read-only root filesystem
+# - Drops all Linux capabilities
+# - Receives its input via a ConfigMap mount at /job-input
+# - Writes output to /job-output (emptyDir) and stdout
+# - Auto-cleans via ttlSecondsAfterFinished (300s)
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tool-job-example
+  namespace: maple-tools
+  labels:
+    app: tool-runner-job
+    app.kubernetes.io/managed-by: mcp-proxy
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 0
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app: tool-runner-job
+    spec:
+      restartPolicy: Never
+      serviceAccountName: tool-runner-job
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: tool-runner
+          image: tool-runner:latest
+          command: ["node", "dist/job-entrypoint.js"]
+          env:
+            - name: CYBER_PROXY_ADDRESS
+              value: cyber-proxy.maple-cyber:8080
+            - name: MAPLE_JOB_INPUT_PATH
+              value: /job-input/request.json
+            - name: MAPLE_JOB_OUTPUT_PATH
+              value: /job-output/result.json
+          volumeMounts:
+            - name: job-input
+              mountPath: /job-input
+              readOnly: true
+            - name: job-output
+              mountPath: /job-output
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 250m
+      volumes:
+        - name: job-input
+          configMap:
+            name: tool-job-example-input
+        - name: job-output
+          emptyDir: {}

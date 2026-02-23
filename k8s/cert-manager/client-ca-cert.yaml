@@ -1,0 +1,39 @@
+# ── mTLS Client CA Certificate ────────────────────────────────────────────────
+#
+# CA certificate for issuing mTLS client certificates.
+# Used by maple-edge to verify client (agent/device) identities.
+#
+# Flow:
+# 1. This CA issues per-device/agent client certificates
+# 2. maple-edge verifies client certs against this CA
+# 3. Client identity is forwarded to gateway-api in headers
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-client-ca
+  namespace: maple-gateway
+spec:
+  isCA: true
+  commonName: maple-client-ca
+  secretName: maple-client-ca-secret
+  duration: 43800h # 5 years
+  renewBefore: 720h # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: maple-client-ca-issuer
+  namespace: maple-gateway
+spec:
+  ca:
+    secretName: maple-client-ca-secret

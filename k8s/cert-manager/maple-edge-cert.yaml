@@ -1,0 +1,28 @@
+# ── maple-edge TLS Certificate ────────────────────────────────────────────────
+#
+# TLS certificate for the maple-edge Envoy ingress proxy.
+# Provides HTTPS termination for external traffic.
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: maple-edge-tls
+  namespace: maple-gateway
+spec:
+  secretName: maple-edge-tls
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+  dnsNames:
+    - maple-edge
+    - maple-edge.maple-gateway.svc
+    - maple-edge.maple-gateway.svc.cluster.local
+    - "*.maple.local"
+  issuerRef:
+    name: maple-internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
