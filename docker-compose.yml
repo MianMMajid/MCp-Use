@@ -1,37 +1,311 @@
-services:
-  gateway:
-    build:
-      context: .
-      dockerfile: services/gateway/Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      BACKEND_HOST: backend
-      BACKEND_PORT: "3000"
-    depends_on:
-      - backend
+version: "3.9"
 
-  backend:
-    build:
-      context: .
-      dockerfile: services/backend/Dockerfile
+services:
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/maple
-      MCP_URL: http://localhost:8080
-      MAPLE_ENABLE_JUDGE_UI: "false"
-      MAPLE_API_KEY: local-demo-key
-      MAPLE_ADMIN_USERNAME: admin
-      MAPLE_ADMIN_PASSWORD: admin123
+      POSTGRES_USER: maple
+      POSTGRES_PASSWORD: maple
+      POSTGRES_DB: maple
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maple"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── [Z6] Observability ────────────────────────────────────────────────────
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.0
+    volumes:
+      - ./services/otel-collector/otel-config.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4317:4317"   # gRPC OTLP
+      - "4318:4318"   # HTTP OTLP
+      - "13133:13133" # Health check
     depends_on:
       - postgres
 
-  postgres:
-    image: postgres:16
+  # ── [Z6] Audit Writer ────────────────────────────────────────────────────
+
+  audit-writer:
+    build:
+      context: .
+      dockerfile: services/audit-writer/Dockerfile
+    ports:
+      - "9400:9400"
     environment:
-      POSTGRES_DB: maple
-      POSTGRES_PASSWORD: postgres
+      AUDIT_WRITER_PORT: 9400
+      DATABASE_URL: postgresql://maple:maple@postgres:5432/maple
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── [Z2] Context Wall ────────────────────────────────────────────────────
+
+  context-wall:
+    build:
+      context: .
+      dockerfile: services/context-wall/Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      CONTEXT_WALL_PORT: 9000
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+      MODEL_ROUTER_ADDRESS: model-router:9100
+      MCP_PROXY_ADDRESS: mcp-proxy:9200
+      CONTEXT_WALL_HITL_TIMEOUT_MS: ${CONTEXT_WALL_HITL_TIMEOUT_MS:-120000}
+    depends_on:
+      - audit-writer
+
+  # ── [Z3] Model Router ────────────────────────────────────────────────────
+
+  model-router:
+    build:
+      context: .
+      dockerfile: services/model-router/Dockerfile
+    ports:
+      - "9100:9100"
+    environment:
+      MODEL_ROUTER_PORT: 9100
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MAPLE_FIREWALL_CHAT_PRIMARY: ${MAPLE_FIREWALL_CHAT_PRIMARY:-openai}
+      MAPLE_FIREWALL_CHAT_OPENAI_MODEL: ${MAPLE_FIREWALL_CHAT_OPENAI_MODEL:-gpt-4o-mini}
+      MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL: ${MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      MAPLE_FIREWALL_CHAT_TIMEOUT_MS: ${MAPLE_FIREWALL_CHAT_TIMEOUT_MS:-15000}
+    depends_on:
+      - audit-writer
+
+  # ── [Z4] MCP Proxy ───────────────────────────────────────────────────────
+
+  mcp-proxy:
+    build:
+      context: .
+      dockerfile: services/mcp-proxy/Dockerfile
+    ports:
+      - "9200:9200"
+    environment:
+      MCP_PROXY_PORT: 9200
+      CONTEXT_WALL_ADDRESS: context-wall:9000
+      SECRETS_BROKER_ADDRESS: secrets-broker:9300
+      TOOL_RUNNER_ADDRESS: tool-runner:9250
+      CYBER_PROXY_ADDRESS: cyber-proxy:8080
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+      MAPLE_DOWNSTREAM_APPS: ${MAPLE_DOWNSTREAM_APPS:-}
+    depends_on:
+      - context-wall
+      - secrets-broker
+      - tool-runner
+      - cyber-proxy
+      - audit-writer
+
+  # ── [Z4] Secrets Broker ──────────────────────────────────────────────────
+
+  secrets-broker:
+    build:
+      context: .
+      dockerfile: services/secrets-broker/Dockerfile
+    ports:
+      - "9300:9300"
+    environment:
+      SECRETS_BROKER_PORT: 9300
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+    depends_on:
+      - audit-writer
+
+  # ── [Z4] Tool Runner ─────────────────────────────────────────────────────
+
+  tool-runner:
+    build:
+      context: .
+      dockerfile: services/tool-runner/Dockerfile
+    ports:
+      - "9250:9250"
+    environment:
+      TOOL_RUNNER_PORT: 9250
+      CYBER_PROXY_ADDRESS: cyber-proxy:8080
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+      HTTP_PROXY: http://cyber-proxy:8888
+      HTTPS_PROXY: http://cyber-proxy:8888
+      NO_PROXY: cyber-proxy,audit-writer,localhost,127.0.0.1
+    depends_on:
+      - cyber-proxy
+      - audit-writer
+
+  # ── [Z5] Cyber Proxy ─────────────────────────────────────────────────────
+
+  cyber-proxy:
+    build:
+      context: .
+      dockerfile: services/cyber-proxy/Dockerfile
+    ports:
+      - "8080:8080"
+      - "8888:8888"
+    environment:
+      CYBER_PROXY_PORT: 8080
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+    depends_on:
+      - audit-writer
+
+  # ── [Z1] Gateway API ─────────────────────────────────────────────────────
+
+  gateway-api:
+    build:
+      context: .
+      dockerfile: services/gateway-api/Dockerfile
+    ports:
+      - "8443:8443"
+    environment:
+      # Service infrastructure
+      GATEWAY_PORT: 8443
+      GATEWAY_HOST: "0.0.0.0"
+      DATABASE_URL: postgresql://maple:maple@postgres:5432/maple
+      CONTEXT_WALL_ADDRESS: context-wall:9000
+      MCP_PROXY_ADDRESS: mcp-proxy:9200
+      SECRETS_BROKER_ADDRESS: secrets-broker:9300
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+      MAPLE_GATEWAY_TLS_CERT: /etc/maple/gateway-tls/tls.crt
+      MAPLE_GATEWAY_TLS_KEY: /etc/maple/gateway-tls/tls.key
+      MAPLE_GATEWAY_TLS_CA: /etc/maple/gateway-tls/ca.crt
+      # Auth
+      MAPLE_API_KEY: ${MAPLE_API_KEY:-}
+      MAPLE_ADMIN_USERNAME: ${MAPLE_ADMIN_USERNAME:-admin}
+      MAPLE_ADMIN_PASSWORD: ${MAPLE_ADMIN_PASSWORD:-maple-demo-password}
+      MAPLE_ADMIN_EMAIL: ${MAPLE_ADMIN_EMAIL:-}
+      MAPLE_ALLOW_NO_AUTH: ${MAPLE_ALLOW_NO_AUTH:-0}
+      MAPLE_SESSION_TTL_SECONDS: ${MAPLE_SESSION_TTL_SECONDS:-604800}
+      MAPLE_SESSION_OWNER_SCOPE: ${MAPLE_SESSION_OWNER_SCOPE:-auto}
+      MAPLE_AUTH_ALLOW_SELF_SIGNUP: ${MAPLE_AUTH_ALLOW_SELF_SIGNUP:-0}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Downstream / MCP proxy
+      MAPLE_DOWNSTREAM_APPS: ${MAPLE_DOWNSTREAM_APPS:-}
+      MAPLE_MCP_EXECUTION_ORDER: ${MAPLE_MCP_EXECUTION_ORDER:-}
+      MAPLE_MCP_FIREWALL_DEFAULT_APP: ${MAPLE_MCP_FIREWALL_DEFAULT_APP:-}
+      MAPLE_MCP_PROXY_DEFAULT_TARGET_URL: ${MAPLE_MCP_PROXY_DEFAULT_TARGET_URL:-}
+      MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS: ${MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS:-0}
+      MAPLE_MCP_PROXY_ALLOW_HTTP: ${MAPLE_MCP_PROXY_ALLOW_HTTP:-0}
+      MAPLE_MCP_PROXY_ALLOW_PRIVATE_TARGETS: ${MAPLE_MCP_PROXY_ALLOW_PRIVATE_TARGETS:-0}
+      MAPLE_MCP_PROXY_ALLOWED_HOSTS: ${MAPLE_MCP_PROXY_ALLOWED_HOSTS:-}
+      MAPLE_MCP_ROUTE_LOCK: ${MAPLE_MCP_ROUTE_LOCK:-0}
+      MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS: ${MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS:-15000}
+      # Marketplace
+      MAPLE_MCP_MARKETPLACE_ENABLED: ${MAPLE_MCP_MARKETPLACE_ENABLED:-0}
+      MAPLE_MCP_MARKETPLACE_AUTO_CONNECT: ${MAPLE_MCP_MARKETPLACE_AUTO_CONNECT:-0}
+      MAPLE_SMITHERY_ENABLED: ${MAPLE_SMITHERY_ENABLED:-0}
+      MAPLE_SMITHERY_API_BASE_URL: ${MAPLE_SMITHERY_API_BASE_URL:-}
+      MAPLE_SMITHERY_API_KEY: ${MAPLE_SMITHERY_API_KEY:-}
+      MAPLE_SMITHERY_TIMEOUT_MS: ${MAPLE_SMITHERY_TIMEOUT_MS:-12000}
+      MAPLE_MCPSO_ENABLED: ${MAPLE_MCPSO_ENABLED:-0}
+      MAPLE_MCPSO_BASE_URL: ${MAPLE_MCPSO_BASE_URL:-}
+      MAPLE_MCPSO_TIMEOUT_MS: ${MAPLE_MCPSO_TIMEOUT_MS:-12000}
+      # OpenClaw bridge
+      OPENCLAW_BRIDGE_URL: ${OPENCLAW_BRIDGE_URL:-}
+      OPENCLAW_BRIDGE_TOKEN: ${OPENCLAW_BRIDGE_TOKEN:-}
+      MAPLE_ALLOW_BRIDGE_OVERRIDE: ${MAPLE_ALLOW_BRIDGE_OVERRIDE:-0}
+      MAPLE_LOCK_BRIDGE_TARGET: ${MAPLE_LOCK_BRIDGE_TARGET:-0}
+      # LLM keys for firewall chat
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MAPLE_FIREWALL_CHAT_PRIMARY: ${MAPLE_FIREWALL_CHAT_PRIMARY:-openai}
+      MAPLE_FIREWALL_CHAT_OPENAI_MODEL: ${MAPLE_FIREWALL_CHAT_OPENAI_MODEL:-gpt-4o-mini}
+      MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL: ${MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      MAPLE_FIREWALL_CHAT_TIMEOUT_MS: ${MAPLE_FIREWALL_CHAT_TIMEOUT_MS:-15000}
+      # Stripe billing
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_TEAM: ${STRIPE_PRICE_TEAM:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+      # GPT adapter
+      MAPLE_GPT_OAUTH_CLIENT_ID: ${MAPLE_GPT_OAUTH_CLIENT_ID:-maple-gpt-client}
+      MAPLE_GPT_OAUTH_CLIENT_SECRET: ${MAPLE_GPT_OAUTH_CLIENT_SECRET:-}
+      # Feature flags
+      MAPLE_ENABLE_DEMO_ROUTES: ${MAPLE_ENABLE_DEMO_ROUTES:-1}
+      MAPLE_ENABLE_LEGACY_SMITHERY_ROUTES: ${MAPLE_ENABLE_LEGACY_SMITHERY_ROUTES:-0}
+      MAPLE_ENABLE_JUDGE_UI: ${MAPLE_ENABLE_JUDGE_UI:-1}
+      # Session polling
+      MAPLE_SESSION_POLL: ${MAPLE_SESSION_POLL:-1}
+      MAPLE_SESSION_POLL_MS: ${MAPLE_SESSION_POLL_MS:-5000}
+      # Logging
+      MAPLE_LOG_REQUESTS: ${MAPLE_LOG_REQUESTS:-1}
+      MAPLE_LOG_INCLUDE_BODIES: ${MAPLE_LOG_INCLUDE_BODIES:-0}
+      MAPLE_LOG_LEVEL: ${MAPLE_LOG_LEVEL:-info}
+      MCP_URL: ${MCP_URL:-https://gateway-api:8443}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - ./services/maple-edge/certs:/etc/maple/gateway-tls:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      context-wall:
+        condition: service_started
+      mcp-proxy:
+        condition: service_started
+      secrets-broker:
+        condition: service_started
+      audit-writer:
+        condition: service_started
+      cyber-proxy:
+        condition: service_started
+
+  # ── [Z1] Maple Edge ──────────────────────────────────────────────────────
+
+  maple-edge:
+    build:
+      context: .
+      dockerfile: services/maple-edge/Dockerfile
+    ports:
+      - "443:443"
+      - "9901:9901"
+    environment:
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-https://www.googleapis.com/oauth2/v3/certs}
+      MAPLE_OIDC_JWKS_HOST: ${MAPLE_OIDC_JWKS_HOST:-www.googleapis.com}
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.google.com}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-maple-gateway}
+      MAPLE_OTEL_COLLECTOR_HOST: ${MAPLE_OTEL_COLLECTOR_HOST:-otel-collector}
+    volumes:
+      - ./services/maple-edge/certs:/etc/envoy/certs:ro
+    depends_on:
+      - gateway-api
+      - admin-console
+
+  # ── [Z6] Admin Console ───────────────────────────────────────────────────
+
+  admin-console:
+    build:
+      context: .
+      dockerfile: services/admin-console/Dockerfile
+    expose:
+      - "9443"
+    environment:
+      ADMIN_CONSOLE_PORT: 9443
+      AUDIT_WRITER_ADDRESS: audit-writer:9400
+      CONTEXT_WALL_ADDRESS: context-wall:9000
+      MAPLE_ADMIN_TLS_CERT: /etc/maple/admin-tls/tls.crt
+      MAPLE_ADMIN_TLS_KEY: /etc/maple/admin-tls/tls.key
+      MAPLE_ADMIN_TLS_CA: /etc/maple/admin-tls/ca.crt
+    volumes:
+      - ./services/maple-edge/certs:/etc/maple/admin-tls:ro
+    depends_on:
+      - audit-writer
 
 volumes:
   pgdata:

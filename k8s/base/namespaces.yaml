@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-gateway
+  labels:
+    app.kubernetes.io/part-of: maple
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-context
+  labels:
+    app.kubernetes.io/part-of: maple
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-model
+  labels:
+    app.kubernetes.io/part-of: maple
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-tools
+  labels:
+    app.kubernetes.io/part-of: maple
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-cyber
+  labels:
+    app.kubernetes.io/part-of: maple
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-observability
+  labels:
+    app.kubernetes.io/part-of: maple
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: maple-admin
+  labels:
+    app.kubernetes.io/part-of: maple

@@ -1,0 +1,49 @@
+# ── Tool Runner Job NetworkPolicy ─────────────────────────────────────────────
+#
+# Restricts network access for tool-runner Job pods.
+# Job pods can ONLY reach:
+# - cyber-proxy on port 8080 (for HTTP proxying)
+# - audit-writer on port 9400 (for audit events)
+# - kube-system DNS on port 53
+#
+# No ingress is allowed — Job pods are fire-and-forget.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tool-runner-job-policy
+  namespace: maple-tools
+spec:
+  podSelector:
+    matchLabels:
+      app: tool-runner-job
+  policyTypes: [Ingress, Egress]
+  ingress: [] # No inbound traffic allowed
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: cyber-proxy
+      ports:
+        - port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - port: 9400
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

@@ -1,0 +1,344 @@
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+
+static_resources:
+  listeners:
+    - name: main_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 443
+      filter_chains:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              require_client_certificate: true
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain:
+                      filename: /etc/envoy/certs/tls.crt
+                    private_key:
+                      filename: /etc/envoy/certs/tls.key
+                validation_context:
+                  trusted_ca:
+                    filename: /etc/envoy/certs/client-ca.crt
+          filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: maple_edge
+                codec_type: AUTO
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: maple_gateway
+                      domains: ["*"]
+                      rate_limits:
+                        - actions:
+                            - request_headers:
+                                descriptor_key: tenant
+                                header_name: x-tenant-id
+                        - actions:
+                            - request_headers:
+                                descriptor_key: user
+                                header_name: x-user-id
+                        - actions:
+                            - request_headers:
+                                descriptor_key: device
+                                header_name: x-device-id
+                      routes:
+                        # Admin routes
+                        - match:
+                            path: "/judge"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            prefix: "/judges"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            path: "/landing"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            prefix: "/landing"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            prefix: "/admin/"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            path: "/maple-tokens.css"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            path: "/logo.png"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            path: "/favicon.ico"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            path: "/icon.svg"
+                          route:
+                            cluster: admin_console
+                        - match:
+                            prefix: "/fruits/"
+                          route:
+                            cluster: admin_console
+
+                        # Gateway routes
+                        - match:
+                            path: "/health"
+                          route:
+                            cluster: gateway_api
+                        - match:
+                            path: "/ready"
+                          route:
+                            cluster: gateway_api
+                        - match:
+                            prefix: "/api/"
+                          route:
+                            cluster: gateway_api
+                            timeout: 60s
+                        - match:
+                            prefix: "/mcp"
+                          route:
+                            cluster: gateway_api
+                            timeout: 60s
+                        - match:
+                            prefix: "/sse"
+                          route:
+                            cluster: gateway_api
+                            timeout: 0s
+                        - match:
+                            prefix: "/.well-known/"
+                          route:
+                            cluster: gateway_api
+                        - match:
+                            prefix: "/gpt/"
+                          route:
+                            cluster: gateway_api
+                            timeout: 60s
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: gateway_api
+
+                http_filters:
+                  - name: envoy.filters.http.jwt_authn
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                      providers:
+                        oidc_provider:
+                          issuer: "__OIDC_ISSUER__"
+                          audiences:
+                            - "__OIDC_AUDIENCE__"
+                          remote_jwks:
+                            http_uri:
+                              uri: "__OIDC_JWKS_URI__"
+                              cluster: jwks_cluster
+                              timeout: 5s
+                            cache_duration: 600s
+                          forward: true
+                      rules:
+                        - match:
+                            prefix: "/api/"
+                          requires:
+                            provider_name: oidc_provider
+                        - match:
+                            prefix: "/admin/"
+                          requires:
+                            provider_name: oidc_provider
+                        - match:
+                            path: "/judge"
+                          requires:
+                            provider_name: oidc_provider
+                        - match:
+                            prefix: "/judges"
+                          requires:
+                            provider_name: oidc_provider
+                        - match:
+                            prefix: "/mcp"
+                          requires:
+                            provider_name: oidc_provider
+                        - match:
+                            prefix: "/sse"
+                          requires:
+                            provider_name: oidc_provider
+                        - match:
+                            prefix: "/gpt/"
+                          requires:
+                            provider_name: oidc_provider
+                        # Unauthenticated routes
+                        - match:
+                            path: "/health"
+                        - match:
+                            path: "/ready"
+                        - match:
+                            path: "/maple-tokens.css"
+                        - match:
+                            path: "/logo.png"
+                        - match:
+                            path: "/favicon.ico"
+                        - match:
+                            path: "/icon.svg"
+                        - match:
+                            prefix: "/fruits/"
+                        - match:
+                            prefix: "/landing"
+                        - match:
+                            prefix: "/.well-known/"
+                        # Default: require OIDC for every other route.
+                        - match:
+                            prefix: "/"
+                          requires:
+                            provider_name: oidc_provider
+
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                      stat_prefix: maple_local_rate_limit
+                      token_bucket:
+                        max_tokens: 100
+                        tokens_per_fill: 100
+                        fill_interval: 60s
+                      descriptors:
+                        - entries:
+                            - key: tenant
+                          token_bucket:
+                            max_tokens: 120
+                            tokens_per_fill: 120
+                            fill_interval: 60s
+                        - entries:
+                            - key: user
+                          token_bucket:
+                            max_tokens: 90
+                            tokens_per_fill: 90
+                            fill_interval: 60s
+                        - entries:
+                            - key: device
+                          token_bucket:
+                            max_tokens: 60
+                            tokens_per_fill: 60
+                            fill_interval: 60s
+                      filter_enabled:
+                        runtime_key: local_rate_limit_enabled
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+                      filter_enforced:
+                        runtime_key: local_rate_limit_enforced
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+
+                  - name: envoy.filters.http.cors
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+                access_log:
+                  - name: envoy.access_loggers.open_telemetry
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
+                      common_config:
+                        log_name: maple_edge_access
+                        grpc_service:
+                          envoy_grpc:
+                            cluster_name: otel_collector
+                        transport_api_version: V3
+                      body:
+                        string_value: '%START_TIME% %REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %RESPONSE_CODE% %REQ(X-REQUEST-ID)%'
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+
+  clusters:
+    - name: gateway_api
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: gateway-api
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/internal-ca.crt
+      load_assignment:
+        cluster_name: gateway_api
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: gateway-api
+                      port_value: 8443
+
+    - name: admin_console
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: admin-console
+          common_tls_context:
+            validation_context:
+              trusted_ca:
+                filename: /etc/envoy/certs/internal-ca.crt
+      load_assignment:
+        cluster_name: admin_console
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: admin-console
+                      port_value: 9443
+
+    - name: otel_collector
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      http2_protocol_options: {}
+      load_assignment:
+        cluster_name: otel_collector
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: "__MAPLE_OTEL_COLLECTOR_HOST__"
+                      port_value: 4317
+
+    - name: jwks_cluster
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+      load_assignment:
+        cluster_name: jwks_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: "__MAPLE_OIDC_JWKS_HOST__"
+                      port_value: 443

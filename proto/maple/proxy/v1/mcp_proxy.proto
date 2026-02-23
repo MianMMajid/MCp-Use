@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package maple.proxy.v1;
+
+import "maple/common/v1/common.proto";
+
+// ── Service ──────────────────────────────────────────────────────────────────
+
+service McpProxyService {
+  // Dispatch a single tool invocation
+  rpc ExecuteTool(ExecuteToolRequest) returns (ExecuteToolResponse);
+
+  // Dispatch a chain of tools across multiple apps
+  rpc ExecuteToolChain(ExecuteToolChainRequest) returns (ExecuteToolChainResponse);
+
+  // List available tools from downstream MCP servers
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+
+  // List registered downstream app connections
+  rpc ListDownstreamApps(ListDownstreamAppsRequest) returns (ListDownstreamAppsResponse);
+
+  // Forward a raw JSON-RPC payload to a downstream MCP server
+  rpc ForwardJsonRpc(ForwardJsonRpcRequest) returns (ForwardJsonRpcResponse);
+
+  // Ping a downstream MCP server to check health
+  rpc PingDownstream(PingDownstreamRequest) returns (PingDownstreamResponse);
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+message DownstreamApp {
+  string app_id = 1;
+  string name = 2;
+  string url = 3;
+  string transport = 4;
+  bool enabled = 5;
+  string status = 6;
+  repeated maple.common.v1.ToolInfo tools = 7;
+}
+
+message ToolScope {
+  repeated string allowed_domains = 1;
+  int64 max_bytes = 2;
+  bool allow_file_download = 3;
+}
+
+message ExecuteToolRequest {
+  maple.common.v1.RequestContext context = 1;
+  string app_id = 2;
+  string tool_name = 3;
+  bytes arguments_json = 4;
+  string session_id = 5;
+  string trace_id = 6;
+  ToolScope scope = 7;
+  string target_url = 8;
+}
+
+message ExecuteToolResponse {
+  bool success = 1;
+  bytes result_json = 2;
+  string error_message = 3;
+  int64 duration_ms = 4;
+  string app_id = 5;
+  string tool_name = 6;
+}
+
+message ExecuteToolChainRequest {
+  maple.common.v1.RequestContext context = 1;
+  repeated string app_ids = 2;
+  string tool_name = 3;
+  bytes arguments_json = 4;
+  string session_id = 5;
+  string trace_id = 6;
+}
+
+message ExecuteToolChainResponse {
+  bool success = 1;
+  repeated ExecuteToolResponse results = 2;
+  string error_message = 3;
+}
+
+message ListToolsRequest {
+  string app_id = 1;
+}
+
+message ListToolsResponse {
+  repeated maple.common.v1.ToolInfo tools = 1;
+}
+
+message ListDownstreamAppsRequest {
+  bool include_disabled = 1;
+}
+
+message ListDownstreamAppsResponse {
+  repeated DownstreamApp apps = 1;
+}
+
+message ForwardJsonRpcRequest {
+  maple.common.v1.RequestContext context = 1;
+  string app_id = 2;
+  bytes payload_json = 3;
+  string target_url = 4;
+}
+
+message ForwardJsonRpcResponse {
+  bytes response_json = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message PingDownstreamRequest {
+  string app_id = 1;
+}
+
+message PingDownstreamResponse {
+  bool reachable = 1;
+  int64 latency_ms = 2;
+  string status = 3;
+}

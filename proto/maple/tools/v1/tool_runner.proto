@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package maple.tools.v1;
+
+import "maple/common/v1/common.proto";
+
+service ToolRunnerService {
+  rpc ExecuteJsonRpc(ExecuteJsonRpcRequest) returns (ExecuteJsonRpcResponse);
+}
+
+message ExecuteJsonRpcRequest {
+  maple.common.v1.RequestContext context = 1;
+  string app_id = 2;
+  string target_url = 3;
+  bytes payload_json = 4;
+  int32 timeout_ms = 5;
+  string credential_id = 6;
+  string credential_token = 7;
+  repeated string credential_scopes = 8;
+}
+
+message ExecuteJsonRpcResponse {
+  bool success = 1;
+  bytes response_json = 2;
+  string error_message = 3;
+  int64 duration_ms = 4;
+  int32 status_code = 5;
+}

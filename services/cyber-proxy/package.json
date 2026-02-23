@@ -1,0 +1,9 @@
+{
+  "name": "@maple/cyber-proxy",
+  "version": "2.0.0",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": { "build": "tsc", "start": "node dist/main.js", "dev": "node --import tsx src/main.ts", "clean": "rm -rf dist" },
+  "dependencies": { "@grpc/grpc-js": "^1.12.5", "@grpc/proto-loader": "^0.7.13", "@maple/common": "*", "@maple/types": "*" },
+  "devDependencies": { "tsx": "^4.21.0", "typescript": "^5.9.3" }
+}

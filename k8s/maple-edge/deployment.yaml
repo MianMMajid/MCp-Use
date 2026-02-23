@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maple-edge
+  namespace: maple-gateway
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maple-edge-config
+  namespace: maple-gateway
+data:
+  # Override these in your environment.
+  OIDC_JWKS_URI: "https://example.com/.well-known/jwks.json"
+  MAPLE_OIDC_JWKS_HOST: "example.com"
+  OIDC_ISSUER: "https://example.com"
+  OIDC_AUDIENCE: "maple-gateway"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maple-edge
+  namespace: maple-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: maple-edge
+  template:
+    metadata:
+      labels:
+        app: maple-edge
+    spec:
+      serviceAccountName: maple-edge
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: envoy
+          image: maple-edge:latest
+          ports:
+            - containerPort: 443
+            - containerPort: 9901
+          env:
+            - name: OIDC_JWKS_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: maple-edge-config
+                  key: OIDC_JWKS_URI
+            - name: MAPLE_OIDC_JWKS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: maple-edge-config
+                  key: MAPLE_OIDC_JWKS_HOST
+            - name: OIDC_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: maple-edge-config
+                  key: OIDC_ISSUER
+            - name: OIDC_AUDIENCE
+              valueFrom:
+                configMapKeyRef:
+                  name: maple-edge-config
+                  key: OIDC_AUDIENCE
+            - name: MAPLE_OTEL_COLLECTOR_HOST
+              value: otel-collector.maple-observability
+          volumeMounts:
+            - name: certs
+              mountPath: /etc/envoy/certs
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      volumes:
+        - name: certs
+          projected:
+            sources:
+              - secret:
+                  name: maple-edge-tls
+              - secret:
+                  name: maple-client-ca-secret
+                  items:
+                    - key: ca.crt
+                      path: client-ca.crt
+                  optional: true
+              - secret:
+                  name: maple-internal-ca-secret
+                  items:
+                    - key: ca.crt
+                      path: internal-ca.crt
+                  optional: true
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maple-edge
+  namespace: maple-gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: maple-edge
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+    - name: admin
+      port: 9901
+      targetPort: 9901
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maple-edge-policy
+  namespace: maple-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: maple-edge
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports:
+        - port: 443
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+      ports:
+        - port: 8443
+    - to:
+        - podSelector:
+            matchLabels:
+              app: admin-console
+          namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+      ports:
+        - port: 9443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4317
+    - ports:
+        - port: 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

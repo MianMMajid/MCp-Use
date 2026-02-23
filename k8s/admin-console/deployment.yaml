@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-console
+  namespace: maple-admin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-console
+  namespace: maple-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-console
+  template:
+    metadata:
+      labels:
+        app: admin-console
+    spec:
+      serviceAccountName: admin-console
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+      containers:
+        - name: admin-console
+          image: admin-console:latest
+          ports:
+            - containerPort: 9443
+          env:
+            - name: ADMIN_CONSOLE_PORT
+              value: "9443"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple-observability:9400
+            - name: CONTEXT_WALL_ADDRESS
+              value: context-wall.maple-context:9000
+            - name: MAPLE_ADMIN_TLS_CERT
+              value: /etc/maple/admin-tls/tls.crt
+            - name: MAPLE_ADMIN_TLS_KEY
+              value: /etc/maple/admin-tls/tls.key
+            - name: MAPLE_ADMIN_TLS_CA
+              value: /etc/maple/admin-tls/ca.crt
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/grpc-tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/grpc-tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/grpc-tls/ca.crt
+            - name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
+              value: http://otel-collector.maple-observability:4318
+            - name: OTEL_SERVICE_NAME
+              value: admin-console
+          volumeMounts:
+            - name: admin-tls
+              mountPath: /etc/maple/admin-tls
+              readOnly: true
+            - name: grpc-tls
+              mountPath: /etc/maple/grpc-tls
+              readOnly: true
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+      volumes:
+        - name: admin-tls
+          secret:
+            secretName: maple-admin-tls
+            optional: true
+        - name: grpc-tls
+          secret:
+            secretName: maple-grpc-tls
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-console
+  namespace: maple-admin
+spec:
+  selector:
+    app: admin-console
+  ports:
+    - port: 9443
+      targetPort: 9443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: admin-console-policy
+  namespace: maple-admin
+spec:
+  podSelector:
+    matchLabels:
+      app: admin-console
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: maple-edge
+      ports:
+        - port: 9443
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: context-wall
+      ports:
+        - port: 9000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - port: 9400
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: maple
+          podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4317
+        - port: 4318

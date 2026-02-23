@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package maple.model.v1;
+
+import "maple/common/v1/common.proto";
+
+// ── Service ──────────────────────────────────────────────────────────────────
+
+service ModelRouterService {
+  // Unary LLM generation
+  rpc Generate(GenerateRequest) returns (GenerateResponse);
+
+  // Streaming LLM generation
+  rpc StreamGenerate(StreamGenerateRequest) returns (stream StreamGenerateResponse);
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+enum ChatRole {
+  CHAT_ROLE_UNSPECIFIED = 0;
+  CHAT_ROLE_SYSTEM = 1;
+  CHAT_ROLE_USER = 2;
+  CHAT_ROLE_ASSISTANT = 3;
+  CHAT_ROLE_TOOL = 4;
+}
+
+message ChatMessage {
+  ChatRole role = 1;
+  string content = 2;
+  string name = 3;
+  string tool_call_id = 4;
+}
+
+message ToolDefinition {
+  string name = 1;
+  string description = 2;
+  bytes parameters_json = 3;
+}
+
+message ToolCallRequest {
+  string id = 1;
+  string name = 2;
+  bytes arguments_json = 3;
+}
+
+message GenerateRequest {
+  maple.common.v1.RequestContext context = 1;
+  repeated ChatMessage messages = 2;
+  repeated ToolDefinition tools = 3;
+  string model = 4;
+  double temperature = 5;
+  int32 max_tokens = 6;
+  string system_prompt = 7;
+  repeated string allowed_tool_names = 8;
+}
+
+message GenerateResponse {
+  ChatMessage message = 1;
+  repeated ToolCallRequest tool_calls = 2;
+  UsageStats usage = 3;
+  string model = 4;
+  string finish_reason = 5;
+  repeated string filtered_tools = 6;
+}
+
+message StreamGenerateRequest {
+  maple.common.v1.RequestContext context = 1;
+  repeated ChatMessage messages = 2;
+  repeated ToolDefinition tools = 3;
+  string model = 4;
+  double temperature = 5;
+  int32 max_tokens = 6;
+  string system_prompt = 7;
+  repeated string allowed_tool_names = 8;
+}
+
+message StreamGenerateResponse {
+  string delta_content = 1;
+  ToolCallRequest tool_call_delta = 2;
+  string finish_reason = 3;
+  UsageStats usage = 4;
+}
+
+message UsageStats {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+}
