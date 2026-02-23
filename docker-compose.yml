@@ -1,0 +1,37 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: "3000"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/maple
+      MCP_URL: http://localhost:8080
+      MAPLE_ENABLE_JUDGE_UI: "false"
+      MAPLE_API_KEY: local-demo-key
+      MAPLE_ADMIN_USERNAME: admin
+      MAPLE_ADMIN_PASSWORD: admin123
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: maple
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
