@@ -1,0 +1,16 @@
+# Enforce collaboration boundaries between frontend and backend surfaces.
+# Update handles if your GitHub usernames differ.
+
+* @omar2001ramadan @MianMMajid
+
+# Frontend ownership
+/frontend/ @MianMMajid
+
+# Backend ownership
+/backend/ @omar2001ramadan
+
+# Shared operational files
+/backend/backendA-platform-infra/scripts/ @omar2001ramadan @MianMMajid
+/COLLABORATION_STRUCTURE.md @omar2001ramadan @MianMMajid
+/package.json @omar2001ramadan @MianMMajid
+/tsconfig.json @omar2001ramadan @MianMMajid

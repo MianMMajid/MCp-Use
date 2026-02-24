@@ -8,7 +8,7 @@
     "strict": true,
     "declaration": true,
     "declarationMap": true,
-    "outDir": "./dist",
+    "outDir": "./backend/backendB-core-services/maple-monolith/dist",
     "sourceMap": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
@@ -16,9 +16,14 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["backend/backendB-core-services/maple-monolith/src/*"]
     }
   },
-  "include": ["index.ts", "src/**/*", "resources/**/*", "server.ts"],
+  "include": [
+    "backend/backendB-core-services/maple-monolith/index.ts",
+    "backend/backendB-core-services/maple-monolith/src/**/*",
+    "backend/backendB-core-services/maple-monolith/tests/**/*",
+    "backend/backendA-platform-infra/scripts/**/*"
+  ],
   "exclude": ["node_modules", "dist"]
 }
