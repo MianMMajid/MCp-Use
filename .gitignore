@@ -30,8 +30,16 @@ Thumbs.db
 *.swo
 *~
 
+# Generated backend runtime UI assets (source of truth lives in frontend/*)
+/backend/backendB-core-services/maple-monolith/public/*
+!/backend/backendB-core-services/maple-monolith/public/.gitkeep
+/backend/backendB-core-services/maple-monolith/resources/*
+!/backend/backendB-core-services/maple-monolith/resources/.gitkeep
+/backend/backendB-core-services/maple-monolith/node_modules
+
 # SQLite database files
-data/
+/backend/backendB-core-services/maple-monolith/data/*
+!/backend/backendB-core-services/maple-monolith/data/.gitkeep
 *.db
 *.db-shm
 *.db-wal

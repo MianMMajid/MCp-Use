@@ -65,16 +65,16 @@ Built with `mcp-use` + Apps SDK widgets.
 
 ## Key Project Files
 
-- `index.ts`: tool + route orchestration
-- `src/core/risk-engine.ts`: rule engine + embedding anomaly integration
-- `src/ml/embeddings.ts`: simple embedding implementation
-- `src/ml/anomaly-detector.ts`: cosine-sim anomaly detection
-- `src/network/anonymizer.ts`: anonymized trace transformation
-- `src/network/shared-trace-store.ts`: community pool + skill suggestions
-- `src/strategy/yc-narrative.ts`: moat/traction/revenue narrative builder
-- `resources/trace-timeline/widget.tsx`
-- `resources/replay-simulator/widget.tsx`
-- `resources/risk-dashboard/widget.tsx`
+- `backend/backendB-core-services/maple-monolith/index.ts`: tool + route orchestration
+- `backend/backendB-core-services/maple-monolith/src/core/risk-engine.ts`: rule engine + embedding anomaly integration
+- `backend/backendB-core-services/maple-monolith/src/ml/embeddings.ts`: simple embedding implementation
+- `backend/backendB-core-services/maple-monolith/src/ml/anomaly-detector.ts`: cosine-sim anomaly detection
+- `backend/backendB-core-services/maple-monolith/src/network/anonymizer.ts`: anonymized trace transformation
+- `backend/backendB-core-services/maple-monolith/src/network/shared-trace-store.ts`: community pool + skill suggestions
+- `backend/backendB-core-services/maple-monolith/src/strategy/yc-narrative.ts`: moat/traction/revenue narrative builder
+- `frontend/frontendD-mcp-widgets/resources/trace-timeline/widget.tsx`
+- `frontend/frontendD-mcp-widgets/resources/replay-simulator/widget.tsx`
+- `frontend/frontendD-mcp-widgets/resources/risk-dashboard/widget.tsx`
 
 ## Quick Start
 
@@ -83,7 +83,23 @@ npm install
 npm run dev
 ```
 
+`dev/build/start` now run directly from:
+- `backend/backendB-core-services/maple-monolith`
+
+Authoritative source folders:
+- `backend/`
+- `frontend/`
+
 Inspector: `http://localhost:3000/inspector`
+
+Frontend surface helpers:
+
+```bash
+npm run dev:frontendA
+npm run dev:frontendB
+npm run dev:frontendC
+npm run dev:widgets
+```
 
 ## Hardcoded Demo Stack (OpenClaw + Maple)
 
@@ -151,14 +167,14 @@ Open `http://localhost:3000/judge`, then select the printed trace ID to see `#0,
 
 If you want to integrate this into your own runtime, use:
 
-- `scripts/maple-trace-logger.mjs`
+- `backend/backendA-platform-infra/scripts/maple-trace-logger.mjs`
 - `logAction(...)` for generic events
 - `logWebGet(...)`, `logMarketplaceSearch(...)`, `logMarketplaceToolCall(...)` wrappers
 
 Example:
 
 ```js
-import { createMapleTraceLogger } from "./scripts/maple-trace-logger.mjs";
+import { createMapleTraceLogger } from "./backend/backendA-platform-infra/scripts/maple-trace-logger.mjs";
 
 const logger = createMapleTraceLogger({
   baseUrl: "http://localhost:3000",
@@ -224,10 +240,10 @@ npm run hackathon:down
 
 Implementation files:
 
-- `scripts/hackathon-toolhub.mjs` (downstream MCP server with 9 tools)
-- `scripts/hackathon-up.sh` (starts toolhub + Maple in deterministic route-lock mode)
-- `scripts/hackathon-verify.sh` (smoke tests for routed tool calls through Maple)
-- `scripts/hackathon-down.sh` (stops Maple + toolhub)
+- `backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs` (downstream MCP server with 9 tools)
+- `backend/backendA-platform-infra/scripts/hackathon-up.sh` (starts toolhub + Maple in deterministic route-lock mode)
+- `backend/backendA-platform-infra/scripts/hackathon-verify.sh` (smoke tests for routed tool calls through Maple)
+- `backend/backendA-platform-infra/scripts/hackathon-down.sh` (stops Maple + toolhub)
 
 Stop local demo processes:
 
@@ -395,7 +411,7 @@ MAPLE_FIREWALL_ENABLED=true
 Important notes:
 
 - Railway provides `PORT` automatically; do not hardcode it.
-- `scripts/hackathon-start.sh` is Railway-safe and no longer requires a local `.env` file to boot.
+- `backend/backendA-platform-infra/scripts/hackathon-start.sh` is Railway-safe and no longer requires a local `.env` file to boot.
 - In production, Maple enforces API key auth and requires explicit `OPENCLAW_BRIDGE_URL` + `OPENCLAW_BRIDGE_TOKEN`.
 - Do not use `localhost` for `OPENCLAW_BRIDGE_URL` unless the bridge runs in the same container.
 - If bridge connectivity is unavailable during demo, use `source=mock` to keep UI + guardrail flow live.
