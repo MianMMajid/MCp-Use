@@ -16,6 +16,9 @@ service ContextWallService {
   // Read-only policy decision lookup
   rpc GetPolicyDecision(GetPolicyDecisionRequest) returns (GetPolicyDecisionResponse);
 
+  // List currently active policy rules loaded in context-wall
+  rpc ListPolicyRules(ListPolicyRulesRequest) returns (ListPolicyRulesResponse);
+
   // Submit HITL approval/rejection
   rpc SubmitApproval(SubmitApprovalRequest) returns (SubmitApprovalResponse);
 
@@ -82,6 +85,26 @@ message GetPolicyDecisionRequest {
 
 message GetPolicyDecisionResponse {
   maple.common.v1.PolicyDecision decision = 1;
+}
+
+message ListPolicyRulesRequest {}
+
+message PolicyRule {
+  string name = 1;
+  maple.common.v1.FirewallAction action = 2;
+  maple.common.v1.RiskSeverity severity = 3;
+  string message = 4;
+  string recommendation = 5;
+  repeated string step_types = 6;
+  string tool_glob = 7;
+  string any_value_regex = 8;
+  bool secrets = 9;
+  int64 payload_bytes_exceeds = 10;
+}
+
+message ListPolicyRulesResponse {
+  repeated PolicyRule rules = 1;
+  int32 rule_count = 2;
 }
 
 message SubmitApprovalRequest {

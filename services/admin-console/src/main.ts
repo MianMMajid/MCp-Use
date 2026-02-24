@@ -129,20 +129,18 @@ async function main() {
 
   app.get("/admin/api/policies", async (c) => {
     try {
-      // Use GetPolicyDecision with a blank lookup to list active policies.
-      // The context-wall EvaluateStep RPC is the primary policy engine entry
-      // point; we call it with an empty step to get a baseline decision that
-      // includes the active policy set.
-      const response = await grpcUnary<any>(contextWall, "getPolicyDecision", {
-        traceId: "",
-        stepIndex: 0,
-      });
+      const response = await grpcUnary<any>(contextWall, "listPolicyRules", {});
+      const rules = Array.isArray(response?.rules) ? response.rules : [];
       emitAuditEvent(auditWriter, {
         eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
         summary: "admin-console: policy state queried",
-        payload: { action: response.decision?.action },
+        payload: { ruleCount: rules.length },
       });
-      return c.json({ policies: response.decision || response });
+      return c.json({
+        rules,
+        ruleCount: Number(response?.ruleCount ?? rules.length),
+        policies: rules,
+      });
     } catch (err: any) {
       mapleLog("warn", "admin_console_policies_grpc_error", {
         code: err.code,
@@ -153,6 +151,8 @@ async function main() {
         {
           error: "Failed to reach context-wall",
           details: err.message,
+          rules: [],
+          ruleCount: 0,
           policies: [],
         },
         502

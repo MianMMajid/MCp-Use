@@ -47,12 +47,21 @@ spec:
               value: /job-input/request.json
             - name: MAPLE_JOB_OUTPUT_PATH
               value: /job-output/result.json
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/grpc-tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/grpc-tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/grpc-tls/ca.crt
           volumeMounts:
             - name: job-input
               mountPath: /job-input
               readOnly: true
             - name: job-output
               mountPath: /job-output
+            - name: grpc-tls
+              mountPath: /etc/maple/grpc-tls
+              readOnly: true
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -72,3 +81,7 @@ spec:
             name: tool-job-example-input
         - name: job-output
           emptyDir: {}
+        - name: grpc-tls
+          secret:
+            secretName: maple-grpc-tls
+            optional: true

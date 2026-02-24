@@ -9,7 +9,8 @@ import { Hono } from "hono";
 import { getGrpcClients } from "../state.js";
 import { grpcUnary } from "../grpc-clients.js";
 import { emitAuditEvent } from "../audit-emitter.js";
-import { mapleLog } from "../logging.js";
+import { mapleLog, requestContextStorage } from "../logging.js";
+import { authContextStorage } from "../auth.js";
 
 export const redirectRoutes = new Hono();
 
@@ -43,9 +44,29 @@ redirectRoutes.get("/api/redirect", async (c) => {
   }
 
   try {
+    const authContext = authContextStorage.getStore();
+    const requestContext = requestContextStorage.getStore();
+    const tenantId = c.req.header("x-tenant-id") ?? requestContext?.tenantId ?? "default";
+    const userId =
+      c.req.header("x-user-id") ??
+      authContext?.userId ??
+      authContext?.keyFingerprint ??
+      "anonymous";
+    const deviceId =
+      c.req.header("x-device-id") ??
+      requestContext?.deviceId ??
+      c.req.header("user-agent") ??
+      "unknown-device";
     const policyResult = await grpcUnary<any>(clients.contextWall, "evaluateStep", {
       context: {
+        requestId: requestContext?.requestId ?? "",
+        sessionId: requestContext?.sessionId ?? "",
+        traceId: requestContext?.traceId ?? "",
+        userId,
+        keyFingerprint: authContext?.keyFingerprint ?? "",
         sourceService: "gateway-api",
+        tenantId,
+        deviceId,
       },
       step: {
         index: 0,

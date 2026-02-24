@@ -28,9 +28,12 @@ spec:
           image: audit-writer:latest
           ports:
             - containerPort: 9400
+            - containerPort: 9401
           env:
             - name: AUDIT_WRITER_PORT
               value: "9400"
+            - name: AUDIT_WRITER_HTTP_PORT
+              value: "9401"
             - name: DATABASE_URL
               value: postgresql://maple:maple@postgres.maple-observability:5432/maple
             - name: MAPLE_GRPC_TLS_CERT
@@ -75,8 +78,12 @@ spec:
   selector:
     app: audit-writer
   ports:
-    - port: 9400
+    - name: grpc
+      port: 9400
       targetPort: 9400
+    - name: http-ingest
+      port: 9401
+      targetPort: 9401
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -95,6 +102,7 @@ spec:
               app.kubernetes.io/part-of: maple
       ports:
         - port: 9400
+        - port: 9401
   egress:
     - to:
         - podSelector:

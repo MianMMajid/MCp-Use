@@ -70,12 +70,56 @@ import type {
 // gRPC wrapper helpers (fallback to local on failure)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export async function evaluateFirewallStepViaGrpc(candidateStep: TraceStep): Promise<FirewallStepDecision> {
+export async function evaluateFirewallStepViaGrpc(
+  candidateStep: TraceStep,
+  options: { failClosed?: boolean } = {},
+): Promise<FirewallStepDecision> {
   const clients = getGrpcClients();
+  const requestLogContext = requestContextStorage.getStore();
+  const authContext = authContextStorage.getStore();
+  const stepMetadata =
+    candidateStep.metadata && typeof candidateStep.metadata === "object"
+      ? (candidateStep.metadata as Record<string, unknown>)
+      : {};
+  const grpcContext = {
+    requestId:
+      (typeof stepMetadata.requestId === "string" && stepMetadata.requestId.trim().length > 0
+        ? stepMetadata.requestId
+        : requestLogContext?.requestId) ?? "",
+    sessionId:
+      (typeof stepMetadata.sessionId === "string" && stepMetadata.sessionId.trim().length > 0
+        ? stepMetadata.sessionId
+        : requestLogContext?.sessionId) ?? "",
+    traceId:
+      (typeof stepMetadata.traceId === "string" && stepMetadata.traceId.trim().length > 0
+        ? stepMetadata.traceId
+        : requestLogContext?.traceId) ?? "",
+    userId:
+      (typeof stepMetadata.userId === "string" && stepMetadata.userId.trim().length > 0
+        ? stepMetadata.userId
+        : authContext?.userId ?? authContext?.keyFingerprint) ?? "",
+    keyFingerprint: authContext?.keyFingerprint ?? "",
+    sourceService:
+      (typeof stepMetadata.sourceService === "string" && stepMetadata.sourceService.trim().length > 0
+        ? stepMetadata.sourceService
+        : "gateway-api"),
+    tenantId:
+      (typeof stepMetadata.tenantId === "string" && stepMetadata.tenantId.trim().length > 0
+        ? stepMetadata.tenantId
+        : requestLogContext?.tenantId) ?? "",
+    deviceId:
+      (typeof stepMetadata.deviceId === "string" && stepMetadata.deviceId.trim().length > 0
+        ? stepMetadata.deviceId
+        : requestLogContext?.deviceId) ?? "",
+  };
+
+  const failClosed = Boolean(options.failClosed);
+
   if (clients?.contextWall) {
     try {
       mapleLog("debug", "grpc_evaluate_step", { stepIndex: candidateStep.index });
       const response = await grpcUnary<any>(clients.contextWall, "evaluateStep", {
+        context: grpcContext,
         step: {
           index: candidateStep.index,
           timestamp: candidateStep.timestamp,
@@ -109,8 +153,40 @@ export async function evaluateFirewallStepViaGrpc(candidateStep: TraceStep): Pro
       }
     } catch (err) {
       mapleLog("warn", "grpc_evaluate_step_fallback", { error: errorMessage(err) });
+      if (failClosed) {
+        return {
+          enabled: true,
+          action: "deny",
+          shouldBlock: true,
+          severity: "high",
+          message: `Policy service unavailable: ${errorMessage(err)}`,
+          recommendation: "Restore context-wall connectivity and retry.",
+          rule: "context-wall-unavailable",
+          redactedPatterns: [],
+          evaluatedAt: new Date().toISOString(),
+          defaultAction: "deny",
+          step: candidateStep,
+        };
+      }
     }
   }
+
+  if (failClosed) {
+    return {
+      enabled: true,
+      action: "deny",
+      shouldBlock: true,
+      severity: "high",
+      message: "Policy service unavailable.",
+      recommendation: "Restore context-wall connectivity and retry.",
+      rule: "context-wall-unavailable",
+      redactedPatterns: [],
+      evaluatedAt: new Date().toISOString(),
+      defaultAction: "deny",
+      step: candidateStep,
+    };
+  }
+
   return evaluateFirewallStep(candidateStep);
 }
 
