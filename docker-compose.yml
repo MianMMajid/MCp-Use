@@ -61,6 +61,7 @@ services:
       - "9400:9400"
     environment:
       AUDIT_WRITER_PORT: 9400
+      AUDIT_WRITER_HTTP_PORT: 9401
       DATABASE_URL: postgresql://maple:maple@postgres:5432/maple
       MAPLE_GRPC_TLS_CERT: /etc/maple/grpc-tls/tls.crt
       MAPLE_GRPC_TLS_KEY: /etc/maple/grpc-tls/tls.key
@@ -357,6 +358,7 @@ services:
       OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.google.com}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-maple-gateway}
       MAPLE_OTEL_COLLECTOR_HOST: ${MAPLE_OTEL_COLLECTOR_HOST:-otel-collector}
+      MAPLE_AUDIT_WRITER_HOST: ${MAPLE_AUDIT_WRITER_HOST:-audit-writer}
     volumes:
       - maple-certs:/etc/envoy/certs:ro
     depends_on:

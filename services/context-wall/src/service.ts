@@ -124,6 +124,34 @@ function toProtoPolicyDecision(decision: any): any {
   };
 }
 
+function toProtoPolicyRule(rule: any): any {
+  const action =
+    rule?.action === "deny"
+      ? "FIREWALL_ACTION_DENY"
+      : rule?.action === "log_only"
+        ? "FIREWALL_ACTION_LOG_ONLY"
+        : "FIREWALL_ACTION_ALLOW";
+  const severity = `RISK_SEVERITY_${String(rule?.severity || "LOW").toUpperCase()}`;
+  const match = rule?.match && typeof rule.match === "object" ? rule.match : {};
+  return {
+    name: String(rule?.name || ""),
+    action,
+    severity,
+    message: String(rule?.message || ""),
+    recommendation: String(rule?.recommendation || ""),
+    stepTypes: Array.isArray(match.stepTypes)
+      ? match.stepTypes.map((value: unknown) => String(value))
+      : [],
+    toolGlob: String(match.toolGlob || ""),
+    anyValueRegex:
+      match.anyValueRegex && typeof match.anyValueRegex === "object" && "source" in match.anyValueRegex
+        ? String((match.anyValueRegex as RegExp).source)
+        : "",
+    secrets: Boolean(match.secrets),
+    payloadBytesExceeds: Number(match.payloadBytesExceeds || 0),
+  };
+}
+
 function traceFromProto(protoTrace: any): any {
   return {
     id: protoTrace.id || "",
@@ -662,6 +690,25 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
       }
     },
 
+    ListPolicyRules(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
+      try {
+        const rules = policyStore?.getExternalRules() ?? [];
+        emitAuditEvent({
+          eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+          summary: `Listed ${rules.length} external policy rules`,
+          traceId: "",
+          payload: { ruleCount: rules.length },
+        });
+        callback(null, {
+          rules: rules.map((rule) => toProtoPolicyRule(rule)),
+          ruleCount: rules.length,
+        });
+      } catch (err: any) {
+        mapleLog("error", "context_wall_list_policy_rules_failed", { error: err.message });
+        callback({ code: grpc.status.INTERNAL, message: err.message });
+      }
+    },
+
     SubmitApproval(call: grpc.ServerUnaryCall<any, any>, callback: grpc.sendUnaryData<any>) {
       try {
         const { traceId, stepIndex, action, reason, approverId } = call.request;
@@ -895,13 +942,33 @@ export function createContextWallService(approvalQueue: ApprovalQueue, policySto
 
         const requestTools = Array.isArray(call.request.tools) ? call.request.tools : [];
         let rawTools = requestTools;
+        let toolDiscoveryError = "";
         if (rawTools.length === 0) {
           try {
             rawTools = await loadOrchestrationToolsFromMcpProxy();
           } catch (err: any) {
             mapleLog("warn", "context_wall_load_orchestration_tools_failed", { error: err.message });
-            rawTools = [];
+            toolDiscoveryError = err.message || "tool discovery failed";
           }
+        }
+        if (toolDiscoveryError) {
+          emitAuditEvent({
+            eventType: "AUDIT_EVENT_TYPE_TOOL_FAILED",
+            summary: "Chat orchestration aborted: tool discovery unavailable",
+            severity: "RISK_SEVERITY_HIGH",
+            traceId: requestContext.traceId,
+            payload: {
+              reason: toolDiscoveryError,
+            },
+          });
+          callback(null, {
+            allowed: false,
+            blockedReason: "Tool discovery unavailable; refusing orchestration without policy-plane tool schemas.",
+            reply: "",
+            model: "",
+            redactedPatterns: decision.redactedPatterns ?? [],
+          });
+          return;
         }
         const modelTools = rawTools
           .map((tool: any) => ({

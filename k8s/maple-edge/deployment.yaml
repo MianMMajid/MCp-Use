@@ -64,6 +64,8 @@ spec:
                   key: OIDC_AUDIENCE
             - name: MAPLE_OTEL_COLLECTOR_HOST
               value: otel-collector.maple-observability
+            - name: MAPLE_AUDIT_WRITER_HOST
+              value: audit-writer.maple-observability
           volumeMounts:
             - name: certs
               mountPath: /etc/envoy/certs
@@ -169,6 +171,7 @@ spec:
               app: audit-writer
       ports:
         - port: 9400
+        - port: 9401
     - ports:
         - port: 443
     - to:

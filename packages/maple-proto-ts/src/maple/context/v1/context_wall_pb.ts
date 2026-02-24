@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { AuditReport, EnforcementSummary, GuardAction, PolicyDecision, RequestContext, ToolInfo, Trace, TraceStep } from "../../common/v1/common_pb";
+import type { AuditReport, EnforcementSummary, FirewallAction, GuardAction, PolicyDecision, RequestContext, RiskSeverity, ToolInfo, Trace, TraceStep } from "../../common/v1/common_pb";
 import { file_maple_common_v1_common } from "../../common/v1/common_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file maple/context/v1/context_wall.proto.
  */
 export const file_maple_context_v1_context_wall: GenFile = /*@__PURE__*/
-  fileDesc("CiNtYXBsZS9jb250ZXh0L3YxL2NvbnRleHRfd2FsbC5wcm90bxIQbWFwbGUuY29udGV4dC52MSJxChNFdmFsdWF0ZVN0ZXBSZXF1ZXN0EigKBHN0ZXAYASABKAsyGi5tYXBsZS5jb21tb24udjEuVHJhY2VTdGVwEjAKB2NvbnRleHQYAiABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQifQoURXZhbHVhdGVTdGVwUmVzcG9uc2USMQoIZGVjaXNpb24YASABKAsyHy5tYXBsZS5jb21tb24udjEuUG9saWN5RGVjaXNpb24SMgoOcHJvY2Vzc2VkX3N0ZXAYAiABKAsyGi5tYXBsZS5jb21tb24udjEuVHJhY2VTdGVwIm8KFEV2YWx1YXRlVHJhY2VSZXF1ZXN0EiUKBXRyYWNlGAEgASgLMhYubWFwbGUuY29tbW9uLnYxLlRyYWNlEjAKB2NvbnRleHQYAiABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQifgoVRXZhbHVhdGVUcmFjZVJlc3BvbnNlEjQKB3N1bW1hcnkYASABKAsyIy5tYXBsZS5jb21tb24udjEuRW5mb3JjZW1lbnRTdW1tYXJ5Ei8KD3Byb2Nlc3NlZF90cmFjZRgCIAEoCzIWLm1hcGxlLmNvbW1vbi52MS5UcmFjZSLMAQoYR2V0UG9saWN5RGVjaXNpb25SZXF1ZXN0EhAKCHRyYWNlX2lkGAEgASgJEhIKCnN0ZXBfaW5kZXgYAiABKAUSDgoGYWN0aW9uGAMgASgJEhEKCXRvb2xfbmFtZRgEIAEoCRIRCgl0ZW5hbnRfaWQYBSABKAkSDwoHdXNlcl9pZBgGIAEoCRIRCglkZXZpY2VfaWQYByABKAkSMAoHY29udGV4dBgIIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5SZXF1ZXN0Q29udGV4dCJOChlHZXRQb2xpY3lEZWNpc2lvblJlc3BvbnNlEjEKCGRlY2lzaW9uGAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlBvbGljeURlY2lzaW9uIpABChVTdWJtaXRBcHByb3ZhbFJlcXVlc3QSEAoIdHJhY2VfaWQYASABKAkSEgoKc3RlcF9pbmRleBgCIAEoBRIsCgZhY3Rpb24YAyABKA4yHC5tYXBsZS5jb21tb24udjEuR3VhcmRBY3Rpb24SDgoGcmVhc29uGAQgASgJEhMKC2FwcHJvdmVyX2lkGAUgASgJIogBChZTdWJtaXRBcHByb3ZhbFJlc3BvbnNlEhAKCGFjY2VwdGVkGAEgASgIEhAKCHRyYWNlX2lkGAIgASgJEhIKCnN0ZXBfaW5kZXgYAyABKAUSNgoQcmVzdWx0aW5nX2FjdGlvbhgEIAEoDjIcLm1hcGxlLmNvbW1vbi52MS5HdWFyZEFjdGlvbiIvChlXYXRjaEFwcHJvdmFsUXVldWVSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkivQEKGldhdGNoQXBwcm92YWxRdWV1ZVJlc3BvbnNlEhAKCHRyYWNlX2lkGAEgASgJEhIKCnN0ZXBfaW5kZXgYAiABKAUSKAoEc3RlcBgDIAEoCzIaLm1hcGxlLmNvbW1vbi52MS5UcmFjZVN0ZXASOQoQcGVuZGluZ19kZWNpc2lvbhgEIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5Qb2xpY3lEZWNpc2lvbhIUCgxyZXF1ZXN0ZWRfYXQYBSABKAkiMQobTGlzdFBlbmRpbmdBcHByb3ZhbHNSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkiXwocTGlzdFBlbmRpbmdBcHByb3ZhbHNSZXNwb25zZRI/CglhcHByb3ZhbHMYASADKAsyLC5tYXBsZS5jb250ZXh0LnYxLldhdGNoQXBwcm92YWxRdWV1ZVJlc3BvbnNlIocBChFBdWRpdFRyYWNlUmVxdWVzdBIlCgV0cmFjZRgBIAEoCzIWLm1hcGxlLmNvbW1vbi52MS5UcmFjZRIRCgl0b3BfZmxhZ3MYAiABKAUSGwoTY29tbXVuaXR5X2Jhc2VsaW5lcxgDIAMoARIbChNlbWJlZGRpbmdfdGhyZXNob2xkGAQgASgBInEKEkF1ZGl0VHJhY2VSZXNwb25zZRIsCgZyZXBvcnQYASABKAsyHC5tYXBsZS5jb21tb24udjEuQXVkaXRSZXBvcnQSLQoNYXVkaXRlZF90cmFjZRgCIAEoCzIWLm1hcGxlLmNvbW1vbi52MS5UcmFjZSJZChVTYW5pdGl6ZVByb21wdFJlcXVlc3QSDgoGcHJvbXB0GAEgASgJEjAKB2NvbnRleHQYAiABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQipwEKFlNhbml0aXplUHJvbXB0UmVzcG9uc2USGAoQc2FuaXRpemVkX3Byb21wdBgBIAEoCRIZChFyZWRhY3RlZF9wYXR0ZXJucxgCIAMoCRITCgtoYWRfc2VjcmV0cxgDIAEoCBIPCgdibG9ja2VkGAQgASgIEhYKDmJsb2NrZWRfcmVhc29uGAUgASgJEhoKEmluamVjdGlvbl9wYXR0ZXJucxgGIAMoCSJeChZHZXRBbGxvd2VkVG9vbHNSZXF1ZXN0EhIKCnRvb2xfbmFtZXMYASADKAkSMAoHY29udGV4dBgCIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5SZXF1ZXN0Q29udGV4dCJGChdHZXRBbGxvd2VkVG9vbHNSZXNwb25zZRIVCg1hbGxvd2VkX3Rvb2xzGAEgAygJEhQKDGRlbmllZF90b29scxgCIAMoCSIpCghDaGF0VHVybhIMCgRyb2xlGAEgASgJEg8KB2NvbnRlbnQYAiABKAki8QEKFk9yY2hlc3RyYXRlQ2hhdFJlcXVlc3QSMAoHY29udGV4dBgBIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5SZXF1ZXN0Q29udGV4dBIsCghtZXNzYWdlcxgCIAMoCzIaLm1hcGxlLmNvbnRleHQudjEuQ2hhdFR1cm4SFQoNc3lzdGVtX3Byb21wdBgDIAEoCRINCgVtb2RlbBgEIAEoCRITCgt0ZW1wZXJhdHVyZRgFIAEoARISCgptYXhfdG9rZW5zGAYgASgFEigKBXRvb2xzGAcgAygLMhkubWFwbGUuY29tbW9uLnYxLlRvb2xJbmZvInsKF09yY2hlc3RyYXRlQ2hhdFJlc3BvbnNlEg8KB2FsbG93ZWQYASABKAgSFgoOYmxvY2tlZF9yZWFzb24YAiABKAkSDQoFcmVwbHkYAyABKAkSDQoFbW9kZWwYBCABKAkSGQoRcmVkYWN0ZWRfcGF0dGVybnMYBSADKAkiXQoSVG9vbEV4ZWN1dGlvblNjb3BlEhcKD2FsbG93ZWRfZG9tYWlucxgBIAMoCRIRCgltYXhfYnl0ZXMYAiABKAMSGwoTYWxsb3dfZmlsZV9kb3dubG9hZBgDIAEoCCL6AQocRXhlY3V0ZVRvb2xXaXRoUG9saWN5UmVxdWVzdBIwCgdjb250ZXh0GAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlJlcXVlc3RDb250ZXh0Eg4KBmFwcF9pZBgCIAEoCRISCgp0YXJnZXRfdXJsGAMgASgJEhEKCXRvb2xfbmFtZRgEIAEoCRIWCg5hcmd1bWVudHNfanNvbhgFIAEoDBISCgpzZXNzaW9uX2lkGAYgASgJEhAKCHRyYWNlX2lkGAcgASgJEjMKBXNjb3BlGAggASgLMiQubWFwbGUuY29udGV4dC52MS5Ub29sRXhlY3V0aW9uU2NvcGUi8AEKHUV4ZWN1dGVUb29sV2l0aFBvbGljeVJlc3BvbnNlEg8KB2FsbG93ZWQYASABKAgSFgoOYmxvY2tlZF9yZWFzb24YAiABKAkSMQoIZGVjaXNpb24YAyABKAsyHy5tYXBsZS5jb21tb24udjEuUG9saWN5RGVjaXNpb24SDwoHc3VjY2VzcxgEIAEoCBITCgtyZXN1bHRfanNvbhgFIAEoDBIVCg1lcnJvcl9tZXNzYWdlGAYgASgJEhMKC2R1cmF0aW9uX21zGAcgASgDEg4KBmFwcF9pZBgIIAEoCRIRCgl0b29sX25hbWUYCSABKAkijQEKH0ZvcndhcmRKc29uUnBjV2l0aFBvbGljeVJlcXVlc3QSMAoHY29udGV4dBgBIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5SZXF1ZXN0Q29udGV4dBIOCgZhcHBfaWQYAiABKAkSEgoKdGFyZ2V0X3VybBgDIAEoCRIUCgxwYXlsb2FkX2pzb24YBCABKAwivQEKIEZvcndhcmRKc29uUnBjV2l0aFBvbGljeVJlc3BvbnNlEg8KB2FsbG93ZWQYASABKAgSFgoOYmxvY2tlZF9yZWFzb24YAiABKAkSMQoIZGVjaXNpb24YAyABKAsyHy5tYXBsZS5jb21tb24udjEuUG9saWN5RGVjaXNpb24SDwoHc3VjY2VzcxgEIAEoCBIVCg1yZXNwb25zZV9qc29uGAUgASgMEhUKDWVycm9yX21lc3NhZ2UYBiABKAkiFwoVUmVsb2FkUG9saWNpZXNSZXF1ZXN0IlQKFlJlbG9hZFBvbGljaWVzUmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCBISCgpydWxlX2NvdW50GAIgASgFEhUKDWVycm9yX21lc3NhZ2UYAyABKAkygwsKEkNvbnRleHRXYWxsU2VydmljZRJdCgxFdmFsdWF0ZVN0ZXASJS5tYXBsZS5jb250ZXh0LnYxLkV2YWx1YXRlU3RlcFJlcXVlc3QaJi5tYXBsZS5jb250ZXh0LnYxLkV2YWx1YXRlU3RlcFJlc3BvbnNlEmAKDUV2YWx1YXRlVHJhY2USJi5tYXBsZS5jb250ZXh0LnYxLkV2YWx1YXRlVHJhY2VSZXF1ZXN0GicubWFwbGUuY29udGV4dC52MS5FdmFsdWF0ZVRyYWNlUmVzcG9uc2USbAoRR2V0UG9saWN5RGVjaXNpb24SKi5tYXBsZS5jb250ZXh0LnYxLkdldFBvbGljeURlY2lzaW9uUmVxdWVzdBorLm1hcGxlLmNvbnRleHQudjEuR2V0UG9saWN5RGVjaXNpb25SZXNwb25zZRJjCg5TdWJtaXRBcHByb3ZhbBInLm1hcGxlLmNvbnRleHQudjEuU3VibWl0QXBwcm92YWxSZXF1ZXN0GigubWFwbGUuY29udGV4dC52MS5TdWJtaXRBcHByb3ZhbFJlc3BvbnNlEnEKEldhdGNoQXBwcm92YWxRdWV1ZRIrLm1hcGxlLmNvbnRleHQudjEuV2F0Y2hBcHByb3ZhbFF1ZXVlUmVxdWVzdBosLm1hcGxlLmNvbnRleHQudjEuV2F0Y2hBcHByb3ZhbFF1ZXVlUmVzcG9uc2UwARJ1ChRMaXN0UGVuZGluZ0FwcHJvdmFscxItLm1hcGxlLmNvbnRleHQudjEuTGlzdFBlbmRpbmdBcHByb3ZhbHNSZXF1ZXN0Gi4ubWFwbGUuY29udGV4dC52MS5MaXN0UGVuZGluZ0FwcHJvdmFsc1Jlc3BvbnNlElcKCkF1ZGl0VHJhY2USIy5tYXBsZS5jb250ZXh0LnYxLkF1ZGl0VHJhY2VSZXF1ZXN0GiQubWFwbGUuY29udGV4dC52MS5BdWRpdFRyYWNlUmVzcG9uc2USYwoOU2FuaXRpemVQcm9tcHQSJy5tYXBsZS5jb250ZXh0LnYxLlNhbml0aXplUHJvbXB0UmVxdWVzdBooLm1hcGxlLmNvbnRleHQudjEuU2FuaXRpemVQcm9tcHRSZXNwb25zZRJmCg9HZXRBbGxvd2VkVG9vbHMSKC5tYXBsZS5jb250ZXh0LnYxLkdldEFsbG93ZWRUb29sc1JlcXVlc3QaKS5tYXBsZS5jb250ZXh0LnYxLkdldEFsbG93ZWRUb29sc1Jlc3BvbnNlEmYKD09yY2hlc3RyYXRlQ2hhdBIoLm1hcGxlLmNvbnRleHQudjEuT3JjaGVzdHJhdGVDaGF0UmVxdWVzdBopLm1hcGxlLmNvbnRleHQudjEuT3JjaGVzdHJhdGVDaGF0UmVzcG9uc2USeAoVRXhlY3V0ZVRvb2xXaXRoUG9saWN5Ei4ubWFwbGUuY29udGV4dC52MS5FeGVjdXRlVG9vbFdpdGhQb2xpY3lSZXF1ZXN0Gi8ubWFwbGUuY29udGV4dC52MS5FeGVjdXRlVG9vbFdpdGhQb2xpY3lSZXNwb25zZRKBAQoYRm9yd2FyZEpzb25ScGNXaXRoUG9saWN5EjEubWFwbGUuY29udGV4dC52MS5Gb3J3YXJkSnNvblJwY1dpdGhQb2xpY3lSZXF1ZXN0GjIubWFwbGUuY29udGV4dC52MS5Gb3J3YXJkSnNvblJwY1dpdGhQb2xpY3lSZXNwb25zZRJjCg5SZWxvYWRQb2xpY2llcxInLm1hcGxlLmNvbnRleHQudjEuUmVsb2FkUG9saWNpZXNSZXF1ZXN0GigubWFwbGUuY29udGV4dC52MS5SZWxvYWRQb2xpY2llc1Jlc3BvbnNlYgZwcm90bzM", [file_maple_common_v1_common]);
+  fileDesc("CiNtYXBsZS9jb250ZXh0L3YxL2NvbnRleHRfd2FsbC5wcm90bxIQbWFwbGUuY29udGV4dC52MSJxChNFdmFsdWF0ZVN0ZXBSZXF1ZXN0EigKBHN0ZXAYASABKAsyGi5tYXBsZS5jb21tb24udjEuVHJhY2VTdGVwEjAKB2NvbnRleHQYAiABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQifQoURXZhbHVhdGVTdGVwUmVzcG9uc2USMQoIZGVjaXNpb24YASABKAsyHy5tYXBsZS5jb21tb24udjEuUG9saWN5RGVjaXNpb24SMgoOcHJvY2Vzc2VkX3N0ZXAYAiABKAsyGi5tYXBsZS5jb21tb24udjEuVHJhY2VTdGVwIm8KFEV2YWx1YXRlVHJhY2VSZXF1ZXN0EiUKBXRyYWNlGAEgASgLMhYubWFwbGUuY29tbW9uLnYxLlRyYWNlEjAKB2NvbnRleHQYAiABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQifgoVRXZhbHVhdGVUcmFjZVJlc3BvbnNlEjQKB3N1bW1hcnkYASABKAsyIy5tYXBsZS5jb21tb24udjEuRW5mb3JjZW1lbnRTdW1tYXJ5Ei8KD3Byb2Nlc3NlZF90cmFjZRgCIAEoCzIWLm1hcGxlLmNvbW1vbi52MS5UcmFjZSLMAQoYR2V0UG9saWN5RGVjaXNpb25SZXF1ZXN0EhAKCHRyYWNlX2lkGAEgASgJEhIKCnN0ZXBfaW5kZXgYAiABKAUSDgoGYWN0aW9uGAMgASgJEhEKCXRvb2xfbmFtZRgEIAEoCRIRCgl0ZW5hbnRfaWQYBSABKAkSDwoHdXNlcl9pZBgGIAEoCRIRCglkZXZpY2VfaWQYByABKAkSMAoHY29udGV4dBgIIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5SZXF1ZXN0Q29udGV4dCJOChlHZXRQb2xpY3lEZWNpc2lvblJlc3BvbnNlEjEKCGRlY2lzaW9uGAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlBvbGljeURlY2lzaW9uIhgKFkxpc3RQb2xpY3lSdWxlc1JlcXVlc3QilQIKClBvbGljeVJ1bGUSDAoEbmFtZRgBIAEoCRIvCgZhY3Rpb24YAiABKA4yHy5tYXBsZS5jb21tb24udjEuRmlyZXdhbGxBY3Rpb24SLwoIc2V2ZXJpdHkYAyABKA4yHS5tYXBsZS5jb21tb24udjEuUmlza1NldmVyaXR5Eg8KB21lc3NhZ2UYBCABKAkSFgoOcmVjb21tZW5kYXRpb24YBSABKAkSEgoKc3RlcF90eXBlcxgGIAMoCRIRCgl0b29sX2dsb2IYByABKAkSFwoPYW55X3ZhbHVlX3JlZ2V4GAggASgJEg8KB3NlY3JldHMYCSABKAgSHQoVcGF5bG9hZF9ieXRlc19leGNlZWRzGAogASgDIloKF0xpc3RQb2xpY3lSdWxlc1Jlc3BvbnNlEisKBXJ1bGVzGAEgAygLMhwubWFwbGUuY29udGV4dC52MS5Qb2xpY3lSdWxlEhIKCnJ1bGVfY291bnQYAiABKAUikAEKFVN1Ym1pdEFwcHJvdmFsUmVxdWVzdBIQCgh0cmFjZV9pZBgBIAEoCRISCgpzdGVwX2luZGV4GAIgASgFEiwKBmFjdGlvbhgDIAEoDjIcLm1hcGxlLmNvbW1vbi52MS5HdWFyZEFjdGlvbhIOCgZyZWFzb24YBCABKAkSEwoLYXBwcm92ZXJfaWQYBSABKAkiiAEKFlN1Ym1pdEFwcHJvdmFsUmVzcG9uc2USEAoIYWNjZXB0ZWQYASABKAgSEAoIdHJhY2VfaWQYAiABKAkSEgoKc3RlcF9pbmRleBgDIAEoBRI2ChByZXN1bHRpbmdfYWN0aW9uGAQgASgOMhwubWFwbGUuY29tbW9uLnYxLkd1YXJkQWN0aW9uIi8KGVdhdGNoQXBwcm92YWxRdWV1ZVJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCSK9AQoaV2F0Y2hBcHByb3ZhbFF1ZXVlUmVzcG9uc2USEAoIdHJhY2VfaWQYASABKAkSEgoKc3RlcF9pbmRleBgCIAEoBRIoCgRzdGVwGAMgASgLMhoubWFwbGUuY29tbW9uLnYxLlRyYWNlU3RlcBI5ChBwZW5kaW5nX2RlY2lzaW9uGAQgASgLMh8ubWFwbGUuY29tbW9uLnYxLlBvbGljeURlY2lzaW9uEhQKDHJlcXVlc3RlZF9hdBgFIAEoCSIxChtMaXN0UGVuZGluZ0FwcHJvdmFsc1JlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCSJfChxMaXN0UGVuZGluZ0FwcHJvdmFsc1Jlc3BvbnNlEj8KCWFwcHJvdmFscxgBIAMoCzIsLm1hcGxlLmNvbnRleHQudjEuV2F0Y2hBcHByb3ZhbFF1ZXVlUmVzcG9uc2UihwEKEUF1ZGl0VHJhY2VSZXF1ZXN0EiUKBXRyYWNlGAEgASgLMhYubWFwbGUuY29tbW9uLnYxLlRyYWNlEhEKCXRvcF9mbGFncxgCIAEoBRIbChNjb21tdW5pdHlfYmFzZWxpbmVzGAMgAygBEhsKE2VtYmVkZGluZ190aHJlc2hvbGQYBCABKAEicQoSQXVkaXRUcmFjZVJlc3BvbnNlEiwKBnJlcG9ydBgBIAEoCzIcLm1hcGxlLmNvbW1vbi52MS5BdWRpdFJlcG9ydBItCg1hdWRpdGVkX3RyYWNlGAIgASgLMhYubWFwbGUuY29tbW9uLnYxLlRyYWNlIlkKFVNhbml0aXplUHJvbXB0UmVxdWVzdBIOCgZwcm9tcHQYASABKAkSMAoHY29udGV4dBgCIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5SZXF1ZXN0Q29udGV4dCKnAQoWU2FuaXRpemVQcm9tcHRSZXNwb25zZRIYChBzYW5pdGl6ZWRfcHJvbXB0GAEgASgJEhkKEXJlZGFjdGVkX3BhdHRlcm5zGAIgAygJEhMKC2hhZF9zZWNyZXRzGAMgASgIEg8KB2Jsb2NrZWQYBCABKAgSFgoOYmxvY2tlZF9yZWFzb24YBSABKAkSGgoSaW5qZWN0aW9uX3BhdHRlcm5zGAYgAygJIl4KFkdldEFsbG93ZWRUb29sc1JlcXVlc3QSEgoKdG9vbF9uYW1lcxgBIAMoCRIwCgdjb250ZXh0GAIgASgLMh8ubWFwbGUuY29tbW9uLnYxLlJlcXVlc3RDb250ZXh0IkYKF0dldEFsbG93ZWRUb29sc1Jlc3BvbnNlEhUKDWFsbG93ZWRfdG9vbHMYASADKAkSFAoMZGVuaWVkX3Rvb2xzGAIgAygJIikKCENoYXRUdXJuEgwKBHJvbGUYASABKAkSDwoHY29udGVudBgCIAEoCSLxAQoWT3JjaGVzdHJhdGVDaGF0UmVxdWVzdBIwCgdjb250ZXh0GAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlJlcXVlc3RDb250ZXh0EiwKCG1lc3NhZ2VzGAIgAygLMhoubWFwbGUuY29udGV4dC52MS5DaGF0VHVybhIVCg1zeXN0ZW1fcHJvbXB0GAMgASgJEg0KBW1vZGVsGAQgASgJEhMKC3RlbXBlcmF0dXJlGAUgASgBEhIKCm1heF90b2tlbnMYBiABKAUSKAoFdG9vbHMYByADKAsyGS5tYXBsZS5jb21tb24udjEuVG9vbEluZm8iewoXT3JjaGVzdHJhdGVDaGF0UmVzcG9uc2USDwoHYWxsb3dlZBgBIAEoCBIWCg5ibG9ja2VkX3JlYXNvbhgCIAEoCRINCgVyZXBseRgDIAEoCRINCgVtb2RlbBgEIAEoCRIZChFyZWRhY3RlZF9wYXR0ZXJucxgFIAMoCSJdChJUb29sRXhlY3V0aW9uU2NvcGUSFwoPYWxsb3dlZF9kb21haW5zGAEgAygJEhEKCW1heF9ieXRlcxgCIAEoAxIbChNhbGxvd19maWxlX2Rvd25sb2FkGAMgASgIIvoBChxFeGVjdXRlVG9vbFdpdGhQb2xpY3lSZXF1ZXN0EjAKB2NvbnRleHQYASABKAsyHy5tYXBsZS5jb21tb24udjEuUmVxdWVzdENvbnRleHQSDgoGYXBwX2lkGAIgASgJEhIKCnRhcmdldF91cmwYAyABKAkSEQoJdG9vbF9uYW1lGAQgASgJEhYKDmFyZ3VtZW50c19qc29uGAUgASgMEhIKCnNlc3Npb25faWQYBiABKAkSEAoIdHJhY2VfaWQYByABKAkSMwoFc2NvcGUYCCABKAsyJC5tYXBsZS5jb250ZXh0LnYxLlRvb2xFeGVjdXRpb25TY29wZSLwAQodRXhlY3V0ZVRvb2xXaXRoUG9saWN5UmVzcG9uc2USDwoHYWxsb3dlZBgBIAEoCBIWCg5ibG9ja2VkX3JlYXNvbhgCIAEoCRIxCghkZWNpc2lvbhgDIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5Qb2xpY3lEZWNpc2lvbhIPCgdzdWNjZXNzGAQgASgIEhMKC3Jlc3VsdF9qc29uGAUgASgMEhUKDWVycm9yX21lc3NhZ2UYBiABKAkSEwoLZHVyYXRpb25fbXMYByABKAMSDgoGYXBwX2lkGAggASgJEhEKCXRvb2xfbmFtZRgJIAEoCSKNAQofRm9yd2FyZEpzb25ScGNXaXRoUG9saWN5UmVxdWVzdBIwCgdjb250ZXh0GAEgASgLMh8ubWFwbGUuY29tbW9uLnYxLlJlcXVlc3RDb250ZXh0Eg4KBmFwcF9pZBgCIAEoCRISCgp0YXJnZXRfdXJsGAMgASgJEhQKDHBheWxvYWRfanNvbhgEIAEoDCK9AQogRm9yd2FyZEpzb25ScGNXaXRoUG9saWN5UmVzcG9uc2USDwoHYWxsb3dlZBgBIAEoCBIWCg5ibG9ja2VkX3JlYXNvbhgCIAEoCRIxCghkZWNpc2lvbhgDIAEoCzIfLm1hcGxlLmNvbW1vbi52MS5Qb2xpY3lEZWNpc2lvbhIPCgdzdWNjZXNzGAQgASgIEhUKDXJlc3BvbnNlX2pzb24YBSABKAwSFQoNZXJyb3JfbWVzc2FnZRgGIAEoCSIXChVSZWxvYWRQb2xpY2llc1JlcXVlc3QiVAoWUmVsb2FkUG9saWNpZXNSZXNwb25zZRIPCgdzdWNjZXNzGAEgASgIEhIKCnJ1bGVfY291bnQYAiABKAUSFQoNZXJyb3JfbWVzc2FnZRgDIAEoCTLrCwoSQ29udGV4dFdhbGxTZXJ2aWNlEl0KDEV2YWx1YXRlU3RlcBIlLm1hcGxlLmNvbnRleHQudjEuRXZhbHVhdGVTdGVwUmVxdWVzdBomLm1hcGxlLmNvbnRleHQudjEuRXZhbHVhdGVTdGVwUmVzcG9uc2USYAoNRXZhbHVhdGVUcmFjZRImLm1hcGxlLmNvbnRleHQudjEuRXZhbHVhdGVUcmFjZVJlcXVlc3QaJy5tYXBsZS5jb250ZXh0LnYxLkV2YWx1YXRlVHJhY2VSZXNwb25zZRJsChFHZXRQb2xpY3lEZWNpc2lvbhIqLm1hcGxlLmNvbnRleHQudjEuR2V0UG9saWN5RGVjaXNpb25SZXF1ZXN0GisubWFwbGUuY29udGV4dC52MS5HZXRQb2xpY3lEZWNpc2lvblJlc3BvbnNlEmYKD0xpc3RQb2xpY3lSdWxlcxIoLm1hcGxlLmNvbnRleHQudjEuTGlzdFBvbGljeVJ1bGVzUmVxdWVzdBopLm1hcGxlLmNvbnRleHQudjEuTGlzdFBvbGljeVJ1bGVzUmVzcG9uc2USYwoOU3VibWl0QXBwcm92YWwSJy5tYXBsZS5jb250ZXh0LnYxLlN1Ym1pdEFwcHJvdmFsUmVxdWVzdBooLm1hcGxlLmNvbnRleHQudjEuU3VibWl0QXBwcm92YWxSZXNwb25zZRJxChJXYXRjaEFwcHJvdmFsUXVldWUSKy5tYXBsZS5jb250ZXh0LnYxLldhdGNoQXBwcm92YWxRdWV1ZVJlcXVlc3QaLC5tYXBsZS5jb250ZXh0LnYxLldhdGNoQXBwcm92YWxRdWV1ZVJlc3BvbnNlMAESdQoUTGlzdFBlbmRpbmdBcHByb3ZhbHMSLS5tYXBsZS5jb250ZXh0LnYxLkxpc3RQZW5kaW5nQXBwcm92YWxzUmVxdWVzdBouLm1hcGxlLmNvbnRleHQudjEuTGlzdFBlbmRpbmdBcHByb3ZhbHNSZXNwb25zZRJXCgpBdWRpdFRyYWNlEiMubWFwbGUuY29udGV4dC52MS5BdWRpdFRyYWNlUmVxdWVzdBokLm1hcGxlLmNvbnRleHQudjEuQXVkaXRUcmFjZVJlc3BvbnNlEmMKDlNhbml0aXplUHJvbXB0EicubWFwbGUuY29udGV4dC52MS5TYW5pdGl6ZVByb21wdFJlcXVlc3QaKC5tYXBsZS5jb250ZXh0LnYxLlNhbml0aXplUHJvbXB0UmVzcG9uc2USZgoPR2V0QWxsb3dlZFRvb2xzEigubWFwbGUuY29udGV4dC52MS5HZXRBbGxvd2VkVG9vbHNSZXF1ZXN0GikubWFwbGUuY29udGV4dC52MS5HZXRBbGxvd2VkVG9vbHNSZXNwb25zZRJmCg9PcmNoZXN0cmF0ZUNoYXQSKC5tYXBsZS5jb250ZXh0LnYxLk9yY2hlc3RyYXRlQ2hhdFJlcXVlc3QaKS5tYXBsZS5jb250ZXh0LnYxLk9yY2hlc3RyYXRlQ2hhdFJlc3BvbnNlEngKFUV4ZWN1dGVUb29sV2l0aFBvbGljeRIuLm1hcGxlLmNvbnRleHQudjEuRXhlY3V0ZVRvb2xXaXRoUG9saWN5UmVxdWVzdBovLm1hcGxlLmNvbnRleHQudjEuRXhlY3V0ZVRvb2xXaXRoUG9saWN5UmVzcG9uc2USgQEKGEZvcndhcmRKc29uUnBjV2l0aFBvbGljeRIxLm1hcGxlLmNvbnRleHQudjEuRm9yd2FyZEpzb25ScGNXaXRoUG9saWN5UmVxdWVzdBoyLm1hcGxlLmNvbnRleHQudjEuRm9yd2FyZEpzb25ScGNXaXRoUG9saWN5UmVzcG9uc2USYwoOUmVsb2FkUG9saWNpZXMSJy5tYXBsZS5jb250ZXh0LnYxLlJlbG9hZFBvbGljaWVzUmVxdWVzdBooLm1hcGxlLmNvbnRleHQudjEuUmVsb2FkUG9saWNpZXNSZXNwb25zZWIGcHJvdG8z", [file_maple_common_v1_common]);
 
 /**
  * @generated from message maple.context.v1.EvaluateStepRequest
@@ -172,6 +172,103 @@ export const GetPolicyDecisionResponseSchema: GenMessage<GetPolicyDecisionRespon
   messageDesc(file_maple_context_v1_context_wall, 5);
 
 /**
+ * @generated from message maple.context.v1.ListPolicyRulesRequest
+ */
+export type ListPolicyRulesRequest = Message<"maple.context.v1.ListPolicyRulesRequest"> & {
+};
+
+/**
+ * Describes the message maple.context.v1.ListPolicyRulesRequest.
+ * Use `create(ListPolicyRulesRequestSchema)` to create a new message.
+ */
+export const ListPolicyRulesRequestSchema: GenMessage<ListPolicyRulesRequest> = /*@__PURE__*/
+  messageDesc(file_maple_context_v1_context_wall, 6);
+
+/**
+ * @generated from message maple.context.v1.PolicyRule
+ */
+export type PolicyRule = Message<"maple.context.v1.PolicyRule"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: maple.common.v1.FirewallAction action = 2;
+   */
+  action: FirewallAction;
+
+  /**
+   * @generated from field: maple.common.v1.RiskSeverity severity = 3;
+   */
+  severity: RiskSeverity;
+
+  /**
+   * @generated from field: string message = 4;
+   */
+  message: string;
+
+  /**
+   * @generated from field: string recommendation = 5;
+   */
+  recommendation: string;
+
+  /**
+   * @generated from field: repeated string step_types = 6;
+   */
+  stepTypes: string[];
+
+  /**
+   * @generated from field: string tool_glob = 7;
+   */
+  toolGlob: string;
+
+  /**
+   * @generated from field: string any_value_regex = 8;
+   */
+  anyValueRegex: string;
+
+  /**
+   * @generated from field: bool secrets = 9;
+   */
+  secrets: boolean;
+
+  /**
+   * @generated from field: int64 payload_bytes_exceeds = 10;
+   */
+  payloadBytesExceeds: bigint;
+};
+
+/**
+ * Describes the message maple.context.v1.PolicyRule.
+ * Use `create(PolicyRuleSchema)` to create a new message.
+ */
+export const PolicyRuleSchema: GenMessage<PolicyRule> = /*@__PURE__*/
+  messageDesc(file_maple_context_v1_context_wall, 7);
+
+/**
+ * @generated from message maple.context.v1.ListPolicyRulesResponse
+ */
+export type ListPolicyRulesResponse = Message<"maple.context.v1.ListPolicyRulesResponse"> & {
+  /**
+   * @generated from field: repeated maple.context.v1.PolicyRule rules = 1;
+   */
+  rules: PolicyRule[];
+
+  /**
+   * @generated from field: int32 rule_count = 2;
+   */
+  ruleCount: number;
+};
+
+/**
+ * Describes the message maple.context.v1.ListPolicyRulesResponse.
+ * Use `create(ListPolicyRulesResponseSchema)` to create a new message.
+ */
+export const ListPolicyRulesResponseSchema: GenMessage<ListPolicyRulesResponse> = /*@__PURE__*/
+  messageDesc(file_maple_context_v1_context_wall, 8);
+
+/**
  * @generated from message maple.context.v1.SubmitApprovalRequest
  */
 export type SubmitApprovalRequest = Message<"maple.context.v1.SubmitApprovalRequest"> & {
@@ -206,7 +303,7 @@ export type SubmitApprovalRequest = Message<"maple.context.v1.SubmitApprovalRequ
  * Use `create(SubmitApprovalRequestSchema)` to create a new message.
  */
 export const SubmitApprovalRequestSchema: GenMessage<SubmitApprovalRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 6);
+  messageDesc(file_maple_context_v1_context_wall, 9);
 
 /**
  * @generated from message maple.context.v1.SubmitApprovalResponse
@@ -238,7 +335,7 @@ export type SubmitApprovalResponse = Message<"maple.context.v1.SubmitApprovalRes
  * Use `create(SubmitApprovalResponseSchema)` to create a new message.
  */
 export const SubmitApprovalResponseSchema: GenMessage<SubmitApprovalResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 7);
+  messageDesc(file_maple_context_v1_context_wall, 10);
 
 /**
  * @generated from message maple.context.v1.WatchApprovalQueueRequest
@@ -255,7 +352,7 @@ export type WatchApprovalQueueRequest = Message<"maple.context.v1.WatchApprovalQ
  * Use `create(WatchApprovalQueueRequestSchema)` to create a new message.
  */
 export const WatchApprovalQueueRequestSchema: GenMessage<WatchApprovalQueueRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 8);
+  messageDesc(file_maple_context_v1_context_wall, 11);
 
 /**
  * @generated from message maple.context.v1.WatchApprovalQueueResponse
@@ -292,7 +389,7 @@ export type WatchApprovalQueueResponse = Message<"maple.context.v1.WatchApproval
  * Use `create(WatchApprovalQueueResponseSchema)` to create a new message.
  */
 export const WatchApprovalQueueResponseSchema: GenMessage<WatchApprovalQueueResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 9);
+  messageDesc(file_maple_context_v1_context_wall, 12);
 
 /**
  * @generated from message maple.context.v1.ListPendingApprovalsRequest
@@ -309,7 +406,7 @@ export type ListPendingApprovalsRequest = Message<"maple.context.v1.ListPendingA
  * Use `create(ListPendingApprovalsRequestSchema)` to create a new message.
  */
 export const ListPendingApprovalsRequestSchema: GenMessage<ListPendingApprovalsRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 10);
+  messageDesc(file_maple_context_v1_context_wall, 13);
 
 /**
  * @generated from message maple.context.v1.ListPendingApprovalsResponse
@@ -326,7 +423,7 @@ export type ListPendingApprovalsResponse = Message<"maple.context.v1.ListPending
  * Use `create(ListPendingApprovalsResponseSchema)` to create a new message.
  */
 export const ListPendingApprovalsResponseSchema: GenMessage<ListPendingApprovalsResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 11);
+  messageDesc(file_maple_context_v1_context_wall, 14);
 
 /**
  * @generated from message maple.context.v1.AuditTraceRequest
@@ -358,7 +455,7 @@ export type AuditTraceRequest = Message<"maple.context.v1.AuditTraceRequest"> & 
  * Use `create(AuditTraceRequestSchema)` to create a new message.
  */
 export const AuditTraceRequestSchema: GenMessage<AuditTraceRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 12);
+  messageDesc(file_maple_context_v1_context_wall, 15);
 
 /**
  * @generated from message maple.context.v1.AuditTraceResponse
@@ -380,7 +477,7 @@ export type AuditTraceResponse = Message<"maple.context.v1.AuditTraceResponse"> 
  * Use `create(AuditTraceResponseSchema)` to create a new message.
  */
 export const AuditTraceResponseSchema: GenMessage<AuditTraceResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 13);
+  messageDesc(file_maple_context_v1_context_wall, 16);
 
 /**
  * @generated from message maple.context.v1.SanitizePromptRequest
@@ -402,7 +499,7 @@ export type SanitizePromptRequest = Message<"maple.context.v1.SanitizePromptRequ
  * Use `create(SanitizePromptRequestSchema)` to create a new message.
  */
 export const SanitizePromptRequestSchema: GenMessage<SanitizePromptRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 14);
+  messageDesc(file_maple_context_v1_context_wall, 17);
 
 /**
  * @generated from message maple.context.v1.SanitizePromptResponse
@@ -444,7 +541,7 @@ export type SanitizePromptResponse = Message<"maple.context.v1.SanitizePromptRes
  * Use `create(SanitizePromptResponseSchema)` to create a new message.
  */
 export const SanitizePromptResponseSchema: GenMessage<SanitizePromptResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 15);
+  messageDesc(file_maple_context_v1_context_wall, 18);
 
 /**
  * @generated from message maple.context.v1.GetAllowedToolsRequest
@@ -466,7 +563,7 @@ export type GetAllowedToolsRequest = Message<"maple.context.v1.GetAllowedToolsRe
  * Use `create(GetAllowedToolsRequestSchema)` to create a new message.
  */
 export const GetAllowedToolsRequestSchema: GenMessage<GetAllowedToolsRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 16);
+  messageDesc(file_maple_context_v1_context_wall, 19);
 
 /**
  * @generated from message maple.context.v1.GetAllowedToolsResponse
@@ -488,7 +585,7 @@ export type GetAllowedToolsResponse = Message<"maple.context.v1.GetAllowedToolsR
  * Use `create(GetAllowedToolsResponseSchema)` to create a new message.
  */
 export const GetAllowedToolsResponseSchema: GenMessage<GetAllowedToolsResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 17);
+  messageDesc(file_maple_context_v1_context_wall, 20);
 
 /**
  * @generated from message maple.context.v1.ChatTurn
@@ -510,7 +607,7 @@ export type ChatTurn = Message<"maple.context.v1.ChatTurn"> & {
  * Use `create(ChatTurnSchema)` to create a new message.
  */
 export const ChatTurnSchema: GenMessage<ChatTurn> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 18);
+  messageDesc(file_maple_context_v1_context_wall, 21);
 
 /**
  * @generated from message maple.context.v1.OrchestrateChatRequest
@@ -557,7 +654,7 @@ export type OrchestrateChatRequest = Message<"maple.context.v1.OrchestrateChatRe
  * Use `create(OrchestrateChatRequestSchema)` to create a new message.
  */
 export const OrchestrateChatRequestSchema: GenMessage<OrchestrateChatRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 19);
+  messageDesc(file_maple_context_v1_context_wall, 22);
 
 /**
  * @generated from message maple.context.v1.OrchestrateChatResponse
@@ -594,7 +691,7 @@ export type OrchestrateChatResponse = Message<"maple.context.v1.OrchestrateChatR
  * Use `create(OrchestrateChatResponseSchema)` to create a new message.
  */
 export const OrchestrateChatResponseSchema: GenMessage<OrchestrateChatResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 20);
+  messageDesc(file_maple_context_v1_context_wall, 23);
 
 /**
  * @generated from message maple.context.v1.ToolExecutionScope
@@ -621,7 +718,7 @@ export type ToolExecutionScope = Message<"maple.context.v1.ToolExecutionScope"> 
  * Use `create(ToolExecutionScopeSchema)` to create a new message.
  */
 export const ToolExecutionScopeSchema: GenMessage<ToolExecutionScope> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 21);
+  messageDesc(file_maple_context_v1_context_wall, 24);
 
 /**
  * @generated from message maple.context.v1.ExecuteToolWithPolicyRequest
@@ -673,7 +770,7 @@ export type ExecuteToolWithPolicyRequest = Message<"maple.context.v1.ExecuteTool
  * Use `create(ExecuteToolWithPolicyRequestSchema)` to create a new message.
  */
 export const ExecuteToolWithPolicyRequestSchema: GenMessage<ExecuteToolWithPolicyRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 22);
+  messageDesc(file_maple_context_v1_context_wall, 25);
 
 /**
  * @generated from message maple.context.v1.ExecuteToolWithPolicyResponse
@@ -730,7 +827,7 @@ export type ExecuteToolWithPolicyResponse = Message<"maple.context.v1.ExecuteToo
  * Use `create(ExecuteToolWithPolicyResponseSchema)` to create a new message.
  */
 export const ExecuteToolWithPolicyResponseSchema: GenMessage<ExecuteToolWithPolicyResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 23);
+  messageDesc(file_maple_context_v1_context_wall, 26);
 
 /**
  * @generated from message maple.context.v1.ForwardJsonRpcWithPolicyRequest
@@ -762,7 +859,7 @@ export type ForwardJsonRpcWithPolicyRequest = Message<"maple.context.v1.ForwardJ
  * Use `create(ForwardJsonRpcWithPolicyRequestSchema)` to create a new message.
  */
 export const ForwardJsonRpcWithPolicyRequestSchema: GenMessage<ForwardJsonRpcWithPolicyRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 24);
+  messageDesc(file_maple_context_v1_context_wall, 27);
 
 /**
  * @generated from message maple.context.v1.ForwardJsonRpcWithPolicyResponse
@@ -804,7 +901,7 @@ export type ForwardJsonRpcWithPolicyResponse = Message<"maple.context.v1.Forward
  * Use `create(ForwardJsonRpcWithPolicyResponseSchema)` to create a new message.
  */
 export const ForwardJsonRpcWithPolicyResponseSchema: GenMessage<ForwardJsonRpcWithPolicyResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 25);
+  messageDesc(file_maple_context_v1_context_wall, 28);
 
 /**
  * @generated from message maple.context.v1.ReloadPoliciesRequest
@@ -817,7 +914,7 @@ export type ReloadPoliciesRequest = Message<"maple.context.v1.ReloadPoliciesRequ
  * Use `create(ReloadPoliciesRequestSchema)` to create a new message.
  */
 export const ReloadPoliciesRequestSchema: GenMessage<ReloadPoliciesRequest> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 26);
+  messageDesc(file_maple_context_v1_context_wall, 29);
 
 /**
  * @generated from message maple.context.v1.ReloadPoliciesResponse
@@ -844,7 +941,7 @@ export type ReloadPoliciesResponse = Message<"maple.context.v1.ReloadPoliciesRes
  * Use `create(ReloadPoliciesResponseSchema)` to create a new message.
  */
 export const ReloadPoliciesResponseSchema: GenMessage<ReloadPoliciesResponse> = /*@__PURE__*/
-  messageDesc(file_maple_context_v1_context_wall, 27);
+  messageDesc(file_maple_context_v1_context_wall, 30);
 
 /**
  * @generated from service maple.context.v1.ContextWallService
@@ -879,6 +976,16 @@ export const ContextWallService: GenService<{
     methodKind: "unary";
     input: typeof GetPolicyDecisionRequestSchema;
     output: typeof GetPolicyDecisionResponseSchema;
+  },
+  /**
+   * List currently active policy rules loaded in context-wall
+   *
+   * @generated from rpc maple.context.v1.ContextWallService.ListPolicyRules
+   */
+  listPolicyRules: {
+    methodKind: "unary";
+    input: typeof ListPolicyRulesRequestSchema;
+    output: typeof ListPolicyRulesResponseSchema;
   },
   /**
    * Submit HITL approval/rejection

@@ -38,6 +38,7 @@ import {
   inferStepTypeFromDownstream,
   toInvocationSummary,
   toPolicySnapshot,
+  evaluateFirewallStepViaGrpc,
 } from "./trace-helpers.js";
 
 import { buildRuntimeStatus } from "./state.js";
@@ -65,10 +66,7 @@ import {
   MAPLE_DEFAULT_TARGET_APP_ID,
 } from "./config.js";
 
-import {
-  evaluateFirewallStep,
-  type FirewallStepDecision,
-} from "@maple/security";
+import type { FirewallStepDecision } from "@maple/security";
 
 import {
   dispatchToolToDownstream,
@@ -1811,7 +1809,7 @@ async function dispatchDownstreamAndLog(options: {
     guardStatus: "pending",
   };
 
-  const preExecutionDecision = evaluateFirewallStep(preExecutionCandidateStep);
+  const preExecutionDecision = await evaluateFirewallStepViaGrpc(preExecutionCandidateStep, { failClosed: true });
   const preExecutionWouldBlock = preExecutionDecision.shouldBlock;
   const preDecisionStep = preExecutionDecision.step ?? preExecutionCandidateStep;
   const preExecutionStep: TraceStep = {
@@ -1867,7 +1865,7 @@ async function dispatchDownstreamAndLog(options: {
     } satisfies DownstreamDispatchLogResult;
   }
 
-  const appendLoggedStep = (payload: {
+  const appendLoggedStep = async (payload: {
     output: string;
     toolOutput: unknown;
     responseStatus?: number;
@@ -1914,7 +1912,7 @@ async function dispatchDownstreamAndLog(options: {
       guardStatus: "pending",
     };
 
-    const decision = evaluateFirewallStep(candidateStep);
+    const decision = await evaluateFirewallStepViaGrpc(candidateStep, { failClosed: true });
     const loggedStep: TraceStep = {
       ...(decision.step ?? candidateStep),
       index: trace.steps.length,
@@ -1949,7 +1947,7 @@ async function dispatchDownstreamAndLog(options: {
         traceId: trace.id,
       },
     );
-    const { loggedStep, report } = appendLoggedStep({
+    const { loggedStep, report } = await appendLoggedStep({
       output: dispatch.textPreview,
       toolOutput: dispatch.result,
       requestId: dispatch.requestId,
@@ -1972,7 +1970,7 @@ async function dispatchDownstreamAndLog(options: {
     } satisfies DownstreamDispatchLogResult;
   } catch (dispatchError) {
     const failure = `Downstream dispatch failed: ${errorMessage(dispatchError)}`;
-    const { loggedStep, report } = appendLoggedStep({
+    const { loggedStep, report } = await appendLoggedStep({
       output: failure,
       toolOutput: { error: failure },
       failed: true,
@@ -2117,7 +2115,7 @@ async function forwardJsonRpcAndLog(options: {
     guardStatus: "pending",
   };
 
-  const preExecutionDecision = evaluateFirewallStep(preExecutionCandidateStep);
+  const preExecutionDecision = await evaluateFirewallStepViaGrpc(preExecutionCandidateStep, { failClosed: true });
   const preExecutionWouldBlock = preExecutionDecision.shouldBlock;
   const preDecisionStep2 = preExecutionDecision.step ?? preExecutionCandidateStep;
   const preExecutionStep: TraceStep = {
@@ -2171,7 +2169,7 @@ async function forwardJsonRpcAndLog(options: {
     };
   }
 
-  const appendLoggedStep = (payload: {
+  const appendLoggedStep = async (payload: {
     output: unknown;
     responseStatus?: number;
     durationMs?: number;
@@ -2213,7 +2211,7 @@ async function forwardJsonRpcAndLog(options: {
       guardStatus: "pending",
     };
 
-    const decision = evaluateFirewallStep(candidateStep);
+    const decision = await evaluateFirewallStepViaGrpc(candidateStep, { failClosed: true });
     const loggedStep: TraceStep = {
       ...(decision.step ?? candidateStep),
       index: trace.steps.length,
@@ -2242,7 +2240,7 @@ async function forwardJsonRpcAndLog(options: {
       sessionId: trace.sessionId,
       traceId: trace.id,
     });
-    const { loggedStep, report } = appendLoggedStep({
+    const { loggedStep, report } = await appendLoggedStep({
       output: forwarded.payload,
       responseStatus: forwarded.responseStatus,
       durationMs: forwarded.durationMs,
@@ -2263,7 +2261,7 @@ async function forwardJsonRpcAndLog(options: {
     };
   } catch (forwardError) {
     const failure = `Downstream JSON-RPC forward failed: ${errorMessage(forwardError)}`;
-    const { loggedStep, report } = appendLoggedStep({
+    const { loggedStep, report } = await appendLoggedStep({
       output: { error: failure },
       failed: true,
       stage: "dispatch_error",

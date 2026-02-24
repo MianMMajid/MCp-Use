@@ -26,6 +26,11 @@ if [ -z "${MAPLE_OTEL_COLLECTOR_HOST:-}" ]; then
   export MAPLE_OTEL_COLLECTOR_HOST
 fi
 
+if [ -z "${MAPLE_AUDIT_WRITER_HOST:-}" ]; then
+  MAPLE_AUDIT_WRITER_HOST="audit-writer"
+  export MAPLE_AUDIT_WRITER_HOST
+fi
+
 for cert in /etc/envoy/certs/tls.crt /etc/envoy/certs/tls.key /etc/envoy/certs/client-ca.crt /etc/envoy/certs/internal-ca.crt; do
   if [ ! -f "$cert" ]; then
     echo "[maple-edge] required certificate file missing: $cert" >&2
@@ -42,6 +47,7 @@ MAPLE_OIDC_JWKS_HOST_ESCAPED="$(escape_sed "$MAPLE_OIDC_JWKS_HOST")"
 OIDC_ISSUER_ESCAPED="$(escape_sed "$OIDC_ISSUER")"
 OIDC_AUDIENCE_ESCAPED="$(escape_sed "$OIDC_AUDIENCE")"
 MAPLE_OTEL_COLLECTOR_HOST_ESCAPED="$(escape_sed "$MAPLE_OTEL_COLLECTOR_HOST")"
+MAPLE_AUDIT_WRITER_HOST_ESCAPED="$(escape_sed "$MAPLE_AUDIT_WRITER_HOST")"
 
 sed \
   -e "s|__OIDC_JWKS_URI__|$OIDC_JWKS_URI_ESCAPED|g" \
@@ -49,6 +55,7 @@ sed \
   -e "s|__OIDC_ISSUER__|$OIDC_ISSUER_ESCAPED|g" \
   -e "s|__OIDC_AUDIENCE__|$OIDC_AUDIENCE_ESCAPED|g" \
   -e "s|__MAPLE_OTEL_COLLECTOR_HOST__|$MAPLE_OTEL_COLLECTOR_HOST_ESCAPED|g" \
+  -e "s|__MAPLE_AUDIT_WRITER_HOST__|$MAPLE_AUDIT_WRITER_HOST_ESCAPED|g" \
   /etc/envoy/envoy.yaml.tmpl > /tmp/envoy.yaml
 
 exec envoy -c /tmp/envoy.yaml

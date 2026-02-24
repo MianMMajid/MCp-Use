@@ -239,6 +239,30 @@ static_resources:
                           numerator: 100
                           denominator: HUNDRED
 
+                  - name: envoy.filters.http.lua
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+                      inline_code: |
+                        function envoy_on_request(request_handle)
+                          local headers = request_handle:headers()
+                          local audit_headers = {
+                            [":method"] = "POST",
+                            [":path"] = "/v1/audit/edge-access",
+                            [":authority"] = "__MAPLE_AUDIT_WRITER_HOST__",
+                            ["x-maple-method"] = headers:get(":method") or "",
+                            ["x-maple-path"] = headers:get(":path") or "",
+                            ["x-request-id"] = headers:get("x-request-id") or "",
+                            ["x-tenant-id"] = headers:get("x-tenant-id") or "",
+                            ["x-user-id"] = headers:get("x-user-id") or "",
+                            ["x-device-id"] = headers:get("x-device-id") or "",
+                            ["x-maple-session-id"] = headers:get("x-maple-session-id") or headers:get("mcp-session-id") or "",
+                            ["x-maple-trace-id"] = headers:get("x-maple-trace-id") or headers:get("x-trace-id") or ""
+                          }
+                          pcall(function()
+                            request_handle:httpCall("audit_writer_http", audit_headers, "", 1000, true)
+                          end)
+                        end
+
                   - name: envoy.filters.http.cors
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
@@ -321,6 +345,20 @@ static_resources:
                     socket_address:
                       address: "__MAPLE_OTEL_COLLECTOR_HOST__"
                       port_value: 4317
+
+    - name: audit_writer_http
+      connect_timeout: 3s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: audit_writer_http
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: "__MAPLE_AUDIT_WRITER_HOST__"
+                      port_value: 9401
 
     - name: jwks_cluster
       connect_timeout: 5s
