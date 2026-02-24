@@ -1,40 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { GuardAction, Trace, TraceStep } from "@maple/types";
+import { parsePositiveInt, parsePositiveMs } from "./trace-store-config.js";
+import {
+  loadPersistedTracesIntoIndex,
+  persistTrace,
+  removePersistedTrace,
+} from "./trace-store-persistence.js";
+import { pruneTraceStore } from "./trace-store-prune.js";
+import type {
+  TraceStoreOptions,
+  TraceStorePersistence,
+} from "./trace-store-types.js";
 
-interface TraceStoreOptions {
-  maxTraces?: number;
-  maxTracesPerSession?: number;
-  ttlMs?: number;
-  persistence?: TraceStorePersistence;
-}
-
-interface TraceStorePersistence {
-  loadTraces?: () => Trace[] | Promise<Trace[]>;
-  saveTrace?: (trace: Trace) => void | Promise<void>;
-  removeTrace?: (traceId: string) => void | Promise<void>;
-}
-
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function parsePositiveMs(value: string | undefined, fallback: number): number {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
+export type {
+  TraceStoreOptions,
+  TraceStorePersistence,
+} from "./trace-store-types.js";
 
 export class TraceStore {
   private traces = new Map<string, Trace>();
@@ -53,7 +34,12 @@ export class TraceStore {
   }
 
   async init(): Promise<void> {
-    await this.loadPersistedTraces();
+    await loadPersistedTracesIntoIndex({
+      persistence: this.persistence,
+      traces: this.traces,
+      sessionIndex: this.sessionIndex,
+    });
+    this.pruneStore();
   }
 
   createTrace(base: Omit<Trace, "id" | "startedAt" | "updatedAt">, ownerKeyFingerprint?: string): Trace {
@@ -87,7 +73,7 @@ export class TraceStore {
       this.sessionIndex.set(trace.sessionId, bySession);
     }
 
-    this.persistTrace(trace);
+    persistTrace(this.persistence, trace);
 
     this.pruneStore();
     return trace;
@@ -148,7 +134,7 @@ export class TraceStore {
         traceIds.some((id) => {
           const t = this.traces.get(id);
           return t && this.matchesOwner(t, ownerKeyFingerprint);
-        })
+        }),
       )
       .map(([sessionId]) => sessionId);
   }
@@ -174,7 +160,7 @@ export class TraceStore {
     stepIndex: number,
     action: GuardAction,
     reason?: string,
-    ownerKeyFingerprint?: string
+    ownerKeyFingerprint?: string,
   ): Trace | undefined {
     const trace = this.getTrace(traceId, ownerKeyFingerprint);
     if (!trace) {
@@ -222,52 +208,14 @@ export class TraceStore {
   }
 
   private pruneStore(): void {
-    const now = Date.now();
-    const expired: string[] = [];
-    for (const trace of this.traces.values()) {
-      const updatedAtMs = Date.parse(trace.updatedAt);
-      if (!Number.isFinite(updatedAtMs)) {
-        continue;
-      }
-      if (now - updatedAtMs > this.ttlMs) {
-        expired.push(trace.id);
-      }
-    }
-    for (const traceId of expired) {
-      this.removeTrace(traceId);
-    }
-
-    while (this.traces.size > this.maxTraces) {
-      const oldest = [...this.traces.values()].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))[0];
-      if (!oldest) {
-        break;
-      }
-      this.removeTrace(oldest.id);
-    }
-
-    for (const [sessionId, traceIds] of this.sessionIndex.entries()) {
-      if (traceIds.length <= this.maxTracesPerSession) {
-        continue;
-      }
-      const sessionTraces = traceIds
-        .map((traceId) => this.traces.get(traceId))
-        .filter((trace): trace is Trace => Boolean(trace))
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-      const keep = new Set(sessionTraces.slice(0, this.maxTracesPerSession).map((trace) => trace.id));
-      for (const traceId of traceIds) {
-        if (!keep.has(traceId)) {
-          this.removeTrace(traceId);
-        }
-      }
-      const refreshed = (this.sessionIndex.get(sessionId) ?? []).filter((traceId) =>
-        this.traces.has(traceId)
-      );
-      if (refreshed.length > 0) {
-        this.sessionIndex.set(sessionId, refreshed);
-      } else {
-        this.sessionIndex.delete(sessionId);
-      }
-    }
+    pruneTraceStore({
+      traces: this.traces,
+      sessionIndex: this.sessionIndex,
+      maxTraces: this.maxTraces,
+      maxTracesPerSession: this.maxTracesPerSession,
+      ttlMs: this.ttlMs,
+      removeTrace: (traceId: string) => this.removeTrace(traceId),
+    });
   }
 
   private removeTrace(traceId: string): void {
@@ -283,45 +231,6 @@ export class TraceStore {
     } else {
       this.sessionIndex.delete(trace.sessionId);
     }
-    this.removePersistedTrace(traceId);
-  }
-
-  private async loadPersistedTraces(): Promise<void> {
-    const persisted = (await this.persistence?.loadTraces?.()) ?? [];
-    for (const trace of persisted) {
-      this.traces.set(trace.id, trace);
-      const bySession = this.sessionIndex.get(trace.sessionId) ?? [];
-      if (!bySession.includes(trace.id)) {
-        bySession.push(trace.id);
-        this.sessionIndex.set(trace.sessionId, bySession);
-      }
-    }
-    this.pruneStore();
-  }
-
-  private persistTrace(trace: Trace): void {
-    try {
-      const result = this.persistence?.saveTrace?.(trace);
-      if (result && typeof (result as Promise<void>).catch === "function") {
-        (result as Promise<void>).catch((error) =>
-          console.error("[PERSISTENCE] Failed to save trace:", error)
-        );
-      }
-    } catch (error) {
-      console.error("[PERSISTENCE] Failed to save trace:", error);
-    }
-  }
-
-  private removePersistedTrace(traceId: string): void {
-    try {
-      const result = this.persistence?.removeTrace?.(traceId);
-      if (result && typeof (result as Promise<void>).catch === "function") {
-        (result as Promise<void>).catch((error) =>
-          console.error("[PERSISTENCE] Failed to remove trace:", error)
-        );
-      }
-    } catch (error) {
-      console.error("[PERSISTENCE] Failed to remove trace:", error);
-    }
+    removePersistedTrace(this.persistence, traceId);
   }
 }
