@@ -122,6 +122,10 @@ const settingsRuntimeStatusEl = document.getElementById("settingsRuntimeStatus")
 const settingsRefreshBtn = document.getElementById("settingsRefreshBtn");
 const settingsClearHistoryBtn = document.getElementById("settingsClearHistoryBtn");
 const settingsActionResultEl = document.getElementById("settingsActionResult");
+const settingsCurrentPasswordEl = document.getElementById("settingsCurrentPassword");
+const settingsNewPasswordEl = document.getElementById("settingsNewPassword");
+const settingsConfirmPasswordEl = document.getElementById("settingsConfirmPassword");
+const settingsChangePasswordBtn = document.getElementById("settingsChangePasswordBtn");
 
 const firewallQuickPromptButtons = document.querySelectorAll(".welcome-pill[data-firewall-prompt]");
 const actionTreeCanvasEl = document.getElementById("actionTreeCanvas");
@@ -2351,6 +2355,10 @@ function renderGuardLog(trace) {
       const quarantineStep = blockedAction ? ` at step #${blockedAction.stepIndex}` : "";
       quarantineBannerEl.textContent = `Trace quarantined ${formatTimestamp(quarantineAt)}${quarantineStep}.`;
       quarantineBannerEl.classList.remove("hidden");
+      if (state._lastQuarantineToastTraceId !== trace.id) {
+        state._lastQuarantineToastTraceId = trace.id;
+        showToast("Quarantine Active", "This trace has been quarantined due to high-risk behavior.", "error");
+      }
     } else {
       quarantineBannerEl.classList.add("hidden");
       quarantineBannerEl.textContent = "";
@@ -2714,6 +2722,34 @@ function parseErrorMessage(error) {
     return error.message;
   }
   return String(error ?? "Unknown error");
+}
+
+/* ── Toast notification system ── */
+const toastContainerEl = document.getElementById("toastContainer");
+const TOAST_DURATION_MS = 5000;
+const TOAST_ICONS = { ok: "\u2705", warn: "\u26A0\uFE0F", error: "\u274C", info: "\u2139\uFE0F" };
+
+function showToast(title, message, type = "info") {
+  if (!toastContainerEl) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `
+    <span class="toast-icon">${TOAST_ICONS[type] ?? TOAST_ICONS.info}</span>
+    <div class="toast-body">
+      <div class="toast-title">${escapeHtml(title)}</div>
+      <div class="toast-message">${escapeHtml(message)}</div>
+    </div>
+    <button class="toast-close" type="button" aria-label="Dismiss">&times;</button>
+  `;
+  toast.querySelector(".toast-close").addEventListener("click", () => dismissToast(toast));
+  toastContainerEl.appendChild(toast);
+  setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
+}
+
+function dismissToast(toast) {
+  if (!toast || !toast.parentNode) return;
+  toast.classList.add("toast-exit");
+  setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 200);
 }
 
 function handleRefreshError(context, error, silent) {
@@ -3208,6 +3244,7 @@ async function disconnectMarketplaceApp(appId) {
   try {
     await postJson("/api/marketplace/disconnect", { appId });
     setStatus("Marketplace app disconnected.", "ok");
+    showToast("App Disconnected", `Marketplace app "${appId}" has been disconnected.`, "ok");
     await refreshMarketplaceConnected();
     await refreshMarketplaceTools();
   } catch (err) {
@@ -3449,9 +3486,42 @@ async function clearTraceHistory() {
   try {
     const result = await postJson("/api/traces/clear");
     setSettingsActionResult(`Cleared ${result.removed ?? 0} traces.`, "ok");
+    showToast("History Cleared", `Removed ${result.removed ?? 0} traces.`, "ok");
     await refreshTracePanels();
   } catch (error) {
     setSettingsActionResult(`Clear failed: ${parseErrorMessage(error)}`, "error");
+  }
+}
+
+async function changePassword() {
+  const current = settingsCurrentPasswordEl?.value ?? "";
+  const newPass = settingsNewPasswordEl?.value ?? "";
+  const confirm = settingsConfirmPasswordEl?.value ?? "";
+
+  if (!current) {
+    setSettingsActionResult("Enter your current password.", "error");
+    return;
+  }
+  if (newPass.length < 8) {
+    setSettingsActionResult("New password must be at least 8 characters.", "error");
+    return;
+  }
+  if (newPass !== confirm) {
+    setSettingsActionResult("New passwords do not match.", "error");
+    return;
+  }
+
+  if (settingsChangePasswordBtn) settingsChangePasswordBtn.disabled = true;
+  try {
+    await postJson("/api/auth/change-password", { currentPassword: current, newPassword: newPass });
+    setSettingsActionResult("Password updated successfully.", "ok");
+    if (settingsCurrentPasswordEl) settingsCurrentPasswordEl.value = "";
+    if (settingsNewPasswordEl) settingsNewPasswordEl.value = "";
+    if (settingsConfirmPasswordEl) settingsConfirmPasswordEl.value = "";
+  } catch (err) {
+    setSettingsActionResult(`Password change failed: ${parseErrorMessage(err)}`, "error");
+  } finally {
+    if (settingsChangePasswordBtn) settingsChangePasswordBtn.disabled = false;
   }
 }
 
@@ -4339,6 +4409,9 @@ if (settingsRefreshBtn instanceof HTMLButtonElement) {
 }
 if (settingsClearHistoryBtn instanceof HTMLButtonElement) {
   settingsClearHistoryBtn.addEventListener("click", () => clearTraceHistory());
+}
+if (settingsChangePasswordBtn instanceof HTMLButtonElement) {
+  settingsChangePasswordBtn.addEventListener("click", () => changePassword());
 }
 
 window.addEventListener("keydown", (event) => {

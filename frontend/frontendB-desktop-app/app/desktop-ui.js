@@ -219,4 +219,29 @@
   window.addEventListener("beforeunload", () => {
     clearInterval(pollTimer);
   });
+
+  // Update notification
+  const updateBanner = document.getElementById("updateBanner");
+  const updateVersion = document.getElementById("updateVersion");
+  const updateBtn = document.getElementById("updateBtn");
+
+  if (api?.onUpdateAvailable) {
+    api.onUpdateAvailable((info) => {
+      if (updateBanner) updateBanner.style.display = "block";
+      if (updateVersion) updateVersion.textContent = `Version ${info.version} is ready.`;
+    });
+  }
+
+  if (updateBtn && api?.downloadUpdate) {
+    updateBtn.addEventListener("click", async () => {
+      updateBtn.disabled = true;
+      updateBtn.textContent = "Installing...";
+      const result = await api.downloadUpdate();
+      if (!result?.ok) {
+        updateBtn.disabled = false;
+        updateBtn.textContent = "Install & Restart";
+        runtimeLogs.textContent = `Update failed: ${result?.error ?? "unknown"}`;
+      }
+    });
+  }
 })();

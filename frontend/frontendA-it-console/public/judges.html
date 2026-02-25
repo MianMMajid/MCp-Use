@@ -690,6 +690,24 @@
               <pre id="settingsRuntimeStatus" class="json-panel">{}</pre>
             </div>
             <div class="settings-section">
+              <h3 class="marketplace-section-title">Change Password</h3>
+              <div class="marketplace-controls" style="flex-direction: column; align-items: stretch;">
+                <div class="marketplace-field">
+                  <label for="settingsCurrentPassword">Current Password</label>
+                  <input id="settingsCurrentPassword" type="password" autocomplete="current-password" />
+                </div>
+                <div class="marketplace-field">
+                  <label for="settingsNewPassword">New Password</label>
+                  <input id="settingsNewPassword" type="password" autocomplete="new-password" placeholder="Min 8 characters" />
+                </div>
+                <div class="marketplace-field">
+                  <label for="settingsConfirmPassword">Confirm New Password</label>
+                  <input id="settingsConfirmPassword" type="password" autocomplete="new-password" />
+                </div>
+                <button id="settingsChangePasswordBtn" class="demo-btn primary" type="button">Update Password</button>
+              </div>
+            </div>
+            <div class="settings-section">
               <h3 class="marketplace-section-title">Actions</h3>
               <div class="settings-actions">
                 <button id="settingsRefreshBtn" class="demo-btn" type="button">Refresh Status</button>
@@ -846,6 +864,8 @@
         <p id="nodeModalStatus" class="modal-status" aria-live="polite">Tip: click any node in Action Tree to open this panel.</p>
       </div>
     </div>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js" crossorigin="anonymous"></script>
     <script src="/judges-auth.js"></script>

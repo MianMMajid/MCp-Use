@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("node:path");
-const { app, BrowserWindow, Menu, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, shell } = require("electron");
 let createRuntimeController;
 let bridgeAvailable = true;
 let bridgeError = "";
@@ -18,6 +18,15 @@ try {
     getLogs: async () => [],
   });
 }
+
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require("electron-updater"));
+} catch {
+  // electron-updater not available — skip auto-update
+}
+
+let tray = null;
 
 const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
 const runtimeController = createRuntimeController();
@@ -124,6 +133,68 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
   createMainWindow();
+
+  // Auto-update check
+  if (autoUpdater) {
+    autoUpdater.autoDownload = false;
+    autoUpdater.on("update-available", (info) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send("desktop:update-available", {
+          version: info.version,
+          releaseDate: info.releaseDate,
+        });
+      }
+    });
+    autoUpdater.checkForUpdates().catch(() => {});
+  }
+
+  ipcMain.handle("desktop:download-update", async () => {
+    if (!autoUpdater) return { ok: false, error: "Auto-updater not available" };
+    try {
+      await autoUpdater.downloadUpdate();
+      autoUpdater.quitAndInstall(false, true);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err.message ?? err) };
+    }
+  });
+
+  // System tray
+  const trayIcon = nativeImage.createFromDataURL(
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABjSURBVFhH7c0xDQAgDAXRDgJwgQtcIIJFsLB0adKlQ/5Lvp7dHBER3/a9PwjAAAYwgAEMYAADGMAABjCAAQxgAAMYwAAGMIABDGAAAxjAAAYwgAEMYAADGMAABjDg57J9ASf5DG/T2CVZAAAAASUVORK5CYII="
+  );
+  tray = new Tray(trayIcon);
+  tray.setToolTip("Maple Desktop");
+
+  function updateTrayMenu(statusLabel) {
+    const contextMenu = Menu.buildFromTemplate([
+      { label: `Status: ${statusLabel}`, enabled: false },
+      { type: "separator" },
+      { label: "Show Window", click: () => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win) { win.show(); win.focus(); }
+      }},
+      { label: "Start Runtime", click: () => runtimeController.start().catch(() => {}) },
+      { label: "Stop Runtime", click: () => runtimeController.stop().catch(() => {}) },
+      { type: "separator" },
+      { label: "Quit", click: () => app.quit() },
+    ]);
+    tray.setContextMenu(contextMenu);
+  }
+  updateTrayMenu("Checking...");
+
+  // Periodic tray status update
+  setInterval(async () => {
+    try {
+      const status = await runtimeController.getStatus();
+      const label = status.running && status.healthy ? "Running" : status.running ? "Starting..." : "Stopped";
+      updateTrayMenu(label);
+      tray.setToolTip(`Maple Desktop — ${label}`);
+    } catch {
+      updateTrayMenu("Unknown");
+    }
+  }, 10000);
 
   if (String(process.env.MAPLE_DESKTOP_AUTOSTART_RUNTIME ?? "0") === "1") {
     runtimeController.start().catch((err) => console.error("[desktop] autostart failed:", err));

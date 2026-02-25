@@ -215,6 +215,11 @@
         <strong>Runtime bridge not installed.</strong> Run <code>npm run sync:bridge</code> to enable native runtime control.
       </div>
 
+      <div id="updateBanner" class="fallback" style="display: none; border-color: rgba(94, 234, 212, 0.45); color: var(--accent); background: rgba(0, 50, 40, 0.35);">
+        <strong>Update available!</strong> <span id="updateVersion"></span>
+        <button type="button" id="updateBtn" style="margin-left: 8px; padding: 4px 10px; font-size: 0.8rem;">Install &amp; Restart</button>
+      </div>
+
       <div id="fallbackBox" class="fallback" style="display: none;">
         Electron bridge is not available in browser shell mode. Use
         <code>npm run desktop:dev</code> for full native behavior.

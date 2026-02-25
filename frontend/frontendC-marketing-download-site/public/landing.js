@@ -267,4 +267,57 @@
       }
     });
   }
+
+  // --- Forgot Password ---
+  const forgotLink = document.getElementById("forgotPasswordLink");
+  const forgotPane = document.getElementById("forgotPasswordPane");
+  const forgotForm = document.getElementById("forgotPasswordForm");
+  const forgotEmail = document.getElementById("forgotEmail");
+  const forgotError = document.getElementById("forgotPasswordError");
+  const forgotBackLink = document.getElementById("forgotBackLink");
+
+  if (forgotLink) {
+    forgotLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (signinPane) signinPane.classList.add("hidden");
+      if (signupPane) signupPane.classList.add("hidden");
+      if (forgotPane) forgotPane.classList.remove("hidden");
+      const tabs = document.querySelector(".auth-tabs");
+      if (tabs) tabs.classList.add("hidden");
+    });
+  }
+
+  if (forgotBackLink) {
+    forgotBackLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (forgotPane) forgotPane.classList.add("hidden");
+      if (signinPane) signinPane.classList.remove("hidden");
+      const tabs = document.querySelector(".auth-tabs");
+      if (tabs) tabs.classList.remove("hidden");
+      switchTab("signin");
+    });
+  }
+
+  if (forgotForm instanceof HTMLFormElement && forgotEmail instanceof HTMLInputElement) {
+    forgotForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (forgotError) forgotError.textContent = "";
+      const email = forgotEmail.value.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (forgotError) forgotError.textContent = "Enter a valid email address.";
+        forgotEmail.focus();
+        return;
+      }
+      const btn = forgotForm.querySelector("button[type=submit]");
+      if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
+      // Placeholder: backend does not have a reset endpoint yet
+      setTimeout(() => {
+        if (forgotError) {
+          forgotError.style.color = "var(--accent)";
+          forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
+        }
+        if (btn) { btn.disabled = false; btn.textContent = "Send Reset Link"; }
+      }, 1500);
+    });
+  }
 })();

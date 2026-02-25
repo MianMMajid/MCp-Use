@@ -13,4 +13,6 @@ contextBridge.exposeInMainWorld("mapleDesktop", {
     if (typeof url !== "string") throw new Error("URL must be a string");
     return ipcRenderer.invoke("desktop:open-external", url);
   },
+  downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
+  onUpdateAvailable: (callback) => ipcRenderer.on("desktop:update-available", (_event, info) => callback(info)),
 });
