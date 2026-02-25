@@ -93,8 +93,9 @@ export async function evaluateFirewallStepViaGrpc(candidateStep) {
 }
 export async function generateViaGrpc(messages, systemPrompt, requestContext) {
     const clients = getGrpcClients();
-    if (!clients?.contextWall)
-        return null;
+    if (!clients?.contextWall) {
+        throw new Error("Context-wall unavailable for chat orchestration.");
+    }
     try {
         const authContext = authContextStorage.getStore();
         const requestLogContext = requestContextStorage.getStore();
@@ -137,10 +138,11 @@ export async function generateViaGrpc(messages, systemPrompt, requestContext) {
         if (response?.reply) {
             return { content: response.reply, model: response.model ?? "unknown" };
         }
+        throw new Error("Context-wall orchestrateChat returned no reply.");
     }
     catch (err) {
-        mapleLog("warn", "grpc_orchestrate_chat_fallback", { error: errorMessage(err) });
+        mapleLog("warn", "grpc_orchestrate_chat_failed", { error: errorMessage(err) });
+        throw err;
     }
-    return null;
 }
 //# sourceMappingURL=firewall-grpc.js.map

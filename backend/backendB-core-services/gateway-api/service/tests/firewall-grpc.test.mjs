@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluateFirewallStepViaGrpc } from "../src/core/firewall-grpc.js";
+import { evaluateFirewallStepViaGrpc, generateViaGrpc } from "../src/core/firewall-grpc.js";
 import { setGrpcClients } from "../src/state.js";
 
 function sampleStep() {
@@ -73,4 +73,36 @@ test("evaluateFirewallStepViaGrpc returns context-wall policy decision when avai
   assert.equal(decision.rule, "allow-safe");
   assert.equal(decision.evaluatedAt, now);
   assert.equal(decision.message, "Allowed by policy");
+});
+
+test("generateViaGrpc throws when context-wall client is unavailable", async () => {
+  setGrpcClients(undefined);
+
+  await assert.rejects(
+    generateViaGrpc([{ role: "user", content: "hello" }], "system", {
+      tenantId: "tenant",
+      userId: "user",
+      deviceId: "device",
+    }),
+    /Context-wall unavailable/
+  );
+});
+
+test("generateViaGrpc throws when context-wall orchestration errors", async () => {
+  const failingContextWall = {
+    orchestrateChat(_request, callback) {
+      callback(new Error("orchestration failed"));
+    },
+  };
+
+  setGrpcClients({ contextWall: failingContextWall });
+
+  await assert.rejects(
+    generateViaGrpc([{ role: "user", content: "hello" }], "system", {
+      tenantId: "tenant",
+      userId: "user",
+      deviceId: "device",
+    }),
+    /orchestration failed/
+  );
 });

@@ -91,6 +91,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     "MAPLE_GRPC_TLS_KEY",
     "MAPLE_GRPC_TLS_CA",
     "MAPLE_ALLOW_NO_AUTH",
+    "MAPLE_ALLOW_DEGRADED_PERSISTENCE",
     "MAPLE_DISABLE_HITL_BROKER",
     "MAPLE_SKIP_AUTH_BOOTSTRAP",
     "PGCONNECT_TIMEOUT",
@@ -112,6 +113,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   process.env.MAPLE_GRPC_TLS_KEY = resolve(certDir, "tls.key");
   process.env.MAPLE_GRPC_TLS_CA = resolve(certDir, "ca.crt");
   process.env.MAPLE_ALLOW_NO_AUTH = "true";
+  process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE = "1";
   process.env.MAPLE_DISABLE_HITL_BROKER = "1";
   process.env.MAPLE_SKIP_AUTH_BOOTSTRAP = "1";
   process.env.PGCONNECT_TIMEOUT = "1";

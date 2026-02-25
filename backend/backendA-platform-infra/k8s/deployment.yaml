@@ -500,15 +500,9 @@ spec:
           ports:
             - name: grpc
               containerPort: 8080
-            - name: http-proxy
-              containerPort: 8888
           env:
             - name: CYBER_PROXY_PORT
               value: "8080"
-            - name: CYBER_HTTP_CONNECT_ENABLED
-              value: "1"
-            - name: CYBER_HTTP_PROXY_PORT
-              value: "8888"
             - name: AUDIT_WRITER_ADDRESS
               value: audit-writer.maple.svc.cluster.local:9400
             - name: MAPLE_GRPC_TLS_CERT
@@ -584,12 +578,6 @@ spec:
               value: /etc/maple/tls/tls.key
             - name: MAPLE_GRPC_TLS_CA
               value: /etc/maple/tls/ca.crt
-            - name: HTTP_PROXY
-              value: http://cyber-proxy.maple.svc.cluster.local:8888
-            - name: HTTPS_PROXY
-              value: http://cyber-proxy.maple.svc.cluster.local:8888
-            - name: NO_PROXY
-              value: localhost,127.0.0.1,.svc.cluster.local
           envFrom:
             - configMapRef:
                 name: maple-config

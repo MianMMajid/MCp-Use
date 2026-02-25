@@ -73,8 +73,7 @@ run_service "mcp-proxy" "19200" \
 
 run_service "cyber-proxy" "19300" \
   "${ROOT_DIR}/backend/backendB-core-services/cyber-proxy/service/src/main.js" \
-  "CYBER_PROXY_PORT=19300" \
-  "CYBER_HTTP_CONNECT_ENABLED=0"
+  "CYBER_PROXY_PORT=19300"
 
 run_service "tool-runner" "19400" \
   "${ROOT_DIR}/backend/backendB-core-services/tool-runner/service/src/main.js" \

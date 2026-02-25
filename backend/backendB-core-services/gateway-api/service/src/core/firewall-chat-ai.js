@@ -97,6 +97,18 @@ export async function generateFirewallChatReply(options) {
             attempts: [],
         };
     }
+    if (!isContextWallAvailable()) {
+        mapleLog("warn", "firewall.chat.unavailable", {
+            traceId: options.context.trace?.id ?? null,
+            reason: "context-wall unavailable",
+        });
+        return {
+            reply: "Chat orchestration is temporarily unavailable. Context-wall is unreachable.",
+            mode: "unavailable",
+            provider: null,
+            attempts: [{ provider: "context-wall", ok: false }],
+        };
+    }
     const history = normalizeFirewallChatHistory(options.messages, options.question);
     const attempts = [];
     // Route all LLM requests through context-wall orchestration via gRPC.
@@ -120,16 +132,22 @@ export async function generateFirewallChatReply(options) {
     }
     catch (err) {
         mapleLog("warn", "firewall.chat.grpc_failed", { error: errorMessage(err) });
+        return {
+            reply: "Chat orchestration is temporarily unavailable. Please retry once context services are healthy.",
+            mode: "unavailable",
+            provider: null,
+            attempts: [{ provider: "context-wall", ok: false }],
+        };
     }
-    // Model-router unavailable — fall back to rules-based reply (no direct API calls)
-    mapleLog("info", "firewall.chat.rules_fallback", {
+    mapleLog("warn", "firewall.chat.unavailable", {
         traceId: options.context.trace?.id ?? null,
+        reason: "orchestrate_chat_empty",
     });
     return {
-        reply: fallbackReply,
-        mode: "rules",
+        reply: "Chat orchestration is temporarily unavailable. Please retry shortly.",
+        mode: "unavailable",
         provider: null,
-        attempts,
+        attempts: [...attempts, { provider: "context-wall", ok: false }],
     };
 }
 //# sourceMappingURL=firewall-chat-ai.js.map

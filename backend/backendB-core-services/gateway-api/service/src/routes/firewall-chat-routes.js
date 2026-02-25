@@ -49,8 +49,9 @@ export function registerFirewallChatRoutes() {
             messages: [{ role: "user", content: message }],
             requestContext,
         });
+        const orchestrationUnavailable = chatResult.mode === "unavailable";
         return c.json({
-            ok: true,
+            ok: !orchestrationUnavailable,
             message,
             reply: chatResult.reply,
             mode: chatResult.mode,
@@ -59,14 +60,14 @@ export function registerFirewallChatRoutes() {
             traceId: context.trace?.id ?? null,
             generatedAt: new Date().toISOString(),
             ...(includeContext ? { context } : {}),
-        });
+        }, orchestrationUnavailable ? 503 : 200);
     });
     // ── Chat capabilities + streaming bridge ──────────────────────────────────
     server.get("/api/chat/capabilities", async (c) => {
         const contextWallReady = isContextWallAvailable();
         return c.json({
             aiEnabled: contextWallReady,
-            mode: contextWallReady ? "model-router" : "rules",
+            mode: contextWallReady ? "model-router" : "unavailable",
             primaryProvider: firewallChatPrimaryProvider,
             contextWallAvailable: contextWallReady,
             modelRouterAvailable: contextWallReady,
@@ -99,6 +100,15 @@ export function registerFirewallChatRoutes() {
             messages: normalizedHistory,
             requestContext,
         });
+        if (chatResult.mode === "unavailable") {
+            return c.json({
+                ok: false,
+                error: chatResult.reply,
+                mode: chatResult.mode,
+                provider: chatResult.provider,
+                attempts: chatResult.attempts,
+            }, 503);
+        }
         const reply = chatResult.reply;
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
