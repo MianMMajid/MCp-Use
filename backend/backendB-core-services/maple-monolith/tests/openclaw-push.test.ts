@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { startObservation, stepFromBridgeEvent } from "../src/bridge/openclaw-bridge.ts";
+import { startObservation, stepFromBridgeEvent } from "../src/bridge/openclaw-bridge.js";
 
 test("startObservation source=openclaw returns push-ready empty trace", async () => {
   const trace = await startObservation({

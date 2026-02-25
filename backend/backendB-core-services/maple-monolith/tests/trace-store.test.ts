@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TraceStore } from "../src/core/trace-store.ts";
-import type { Trace } from "../src/core/types.ts";
+import { TraceStore } from "../src/core/trace-store.js";
+import type { Trace } from "../src/core/types.js";
 
 function createBaseTrace(sessionId: string): Omit<Trace, "id" | "startedAt" | "updatedAt"> {
   return {

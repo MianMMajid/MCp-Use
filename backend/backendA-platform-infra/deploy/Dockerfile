@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install build dependencies for native modules (better-sqlite3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
+    python3 make g++ git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ALL deps (including devDependencies needed for build)
@@ -24,7 +24,7 @@ WORKDIR /app
 
 # Runtime native deps for better-sqlite3
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
+    python3 make g++ git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy runtime dependencies and source from build stage
@@ -41,7 +41,7 @@ RUN mkdir -p /app/backend/backendB-core-services/maple-monolith/data
 
 # Railway injects PORT automatically
 ENV NODE_ENV=production
-ENV MAPLE_ALLOW_NO_AUTH=true
+ENV MAPLE_ALLOW_NO_AUTH=false
 ENV HOST=0.0.0.0
 ENV HACKATHON_TOOLHUB_HOST=127.0.0.1
 ENV MAPLE_DB_PATH=/app/backend/backendB-core-services/maple-monolith/data/maple.db

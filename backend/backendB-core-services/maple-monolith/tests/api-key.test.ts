@@ -4,7 +4,7 @@ import {
   extractApiKeyFromHeaders,
   loadApiKeysFromEnv,
   verifyApiKey,
-} from "../src/security/api-key.ts";
+} from "../src/security/api-key.js";
 
 test("loadApiKeysFromEnv loads and deduplicates keys", () => {
   const keys = loadApiKeysFromEnv({

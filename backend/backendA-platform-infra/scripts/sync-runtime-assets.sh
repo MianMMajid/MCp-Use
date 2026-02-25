@@ -8,6 +8,7 @@ BACKEND_RUNTIME_DIR="${ROOT_DIR}/backend/backendB-core-services/maple-monolith"
 PUBLIC_DST="${BACKEND_RUNTIME_DIR}/public"
 RESOURCES_DST="${BACKEND_RUNTIME_DIR}/resources"
 ROOT_NODE_MODULES="${ROOT_DIR}/node_modules"
+PROTO_GENERATOR="${ROOT_DIR}/backend/backendA-platform-infra/scripts/generate-contract-protos.mjs"
 
 FRONTEND_A_PUBLIC="${ROOT_DIR}/frontend/frontendA-it-console/public"
 FRONTEND_C_PUBLIC="${ROOT_DIR}/frontend/frontendC-marketing-download-site/public"
@@ -36,6 +37,11 @@ fi
 
 touch "${PUBLIC_DST}/.gitkeep" "${RESOURCES_DST}/.gitkeep"
 
+if [ -f "${PROTO_GENERATOR}" ]; then
+  node "${PROTO_GENERATOR}" >/dev/null
+fi
+
 echo "Synced frontend shells to backend runtime assets:"
 echo "  ${PUBLIC_DST}    <- frontendA + frontendC"
 echo "  ${RESOURCES_DST} <- frontendD"
+echo "  backend/proto + backend/backendB-core-services/*/proto <- generated from maple-proto-ts stubs"

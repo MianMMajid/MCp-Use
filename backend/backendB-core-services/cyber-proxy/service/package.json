@@ -1,0 +1,10 @@
+{
+  "name": "@maple/cyber-proxy-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../../../backend/backendA-platform-infra/scripts/build-service.mjs backend/backendB-core-services/cyber-proxy/service",
+    "typecheck": "node ../../../../backend/backendA-platform-infra/scripts/check-service-sources.mjs cyber-proxy",
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}

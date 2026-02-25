@@ -1,0 +1,492 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-default-deny
+  namespace: maple
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - gateway-api
+          - context-wall
+          - model-router
+          - mcp-proxy
+          - cyber-proxy
+          - tool-runner
+          - secrets-broker
+          - audit-writer
+          - admin-console-api
+          - postgres
+          - openclaw-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-allow-dns-egress
+  namespace: maple
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - gateway-api
+          - context-wall
+          - model-router
+          - mcp-proxy
+          - cyber-proxy
+          - tool-runner
+          - secrets-broker
+          - audit-writer
+          - admin-console-api
+          - openclaw-gateway
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-api-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 8787
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: context-wall
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mcp-proxy
+      ports:
+        - protocol: TCP
+          port: 9200
+    - to:
+        - podSelector:
+            matchLabels:
+              app: secrets-broker
+      ports:
+        - protocol: TCP
+          port: 9300
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: openclaw-gateway
+      ports:
+        - protocol: TCP
+          port: 19001
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: context-wall-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: context-wall
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+        - podSelector:
+            matchLabels:
+              app: admin-console-api
+      ports:
+        - protocol: TCP
+          port: 9000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: model-router
+      ports:
+        - protocol: TCP
+          port: 9100
+    - to:
+        - podSelector:
+            matchLabels:
+              app: mcp-proxy
+      ports:
+        - protocol: TCP
+          port: 9200
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: model-router-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: model-router
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: context-wall
+      ports:
+        - protocol: TCP
+          port: 9100
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-proxy-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: mcp-proxy
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: context-wall
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+      ports:
+        - protocol: TCP
+          port: 9200
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: tool-runner
+      ports:
+        - protocol: TCP
+          port: 9250
+    - to:
+        - podSelector:
+            matchLabels:
+              app: secrets-broker
+      ports:
+        - protocol: TCP
+          port: 9300
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tool-runner-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: tool-runner
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mcp-proxy
+      ports:
+        - protocol: TCP
+          port: 9250
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: cyber-proxy
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cyber-proxy-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: cyber-proxy
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: tool-runner
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: secrets-broker-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: secrets-broker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mcp-proxy
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+      ports:
+        - protocol: TCP
+          port: 9300
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audit-writer-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: audit-writer
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - gateway-api
+                  - context-wall
+                  - model-router
+                  - mcp-proxy
+                  - cyber-proxy
+                  - tool-runner
+                  - secrets-broker
+                  - admin-console-api
+      ports:
+        - protocol: TCP
+          port: 9400
+        - protocol: TCP
+          port: 9401
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: admin-console-api-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: admin-console-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 9443
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: context-wall
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openclaw-gateway-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+      ports:
+        - protocol: TCP
+          port: 19001
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

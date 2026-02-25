@@ -93,13 +93,16 @@ Authoritative source folders:
 - `frontend/`
 
 Primary endpoints after `npm run dev`:
-- `http://localhost:3000` (gateway-api / judge / inspector / API)
+- `https://localhost:3000` (gateway-api / judge / inspector / API)
 - `http://localhost:3100` (frontendA-it-console)
 - `http://localhost:3200` (frontendB desktop web shell)
 - `http://localhost:3300` (frontendC-marketing-site)
 - `http://localhost:3400` (frontendD-mcp-widgets)
+- `https://localhost:4001` (admin-console-api)
 - `http://localhost:4010/health` (openclaw-bridge)
 - `ws://localhost:4011` (openclaw-gateway)
+
+Note: local K8s uses a generated self-signed cert (`npm run k8s:certs`), so browser/curl trust prompts are expected.
 
 Legacy direct monolith runtime:
 
@@ -142,6 +145,8 @@ Commands:
 
 ```bash
 npm run k8s:all
+# optional: regenerate local TLS cert bundle
+npm run k8s:certs
 ```
 
 Equivalent full default:
@@ -151,11 +156,12 @@ npm run dev
 ```
 
 Open:
-- `http://localhost:3000` (gateway-api)
+- `https://localhost:3000` (gateway-api)
 - `http://localhost:3100` (frontendA-it-console)
 - `http://localhost:3200` (frontendB desktop web shell)
 - `http://localhost:3300` (frontendC-marketing-site)
 - `http://localhost:3400` (frontendD-mcp-widgets)
+- `https://localhost:4001` (admin-console-api)
 - `http://localhost:4010/health` (openclaw-bridge)
 - `ws://localhost:4011` (openclaw-gateway)
 

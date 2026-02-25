@@ -8,6 +8,8 @@ MAPLE_PROJECT_PATH="${MAPLE_PROJECT_PATH:-${ROOT_DIR}/backend/backendB-core-serv
 
 # Keep runtime folders synced from collaboration frontend/backend shells.
 bash "${SCRIPT_DIR}/sync-runtime-assets.sh" >/dev/null
+# Keep service mesh dist artifacts generated from canonical service/src.
+node "${SCRIPT_DIR}/build-core-services.mjs" >/dev/null
 
 # Load local env overrides (if present) before deriving defaults.
 if [ -f "${ROOT_DIR}/.env" ]; then
@@ -93,7 +95,7 @@ export HOST="${HOST:-0.0.0.0}"
 export PORT="${MAPLE_PORT}"
 export MAPLE_ENABLE_JUDGE_UI=true
 export MAPLE_ENABLE_DEMO_ROUTES=true
-export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
+export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-false}"
 export MAPLE_LOCK_BRIDGE_TARGET=false
 export MAPLE_DB_PATH="${MAPLE_DB_PATH:-${MAPLE_PROJECT_PATH}/data/maple.db}"
 export MAPLE_MCP_MARKETPLACE_ENABLED=false

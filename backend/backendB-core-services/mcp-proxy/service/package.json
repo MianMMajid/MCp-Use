@@ -1,0 +1,10 @@
+{
+  "name": "@maple/mcp-proxy-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../../../backend/backendA-platform-infra/scripts/build-service.mjs backend/backendB-core-services/mcp-proxy/service",
+    "typecheck": "node ../../../../backend/backendA-platform-infra/scripts/check-service-sources.mjs mcp-proxy",
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}

@@ -1,6 +1,73 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: postgres
+  namespace: maple
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_DB
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            tcpSocket:
+              port: postgres
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: postgres
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: postgres-data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: gateway-api
   namespace: maple
   labels:
@@ -23,17 +90,53 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["bash", "backend/backendA-platform-infra/scripts/hackathon-start.sh"]
+          workingDir: /app/backend/backendB-core-services/maple-monolith
+          command: ["node", "/app/backend/backendB-core-services/gateway-api/service/src/main.js"]
           ports:
-            - name: http
+            - name: https
               containerPort: 3000
-            - name: toolhub
-              containerPort: 8788
           env:
-            - name: MAPLE_PROJECT_PATH
-              value: /app/backend/backendB-core-services/maple-monolith
+            - name: GATEWAY_PORT
+              value: "3000"
             - name: MAPLE_STATE_DIR
               value: /app/backend/backendB-core-services/maple-monolith/.mcp-use
+            - name: MAPLE_GATEWAY_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GATEWAY_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GATEWAY_TLS_CA
+              value: /etc/maple/tls/ca.crt
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+            - name: CONTEXT_WALL_ADDRESS
+              value: context-wall.maple.svc.cluster.local:9000
+            - name: MCP_PROXY_ADDRESS
+              value: mcp-proxy.maple.svc.cluster.local:9200
+            - name: SECRETS_BROKER_ADDRESS
+              value: secrets-broker.maple.svc.cluster.local:9300
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_DB
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.maple.svc.cluster.local:5432/$(POSTGRES_DB)
             - name: OPENCLAW_BRIDGE_URL
               value: http://127.0.0.1:8787
             - name: OPENCLAW_GATEWAY_WS_URL
@@ -46,17 +149,15 @@ spec:
             - secretRef:
                 name: maple-secrets
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: https
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           livenessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: https
             initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 3
@@ -68,8 +169,9 @@ spec:
             limits:
               memory: 2Gi
           volumeMounts:
-            - name: maple-data
-              mountPath: /app/backend/backendB-core-services/maple-monolith/data
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
         - name: openclaw-bridge
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
@@ -96,8 +198,9 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
-        - name: maple-data
-          emptyDir: {}
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -122,31 +225,44 @@ spec:
     spec:
       containers:
         - name: app
-          image: maple-local:dev
+          image: ghcr.io/openclaw/openclaw:latest
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command:
+            - node
+            - openclaw.mjs
+            - --dev
+            - gateway
+            - run
+            - --port
+            - "19001"
+            - --bind
+            - lan
+            - --allow-unconfigured
+            - --verbose
           ports:
             - name: ws
               containerPort: 19001
-          env:
-            - name: PORT
-              value: "19001"
-            - name: SERVICE_NAME
-              value: openclaw-gateway
-            - name: SERVICE_DESCRIPTION
-              value: OpenClaw gateway simulation shell service
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
           readinessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: ws
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: ws
+            initialDelaySeconds: 30
+            periodSeconds: 15
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 200m
+              memory: 512Mi
             limits:
-              memory: 256Mi
+              memory: 2Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -173,21 +289,37 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/context-wall/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9000
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: context-wall
-            - name: SERVICE_DESCRIPTION
-              value: Context policy/orchestration shell service
+            - name: CONTEXT_WALL_PORT
+              value: "9000"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: MODEL_ROUTER_ADDRESS
+              value: model-router.maple.svc.cluster.local:9100
+            - name: MCP_PROXY_ADDRESS
+              value: mcp-proxy.maple.svc.cluster.local:9200
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -196,6 +328,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -222,21 +358,33 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/model-router/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9100
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: model-router
-            - name: SERVICE_DESCRIPTION
-              value: Model routing shell service
+            - name: MODEL_ROUTER_PORT
+              value: "9100"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -245,6 +393,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -271,21 +423,41 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/mcp-proxy/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9200
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: mcp-proxy
-            - name: SERVICE_DESCRIPTION
-              value: MCP proxy shell service
+            - name: MCP_PROXY_PORT
+              value: "9200"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: CONTEXT_WALL_ADDRESS
+              value: context-wall.maple.svc.cluster.local:9000
+            - name: SECRETS_BROKER_ADDRESS
+              value: secrets-broker.maple.svc.cluster.local:9300
+            - name: TOOL_RUNNER_ADDRESS
+              value: tool-runner.maple.svc.cluster.local:9250
+            - name: CYBER_PROXY_ADDRESS
+              value: cyber-proxy.maple.svc.cluster.local:8080
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -294,6 +466,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -320,21 +496,39 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/cyber-proxy/service/src/main.js"]
           ports:
-            - name: http
+            - name: grpc
               containerPort: 8080
+            - name: http-proxy
+              containerPort: 8888
           env:
-            - name: PORT
+            - name: CYBER_PROXY_PORT
               value: "8080"
-            - name: SERVICE_NAME
-              value: cyber-proxy
-            - name: SERVICE_DESCRIPTION
-              value: Cyber proxy shell service
+            - name: CYBER_HTTP_CONNECT_ENABLED
+              value: "1"
+            - name: CYBER_HTTP_PROXY_PORT
+              value: "8888"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -343,6 +537,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -369,21 +567,41 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/tool-runner/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9250
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: tool-runner
-            - name: SERVICE_DESCRIPTION
-              value: Tool execution shell service
+            - name: TOOL_RUNNER_PORT
+              value: "9250"
+            - name: CYBER_PROXY_ADDRESS
+              value: cyber-proxy.maple.svc.cluster.local:8080
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+            - name: HTTP_PROXY
+              value: http://cyber-proxy.maple.svc.cluster.local:8888
+            - name: HTTPS_PROXY
+              value: http://cyber-proxy.maple.svc.cluster.local:8888
+            - name: NO_PROXY
+              value: localhost,127.0.0.1,.svc.cluster.local
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -392,6 +610,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -418,21 +640,52 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/audit-writer/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9400
+            - name: ingest
+              containerPort: 9401
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: audit-writer
-            - name: SERVICE_DESCRIPTION
-              value: Audit writer shell service
+            - name: AUDIT_WRITER_PORT
+              value: "9400"
+            - name: AUDIT_WRITER_HTTP_PORT
+              value: "9401"
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_DB
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.maple.svc.cluster.local:5432/$(POSTGRES_DB)
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -441,6 +694,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -467,21 +724,33 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/secrets-broker/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9300
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: secrets-broker
-            - name: SERVICE_DESCRIPTION
-              value: Secret minting shell service
+            - name: SECRETS_BROKER_PORT
+              value: "9300"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -490,6 +759,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -516,21 +789,41 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          command: ["node", "backend/backendB-core-services/admin-console-api/service/src/main.js"]
           ports:
-            - name: http
-              containerPort: 8080
+            - name: https
+              containerPort: 9443
           env:
-            - name: PORT
-              value: "8080"
-            - name: SERVICE_NAME
-              value: admin-console-api
-            - name: SERVICE_DESCRIPTION
-              value: Admin control plane shell service
+            - name: ADMIN_CONSOLE_PORT
+              value: "9443"
+            - name: AUDIT_WRITER_ADDRESS
+              value: audit-writer.maple.svc.cluster.local:9400
+            - name: CONTEXT_WALL_ADDRESS
+              value: context-wall.maple.svc.cluster.local:9000
+            - name: MAPLE_ADMIN_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_ADMIN_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_ADMIN_TLS_CA
+              value: /etc/maple/tls/ca.crt
+            - name: MAPLE_GRPC_TLS_CERT
+              value: /etc/maple/tls/tls.crt
+            - name: MAPLE_GRPC_TLS_KEY
+              value: /etc/maple/tls/tls.key
+            - name: MAPLE_GRPC_TLS_CA
+              value: /etc/maple/tls/ca.crt
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          volumeMounts:
+            - name: maple-tls
+              mountPath: /etc/maple/tls
+              readOnly: true
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
+            tcpSocket:
+              port: https
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -539,6 +832,10 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
+      volumes:
+        - name: maple-tls
+          secret:
+            secretName: maple-tls
 ---
 apiVersion: apps/v1
 kind: Deployment

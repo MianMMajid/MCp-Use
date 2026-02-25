@@ -31,7 +31,7 @@ export MCP_URL="${MCP_URL:-http://localhost:3000}"
 export NODE_ENV=development
 export MAPLE_ENABLE_JUDGE_UI=true
 export MAPLE_ENABLE_DEMO_ROUTES=true
-export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
+export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-false}"
 export MAPLE_LOCK_BRIDGE_TARGET=false
 
 echo "Starting Maple locally..."

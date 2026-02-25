@@ -1,29 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "jsx": "react-jsx",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowJs": true,
-    "strict": true,
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "./backend/backendB-core-services/maple-monolith/dist",
-    "sourceMap": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["backend/backendB-core-services/maple-monolith/src/*"]
+  "files": [],
+  "references": [
+    {
+      "path": "./backend/backendB-core-services/maple-monolith"
     }
-  },
-  "include": [
-    "backend/backendB-core-services/maple-monolith/index.ts",
-    "backend/backendB-core-services/maple-monolith/src/**/*",
-    "backend/backendB-core-services/maple-monolith/tests/**/*",
-    "backend/backendA-platform-infra/scripts/**/*"
-  ],
-  "exclude": ["node_modules", "dist"]
+  ]
 }
