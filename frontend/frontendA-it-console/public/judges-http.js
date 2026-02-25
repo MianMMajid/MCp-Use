@@ -1,16 +1,43 @@
 (function (global) {
   const auth = global.MapleAuth;
+  const FETCH_TIMEOUT_MS = 15000;
+  const RETRY_BACKOFFS = [1000, 3000];
 
   async function readJson(response) {
+    const text = await response.text();
+    if (!text) return {};
     try {
-      return await response.json();
-    } catch {
+      return JSON.parse(text);
+    } catch (err) {
+      console.warn("[maple-http] JSON parse failed for", response.url, err);
       return {};
     }
   }
 
+  async function fetchWithRetry(url, options, retries) {
+    const maxRetries = retries ?? (options?.method === "POST" ? 1 : 2);
+    let lastError;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timer);
+        return response;
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, RETRY_BACKOFFS[attempt] ?? 3000));
+        }
+      }
+    }
+    throw lastError;
+  }
+
   async function fetchJson(path) {
-    const response = await fetch(path, {
+    const response = await fetchWithRetry(path, {
       credentials: "include",
       headers: {
         ...(auth?.headersWithKey?.() ?? {}),
@@ -27,7 +54,7 @@
   }
 
   async function postJson(path, body) {
-    const response = await fetch(path, {
+    const response = await fetchWithRetry(path, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -35,7 +62,7 @@
         ...(auth?.headersWithKey?.() ?? {}),
       },
       body: JSON.stringify(body ?? {}),
-    });
+    }, 1);
 
     const payload = await readJson(response);
     if (!response.ok) {

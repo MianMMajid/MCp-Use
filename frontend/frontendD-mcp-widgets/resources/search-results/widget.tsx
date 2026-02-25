@@ -40,7 +40,7 @@ const SearchResultsWidget: React.FC = () => {
 
       <div className="cc-timeline" role="list">
         {props.results.map((item, i) => (
-          <article key={i} className="cc-timeline-item" role="listitem">
+          <article key={item.url ?? `result-${i}`} className="cc-timeline-item" role="listitem">
             <div className="cc-marker cc-risk-low" aria-hidden />
             <div className="cc-step-main">
               <div className="cc-step-row">
@@ -50,9 +50,9 @@ const SearchResultsWidget: React.FC = () => {
                 ) : null}
               </div>
               {item.url ? (
-                <p style={{ fontSize: "0.82rem", color: "var(--cc-accent)" }}>
+                <a href={item.url} target="_blank" rel="noopener noreferrer" className="cc-link">
                   {item.url}
-                </p>
+                </a>
               ) : null}
               {item.snippet ? <p>{item.snippet}</p> : null}
             </div>

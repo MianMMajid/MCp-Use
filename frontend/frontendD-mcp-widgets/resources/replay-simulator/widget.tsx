@@ -29,7 +29,7 @@ function rowTone(score: number) {
 const ReplaySimulatorWidget: React.FC = () => {
   const { props, isPending } = useWidget<ReplaySimulatorProps>();
 
-  if (isPending || !props.originalSteps) {
+  if (isPending || !props.originalSteps || !props.originalTraceId || !props.forkedTraceId) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -48,12 +48,12 @@ const ReplaySimulatorWidget: React.FC = () => {
             {props.forkedTraceId.slice(0, 8)}
           </h2>
           <p className="cc-meta">
-            {props.changedSteps.length} changed step(s), {props.addedSteps.length} appended step(s)
+            {(props.changedSteps ?? []).length} changed step(s), {(props.addedSteps ?? []).length} appended step(s)
           </p>
         </div>
         <div className="cc-summary-grid">
-          <span className="cc-chip cc-chip-muted">changed {props.changedSteps.length}</span>
-          <span className="cc-chip cc-chip-muted">added {props.addedSteps.length}</span>
+          <span className="cc-chip cc-chip-muted">changed {(props.changedSteps ?? []).length}</span>
+          <span className="cc-chip cc-chip-muted">added {(props.addedSteps ?? []).length}</span>
         </div>
       </header>
 
@@ -65,7 +65,7 @@ const ReplaySimulatorWidget: React.FC = () => {
           <ul className="cc-flags">
             {Object.entries(props.edits).map(([key, value]) => (
               <li key={key}>
-                {key}: {String(value)}
+                {key}: {JSON.stringify(value)}
               </li>
             ))}
           </ul>
@@ -91,7 +91,7 @@ const ReplaySimulatorWidget: React.FC = () => {
           {props.forkedSteps.map((step) => (
             <article
               key={`fork-${step.index}`}
-              className={`cc-step-mini ${props.changedSteps.includes(step.index) ? "cc-step-changed" : ""}`}
+              className={`cc-step-mini ${(props.changedSteps ?? []).includes(step.index) ? "cc-step-changed" : ""}`}
             >
               <div className="cc-step-row">
                 <strong>Step {step.index}</strong>

@@ -78,9 +78,9 @@ const TraceTimelineWidget: React.FC = () => {
                 <span className="cc-chip cc-chip-muted">guard {step.guardStatus}</span>
               </div>
               <p>{step.summary}</p>
-              {step.flags.length > 0 ? (
+              {step.flags?.length > 0 ? (
                 <ul className="cc-flags">
-                  {step.flags.slice(0, 3).map((flag) => (
+                  {(step.flags ?? []).slice(0, 3).map((flag) => (
                     <li key={flag.id}>
                       [{flag.severity}] {flag.message}
                     </li>

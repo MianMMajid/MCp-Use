@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Maple Desktop native runtime control panel." />
   <title>Maple Desktop</title>
   <style>
     :root {
@@ -79,6 +80,11 @@
 
     button.warn {
       background: #fca5a5;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     code, .mono {
@@ -182,7 +188,7 @@
 </head>
 <body>
   <main class="layout">
-    <section class="panel">
+    <section class="panel" aria-label="Runtime Control Panel">
       <h1>Maple Desktop Control</h1>
       <p class="sub">Native app runtime and packaging surface for <span class="mono">.exe/.dmg</span>.</p>
 
@@ -198,10 +204,11 @@
       </dl>
 
       <div class="row">
-        <button id="refreshBtn" class="secondary">Refresh</button>
-        <button id="startBtn">Start Runtime</button>
-        <button id="stopBtn" class="warn">Stop Runtime</button>
-        <button id="openGatewayBtn" class="secondary">Open Gateway</button>
+        <button type="button" id="refreshBtn" class="secondary">Refresh</button>
+        <button type="button" id="startBtn">Start Runtime</button>
+        <button type="button" id="restartBtn" class="secondary">Restart Runtime</button>
+        <button type="button" id="stopBtn" class="warn">Stop Runtime</button>
+        <button type="button" id="openGatewayBtn" class="secondary">Open Gateway</button>
       </div>
 
       <div id="fallbackBox" class="fallback" style="display: none;">
@@ -213,8 +220,8 @@
       <div id="runtimeLogs" class="logs">No logs yet.</div>
     </section>
 
-    <section class="workspace">
-      <iframe id="gatewayFrame" title="Maple Gateway"></iframe>
+    <section class="workspace" aria-label="Gateway Workspace">
+      <iframe id="gatewayFrame" title="Maple Gateway" sandbox="allow-scripts allow-forms allow-popups"></iframe>
     </section>
   </main>
 

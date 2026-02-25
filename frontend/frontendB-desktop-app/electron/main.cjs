@@ -2,7 +2,18 @@
 
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
-const { createRuntimeController } = require("../bridge-runtime/runtime-controller.cjs");
+let createRuntimeController;
+try {
+  ({ createRuntimeController } = require("../bridge-runtime/runtime-controller.cjs"));
+} catch (err) {
+  console.warn("[desktop] bridge-runtime unavailable, using stub:", err.message);
+  createRuntimeController = () => ({
+    getStatus: async () => ({ running: false, healthy: false, pid: null, mode: "external" }),
+    start: async () => ({ ok: false, error: "runtime controller not available" }),
+    stop: async () => ({ ok: true }),
+    getLogs: async () => [],
+  });
+}
 
 const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
 const runtimeController = createRuntimeController();
@@ -18,18 +29,26 @@ function createMainWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
   window.loadFile(path.join(__dirname, "..", "app", "index.html"));
+
+  window.webContents.on("will-navigate", (event, url) => { if (!url.startsWith("file://")) event.preventDefault(); });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 }
 
 function isAllowedExternalUrl(url) {
   if (typeof url !== "string") {
     return false;
   }
-  return /^https?:\/\//i.test(url.trim());
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "https:" || (parsed.protocol === "http:" && parsed.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
 }
 
 app.whenReady().then(() => {
@@ -44,9 +63,10 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:get-runtime-status", async () => runtimeController.getStatus());
   ipcMain.handle("desktop:start-runtime", async () => runtimeController.start());
   ipcMain.handle("desktop:stop-runtime", async () => runtimeController.stop());
-  ipcMain.handle("desktop:get-runtime-logs", async (_event, limit) =>
-    runtimeController.getLogs(limit)
-  );
+  ipcMain.handle("desktop:get-runtime-logs", async (_event, limit) => {
+    const safeLimit = typeof limit === "number" && limit > 0 ? Math.min(limit, 5000) : 120;
+    return runtimeController.getLogs(safeLimit);
+  });
   ipcMain.handle("desktop:open-external", async (_event, url) => {
     if (!isAllowedExternalUrl(url)) {
       throw new Error("Only http/https URLs are allowed");
@@ -58,9 +78,7 @@ app.whenReady().then(() => {
   createMainWindow();
 
   if (String(process.env.MAPLE_DESKTOP_AUTOSTART_RUNTIME ?? "0") === "1") {
-    runtimeController.start().catch(() => {
-      // keep app running even if managed runtime fails
-    });
+    runtimeController.start().catch((err) => console.error("[desktop] autostart failed:", err));
   }
 
   app.on("activate", () => {

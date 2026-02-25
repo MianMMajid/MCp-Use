@@ -90,7 +90,6 @@ const topologyEndpointApproveBtn = document.getElementById("topologyEndpointAppr
 const topologyEndpointCloseBtn = document.getElementById("topologyEndpointCloseBtn");
 
 // Admin panel DOM refs
-const marketplaceProviderSelect = document.getElementById("marketplaceProvider");
 const marketplaceSearchInput = document.getElementById("marketplaceSearch");
 const marketplaceSearchBtn = document.getElementById("marketplaceSearchBtn");
 const marketplaceResultsBody = document.getElementById("marketplaceResultsBody");
@@ -162,6 +161,13 @@ const metricEls = {
 
 const TRACE_POLL_MS = 1500;
 const METRICS_POLL_MS = 10000;
+const CHAT_STREAM_TIMEOUT_MS = 90000;
+const MAX_CHAT_BUBBLES = 80;
+const MAX_CHAT_HISTORY = 40;
+const CHAT_HISTORY_TRIM_TO = 30;
+const CHAT_HISTORY_CONTEXT_SIZE = 20;
+const TIMESTAMP_GAP_MS = 2 * 60 * 1000;
+const MAX_TOPOLOGY_ALLOW_ENTRIES = 200;
 const authModule = typeof window !== "undefined" ? window.MapleAuth : undefined;
 const httpModule = typeof window !== "undefined" ? window.MapleHttp : undefined;
 const API_KEY_STORAGE_KEY = authModule?.STORAGE_KEY ?? "maple_judge_api_key";
@@ -183,6 +189,7 @@ const state = {
   authenticated: false,
   runtimeStatus: null,
   marketplaceProviders: {},
+  marketplaceDisabled: false,
   marketplaceSearchResults: [],
   marketplaceConnectedApps: [],
   marketplaceTools: [],
@@ -378,10 +385,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function escapeXml(value) {
-  return escapeHtml(value);
 }
 
 function clamp(value, min, max) {
@@ -632,7 +635,7 @@ let edgeFlowOffset = 0;
 let edgeFlowRaf = null;
 
 function tickEdgeFlow() {
-  edgeFlowOffset = (edgeFlowOffset - 1) % 1000;
+  edgeFlowOffset = ((edgeFlowOffset - 1) % 1000 + 1000) % 1000;
   if (actionTreeGraph) {
     actionTreeGraph.edges().style('line-dash-offset', edgeFlowOffset);
   }
@@ -657,12 +660,22 @@ function stopEdgeFlow() {
 
 /* ── Graph resize handling ── */
 
+const activeResizeObservers = [];
+
 function setupGraphResizeObserver(containerEl, graphInstance) {
   if (!containerEl || !graphInstance) return;
   const ro = new ResizeObserver(() => {
     graphInstance.resize();
   });
   ro.observe(containerEl);
+  activeResizeObservers.push(ro);
+}
+
+function cleanupResizeObservers() {
+  for (const ro of activeResizeObservers) {
+    ro.disconnect();
+  }
+  activeResizeObservers.length = 0;
 }
 
 function storedTopologyAllows(traceId) {
@@ -683,6 +696,12 @@ function setTopologyAllow(traceId, target) {
   const entries = new Map(storedTopologyAllows(key));
   entries.set(normalizedTarget, new Date().toISOString());
   topologyAllowStore.set(key, entries);
+
+  // Cap store size to prevent unbounded growth
+  if (topologyAllowStore.size > MAX_TOPOLOGY_ALLOW_ENTRIES) {
+    const oldest = topologyAllowStore.keys().next().value;
+    if (oldest !== undefined) topologyAllowStore.delete(oldest);
+  }
 }
 
 function updateTopologyEndpointStatus(value = "observed") {
@@ -755,10 +774,13 @@ function refreshTopologyEndpointPopupAnchor() {
   closeTopologyEndpointPopup();
 }
 
+let _approveEndpointBusy = false;
 async function approveTopologyEndpointSelection() {
+  if (_approveEndpointBusy) return;
   if (!state.currentTrace?.id || !topologyEndpointState.target) {
     return;
   }
+  _approveEndpointBusy = true;
 
   const trace = state.currentTrace;
   const target = topologyEndpointState.target;
@@ -769,27 +791,31 @@ async function approveTopologyEndpointSelection() {
     return String(contact.target ?? "").trim().toLowerCase() === target.trim().toLowerCase();
   });
 
-  // Persist to backend if we have a matching step
-  if (matchingStep) {
-    try {
-      await postJson("/api/demo/guard", {
-        traceId: trace.id,
-        stepIndex: matchingStep.index,
-        action: "allow",
-        reason: `Endpoint approved via topology map: ${target}`,
-      });
-    } catch (error) {
-      setStatus(`Failed to persist endpoint approval: ${parseErrorMessage(error)}`, "error");
+  try {
+    // Persist to backend if we have a matching step
+    if (matchingStep) {
+      try {
+        await postJson("/api/demo/guard", {
+          traceId: trace.id,
+          stepIndex: matchingStep.index,
+          action: "allow",
+          reason: `Endpoint approved via topology map: ${target}`,
+        });
+      } catch (error) {
+        setStatus(`Failed to persist endpoint approval: ${parseErrorMessage(error)}`, "error");
+      }
     }
+
+    setTopologyAllow(trace.id, target);
+    updateTopologyEndpointStatus("allowed");
+    renderTopologyMap(trace, state.currentForkContext);
+    setStatus(`Approved endpoint ${target}.`, "ok");
+
+    // Refresh to pick up persisted guard action
+    refreshTracePanels({ silent: true }).catch((error) => handleRefreshError("refresh after approval", error, true));
+  } finally {
+    _approveEndpointBusy = false;
   }
-
-  setTopologyAllow(trace.id, target);
-  updateTopologyEndpointStatus("allowed");
-  renderTopologyMap(trace, state.currentForkContext);
-  setStatus(`Approved endpoint ${target}.`, "ok");
-
-  // Refresh to pick up persisted guard action
-  refreshTracePanels({ silent: true }).catch(() => {});
 }
 
 function updateMcpSnippet() {
@@ -812,15 +838,28 @@ function updateMcpSnippet() {
   ].join("\n");
 }
 
+const FALLBACK_FETCH_TIMEOUT_MS = 15000;
+
 async function fetchJson(path) {
   if (httpModule?.fetchJson) {
     return httpModule.fetchJson(path);
   }
-  const response = await fetch(path, {
-    headers: {
-      ...headersWithKey(),
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FALLBACK_FETCH_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(path, {
+      credentials: "include",
+      signal: controller.signal,
+      headers: {
+        ...headersWithKey(),
+      },
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    throw err.name === "AbortError" ? new Error("Request timed out") : err;
+  }
+  clearTimeout(timer);
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -835,14 +874,25 @@ async function postJson(path, body) {
   if (httpModule?.postJson) {
     return httpModule.postJson(path, body);
   }
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...headersWithKey(),
-    },
-    body: JSON.stringify(body ?? {}),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FALLBACK_FETCH_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        ...headersWithKey(),
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    throw err.name === "AbortError" ? new Error("Request timed out") : err;
+  }
+  clearTimeout(timer);
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -919,7 +969,7 @@ function maybeInsertTimestamp(now) {
   if (!(firewallChatLogEl instanceof HTMLElement)) return;
   if (lastMessageTimestamp) {
     const gap = now.getTime() - lastMessageTimestamp.getTime();
-    if (gap > 2 * 60 * 1000) {
+    if (gap > TIMESTAMP_GAP_MS) {
       const divider = document.createElement("div");
       divider.className = "chat-timestamp";
       divider.textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -964,7 +1014,7 @@ function appendFirewallChatMessage(role, text, options = {}) {
   bubble.innerHTML = body;
   firewallChatLogEl.appendChild(bubble);
 
-  while (firewallChatLogEl.children.length > 80) {
+  while (firewallChatLogEl.children.length > MAX_CHAT_BUBBLES) {
     firewallChatLogEl.removeChild(firewallChatLogEl.firstElementChild);
   }
 
@@ -999,7 +1049,9 @@ function updateStreamingBubble(el, content) {
 function finalizeStreamingBubble(el, content) {
   if (!el) return;
   el.classList.remove("streaming");
+  el.classList.add("stream-done");
   el.innerHTML = escapeHtml(content).replaceAll("\n", "<br>");
+  setTimeout(() => el.classList.remove("stream-done"), 600);
 }
 
 function updateChatModeBadge() {
@@ -1073,6 +1125,8 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
 
   setFirewallChatBusy(true);
   let streamingEl = null;
+  const streamController = new AbortController();
+  const streamTimeout = setTimeout(() => streamController.abort(), CHAT_STREAM_TIMEOUT_MS);
   try {
     const traceId = currentTraceId();
     const sessionId =
@@ -1082,18 +1136,21 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
 
     const response = await fetch("/api/chat/stream", {
       method: "POST",
+      credentials: "include",
+      signal: streamController.signal,
       headers: {
         "Content-Type": "application/json",
         ...headersWithKey(),
       },
       body: JSON.stringify({
-        messages: chatHistory.slice(-20),
+        messages: chatHistory.slice(-CHAT_HISTORY_CONTEXT_SIZE),
         traceId: traceId || undefined,
         sessionId,
       }),
     });
 
     if (!response.ok) throw new Error(`Chat failed: ${response.status}`);
+    if (!response.body) throw new Error("Chat response has no readable body");
 
     streamingEl = createStreamingBubble();
     let fullContent = "";
@@ -1137,13 +1194,15 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
       streamingEl = null;
     }
 
-    if (chatHistory.length > 40) {
-      chatHistory = chatHistory.slice(-30);
+    if (chatHistory.length > MAX_CHAT_HISTORY) {
+      chatHistory = chatHistory.slice(-CHAT_HISTORY_TRIM_TO);
     }
   } catch (error) {
     if (streamingEl && streamingEl.parentNode) streamingEl.parentNode.removeChild(streamingEl);
-    appendFirewallChatMessage("assistant", `Chat error: ${parseErrorMessage(error)}`, { error: true });
+    const msg = streamController.signal.aborted ? "Chat request timed out." : parseErrorMessage(error);
+    appendFirewallChatMessage("assistant", `Chat error: ${msg}`, { error: true });
   } finally {
+    clearTimeout(streamTimeout);
     setFirewallChatBusy(false);
   }
 }
@@ -1300,6 +1359,8 @@ function openContextPanel(category, subView) {
       const btn = document.createElement("button");
       btn.className = `context-sub-tab${v === targetView ? " is-active" : ""}`;
       btn.type = "button";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", String(v === targetView));
       btn.dataset.subView = v;
       btn.textContent = VIEW_LABELS[v] || v;
       contextSubTabsEl.appendChild(btn);
@@ -1354,11 +1415,13 @@ function closeContextPanel() {
     contextPanelEl.setAttribute("aria-hidden", "true");
 
     // Return panels to storage after transition (only if still closed)
-    contextPanelEl.addEventListener("transitionend", () => {
+    // Use setTimeout as a reliable fallback — avoids transitionend listener leak
+    // when transitions are interrupted by rapid toggle
+    setTimeout(() => {
       if (!state.contextPanelOpen) {
         returnAllPanelsToStorage();
       }
-    }, { once: true });
+    }, 350);
   }
 
   // Restore chat + disconnect navbar
@@ -1548,7 +1611,7 @@ function restoreNavState() {
   // Handle legacy single-view hashes
   const mappedView =
     hash === "operations" ? "live"
-    : hash === "explorer" ? "evidence"
+    : hash === "explorer" ? "control"
     : hash === "replay" ? "guard"
     : hash === "chat" ? null
     : hash;
@@ -1562,21 +1625,6 @@ function restoreNavState() {
 }
 
 // Legacy wrapper
-function setView(nextView) {
-  if (!nextView) return;
-  const mappedView =
-    nextView === "operations" ? "live"
-    : nextView === "explorer" ? "evidence"
-    : nextView === "replay" ? "guard"
-    : nextView;
-
-  const category = VIEW_TO_CATEGORY[mappedView];
-  if (category) {
-    toggleCategory(category);
-    setSubView(mappedView);
-  }
-}
-
 function setFocus(nextFocus) {
   state.activeFocus = nextFocus;
   for (const button of focusButtons) {
@@ -1589,22 +1637,28 @@ function setFocus(nextFocus) {
 }
 
 function renderSessionStrip(trace) {
-  const lastStep = trace.steps[trace.steps.length - 1];
+  if (!sessionTraceIdEl || !sourceBadgeEl) return;
+  const steps = Array.isArray(trace.steps) ? trace.steps : [];
+  const lastStep = steps[steps.length - 1];
   const overallRiskScore = Number(
     trace.metadata?.overallRiskScore ??
-      Math.max(0, ...trace.steps.map((step) => Number(step.riskScore ?? 0)))
+      (steps.length ? Math.max(0, ...steps.map((step) => Number(step.riskScore ?? 0))) : 0)
   );
 
   sessionTraceIdEl.textContent = trace.id;
-  sessionSessionIdEl.textContent = trace.sessionId;
-  sessionLastEventEl.textContent = formatTimestamp(lastStep?.timestamp ?? trace.updatedAt);
-  sessionRiskBadgeEl.className = `risk-badge ${riskClass(overallRiskScore)}`;
-  sessionRiskBadgeEl.textContent = `${overallRiskScore} (${riskLevel(overallRiskScore)})`;
+  if (sessionSessionIdEl) sessionSessionIdEl.textContent = trace.sessionId;
+  if (sessionLastEventEl) sessionLastEventEl.textContent = formatTimestamp(lastStep?.timestamp ?? trace.updatedAt);
+  if (sessionRiskBadgeEl) {
+    sessionRiskBadgeEl.className = `risk-badge ${riskClass(overallRiskScore)}`;
+    sessionRiskBadgeEl.textContent = `${overallRiskScore} (${riskLevel(overallRiskScore)})`;
+  }
 
   sourceBadgeEl.className = `source-badge source-${trace.source}`;
   sourceBadgeEl.textContent = `source=${trace.source}`;
-  sourceHintEl.textContent = sourceHint(trace);
-  sourceHintEl.classList.toggle("mock", trace.source === "mock");
+  if (sourceHintEl) {
+    sourceHintEl.textContent = sourceHint(trace);
+    sourceHintEl.classList.toggle("mock", trace.source === "mock");
+  }
 }
 
 function rowRiskClass(step) {
@@ -1773,7 +1827,7 @@ function initActionTreeGraph() {
     setupGraphResizeObserver(actionTreeCanvasEl, actionTreeGraph);
     startEdgeFlow();
   } catch (err) {
-    console.error("Failed to initialize action tree graph:", err);
+    setStatus("Action tree graph failed to initialize.", "error");
     actionTreeGraph = null;
     actionTreeCanvasEl.innerHTML = '<div class="action-tree-empty"><p>Graph failed to initialize.</p></div>';
   }
@@ -1829,12 +1883,13 @@ function renderActionTree(trace, forkContext = null) {
 }
 
 function collectGuardActions(trace) {
-  return trace.steps
+  const steps = Array.isArray(trace?.steps) ? trace.steps : [];
+  return steps
     .map((step) => {
       const reason =
         typeof step.metadata?.guardReason === "string" ? step.metadata.guardReason : "No reason provided.";
       const updatedAt =
-        typeof step.metadata?.guardUpdatedAt === "string" ? step.metadata.guardUpdatedAt : step.timestamp;
+        typeof step.metadata?.guardUpdatedAt === "string" ? step.metadata.guardUpdatedAt : (step.timestamp ?? "");
       const isAction = step.guardStatus !== "pending" || Boolean(step.metadata?.guardUpdatedAt);
 
       return {
@@ -1846,7 +1901,7 @@ function collectGuardActions(trace) {
       };
     })
     .filter((entry) => entry.isAction)
-    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    .sort((a, b) => (a.updatedAt ?? "").localeCompare(b.updatedAt ?? ""));
 }
 
 function resetLiveActionStrip() {
@@ -1989,10 +2044,6 @@ function topologyContactForStep(step) {
   return { target: "", surface: "internal" };
 }
 
-function topologyTargetForStep(step) {
-  return topologyContactForStep(step).target;
-}
-
 function humanizeTargetToken(value) {
   const normalized = String(value ?? "")
     .replace(/^tool:/i, "")
@@ -2122,14 +2173,6 @@ function buildTopologySurfaceState(trace, limit = 10) {
     .slice(0, Math.max(1, limit));
 }
 
-function isFreshBlock(blockedAt) {
-  const timestamp = new Date(String(blockedAt ?? "")).valueOf();
-  if (Number.isNaN(timestamp)) {
-    return false;
-  }
-  return Date.now() - timestamp < 2300;
-}
-
 /* ── Topology graph data builder ── */
 
 function buildTopologyGraphData(trace, forkContext) {
@@ -2195,7 +2238,7 @@ function initTopologyGraph() {
     setupGraphResizeObserver(topologyMapEl, topologyGraph);
     startEdgeFlow();
   } catch (err) {
-    console.error("Failed to initialize topology graph:", err);
+    setStatus("Topology graph failed to initialize.", "error");
     topologyGraph = null;
     topologyMapEl.innerHTML = '<div class="action-tree-empty"><p>Graph failed to initialize.</p></div>';
   }
@@ -2243,16 +2286,13 @@ function renderTopologyMap(trace, forkContext = null) {
   refreshTopologyEndpointPopupAnchor();
 }
 
-function renderTopologyTouchLog(trace) {
-  void trace;
-}
-
 function renderTopologyView(trace, forkContext = null) {
   renderLiveActionStrip(trace, forkContext);
   renderTopologyMap(trace, forkContext);
 }
 
 function renderGuardLog(trace) {
+  if (!guardLogEl) return;
   const actions = collectGuardActions(trace);
 
   if (actions.length === 0) {
@@ -2272,15 +2312,17 @@ function renderGuardLog(trace) {
       .join("");
   }
 
-  if (trace.status === "quarantined") {
-    const blockedAction = actions.find((action) => action.action === "block");
-    const quarantineAt = blockedAction?.updatedAt ?? trace.updatedAt;
-    const quarantineStep = blockedAction ? ` at step #${blockedAction.stepIndex}` : "";
-    quarantineBannerEl.textContent = `Trace quarantined ${formatTimestamp(quarantineAt)}${quarantineStep}.`;
-    quarantineBannerEl.classList.remove("hidden");
-  } else {
-    quarantineBannerEl.classList.add("hidden");
-    quarantineBannerEl.textContent = "";
+  if (quarantineBannerEl) {
+    if (trace.status === "quarantined") {
+      const blockedAction = actions.find((action) => action.action === "block");
+      const quarantineAt = blockedAction?.updatedAt ?? trace.updatedAt;
+      const quarantineStep = blockedAction ? ` at step #${blockedAction.stepIndex}` : "";
+      quarantineBannerEl.textContent = `Trace quarantined ${formatTimestamp(quarantineAt)}${quarantineStep}.`;
+      quarantineBannerEl.classList.remove("hidden");
+    } else {
+      quarantineBannerEl.classList.add("hidden");
+      quarantineBannerEl.textContent = "";
+    }
   }
 }
 
@@ -2303,10 +2345,10 @@ function toolOutput(step) {
 }
 
 function renderForkEmpty(message) {
-  forkMetaEl.textContent = message;
-  forkOriginalIdEl.textContent = "-";
-  forkForkedIdEl.textContent = "-";
-  forkStepIndexEl.textContent = "-";
+  if (forkMetaEl) forkMetaEl.textContent = message;
+  if (forkOriginalIdEl) forkOriginalIdEl.textContent = "-";
+  if (forkForkedIdEl) forkForkedIdEl.textContent = "-";
+  if (forkStepIndexEl) forkStepIndexEl.textContent = "-";
   forkDiffBodyEl.innerHTML = '<tr><td colspan="3" class="empty-row">No fork diff available yet.</td></tr>';
 }
 
@@ -2331,11 +2373,13 @@ async function resolveForkContext(primaryTrace) {
     return null;
   }
 
+  const forkStepCount = Array.isArray(forkTrace.steps) ? forkTrace.steps.length : -1;
   if (
     forkCache.forkId === forkTrace.id &&
     forkCache.parentId === forkTrace.parentTraceId &&
     forkCache.forkTrace &&
-    forkCache.parentTrace
+    forkCache.parentTrace &&
+    forkStepCount === (Array.isArray(forkCache.forkTrace.steps) ? forkCache.forkTrace.steps.length : -1)
   ) {
     return {
       forkTrace: forkCache.forkTrace,
@@ -2363,8 +2407,10 @@ async function renderForkDiff(primaryTrace, preloadedContext = null) {
 
   const { forkTrace, parentTrace } = context;
   const stepIndex = Number(forkTrace.forkedFromStep ?? 0);
-  const originalStep = parentTrace.steps[stepIndex];
-  const forkedStep = forkTrace.steps[stepIndex];
+  const parentSteps = Array.isArray(parentTrace.steps) ? parentTrace.steps : [];
+  const forkSteps = Array.isArray(forkTrace.steps) ? forkTrace.steps : [];
+  const originalStep = parentSteps.find((s) => s.index === stepIndex) ?? parentSteps[stepIndex];
+  const forkedStep = forkSteps.find((s) => s.index === stepIndex) ?? forkSteps[stepIndex];
 
   if (!originalStep || !forkedStep) {
     renderForkEmpty("Fork context found, but the fork step is not available.");
@@ -2399,20 +2445,22 @@ async function renderForkDiff(primaryTrace, preloadedContext = null) {
 }
 
 function renderEvidence(trace) {
-  evidenceSummaryEl.textContent = `Trace ${trace.id} from /api/traces/${trace.id}`;
-  evidenceJsonEl.textContent = JSON.stringify(trace, null, 2);
+  if (evidenceSummaryEl) evidenceSummaryEl.textContent = `Trace ${trace.id} from /api/traces/${trace.id}`;
+  if (evidenceJsonEl) evidenceJsonEl.textContent = JSON.stringify(trace, null, 2);
 }
 
 function renderExplorerMeta(trace) {
+  if (!selectedTraceInfoEl) return;
+  const steps = Array.isArray(trace.steps) ? trace.steps : [];
   const overallRiskScore = Number(
     trace.metadata?.overallRiskScore ??
-      Math.max(0, ...trace.steps.map((step) => Number(step.riskScore ?? 0)))
+      (steps.length ? Math.max(0, ...steps.map((step) => Number(step.riskScore ?? 0))) : 0)
   );
   selectedTraceInfoEl.textContent = [
     `${trace.id} • session ${trace.sessionId}`,
     `source=${trace.source}`,
     `status=${trace.status}`,
-    `steps=${trace.steps.length}`,
+    `steps=${steps.length}`,
     `risk=${overallRiskScore} (${riskLevel(overallRiskScore)})`,
   ].join(" • ");
 }
@@ -2587,44 +2635,40 @@ function summarizeBrief(payload) {
 
 async function loadYcBrief() {
   const payload = await fetchJson(`/api/yc/brief?focus=${encodeURIComponent(state.activeFocus)}`);
-  briefSummaryEl.textContent = summarizeBrief(payload);
-  briefJsonEl.textContent = JSON.stringify(payload, null, 2);
+  if (briefSummaryEl) briefSummaryEl.textContent = summarizeBrief(payload);
+  if (briefJsonEl) briefJsonEl.textContent = JSON.stringify(payload, null, 2);
 }
 
 function clearLivePanels(message) {
-  sourceBadgeEl.className = "source-badge source-unknown";
-  sourceBadgeEl.textContent = "source=unknown";
-  sourceHintEl.textContent = message;
-  sourceHintEl.classList.remove("mock");
-  sessionTraceIdEl.textContent = "-";
-  sessionSessionIdEl.textContent = "-";
-  sessionLastEventEl.textContent = "-";
-  sessionRiskBadgeEl.className = "risk-badge risk-low";
-  sessionRiskBadgeEl.textContent = "0 (low)";
+  if (sourceBadgeEl) { sourceBadgeEl.className = "source-badge source-unknown"; sourceBadgeEl.textContent = "source=unknown"; }
+  if (sourceHintEl) { sourceHintEl.textContent = message; sourceHintEl.classList.remove("mock"); }
+  if (sessionTraceIdEl) sessionTraceIdEl.textContent = "-";
+  if (sessionSessionIdEl) sessionSessionIdEl.textContent = "-";
+  if (sessionLastEventEl) sessionLastEventEl.textContent = "-";
+  if (sessionRiskBadgeEl) { sessionRiskBadgeEl.className = "risk-badge risk-low"; sessionRiskBadgeEl.textContent = "0 (low)"; }
 
   if (actionTreeGraph) {
     actionTreeGraph.elements().remove();
-  } else {
+  } else if (actionTreeCanvasEl) {
     actionTreeCanvasEl.innerHTML = '<div class="action-tree-empty">' + LOADING_KIRBY_SVG + '<p>No trace loaded.</p></div>';
   }
 
-  timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No trace loaded.</td></tr>';
+  if (timelineBodyEl) timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No trace loaded.</td></tr>';
   renderTopologyView(null, null);
 
-  guardLogEl.innerHTML = '<div class="empty-row">' + LOADING_KIRBY_SVG + '<p>No guard actions recorded yet.</p></div>';
-  quarantineBannerEl.classList.add("hidden");
-  quarantineBannerEl.textContent = "";
+  if (guardLogEl) guardLogEl.innerHTML = '<div class="empty-row">' + LOADING_KIRBY_SVG + '<p>No guard actions recorded yet.</p></div>';
+  if (quarantineBannerEl) { quarantineBannerEl.classList.add("hidden"); quarantineBannerEl.textContent = ""; }
 
   renderForkEmpty("No forked trace detected yet.");
 
-  selectedTraceInfoEl.textContent = "Select a trace to inspect event-by-event details.";
-  explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
-  stepInspectorTitleEl.textContent = "Step Inspector";
-  stepInspectorSummaryEl.textContent = "No step selected";
-  stepInspectorJsonEl.textContent = "{}";
+  if (selectedTraceInfoEl) selectedTraceInfoEl.textContent = "Select a trace to inspect event-by-event details.";
+  if (explorerStepListEl) explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
+  if (stepInspectorTitleEl) stepInspectorTitleEl.textContent = "Step Inspector";
+  if (stepInspectorSummaryEl) stepInspectorSummaryEl.textContent = "No step selected";
+  if (stepInspectorJsonEl) stepInspectorJsonEl.textContent = "{}";
 
-  evidenceSummaryEl.textContent = "No trace payload loaded.";
-  evidenceJsonEl.textContent = "{}";
+  if (evidenceSummaryEl) evidenceSummaryEl.textContent = "No trace payload loaded.";
+  if (evidenceJsonEl) evidenceJsonEl.textContent = "{}";
   state.currentTrace = null;
   state.currentForkContext = null;
   state.firewallContext = null;
@@ -2752,7 +2796,7 @@ async function refreshTracePanels({ silent = false } = {}) {
     renderExplorerMeta(trace);
     renderExplorerSteps(trace);
     renderStepInspector(trace, state.selectedStepIndex);
-    await loadFirewallState({ silent: true }).catch(() => {});
+    await loadFirewallState({ silent: true }).catch((error) => handleRefreshError("load firewall state", error, true));
 
     if (!silent) {
       setStatus("Connected.", "ok");
@@ -2798,7 +2842,7 @@ function startPolling() {
   }, TRACE_POLL_MS);
 
   metricsPollTimer = window.setInterval(() => {
-    refreshMetrics({ silent: true }).catch(() => {});
+    refreshMetrics({ silent: true }).catch((error) => handleRefreshError("poll metrics", error, true));
   }, METRICS_POLL_MS);
 }
 
@@ -2822,13 +2866,42 @@ async function loadBridgeSessions() {
 /* ── Admin: Marketplace handlers ── */
 
 async function refreshMarketplaceProviders() {
-  // Marketplace execution is disabled in hackathon mode; tab is repurposed to show fixed local tools.
-  state.marketplaceProviders = {
-    hackathon: {
-      enabled: true,
-      source: "local_downstream_apps",
-    },
-  };
+  try {
+    const data = await fetchJson("/api/marketplace/providers");
+    state.marketplaceProviders = data?.providers ?? {};
+    state.marketplaceDisabled = false;
+  } catch (err) {
+    const is403 = String(err?.message ?? "").includes("403");
+    state.marketplaceDisabled = is403;
+    // Fallback to local-only on 403 or network error
+    state.marketplaceProviders = {
+      local: {
+        enabled: true,
+        source: "local_downstream_apps",
+      },
+    };
+  }
+  updateMarketplaceDisabledState();
+}
+
+function updateMarketplaceDisabledState() {
+  const panel = document.querySelector(".marketplace-panel");
+  if (!panel) return;
+  const controls = panel.querySelector(".marketplace-controls");
+  const sections = panel.querySelectorAll(".marketplace-section");
+
+  let banner = panel.querySelector(".marketplace-disabled-banner");
+  if (state.marketplaceDisabled) {
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "marketplace-disabled-banner";
+      banner.setAttribute("role", "alert");
+      banner.textContent = "Marketplace is disabled in this build. Local tools are shown below.";
+      if (controls && controls.parentNode) controls.parentNode.insertBefore(banner, controls);
+    }
+  } else if (banner) {
+    banner.remove();
+  }
 }
 
 function filterMarketplaceTools(query) {
@@ -2886,13 +2959,9 @@ function renderMarketplaceResults() {
   });
 }
 
-async function connectMarketplaceApp(serverId, provider) {
-  setStatus("Marketplace connect is disabled in canonical hackathon mode.", "error");
-}
-
 async function refreshMarketplaceConnected() {
   try {
-    const data = await httpModule.fetchJson("/api/downstream/apps");
+    const data = await fetchJson("/api/downstream/apps");
     const apps = Array.isArray(data?.apps) ? data.apps : [];
     state.marketplaceConnectedApps = apps.filter((app) => app?.enabled !== false);
     renderMarketplaceConnected();
@@ -2906,7 +2975,7 @@ function renderMarketplaceConnected() {
   if (!marketplaceConnectedBody) return;
   const apps = state.marketplaceConnectedApps;
   if (!apps.length) {
-    marketplaceConnectedBody.innerHTML = `<tr><td colspan="4" class="empty-row">No connected apps.</td></tr>`;
+    marketplaceConnectedBody.innerHTML = `<tr><td colspan="5" class="empty-row">No connected apps.</td></tr>`;
     return;
   }
   marketplaceConnectedBody.innerHTML = apps.map((app) => `
@@ -2915,19 +2984,41 @@ function renderMarketplaceConnected() {
       <td>${escapeHtml(app.name ?? "-")}</td>
       <td class="mono">${escapeHtml(trim(app.mcpUrl ?? "-", 50))}</td>
       <td>${escapeHtml(app.id === "toolhub" ? "route-locked" : "available")}</td>
+      <td>${app.id === "toolhub" ? "" : `<button type="button" class="demo-btn" data-disconnect-app="${escapeHtml(app.id ?? "")}" aria-label="Disconnect ${escapeHtml(app.name ?? "app")}">Disconnect</button>`}</td>
     </tr>
   `).join("");
+
+  marketplaceConnectedBody.querySelectorAll("[data-disconnect-app]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const appId = btn.getAttribute("data-disconnect-app");
+      if (appId) disconnectMarketplaceApp(appId);
+    });
+  });
 }
 
 async function disconnectMarketplaceApp(appId) {
-  setStatus("Marketplace disconnect is disabled in canonical hackathon mode.", "error");
+  try {
+    await postJson("/api/marketplace/disconnect", { appId });
+    setStatus("Marketplace app disconnected.", "ok");
+    await refreshMarketplaceConnected();
+    await refreshMarketplaceTools();
+  } catch (err) {
+    const msg = String(err?.message ?? err);
+    if (msg.includes("403")) {
+      setStatus("Marketplace is disabled in this build.", "error");
+    } else if (msg.includes("404")) {
+      setStatus("App not found or already disconnected.", "error");
+    } else {
+      setStatus(`Marketplace disconnect failed: ${msg}`, "error");
+    }
+  }
 }
 
 async function refreshMarketplaceTools() {
   try {
     let apps = Array.isArray(state.marketplaceConnectedApps) ? state.marketplaceConnectedApps : [];
     if (!apps.length) {
-      const connected = await httpModule.fetchJson("/api/downstream/apps");
+      const connected = await fetchJson("/api/downstream/apps");
       apps = Array.isArray(connected.apps) ? connected.apps : [];
       state.marketplaceConnectedApps = apps;
       renderMarketplaceConnected();
@@ -2940,7 +3031,7 @@ async function refreshMarketplaceTools() {
         continue;
       }
       try {
-        const data = await httpModule.fetchJson(
+        const data = await fetchJson(
           `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
         );
         const tools = Array.isArray(data?.tools) ? data.tools : [];
@@ -3022,10 +3113,10 @@ async function dispatchTool() {
       arguments: args,
       ...(selectedAppId && !routeLockEnabled ? { appId: selectedAppId } : {}),
     };
-    const result = await httpModule.postJson("/api/downstream/dispatch", body);
+    const result = await postJson("/api/downstream/dispatch", body);
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
-    if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+    if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
   }
 }
 
@@ -3051,10 +3142,10 @@ async function previewPolicyDecision() {
     mode: "preview",
   };
   try {
-    const result = await httpModule.postJson("/api/firewall/decision", body);
+    const result = await postJson("/api/firewall/decision", body);
     if (policyResultEl) policyResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
-    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
   }
 }
 
@@ -3067,10 +3158,10 @@ async function enforcePolicyDecision() {
     mode: "enforce",
   };
   try {
-    const result = await httpModule.postJson("/api/firewall/decision", body);
+    const result = await postJson("/api/firewall/decision", body);
     if (policyResultEl) policyResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
-    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
   }
 }
 
@@ -3079,7 +3170,7 @@ async function enforcePolicyDecision() {
 async function refreshSettingsPanel() {
   // Auth info
   try {
-    const authData = await httpModule.fetchJson("/api/auth/me");
+    const authData = await fetchJson("/api/auth/me");
     if (settingsAuthStatusEl) {
       settingsAuthStatusEl.textContent = authData.authenticated ? "Authenticated" : "Not authenticated";
     }
@@ -3093,7 +3184,7 @@ async function refreshSettingsPanel() {
 
   // Runtime status
   try {
-    const runtime = await httpModule.fetchJson("/api/runtime/status");
+    const runtime = await fetchJson("/api/runtime/status");
     state.runtimeStatus = runtime;
     if (settingsRuntimeStatusEl) {
       settingsRuntimeStatusEl.textContent = JSON.stringify(runtime, null, 2);
@@ -3115,11 +3206,11 @@ async function clearTraceHistory() {
     return;
   }
   try {
-    const result = await httpModule.postJson("/api/traces/clear");
+    const result = await postJson("/api/traces/clear");
     setSettingsActionResult(`Cleared ${result.removed ?? 0} traces.`, "ok");
     await refreshTracePanels();
   } catch (error) {
-    setSettingsActionResult(`Clear failed: ${error.message}`, "error");
+    setSettingsActionResult(`Clear failed: ${parseErrorMessage(error)}`, "error");
   }
 }
 
@@ -3183,7 +3274,7 @@ function modalTraceIdOrCurrent() {
   if (nodeModalState.traceId) {
     return String(nodeModalState.traceId);
   }
-  return "";
+  return currentTraceId();
 }
 
 function parseCommaTags(value) {
@@ -3511,7 +3602,7 @@ async function runNodeShare() {
     objective,
     tags,
   });
-  await refreshMetrics({ silent: true }).catch(() => {});
+  await refreshMetrics({ silent: true }).catch((error) => handleRefreshError("refresh after share", error, true));
   setNodeModalOutput(payload, "share_trace_anon");
   setNodeModalStatus(`Shared trace ${payload.sharedTraceId} with anonymization.`, "ok");
 }
@@ -3533,7 +3624,7 @@ async function runNodeSuggest() {
     limit: 3,
     minConfidence: 0.4,
   });
-  await refreshMetrics({ silent: true }).catch(() => {});
+  await refreshMetrics({ silent: true }).catch((error) => handleRefreshError("refresh after suggest", error, true));
   setNodeModalOutput(payload, "suggest_evolved_skills");
   setNodeModalStatus(`Generated ${payload.count} evolved skill suggestions.`, "ok");
 }
@@ -3551,7 +3642,7 @@ async function runNodeBrief() {
       : "full";
 
   const payload = await postJson("/api/demo/brief", { focus });
-  await loadYcBrief().catch(() => {});
+  await loadYcBrief().catch((error) => handleRefreshError("refresh YC brief", error, true));
   setNodeModalOutput(payload, "yc_app_brief");
   setNodeModalStatus(`YC brief generated for focus=${focus}.`, "ok");
 }
@@ -3781,7 +3872,7 @@ let suggestionActive = true;
 function showNextSuggestion() {
   if (!rotatingPlaceholderEl || !suggestionActive) return;
   const text = SUGGESTION_PROMPTS[suggestionIndex % SUGGESTION_PROMPTS.length];
-  rotatingPlaceholderEl.innerHTML = `<span class="placeholder-text">${text}</span>`;
+  rotatingPlaceholderEl.innerHTML = `<span class="placeholder-text">${escapeHtml(text)}</span>`;
   suggestionIndex++;
 }
 
@@ -4030,11 +4121,12 @@ window.addEventListener("popstate", () => restoreNavState());
 window.addEventListener("beforeunload", () => {
   stopPolling();
   stopSuggestionRotation();
+  stopEdgeFlow();
+  cleanupResizeObservers();
 });
 
 // Initialize chat-first dashboard
 try {
-  localStorage.removeItem("maple_judge_view");
   restoreNavState();
   updateMcpSnippet();
   clearLivePanels("Authenticating session...");
@@ -4054,8 +4146,8 @@ try {
       try {
         await fetch("/api/auth/logout", {
           method: "POST",
-          credentials: "same-origin",
-          headers: headersWithKey(),
+          credentials: "include",
+          headers: { "content-type": "application/json", ...headersWithKey() },
         });
       } catch {
         // Best-effort logout
@@ -4078,16 +4170,19 @@ try {
       const json = JSON.stringify(state.currentTrace, null, 2);
       const blob = new Blob([json], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `maple-trace-${state.currentTrace.id}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatus("Trace exported.", "ok");
+      try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `maple-trace-${state.currentTrace.id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setStatus("Trace exported.", "ok");
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     });
   }
 } catch (err) {
-  // Initialization error — silently handled
+  setStatus(`Initialization failed: ${parseErrorMessage(err)}`, "error");
 }

@@ -40,7 +40,7 @@ const BookResultsWidget: React.FC = () => {
 
       <div className="cc-timeline" role="list">
         {props.results.map((book, i) => (
-          <article key={i} className="cc-timeline-item" role="listitem">
+          <article key={book.isbn ?? book.url ?? `book-${i}`} className="cc-timeline-item" role="listitem">
             <div className="cc-marker cc-risk-low" aria-hidden />
             <div className="cc-step-main">
               <div className="cc-step-row">
@@ -63,9 +63,9 @@ const BookResultsWidget: React.FC = () => {
                 ) : null}
               </div>
               {book.url ? (
-                <p style={{ fontSize: "0.82rem", color: "var(--cc-accent)" }}>
+                <a href={book.url} target="_blank" rel="noopener noreferrer" className="cc-link">
                   {book.url}
-                </p>
+                </a>
               ) : null}
             </div>
           </article>

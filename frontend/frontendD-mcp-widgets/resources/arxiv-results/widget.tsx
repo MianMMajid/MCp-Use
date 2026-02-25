@@ -40,7 +40,7 @@ const ArxivResultsWidget: React.FC = () => {
 
       <div className="cc-timeline" role="list">
         {props.results.map((paper, i) => (
-          <article key={i} className="cc-timeline-item" role="listitem">
+          <article key={paper.url ?? `paper-${i}`} className="cc-timeline-item" role="listitem">
             <div className="cc-marker cc-risk-low" aria-hidden />
             <div className="cc-step-main">
               <div className="cc-step-row">
@@ -71,9 +71,9 @@ const ArxivResultsWidget: React.FC = () => {
                 </p>
               ) : null}
               {paper.url ? (
-                <p style={{ fontSize: "0.82rem", color: "var(--cc-accent)" }}>
+                <a href={paper.url} target="_blank" rel="noopener noreferrer" className="cc-link">
                   {paper.url}
-                </p>
+                </a>
               ) : null}
             </div>
           </article>

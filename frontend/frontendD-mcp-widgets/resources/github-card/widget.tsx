@@ -23,7 +23,7 @@ function formatNumber(n: number | undefined): string {
 const GithubCardWidget: React.FC = () => {
   const { props, isPending } = useWidget<GithubCardWidgetProps>();
 
-  if (isPending) {
+  if (isPending || !props.name) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -67,9 +67,9 @@ const GithubCardWidget: React.FC = () => {
           <p className="cc-meta">Updated: {props.updatedAt}</p>
         ) : null}
         {props.url ? (
-          <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--cc-accent)" }}>
+          <a href={props.url} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.4rem" }}>
             {props.url}
-          </p>
+          </a>
         ) : null}
       </div>
 

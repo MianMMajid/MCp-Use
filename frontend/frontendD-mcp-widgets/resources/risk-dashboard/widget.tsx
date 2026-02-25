@@ -29,7 +29,7 @@ function severityClass(severity: RiskDashboardProps["severity"]) {
 const RiskDashboardWidget: React.FC = () => {
   const { props, isPending } = useWidget<RiskDashboardProps>();
 
-  if (isPending || !props.flags) {
+  if (isPending || !props.flags || !props.traceId) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -85,7 +85,7 @@ const RiskDashboardWidget: React.FC = () => {
       <section className="cc-edit-box">
         <h3>Guardrail Recommendations</h3>
         <ul className="cc-flags">
-          {props.recommendations.map((recommendation, idx) => (
+          {(props.recommendations ?? []).map((recommendation, idx) => (
             <li key={`${recommendation}-${idx}`}>{recommendation}</li>
           ))}
         </ul>
