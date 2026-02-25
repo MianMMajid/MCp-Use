@@ -13,7 +13,6 @@ async function main() {
         routeMode: runtimeStatus.routeMode,
         routeSummary: runtimeStatus.routeSummary,
         activeDownstreamCount: runtimeStatus.activeDownstreamCount,
-        marketplaceEnabled: runtimeStatus.marketplaceEnabled,
     });
     const tlsConfig = {
         cert: readFileSync(gatewayTlsCertPath),

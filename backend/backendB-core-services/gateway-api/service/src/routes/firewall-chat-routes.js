@@ -2,8 +2,8 @@ import { server, database } from "../state.js";
 import { firewallChatPrimaryProvider } from "../config.js";
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
-import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, isContextWallAvailable, } from "../trace-helpers.js";
-import { getOpenClawRuntimeStatus } from "../core/openclaw-agent-runtime.js";
+import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, } from "../trace-helpers.js";
+import { buildFeatureCapabilitiesFromDependencyReport, evaluateGatewayRuntimeDependencies, } from "../core/runtime-dependencies.js";
 function resolveFirewallRequestContext(options) {
     const authContext = authContextStorage.getStore();
     const tenantId = asString(options.body.tenantId) ?? asString(options.request.header("x-tenant-id")) ?? "default";
@@ -65,15 +65,23 @@ export function registerFirewallChatRoutes() {
     });
     // ── Chat capabilities + streaming bridge ──────────────────────────────────
     server.get("/api/chat/capabilities", async (c) => {
-        const contextWallReady = isContextWallAvailable();
-        const openclaw = getOpenClawRuntimeStatus();
+        const report = await evaluateGatewayRuntimeDependencies();
+        const capabilities = buildFeatureCapabilitiesFromDependencyReport(report);
+        const openclaw = capabilities.features.openclawAgent;
+        const chatOrchestration = capabilities.features.chatOrchestration;
         return c.json({
-            aiEnabled: contextWallReady || openclaw.ready,
-            mode: openclaw.ready ? "openclaw-agent" : (contextWallReady ? "model-router" : "unavailable"),
+            aiEnabled: Boolean(chatOrchestration.enabled || openclaw.enabled),
+            mode: openclaw.enabled
+                ? "openclaw-agent"
+                : chatOrchestration.enabled
+                    ? "model-router"
+                    : "unavailable",
             primaryProvider: firewallChatPrimaryProvider,
-            contextWallAvailable: contextWallReady,
-            modelRouterAvailable: contextWallReady,
+            contextWallAvailable: report.checks.find((check) => check.id === "grpc.context_wall")?.ok === true,
+            modelRouterAvailable: report.checks.find((check) => check.id === "grpc.model_router")?.ok === true,
             openclawAgent: openclaw,
+            chatOrchestration,
+            strictDependencies: report.strict,
         });
     });
     server.app.post("/api/chat/stream", async (c) => {

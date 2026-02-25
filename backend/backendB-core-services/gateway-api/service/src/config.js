@@ -84,30 +84,6 @@ export const mcpExecutionOrderAppIds = String(process.env.MAPLE_MCP_EXECUTION_OR
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
-export const marketplaceHardDisabled = true;
-export const mcpMarketplaceEnabled = !marketplaceHardDisabled &&
-    (String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "0").trim().toLowerCase() === "true" ||
-        String(process.env.MAPLE_MCP_MARKETPLACE_ENABLED ?? "0").trim().toLowerCase() === "1");
-export const mcpMarketplaceAutoConnectEnabled = !marketplaceHardDisabled &&
-    (String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "0").trim().toLowerCase() === "true" ||
-        String(process.env.MAPLE_MCP_MARKETPLACE_AUTO_CONNECT ?? "0").trim().toLowerCase() === "1");
-export const smitheryEnabled = !marketplaceHardDisabled &&
-    (String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "true" ||
-        String(process.env.MAPLE_SMITHERY_ENABLED ?? "0").trim().toLowerCase() === "1");
-export const smitheryApiBaseUrl = asString(process.env.MAPLE_SMITHERY_API_BASE_URL) ?? "https://api.smithery.ai";
-export const smitheryApiKey = asString(process.env.MAPLE_SMITHERY_API_KEY);
-const smitheryTimeoutMsRaw = Number.parseInt(String(process.env.MAPLE_SMITHERY_TIMEOUT_MS ?? "12000"), 10);
-export const smitheryTimeoutMs = Number.isFinite(smitheryTimeoutMsRaw)
-    ? Math.max(1_000, Math.min(60_000, smitheryTimeoutMsRaw))
-    : 12_000;
-export const mcpSoEnabled = !marketplaceHardDisabled &&
-    (String(process.env.MAPLE_MCPSO_ENABLED ?? "0").trim().toLowerCase() === "true" ||
-        String(process.env.MAPLE_MCPSO_ENABLED ?? "0").trim().toLowerCase() === "1");
-export const mcpSoBaseUrl = asString(process.env.MAPLE_MCPSO_BASE_URL) ?? "https://mcp.so";
-const mcpSoTimeoutMsRaw = Number.parseInt(String(process.env.MAPLE_MCPSO_TIMEOUT_MS ?? "12000"), 10);
-export const mcpSoTimeoutMs = Number.isFinite(mcpSoTimeoutMsRaw)
-    ? Math.max(1_000, Math.min(60_000, mcpSoTimeoutMsRaw))
-    : 12_000;
 const downstreamToolsCacheTtlMsRaw = Number.parseInt(String(process.env.MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS ?? "15000"), 10);
 export const downstreamToolsCacheTtlMs = Number.isFinite(downstreamToolsCacheTtlMsRaw)
     ? Math.max(500, Math.min(60_000, downstreamToolsCacheTtlMsRaw))
@@ -132,8 +108,6 @@ export const demoRoutesEnabled = String(process.env.MAPLE_ENABLE_DEMO_ROUTES ?? 
     String(process.env.MAPLE_ENABLE_DEMO_ROUTES ?? "1")
         .trim()
         .toLowerCase() === "1";
-export const legacySmitheryRoutesEnabled = String(process.env.MAPLE_ENABLE_LEGACY_SMITHERY_ROUTES ?? "0").trim().toLowerCase() === "true" ||
-    String(process.env.MAPLE_ENABLE_LEGACY_SMITHERY_ROUTES ?? "0").trim().toLowerCase() === "1";
 export const judgeUiRoutesEnabled = String(process.env.MAPLE_ENABLE_JUDGE_UI ?? "1").trim().toLowerCase() === "true" ||
     String(process.env.MAPLE_ENABLE_JUDGE_UI ?? "1").trim().toLowerCase() === "1";
 export const firewallChatOpenAiApiKey = asString(process.env.OPENAI_API_KEY) ?? asString(process.env.MAPLE_OPENAI_API_KEY);

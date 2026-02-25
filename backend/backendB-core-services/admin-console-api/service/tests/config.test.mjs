@@ -10,4 +10,6 @@ test("admin-console-api config source exposes tls/grpc defaults", async () => {
   assert.equal(typeof config.tlsCertPath, "string");
   assert.equal(typeof config.tlsKeyPath, "string");
   assert.equal(typeof config.tlsCaPath, "string");
+  assert.equal(Array.isArray(config.apiKeys), true);
+  assert.equal(typeof config.allowNoAuth, "boolean");
 });

@@ -2,6 +2,7 @@ import { apiKeyAuthEnabled, allowNoAuth, configuredApiKeys, } from "./config.js"
 import { extractApiKeyFromHeaders, verifyApiKey, } from "@maple/security";
 import { authContextStorage } from "./auth-context.js";
 import { findRequestSession } from "./auth-session.js";
+import { apiErrorPayload } from "./api-error.js";
 export function verifyIncomingApiKey(xApiKey, authorization) {
     if (!apiKeyAuthEnabled) {
         if (allowNoAuth) {
@@ -32,7 +33,7 @@ export async function requireApiKeyResponse(c, database, options = {}) {
     const authorization = c.req.header("authorization");
     const cookieHeader = c.req.header("cookie");
     const unauthorizedBody = (reason) => ({
-        error: "Unauthorized",
+        ...apiErrorPayload("UNAUTHORIZED", "Unauthorized"),
         reason,
         hint: "Provide x-api-key / Authorization bearer token or sign in via /landing.",
     });

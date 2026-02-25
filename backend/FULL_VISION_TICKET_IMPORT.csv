@@ -1,0 +1,66 @@
+id,milestone,title,owner,status,priority,depends_on,estimate,api_surface
+M1-01,M1,Define shared auth recovery contracts (forgot/reset/verify),backendC,done,P0,,M,/api/auth/* + /api/business/auth/*
+M1-02,M1,Implement business forgot-password endpoint,backendC,done,P0,M1-01,M,/api/business/auth/forgot-password
+M1-03,M1,Implement business reset-password endpoint,backendC,done,P0,M1-01,M,/api/business/auth/reset-password
+M1-04,M1,Implement business verify-email request endpoint,backendC,done,P0,M1-01,M,/api/business/auth/verify-email/request
+M1-05,M1,Implement business verify-email confirm endpoint,backendC,done,P0,M1-01,M,/api/business/auth/verify-email/confirm
+M1-06,M1,Add gateway auth recovery proxies,backendB-gateway,done,P0,"M1-02|M1-03|M1-04|M1-05",S,/api/auth/forgot-password;/api/auth/reset-password;/api/auth/verify-email/*
+M1-07,M1,Implement business billing invoices endpoint,backendC,done,P0,,M,/api/business/billing/invoices
+M1-08,M1,Implement business subscription cancel endpoint,backendC,done,P0,,M,/api/business/billing/subscription/cancel
+M1-09,M1,Implement business subscription resume endpoint,backendC,done,P0,,M,/api/business/billing/subscription/resume
+M1-10,M1,Add gateway billing lifecycle proxies,backendB-gateway,done,P0,"M1-07|M1-08|M1-09",S,/api/billing/invoices;/api/billing/subscription/cancel;/api/billing/subscription/resume
+M1-11,M1,Add OpenClaw session list endpoint,backendB-gateway,todo,P0,,M,/api/openclaw/agent/sessions
+M1-12,M1,Add OpenClaw session detail endpoint,backendB-gateway,todo,P0,M1-11,S,/api/openclaw/agent/sessions/:sessionId
+M1-13,M1,Add OpenClaw session cancel endpoint,backendB-gateway,todo,P0,M1-11,S,/api/openclaw/agent/sessions/:sessionId/cancel
+M1-14,M1,Add OpenClaw session stream endpoint (SSE),backendB-gateway,todo,P0,M1-11,M,/api/openclaw/agent/sessions/:sessionId/stream
+M1-15,M1,Add OpenClaw run artifacts endpoint,backendB-gateway,todo,P0,M1-11,M,/api/openclaw/agent/runs/:runId/artifacts
+M1-16,M1,Add firewall simulate endpoint,backendB+context-wall,todo,P0,,M,/api/firewall/simulate
+M1-17,M1,Add effective rules endpoint,backendB-admin+gateway,todo,P0,M1-16,S,/api/firewall/rules/effective
+M1-18,M1,Add admin policy versions list endpoint,backendB-admin,todo,P0,,M,/admin/api/policies/versions
+M1-19,M1,Add admin policy activate endpoint,backendB-admin+context-wall,todo,P0,M1-18,M,/admin/api/policies/versions/:versionId/activate
+M1-20,M1,Add admin policy validate endpoint,backendB-admin+context-wall,todo,P0,M1-18,M,/admin/api/policies/validate
+M1-21,M1,M1 integration and e2e tests,backendB+backendC,todo,P0,"M1-06|M1-10|M1-15|M1-20",L,test suites
+M1-22,M1,M1 rollout docs and fail-closed validation,backendA+backendB+backendC,todo,P0,M1-21,M,docs+ops
+M2-01,M2,Define org and RBAC contracts,backendC,todo,P1,M1-22,M,/api/org* + /api/business/org*
+M2-02,M2,Implement business org CRUD,backendC,todo,P1,M2-01,L,/api/business/org*
+M2-03,M2,Implement business members endpoints,backendC,todo,P1,M2-02,M,/api/business/org/:orgId/members
+M2-04,M2,Implement business invites endpoints,backendC,todo,P1,M2-02,M,/api/business/org/:orgId/invites
+M2-05,M2,Implement business RBAC assignment endpoints,backendC,todo,P1,M2-02,M,/api/business/org/:orgId/roles*
+M2-06,M2,Add gateway org/member/invite/rbac proxies,backendB-gateway,todo,P1,"M2-03|M2-04|M2-05",M,/api/org*
+M2-07,M2,Define API key and service account contracts,backendC,todo,P1,M2-01,M,/api/user/api-keys + /api/org/:orgId/service-accounts
+M2-08,M2,Implement business personal API key endpoints,backendC,todo,P1,M2-07,M,/api/business/user/api-keys
+M2-09,M2,Implement business service account endpoints,backendC,todo,P1,M2-07,L,/api/business/org/:orgId/service-accounts*
+M2-10,M2,Add gateway key and service account proxies,backendB-gateway,todo,P1,"M2-08|M2-09",M,/api/user/api-keys + /api/org/:orgId/service-accounts*
+M2-11,M2,Implement entitlement and limits backend model,backendC,todo,P1,M2-01,M,/api/business/entitlements + /api/business/limits
+M2-12,M2,Implement usage summary and timeseries endpoints,backendC,todo,P1,M2-11,L,/api/business/usage/*
+M2-13,M2,Add gateway entitlements/usage/limits endpoints,backendB-gateway,todo,P1,M2-12,M,/api/entitlements;/api/usage/*;/api/limits
+M2-14,M2,Add admin limit override endpoint,backendB-admin+backendC,todo,P1,M2-13,M,/api/limits/override
+M2-15,M2,M2 integration and e2e tests,backendB+backendC,todo,P1,M2-14,L,test suites
+M2-16,M2,M2 migration docs and tenant propagation checks,backendA+backendB+backendC,todo,P1,M2-15,M,docs+ops
+M3-01,M3,Define trace/run analytics contracts,backendB,todo,P2,M2-16,M,/api/traces/search + /api/runs*
+M3-02,M3,Implement trace search endpoint,backendB-gateway,todo,P2,M3-01,M,/api/traces/search
+M3-03,M3,Implement trace export endpoint,backendB-gateway,todo,P2,M3-01,M,/api/traces/export
+M3-04,M3,Implement runs index endpoint,backendB-gateway,todo,P2,M3-01,M,/api/runs
+M3-05,M3,Implement run detail endpoint,backendB-gateway,todo,P2,M3-04,S,/api/runs/:runId
+M3-06,M3,Implement run timeline endpoint,backendB-gateway,todo,P2,M3-05,M,/api/runs/:runId/timeline
+M3-07,M3,Implement admin audit export endpoint,backendB-admin+audit-writer,todo,P2,M3-01,M,/admin/api/audit/export
+M3-08,M3,Implement admin audit schemas endpoint,backendB-admin,todo,P2,M3-07,S,/admin/api/audit/schemas
+M3-09,M3,Implement admin compliance report endpoint,backendB-admin,todo,P2,M3-07,M,/admin/api/compliance/reports
+M3-10,M3,Implement runtime dependencies endpoint,backendB-gateway,todo,P2,,S,/api/runtime/dependencies
+M3-11,M3,Implement runtime diagnostics endpoint,backendB-gateway,todo,P2,M3-10,M,/api/runtime/diag
+M3-12,M3,Implement runtime logs endpoint with redaction,backendB-gateway,todo,P2,M3-10,M,/api/runtime/logs
+M3-13,M3,Define tool governance contracts,backendB,todo,P2,M3-01,M,/api/tools/*
+M3-14,M3,Implement tools registry endpoints,backendB-gateway,todo,P2,M3-13,L,/api/tools/registry*
+M3-15,M3,Implement tools policy endpoints,backendB-gateway+context-wall,todo,P2,M3-13,M,/api/tools/policies*
+M3-16,M3,Implement tools execution endpoints,backendB-gateway,todo,P2,M3-13,M,/api/tools/executions*
+M3-17,M3,M3 observability/compliance/governance tests,backendA+backendB,todo,P2,M3-16,L,test suites
+M4-01,M4,Version and verify GPT surface parity,backendB-gateway,todo,P2,M3-17,M,/.well-known/* + /gpt/*
+M4-02,M4,Add GPT compatibility test pack,backendB-gateway,todo,P2,M4-01,M,test suites
+M4-03,M4,Define backendD runtime control contract,backendD,todo,P2,M3-17,M,desktop runtime contract
+M4-04,M4,Stabilize backendD runtime control implementation,backendD,todo,P2,M4-03,M,desktop runtime implementation
+M4-05,M4,Wire desktop app to OpenClaw session/run APIs,frontendB+backendB,todo,P2,"M1-15|M4-04",L,desktop integration
+M4-06,M4,Add desktop runtime and API e2e tests,frontendB+backendD+backendB,todo,P2,M4-05,L,test suites
+M4-07,M4,Global API error envelope normalization pass,backendB+backendC+backendD,todo,P2,"M4-02|M4-06",M,all APIs
+M4-08,M4,Global audit coverage closure pass,backendB+backendC,todo,P2,M4-07,M,audit
+M4-09,M4,Publish versioned API docs and deprecation policy,backendB+backendC,todo,P2,M4-08,M,docs
+M4-10,M4,Run full-system simulation and signoff,backendA+backendB+backendC+backendD,todo,P2,M4-09,L,release signoff

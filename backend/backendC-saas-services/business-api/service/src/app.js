@@ -9,15 +9,24 @@ import { registerAuthMeRoute } from "./routes/auth-me-route.js";
 import { registerAuthLoginRegisterRoutes } from "./routes/auth-login-register-routes.js";
 import { registerAuthLogoutRoute } from "./routes/auth-logout-route.js";
 import { registerAuthGoogleRoutes } from "./routes/auth-google-routes.js";
+import { AuthRecoveryStore } from "./auth-recovery-store.js";
+import { registerAuthRecoveryRoutes } from "./routes/auth-recovery-routes.js";
+import { registerPlatformRoutes } from "./routes/platform-routes.js";
+import { apiErrorPayload } from "./api-error.js";
 
 export async function createApp(options = {}) {
   const database = options.database ?? new MaplePostgresDatabase();
+  const authRecoveryStore =
+    options.authRecoveryStore ?? new AuthRecoveryStore({ database });
   const auditEmitter =
     typeof options.auditEmitter === "function" ? options.auditEmitter : () => {};
   const shouldInitialize = options.skipDatabaseInit !== true;
 
   if (shouldInitialize && typeof database.initialize === "function") {
     await database.initialize();
+  }
+  if (typeof authRecoveryStore.ensureInitialized === "function") {
+    await authRecoveryStore.ensureInitialized();
   }
 
   const app = new Hono();
@@ -72,6 +81,13 @@ export async function createApp(options = {}) {
   registerAuthLoginRegisterRoutes(app, { database });
   registerAuthLogoutRoute(app, { database });
   registerAuthGoogleRoutes(app, { database });
+  registerAuthRecoveryRoutes(app, {
+    database,
+    recoveryStore: authRecoveryStore,
+    auditEmitter,
+    onRecoveryTokenIssued: options.onAuthRecoveryTokenIssued,
+  });
+  registerPlatformRoutes(app, { database });
 
   app.notFound((c) => c.json({ error: "Not Found", path: c.req.path }, 404));
 
@@ -80,7 +96,10 @@ export async function createApp(options = {}) {
       error: err?.message ?? String(err),
       stack: err?.stack,
     });
-    return c.json({ error: "Internal Server Error" }, 500);
+    return c.json(
+      apiErrorPayload("INTERNAL_ERROR", "Internal Server Error"),
+      500
+    );
   });
 
   const shutdown = async () => {

@@ -4,6 +4,7 @@
   const passwordInput = document.getElementById("password");
   const errorEl = document.getElementById("signinError");
   const submitBtn = form ? form.querySelector("button[type=submit]") : null;
+  const googleSection = document.getElementById("googleSection");
 
   if (
     !(form instanceof HTMLFormElement) ||
@@ -25,6 +26,58 @@
     const next = params.get("next") || "/judge";
     const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/judge";
     window.location.assign(safeNext);
+  }
+
+  let capabilities = null;
+
+  function capabilityEnabled(featureName, fallbackValue = true) {
+    if (!capabilities || typeof capabilities !== "object") {
+      return fallbackValue;
+    }
+    const feature = capabilities?.features?.[featureName];
+    if (!feature || typeof feature !== "object") {
+      return fallbackValue;
+    }
+    return feature.enabled !== false;
+  }
+
+  function capabilityReason(featureName) {
+    const reason = capabilities?.features?.[featureName]?.reason;
+    return typeof reason === "string" && reason.trim() ? reason : "";
+  }
+
+  async function loadCapabilities() {
+    try {
+      const response = await fetch("/api/runtime/feature-capabilities", {
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        return;
+      }
+      capabilities = await response.json();
+    } catch {
+      // capabilities are optional; continue with legacy behavior
+    }
+  }
+
+  function applyCapabilityGates() {
+    const sessionEnabled = capabilityEnabled("authSession", true);
+    if (!sessionEnabled) {
+      usernameInput.disabled = true;
+      passwordInput.disabled = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Sign-in unavailable";
+      }
+      if (errorEl) {
+        const reason = capabilityReason("authSession");
+        errorEl.textContent = reason || "Sign-in is temporarily unavailable.";
+      }
+    }
+    return {
+      sessionEnabled,
+      googleEnabled: capabilityEnabled("googleAuth", true),
+    };
   }
 
   async function handleGoogleSignIn(response) {
@@ -78,11 +131,26 @@
       .catch(function () { /* Google client-id unavailable, keep hidden */ });
   }
 
-  initGoogleSignIn();
+  loadCapabilities().finally(() => {
+    const gates = applyCapabilityGates();
+    if (gates.googleEnabled) {
+      initGoogleSignIn();
+    } else if (googleSection) {
+      googleSection.classList.add("hidden");
+    }
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (errorEl) errorEl.textContent = "";
+
+    if (!capabilityEnabled("authSession", true)) {
+      if (errorEl) {
+        const reason = capabilityReason("authSession");
+        errorEl.textContent = reason || "Sign-in is temporarily unavailable.";
+      }
+      return;
+    }
 
     const username = usernameInput.value.trim();
     const password = passwordInput.value;

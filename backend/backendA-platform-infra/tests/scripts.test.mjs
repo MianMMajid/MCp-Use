@@ -82,3 +82,47 @@ test("service source validator accepts single-service mode", async () => {
   });
   assert.equal(exitCode, 0);
 });
+
+test("preflight script is non-blocking by default and fail-closed in strict mode", async () => {
+  const scriptPath = resolve(
+    "backend/backendA-platform-infra/scripts/preflight.mjs"
+  );
+
+  const softChild = spawn(process.execPath, [scriptPath, "--mode=run"], {
+    env: {
+      ...process.env,
+      NODE_ENV: "development",
+      MAPLE_GOOGLE_AUTH_SIMULATION: "0",
+      MAPLE_BILLING_SIMULATION: "0",
+    },
+    stdio: "pipe",
+  });
+  const softExitCode = await new Promise((resolveExit) => {
+    softChild.on("exit", (code) => resolveExit(code ?? 1));
+  });
+  assert.equal(softExitCode, 0);
+
+  const strictChild = spawn(process.execPath, [scriptPath, "--strict", "--mode=deploy"], {
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      MAPLE_PREFLIGHT_CHECK_REACHABILITY: "1",
+      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "1",
+      MAPLE_DEP_REQUIRE_STRIPE: "1",
+      MAPLE_GRPC_TLS_CERT: "/tmp/maple-missing/grpc.crt",
+      MAPLE_GRPC_TLS_KEY: "/tmp/maple-missing/grpc.key",
+      MAPLE_GRPC_TLS_CA: "/tmp/maple-missing/grpc-ca.crt",
+      MAPLE_GATEWAY_TLS_CERT: "/tmp/maple-missing/gateway.crt",
+      MAPLE_GATEWAY_TLS_KEY: "/tmp/maple-missing/gateway.key",
+      MAPLE_GATEWAY_TLS_CA: "/tmp/maple-missing/gateway-ca.crt",
+      GOOGLE_CLIENT_ID: "",
+      STRIPE_SECRET_KEY: "",
+      STRIPE_WEBHOOK_SECRET: "",
+    },
+    stdio: "pipe",
+  });
+  const strictExitCode = await new Promise((resolveExit) => {
+    strictChild.on("exit", (code) => resolveExit(code ?? 1));
+  });
+  assert.equal(strictExitCode, 1);
+});

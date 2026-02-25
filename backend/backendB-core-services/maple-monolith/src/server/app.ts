@@ -21,7 +21,6 @@ import { createFirewallChatOrchestration } from "./orchestration/firewall-chat-o
 import { createBridgeForkOrchestration } from "./orchestration/bridge-fork-orchestration.js";
 import { createHttpLoggingRuntime } from "./orchestration/http-logging.js";
 import { createMcpFirewallProxyHandler } from "./orchestration/mcp-firewall-proxy.js";
-import { createMarketplaceOrchestration } from "./orchestration/marketplace-orchestration.js";
 import { createRuntimeConfig } from "./orchestration/runtime-config.js";
 import {
   compactUnknown,
@@ -53,8 +52,6 @@ import {
   asNumber,
   asObject,
   asString,
-  asStringArray,
-  asStringRecord,
   dedupeBy,
   errorMessage,
   jsonRpcErrorPayload,
@@ -70,11 +67,9 @@ import {
 import { registerDemoRoutes } from "./routes/demo-routes.js";
 import { registerFirewallChatRoutes } from "./routes/firewall-chat-routes.js";
 import { registerGptActionsRoutes } from "./routes/gpt-actions-routes.js";
-import { registerMarketplaceRoutes } from "./routes/marketplace-routes.js";
 import { registerJudgeUiRoutes } from "./routes/judge-ui-routes.js";
 import { registerMcpTransportRoutes } from "./routes/mcp-transport-routes.js";
 import { registerRuntimeMaintenanceRoutes } from "./routes/runtime-maintenance-routes.js";
-import { registerSmitheryLegacyRoutes } from "./routes/smithery-routes.js";
 import { registerTraceReadRoutes } from "./routes/trace-read-routes.js";
 import { registerCommunityTools } from "./tools/community-tools.js";
 import { registerDownstreamControlTools } from "./tools/downstream-control-tools.js";
@@ -95,12 +90,6 @@ import {
   type DownstreamAppConfig,
   type DownstreamAppInfo,
 } from "../control/downstream-proxy.js";
-import {
-  fetchSmitheryServerDetails,
-  listSmitheryServers,
-  resolveSmitheryDeploymentUrl,
-  toSmitheryDownstreamAppId,
-} from "../integrations/smithery.js";
 
 export const server = new MCPServer({
   name: "maple",
@@ -198,20 +187,14 @@ const {
   firewallChatPrimaryProvider,
   firewallChatTimeoutMs,
   judgeUiRoutesEnabled,
-  legacySmitheryRoutesEnabled,
   mapleDefaultTargetAppId: MAPLE_DEFAULT_TARGET_APP_ID,
   mcpExecutionOrderAppIds,
   mcpFirewallDefaultAppId,
-  mcpMarketplaceAutoConnectEnabled,
-  mcpMarketplaceEnabled,
   mcpProxyAllowDynamicTargets,
   mcpProxyAllowPrivateTargets,
   mcpProxyAllowedHosts,
   mcpProxyDefaultTargetUrl,
   mcpRouteLockEnabled,
-  mcpSoBaseUrl,
-  mcpSoEnabled,
-  mcpSoTimeoutMs,
   normalizeDynamicMcpUrl,
   primaryConfiguredApiKeyFingerprint,
   sessionCookieName,
@@ -219,10 +202,6 @@ const {
   sessionPollEnabled,
   sessionPollIntervalMs,
   sessionTtlSeconds,
-  smitheryApiBaseUrl,
-  smitheryApiKey,
-  smitheryEnabled,
-  smitheryTimeoutMs,
 } = runtimeConfig;
 
 type DownstreamToolsListResult = Awaited<ReturnType<typeof listToolsFromDownstream>>;
@@ -533,7 +512,6 @@ type RuntimeRouteMode =
   | "default_app"
   | "default_target"
   | "single_app"
-  | "marketplace"
   | "none";
 
 function buildRuntimeStatus() {
@@ -556,9 +534,6 @@ function buildRuntimeStatus() {
   } else if (singleActiveAppId) {
     routeMode = "single_app";
     routeSummary = `single_app:${singleActiveAppId}`;
-  } else if (mcpMarketplaceEnabled) {
-    routeMode = "marketplace";
-    routeSummary = "marketplace:auto";
   }
 
   return {
@@ -573,10 +548,6 @@ function buildRuntimeStatus() {
     dynamicTargetsAllowed: mcpProxyAllowDynamicTargets,
     privateTargetsAllowed: mcpProxyAllowPrivateTargets,
     allowedHosts: [...mcpProxyAllowedHosts],
-    marketplaceEnabled: mcpMarketplaceEnabled,
-    marketplaceAutoConnectEnabled: mcpMarketplaceAutoConnectEnabled,
-    smitheryEnabled,
-    mcpsoEnabled: mcpSoEnabled,
     activeDownstreamCount: activeDownstreamApps.length,
     activeDownstreamIds,
     activeDownstreamApps,
@@ -598,27 +569,6 @@ function resolveDownstreamApp(appId: string): DownstreamAppConfig {
     throw new Error(`Downstream app "${appId}" is disabled.`);
   }
   return app;
-}
-
-function isSmitheryDownstreamApp(app: DownstreamAppConfig): boolean {
-  return app.id.startsWith("smithery-") || app.description?.startsWith("[smithery] ") === true;
-}
-
-function isMcpSoDownstreamApp(app: DownstreamAppConfig): boolean {
-  return app.id.startsWith("mcpso-") || app.description?.startsWith("[mcpso] ") === true;
-}
-
-function buildUrlWithQueryParams(baseUrl: string, params: Record<string, string>): string {
-  const parsed = new URL(baseUrl);
-  for (const [key, value] of Object.entries(params)) {
-    const normalizedKey = key.trim();
-    const normalizedValue = value.trim();
-    if (!normalizedKey || !normalizedValue) {
-      continue;
-    }
-    parsed.searchParams.set(normalizedKey, normalizedValue);
-  }
-  return parsed.toString();
 }
 
 function resolveDispatchAppIds(options: {
@@ -774,98 +724,23 @@ const downstreamOrchestration = createDownstreamOrchestration({
 const dispatchDownstreamChainAndLog = downstreamOrchestration.dispatchDownstreamChainAndLog;
 const forwardJsonRpcAndLog = downstreamOrchestration.forwardJsonRpcAndLog;
 
-const marketplaceOrchestration = createMarketplaceOrchestration({
-  asBoolean,
-  asNumber,
-  asString,
-  asStringArray,
-  asStringRecord,
-  buildRuntimeStatus,
-  buildUrlWithQueryParams,
-  clearDownstreamToolsCache,
-  dedupeBy,
-  dispatchDownstreamChainAndLog,
-  downstreamAppRegistry,
-  errorMessage,
-  isMcpSoDownstreamApp,
-  isSmitheryDownstreamApp,
-  listDownstreamApps,
-  listToolsFromDownstreamCached,
-  mcpExecutionOrderAppIds,
-  mcpFirewallDefaultAppId,
-  mcpMarketplaceEnabled,
-  mcpRouteLockEnabled,
-  mcpSoBaseUrl,
-  mcpSoEnabled,
-  mcpSoTimeoutMs,
-  normalizeDynamicMcpUrl,
-  resolveAutoConfiguredAppId,
-  resolveDownstreamApp,
-  smitheryApiBaseUrl,
-  smitheryApiKey,
-  smitheryEnabled,
-  smitheryTimeoutMs,
-  toPolicySnapshot,
-  toPublicDownstreamApp,
-  withAbortTimeout,
-});
-
-const autoConnectAndResolveToolMatch =
-  marketplaceOrchestration.autoConnectAndResolveToolMatch;
-const buildMarketplaceCatalog = marketplaceOrchestration.buildMarketplaceCatalog;
-const buildMarketplaceCatalogForAppIds =
-  marketplaceOrchestration.buildMarketplaceCatalogForAppIds;
-const classifyMarketplaceProviderForApp =
-  marketplaceOrchestration.classifyMarketplaceProviderForApp;
-const executeMarketplaceControlTool =
-  marketplaceOrchestration.executeMarketplaceControlTool;
-const getMarketplaceControlTools = marketplaceOrchestration.getMarketplaceControlTools;
-const isMapleNativeToolName = marketplaceOrchestration.isMapleNativeToolName;
-const isMarketplaceControlToolName =
-  marketplaceOrchestration.isMarketplaceControlToolName;
-const listEnabledDownstreamAppIds =
-  marketplaceOrchestration.listEnabledDownstreamAppIds;
-const normalizeMarketplaceId = marketplaceOrchestration.normalizeMarketplaceId;
-const parseMarketplaceProvider =
-  marketplaceOrchestration.parseMarketplaceProvider;
-const parseMarketplaceToolName = marketplaceOrchestration.parseMarketplaceToolName;
-const registerMarketplaceDownstream =
-  marketplaceOrchestration.registerMarketplaceDownstream;
-const resolveMarketplaceAppIds = marketplaceOrchestration.resolveMarketplaceAppIds;
-const searchMarketplaceServers = marketplaceOrchestration.searchMarketplaceServers;
-
 const mcpFirewallProxyHandler = createMcpFirewallProxyHandler({
   applyToolAllowlist,
-  asBoolean,
-  asNumber,
   asObject,
   asString,
-  autoConnectAndResolveToolMatch,
-  buildMarketplaceCatalog,
-  buildMarketplaceCatalogForAppIds,
   dispatchDownstreamChainAndLog,
   errorMessage,
-  executeMarketplaceControlTool,
   forwardJsonRpcAndLog,
-  getMarketplaceControlTools,
-  isMapleNativeToolName,
-  isMarketplaceControlToolName,
   jsonRpcErrorPayload,
-  listEnabledDownstreamAppIds,
   listToolsFromDownstreamCached,
   mcpExecutionOrderAppIds,
   mcpFirewallDefaultAppId,
-  mcpMarketplaceAutoConnectEnabled,
-  mcpMarketplaceEnabled,
   mcpProxyAllowDynamicTargets,
   mcpRouteLockEnabled,
-  parseMarketplaceProvider,
-  parseMarketplaceToolName,
   resolveAutoConfiguredAppId,
   resolveDefaultTargetApp,
   resolveDispatchAppIds,
   resolveDownstreamApp,
-  resolveMarketplaceAppIds,
   resolveMcpProxyTarget,
   toDynamicDownstreamAppConfig,
   toPolicySnapshot,
@@ -1055,63 +930,6 @@ if (demoRoutesEnabled) {
   });
 }
 
-if (legacySmitheryRoutesEnabled) {
-  registerSmitheryLegacyRoutes(server.app, {
-    asBoolean,
-    asNumber,
-    asString,
-    asStringArray,
-    asStringRecord,
-    buildUrlWithQueryParams,
-    clearDownstreamToolsCache,
-    downstreamAppRegistry,
-    errorMessage,
-    fetchSmitheryServerDetails,
-    isSmitheryDownstreamApp,
-    listDownstreamApps,
-    listSmitheryServers,
-    readJsonBody,
-    requireApiKeyResponse,
-    resolveSmitheryDeploymentUrl,
-    smitheryApiBaseUrl,
-    smitheryApiKey,
-    smitheryEnabled,
-    smitheryTimeoutMs,
-    toPublicDownstreamApp,
-    toSmitheryDownstreamAppId,
-    withAbortTimeout,
-  });
-}
-
-registerMarketplaceRoutes(server.app, {
-  asBoolean,
-  asNumber,
-  asString,
-  asStringArray,
-  asStringRecord,
-  buildMarketplaceCatalogForAppIds,
-  classifyMarketplaceProviderForApp,
-  clearDownstreamToolsCache,
-  downstreamAppRegistry,
-  errorMessage,
-  listDownstreamApps,
-  listEnabledDownstreamAppIds,
-  mcpMarketplaceEnabled,
-  mcpRouteLockEnabled,
-  mcpSoBaseUrl,
-  mcpSoEnabled,
-  normalizeMarketplaceId,
-  parseMarketplaceProvider,
-  readJsonBody,
-  registerMarketplaceDownstream,
-  requireApiKeyResponse,
-  resolveDownstreamApp,
-  searchMarketplaceServers,
-  smitheryApiBaseUrl,
-  smitheryEnabled,
-  toPublicDownstreamApp,
-});
-
 registerDownstreamRoutes(server.app, {
   asString,
   dispatchDownstreamChainAndLog,
@@ -1232,8 +1050,6 @@ if (!disableAutostart) {
       demoRoutesEnabled,
       downstreamConfiguredCount: downstreamAppRegistry.size,
       judgeUiRoutesEnabled,
-      legacySmitheryRoutesEnabled,
-      mcpMarketplaceEnabled,
       mcpProxyAllowedHosts,
       mcpProxyAllowDynamicTargets,
       mcpProxyAllowPrivateTargets,

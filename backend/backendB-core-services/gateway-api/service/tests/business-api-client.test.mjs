@@ -115,6 +115,39 @@ test("business-api proxy handles POST body forwarding", async () => {
   }
 });
 
+test("business-api proxy normalizes legacy context headers to x-maple-*", async () => {
+  const { server, baseUrl } = await startTestServer((req, res) => {
+    assert.equal(req.headers["x-maple-tenant-id"], "tenant-1");
+    assert.equal(req.headers["x-maple-user-id"], "user-1");
+    assert.equal(req.headers["x-maple-device-id"], "device-1");
+    assert.equal(req.headers["x-maple-session-id"], "session-1");
+    assert.equal(req.headers["x-trace-id"], "trace-1");
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  try {
+    const proxied = await proxyBusinessApiRequest(
+      fakeContext({
+        "x-tenant-id": "tenant-1",
+        "x-user-id": "user-1",
+        "x-device-id": "device-1",
+        "mcp-session-id": "session-1",
+        "x-trace-id": "trace-1",
+      }),
+      "/api/business/org",
+      { baseUrl }
+    );
+
+    assert.equal(proxied.proxied, true);
+    assert.equal(proxied.status, 200);
+    assert.deepEqual(proxied.payload, { ok: true });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("business-api proxy captures set-cookie headers from upstream", async () => {
   const { server, baseUrl } = await startTestServer((_req, res) => {
     res.statusCode = 200;

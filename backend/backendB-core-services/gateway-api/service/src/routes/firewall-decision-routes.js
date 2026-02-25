@@ -144,5 +144,33 @@ export function registerFirewallDecisionRoutes() {
             bridgeLocked: bridgeOverrideLockEnabled,
         });
     });
+    // ── POST /api/firewall/simulate ───────────────────────────────────────────
+    server.app.post("/api/firewall/simulate", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) {
+            return unauthorized;
+        }
+        const body = await readJsonBody(c);
+        const candidateStep = buildCandidateStep(body, Number(body.stepIndex ?? 0), {
+            actor: "agent",
+            type: "tool_call",
+        });
+        const decision = await evaluateFirewallStepViaGrpc(candidateStep);
+        return c.json({
+            ok: true,
+            mode: "simulate",
+            decision: decision.action,
+            executeAllowed: !decision.shouldBlock,
+            shouldBlock: decision.shouldBlock,
+            severity: decision.severity,
+            rule: decision.rule,
+            message: decision.message,
+            recommendation: decision.recommendation,
+            redactedPatterns: decision.redactedPatterns,
+            evaluatedAt: decision.evaluatedAt,
+            bridgeLocked: bridgeOverrideLockEnabled,
+            step: decision.step,
+        });
+    });
 }
 //# sourceMappingURL=firewall-decision-routes.js.map

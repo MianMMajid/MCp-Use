@@ -486,66 +486,66 @@
           </div>
         </section>
 
-        <section data-view-panel="marketplace" class="view-panel marketplace-view hidden">
-          <article class="panel marketplace-panel">
+        <section data-view-panel="toolhub" class="view-panel toolhub-view hidden">
+          <article class="panel toolhub-panel">
             <div class="panel-head">
-              <h2 class="panel-title">Marketplace</h2>
+              <h2 class="panel-title">Toolhub</h2>
               <span class="chip">MCP</span>
             </div>
-            <div class="marketplace-controls">
-              <div class="marketplace-field marketplace-field-grow">
-                <label for="marketplaceSearch">Filter Installed Tools</label>
-                <input id="marketplaceSearch" type="text" placeholder="Filter tool name/description..." autocomplete="off" />
+            <div class="toolhub-controls">
+              <div class="toolhub-field toolhub-field-grow">
+                <label for="toolhubSearch">Filter Installed Tools</label>
+                <input id="toolhubSearch" type="text" placeholder="Filter tool name/description..." autocomplete="off" />
               </div>
-              <button id="marketplaceSearchBtn" class="demo-btn primary" type="button">Filter</button>
+              <button id="toolhubSearchBtn" class="demo-btn primary" type="button">Filter</button>
             </div>
-            <div class="marketplace-section">
-              <h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3>
+            <div class="toolhub-section">
+              <h3 class="toolhub-section-title">Installed Tools (Hackathon Catalog)</h3>
               <div class="table-wrap">
-                <table class="timeline-table marketplace-results-table">
+                <table class="timeline-table toolhub-results-table">
                   <thead>
                     <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
                   </thead>
-                  <tbody id="marketplaceResultsBody">
+                  <tbody id="toolhubResultsBody">
                     <tr><td colspan="4" class="empty-row">Loading installed tools...</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="marketplace-section">
-              <h3 class="marketplace-section-title">Registered Downstream Apps</h3>
+            <div class="toolhub-section">
+              <h3 class="toolhub-section-title">Registered Downstream Apps</h3>
               <div class="table-wrap">
-                <table class="timeline-table marketplace-connected-table">
+                <table class="timeline-table toolhub-connected-table">
                   <thead>
                     <tr><th>App ID</th><th>Name</th><th>URL</th><th>Scope</th></tr>
                   </thead>
-                  <tbody id="marketplaceConnectedBody">
+                  <tbody id="toolhubConnectedBody">
                     <tr><td colspan="4" class="empty-row">No downstream apps found.</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="marketplace-section">
-              <h3 class="marketplace-section-title">Available Tools</h3>
+            <div class="toolhub-section">
+              <h3 class="toolhub-section-title">Available Tools</h3>
               <div class="table-wrap">
-                <table class="timeline-table marketplace-tools-table">
+                <table class="timeline-table toolhub-tools-table">
                   <thead>
                     <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
                   </thead>
-                  <tbody id="marketplaceToolsBody">
+                  <tbody id="toolhubToolsBody">
                     <tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="marketplace-section">
-              <h3 class="marketplace-section-title">Dispatch Tool</h3>
-              <div class="marketplace-controls">
-                <div class="marketplace-field marketplace-field-grow">
+            <div class="toolhub-section">
+              <h3 class="toolhub-section-title">Dispatch Tool</h3>
+              <div class="toolhub-controls">
+                <div class="toolhub-field toolhub-field-grow">
                   <label for="dispatchToolName">Tool Name</label>
                   <input id="dispatchToolName" type="text" placeholder="e.g. read_file" autocomplete="off" />
                 </div>
-                <div class="marketplace-field marketplace-field-grow">
+                <div class="toolhub-field toolhub-field-grow">
                   <label for="dispatchToolArgs">Arguments (JSON)</label>
                   <input id="dispatchToolArgs" type="text" placeholder='e.g. {"path": "/tmp/test.txt"}' autocomplete="off" />
                 </div>
@@ -563,7 +563,7 @@
               <span class="chip">Firewall</span>
             </div>
             <div class="policy-controls">
-              <div class="marketplace-field">
+              <div class="toolhub-field">
                 <label for="policyType">Type</label>
                 <select id="policyType">
                   <option value="tool_call">tool_call</option>
@@ -574,7 +574,7 @@
                   <option value="file_write">file_write</option>
                 </select>
               </div>
-              <div class="marketplace-field">
+              <div class="toolhub-field">
                 <label for="policyActor">Actor</label>
                 <select id="policyActor">
                   <option value="agent">agent</option>
@@ -585,31 +585,31 @@
               </div>
             </div>
             <div class="policy-controls">
-              <div class="marketplace-field marketplace-field-grow">
+              <div class="toolhub-field toolhub-field-grow">
                 <label for="policyTraceId">Trace ID (optional)</label>
                 <input id="policyTraceId" type="text" placeholder="Trace ID" autocomplete="off" />
               </div>
-              <div class="marketplace-field marketplace-field-grow">
+              <div class="toolhub-field toolhub-field-grow">
                 <label for="policySessionId">Session ID (optional)</label>
                 <input id="policySessionId" type="text" placeholder="Session ID" autocomplete="off" />
               </div>
             </div>
             <div class="policy-controls">
-              <div class="marketplace-field marketplace-field-grow">
+              <div class="toolhub-field toolhub-field-grow">
                 <label for="policyCommand">Command</label>
                 <input id="policyCommand" type="text" placeholder="e.g. rm -rf /tmp/data" autocomplete="off" />
               </div>
-              <div class="marketplace-field marketplace-field-grow">
+              <div class="toolhub-field toolhub-field-grow">
                 <label for="policyUrl">URL (optional)</label>
                 <input id="policyUrl" type="text" placeholder="e.g. https://api.example.com" autocomplete="off" />
               </div>
             </div>
             <div class="policy-controls">
-              <div class="marketplace-field marketplace-field-grow">
+              <div class="toolhub-field toolhub-field-grow">
                 <label for="policyPrompt">Prompt (optional)</label>
                 <input id="policyPrompt" type="text" placeholder="User prompt text" autocomplete="off" />
               </div>
-              <div class="marketplace-field marketplace-field-grow">
+              <div class="toolhub-field toolhub-field-grow">
                 <label for="policyToolName">Tool Name (optional)</label>
                 <input id="policyToolName" type="text" placeholder="e.g. bash, http_request" autocomplete="off" />
               </div>
@@ -629,7 +629,7 @@
               <span class="chip">Admin</span>
             </div>
             <div class="settings-section">
-              <h3 class="marketplace-section-title">Authentication</h3>
+              <h3 class="toolhub-section-title">Authentication</h3>
               <dl class="kv-grid kv-grid-inline">
                 <div class="kv-row">
                   <dt>Status</dt>
@@ -642,11 +642,11 @@
               </dl>
             </div>
             <div class="settings-section">
-              <h3 class="marketplace-section-title">Runtime Status</h3>
+              <h3 class="toolhub-section-title">Runtime Status</h3>
               <pre id="settingsRuntimeStatus" class="json-panel">{}</pre>
             </div>
             <div class="settings-section">
-              <h3 class="marketplace-section-title">Actions</h3>
+              <h3 class="toolhub-section-title">Actions</h3>
               <div class="settings-actions">
                 <button id="settingsRefreshBtn" class="demo-btn" type="button">Refresh Status</button>
                 <button id="settingsClearHistoryBtn" class="demo-btn danger" type="button">Clear Trace History</button>

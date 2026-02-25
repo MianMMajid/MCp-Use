@@ -6,7 +6,6 @@ interface RuntimeStatusSnapshot {
   bypassAllowed: boolean;
   executionOrder: string[];
   defaultTargetUrl?: string | null;
-  marketplaceAutoConnectEnabled?: boolean;
 }
 
 interface SessionPollingConfig {
@@ -23,10 +22,8 @@ interface LogServerStartupDeps {
   mcpProxyAllowPrivateTargets: boolean;
   mcpProxyAllowDynamicTargets: boolean;
   mcpProxyAllowedHosts: string[];
-  mcpMarketplaceEnabled: boolean;
   judgeUiRoutesEnabled: boolean;
   demoRoutesEnabled: boolean;
-  legacySmitheryRoutesEnabled: boolean;
   apiKeyAuthEnabled: boolean;
   configuredApiKeyCount: number;
   configuredBridgeUrl: string;
@@ -45,10 +42,8 @@ export function logServerStartup(deps: LogServerStartupDeps): void {
     mcpProxyAllowPrivateTargets,
     mcpProxyAllowDynamicTargets,
     mcpProxyAllowedHosts,
-    mcpMarketplaceEnabled,
     judgeUiRoutesEnabled,
     demoRoutesEnabled,
-    legacySmitheryRoutesEnabled,
     apiKeyAuthEnabled,
     configuredApiKeyCount,
     configuredBridgeUrl,
@@ -83,17 +78,10 @@ export function logServerStartup(deps: LogServerStartupDeps): void {
       `[MCP-FIREWALL] dynamic targets enabled; allowlist hosts=${mcpProxyAllowedHosts.join(",")}`
     );
   }
-  if (mcpMarketplaceEnabled) {
-    console.log(
-      `[MCP-FIREWALL] marketplace mode enabled (native namespaced tool browse/call). autoConnect=${
-        runtimeStatus.marketplaceAutoConnectEnabled ? "true" : "false"
-      }`
-    );
-  }
   console.log(
     `[ROUTES] judgeUI=${judgeUiRoutesEnabled ? "enabled" : "disabled"} demo=${
       demoRoutesEnabled ? "enabled" : "disabled"
-    } legacySmithery=${legacySmitheryRoutesEnabled ? "enabled" : "disabled"}`
+    }`
   );
   if (apiKeyAuthEnabled) {
     console.log(`[AUTH] API key auth enabled with ${configuredApiKeyCount} key(s).`);

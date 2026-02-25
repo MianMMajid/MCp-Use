@@ -1,8 +1,9 @@
-import { server, database, buildRuntimeStatus } from "../state.js";
+import { server, database, buildRuntimeStatus, getGrpcClients } from "../state.js";
 import { requireApiKeyResponse } from "../auth.js";
 import { asString } from "../helpers.js";
 import { buildFirewallChatContext, buildYcMetrics, } from "../trace-helpers.js";
 import { buildYcAppBrief } from "../strategy/yc-narrative.js";
+import { grpcUnary } from "../grpc-clients.js";
 export function registerFirewallStatusRoutes() {
     // ── GET /api/yc/brief ──────────────────────────────────────────────────────
     server.get("/api/yc/brief", async (c) => {
@@ -43,6 +44,42 @@ export function registerFirewallStatusRoutes() {
             ok: true,
             traceFound: Boolean(context.trace),
             context,
+        });
+    });
+    // ── GET /api/firewall/rules/effective ────────────────────────────────────
+    server.get("/api/firewall/rules/effective", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) {
+            return unauthorized;
+        }
+        const grpcClients = getGrpcClients();
+        if (grpcClients?.contextWall) {
+            try {
+                const response = await grpcUnary(grpcClients.contextWall, "listPolicyRules", {});
+                const rules = Array.isArray(response?.rules) ? response.rules : [];
+                return c.json({
+                    ok: true,
+                    source: "context-wall",
+                    ruleCount: Number(response?.ruleCount ?? rules.length),
+                    rules,
+                });
+            }
+            catch (error) {
+                return c.json({
+                    ok: true,
+                    source: "gateway-fallback",
+                    ruleCount: 0,
+                    rules: [],
+                    warning: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+        return c.json({
+            ok: true,
+            source: "gateway-fallback",
+            ruleCount: 0,
+            rules: [],
+            runtime: buildRuntimeStatus(),
         });
     });
 }

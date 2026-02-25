@@ -3278,12 +3278,12 @@ div.empty-row {
   }
 }
 
-/* ── Marketplace panel ── */
-.marketplace-view .marketplace-panel {
+/* ── Toolhub panel ── */
+.toolhub-view .toolhub-panel {
   overflow-y: auto;
 }
 
-.marketplace-controls {
+.toolhub-controls {
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -3291,13 +3291,13 @@ div.empty-row {
   margin-bottom: 12px;
 }
 
-.marketplace-field {
+.toolhub-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.marketplace-field label {
+.toolhub-field label {
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--muted);
@@ -3305,8 +3305,8 @@ div.empty-row {
   letter-spacing: 0.06em;
 }
 
-.marketplace-field input,
-.marketplace-field select {
+.toolhub-field input,
+.toolhub-field select {
   height: 32px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -3317,25 +3317,25 @@ div.empty-row {
   padding: 0 8px;
 }
 
-.marketplace-field-grow {
+.toolhub-field-grow {
   flex: 1 1 0;
   min-width: 120px;
 }
 
-.marketplace-section {
+.toolhub-section {
   margin-top: 12px;
 }
 
-.marketplace-section-title {
+.toolhub-section-title {
   font-size: 0.82rem;
   font-weight: 650;
   color: var(--ink);
   margin: 0 0 6px;
 }
 
-.marketplace-results-table,
-.marketplace-connected-table,
-.marketplace-tools-table {
+.toolhub-results-table,
+.toolhub-connected-table,
+.toolhub-tools-table {
   font-size: 0.74rem;
 }
 

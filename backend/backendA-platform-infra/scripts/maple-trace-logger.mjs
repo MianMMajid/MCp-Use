@@ -232,62 +232,6 @@ export class MapleTraceLogger {
     });
   }
 
-  async logMarketplaceSearch(options = {}) {
-    const query = asNonEmptyString(options.query) ?? "marketplace search";
-    const provider = asNonEmptyString(options.provider) ?? "all";
-    const url = asNonEmptyString(options.url) ?? "https://mcp.so";
-    const resultCount = Number.isFinite(options.resultCount)
-      ? Math.max(0, Math.trunc(options.resultCount))
-      : undefined;
-
-    return this.logAction({
-      actor: options.actor ?? "agent",
-      type: options.type ?? "tool_call",
-      toolName: options.toolName ?? "marketplace_search",
-      prompt: options.prompt ?? `Search MCP marketplace for "${query}"`,
-      message: options.message ?? `marketplace search query="${query}" provider=${provider}`,
-      url,
-      output:
-        asNonEmptyString(options.output) ??
-        (resultCount === undefined
-          ? undefined
-          : `Maple returned ${resultCount} marketplace candidate(s).`),
-      toolInput:
-        options.toolInput && typeof options.toolInput === "object"
-          ? options.toolInput
-          : {
-              query,
-              provider,
-            },
-      toolOutput: options.toolOutput,
-      eventId: options.eventId,
-    });
-  }
-
-  async logMarketplaceToolCall(options = {}) {
-    const toolName = asNonEmptyString(options.toolName) ?? "dispatch_downstream_tool";
-    return this.logAction({
-      actor: options.actor ?? "agent",
-      type: options.type ?? "tool_call",
-      toolName,
-      prompt:
-        asNonEmptyString(options.prompt) ??
-        `Execute downstream marketplace tool "${toolName}"`,
-      message:
-        asNonEmptyString(options.message) ??
-        `dispatch downstream tool "${toolName}"`,
-      command: asNonEmptyString(options.command),
-      url: asNonEmptyString(options.url),
-      output: asNonEmptyString(options.output),
-      toolInput:
-        options.toolInput && typeof options.toolInput === "object"
-          ? options.toolInput
-          : undefined,
-      toolOutput: options.toolOutput,
-      eventId: options.eventId,
-    });
-  }
-
   async previewFirewallDecision(action = {}) {
     await this.ensureRun();
     const event = this.normalizeEvent(action);

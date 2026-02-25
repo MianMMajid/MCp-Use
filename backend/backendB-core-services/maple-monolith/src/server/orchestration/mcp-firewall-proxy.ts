@@ -12,46 +12,8 @@ interface ProxyRequestContext {
 
 interface CreateMcpFirewallProxyHandlerDeps {
   applyToolAllowlist: (app: any, tools: Array<Record<string, unknown>>) => Array<Record<string, unknown>>;
-  asBoolean: (value: unknown, fallback: boolean) => boolean;
-  asNumber: (value: unknown) => number | undefined;
   asObject: (value: unknown) => Record<string, unknown>;
   asString: (value: unknown) => string | undefined;
-  autoConnectAndResolveToolMatch: (options: {
-    toolName: string;
-    provider: "smithery" | "mcpso" | "all";
-    searchQuery: string;
-    searchLimit: number;
-  }) => Promise<{
-    match?: { appId: string; toolName: string };
-    attempted: string[];
-    warnings: string[];
-  }>;
-  buildMarketplaceCatalog: (target: McpProxyTargetResolution) => Promise<{
-    appIds: string[];
-    tools: Array<{
-      appId: string;
-      appName: string;
-      toolName: string;
-      qualifiedName: string;
-      description?: string;
-      inputSchema?: unknown;
-      annotations?: unknown;
-    }>;
-    warnings: Array<{ appId: string; message: string }>;
-  }>;
-  buildMarketplaceCatalogForAppIds: (appIds: string[]) => Promise<{
-    appIds: string[];
-    tools: Array<{
-      appId: string;
-      appName: string;
-      toolName: string;
-      qualifiedName: string;
-      description?: string;
-      inputSchema?: unknown;
-      annotations?: unknown;
-    }>;
-    warnings: Array<{ appId: string; message: string }>;
-  }>;
   dispatchDownstreamChainAndLog: (options: {
     appIds: string[];
     toolName: string;
@@ -77,10 +39,6 @@ interface CreateMcpFirewallProxyHandlerDeps {
     };
   }>;
   errorMessage: (error: unknown) => string;
-  executeMarketplaceControlTool: (
-    toolName: string,
-    toolArgs: Record<string, unknown>
-  ) => Promise<unknown>;
   forwardJsonRpcAndLog: (options: {
     appId: string;
     rpcMethod: string;
@@ -100,25 +58,17 @@ interface CreateMcpFirewallProxyHandlerDeps {
     failure?: string;
     forward?: { payload?: unknown; responseStatus?: number };
   }>;
-  getMarketplaceControlTools: () => Array<{ name: string; description: string; inputSchema: unknown }>;
-  isMapleNativeToolName: (toolName: string) => boolean;
-  isMarketplaceControlToolName: (toolName: string) => boolean;
   jsonRpcErrorPayload: (
     id: unknown,
     code: number,
     message: string,
     data?: Record<string, unknown>
   ) => Record<string, unknown>;
-  listEnabledDownstreamAppIds: () => string[];
   listToolsFromDownstreamCached: (app: any) => Promise<{ tools: any[] }>;
   mcpExecutionOrderAppIds: string[];
   mcpFirewallDefaultAppId?: string;
-  mcpMarketplaceAutoConnectEnabled: boolean;
-  mcpMarketplaceEnabled: boolean;
   mcpProxyAllowDynamicTargets: boolean;
   mcpRouteLockEnabled: boolean;
-  parseMarketplaceProvider: (value: unknown) => "smithery" | "mcpso" | "all" | undefined;
-  parseMarketplaceToolName: (value: string) => { appId: string; toolName: string } | undefined;
   resolveAutoConfiguredAppId: () => string | undefined;
   resolveDefaultTargetApp: () => any;
   resolveDispatchAppIds: (options: {
@@ -127,7 +77,6 @@ interface CreateMcpFirewallProxyHandlerDeps {
     includeDefaultExecutionOrder?: boolean;
   }) => string[];
   resolveDownstreamApp: (appId: string) => any;
-  resolveMarketplaceAppIds: (target: McpProxyTargetResolution) => string[];
   resolveMcpProxyTarget: (
     c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } },
     deps: McpProxyTargetResolverDeps
@@ -136,47 +85,74 @@ interface CreateMcpFirewallProxyHandlerDeps {
   toPolicySnapshot: (decision: any) => unknown;
 }
 
+const LOCAL_TOOL_NAMES = new Set([
+  "observe_session",
+  "ingest_session_event",
+  "guard_action",
+  "audit_risk",
+  "ml_anomaly_report",
+  "replay_fork",
+  "share_trace_anon",
+  "suggest_evolved_skills",
+  "yc_app_brief",
+  "list_traces",
+  "export_trace",
+  "list_downstream_apps",
+  "list_downstream_tools",
+  "dispatch_downstream_tool",
+]);
+
+function isLocalToolName(toolName: string): boolean {
+  if (LOCAL_TOOL_NAMES.has(toolName)) {
+    return true;
+  }
+  return toolName.startsWith("widget_");
+}
+
+function parseQualifiedToolName(
+  rawToolName: string
+): { appId: string; toolName: string } | undefined {
+  const normalized = String(rawToolName ?? "").trim();
+  if (!normalized.includes("::")) {
+    return undefined;
+  }
+  const separator = normalized.indexOf("::");
+  const appId = normalized.slice(0, separator).trim();
+  const toolName = normalized.slice(separator + 2).trim();
+  if (!appId || !toolName) {
+    return undefined;
+  }
+  return { appId, toolName };
+}
+
 export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandlerDeps): {
   handleMcpFirewallProxy: (c: ProxyRequestContext) => Promise<Response | undefined>;
 } {
   const {
     applyToolAllowlist,
-    asBoolean,
-    asNumber,
     asObject,
     asString,
-    autoConnectAndResolveToolMatch,
-    buildMarketplaceCatalog,
-    buildMarketplaceCatalogForAppIds,
     dispatchDownstreamChainAndLog,
     errorMessage,
-    executeMarketplaceControlTool,
     forwardJsonRpcAndLog,
-    getMarketplaceControlTools,
-    isMapleNativeToolName,
-    isMarketplaceControlToolName,
     jsonRpcErrorPayload,
-    listEnabledDownstreamAppIds,
     listToolsFromDownstreamCached,
     mcpExecutionOrderAppIds,
     mcpFirewallDefaultAppId,
-    mcpMarketplaceAutoConnectEnabled,
-    mcpMarketplaceEnabled,
     mcpProxyAllowDynamicTargets,
     mcpRouteLockEnabled,
-    parseMarketplaceProvider,
-    parseMarketplaceToolName,
     resolveAutoConfiguredAppId,
     resolveDefaultTargetApp,
     resolveDispatchAppIds,
     resolveDownstreamApp,
-    resolveMarketplaceAppIds,
     resolveMcpProxyTarget,
     toDynamicDownstreamAppConfig,
     toPolicySnapshot,
   } = deps;
 
-  const handleMcpFirewallProxy = async (c: ProxyRequestContext): Promise<Response | undefined> => {
+  const handleMcpFirewallProxy = async (
+    c: ProxyRequestContext
+  ): Promise<Response | undefined> => {
     const body = c.req.raw
       ? await c.req.raw
           .clone()
@@ -226,158 +202,91 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
         status
       );
     };
+
     const targetResolutionDetail = errorMessage(targetResolutionError ?? "");
     const routeLockTargetOverrideDenied = targetResolutionDetail.includes("route-lock is enabled");
 
-    const controlTools = getMarketplaceControlTools().map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-      _meta: {
-        mapleLocalControlTool: true,
-      },
-    }));
-
     if (method === "tools/list") {
       try {
-        if (!target) {
-          if (routeLockTargetOverrideDenied) {
-            return proxyTargetErrorResponse();
-          }
-          if (mcpMarketplaceEnabled) {
-            const enabledAppIds = listEnabledDownstreamAppIds();
-            if (enabledAppIds.length > 0) {
-              const catalog = await buildMarketplaceCatalogForAppIds(enabledAppIds);
-              const multipleApps = new Set(catalog.appIds).size > 1;
-              const tools = catalog.tools
-                .sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName))
-                .map((tool) => {
-                  const name = multipleApps ? tool.qualifiedName : tool.toolName;
-                  const baseDescription = tool.description ?? `Tool from ${tool.appName}`;
-                  const description = multipleApps
-                    ? `[${tool.appId}] ${baseDescription}`
-                    : baseDescription;
-                  return {
-                    name,
-                    ...(description ? { description } : {}),
-                    ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
-                    ...(tool.annotations ? { annotations: tool.annotations } : {}),
-                    _meta: {
-                      mapleProxyAppId: tool.appId,
-                      mapleProxyToolName: tool.toolName,
-                      mapleQualifiedName: tool.qualifiedName,
-                    },
-                  };
-                });
-              const combinedTools = [...tools, ...controlTools];
-              return c.json(
-                {
-                  jsonrpc: "2.0",
-                  id,
-                  result: {
-                    tools: combinedTools,
-                    mapleMarketplace: {
-                      enabled: true,
-                      appCount: catalog.appIds.length,
-                      warnings: catalog.warnings,
-                      controlTools: controlTools.length,
-                    },
-                  },
-                },
-                200
-              );
-            }
-          }
-          if (controlTools.length === 0) {
-            return undefined;
-          }
-          return c.json(
-            {
-              jsonrpc: "2.0",
-              id,
-              result: {
-                tools: controlTools,
-                mapleMarketplace: {
-                  enabled: mcpMarketplaceEnabled,
-                  appCount: 0,
-                  warnings: [
-                    {
-                      appId: "none",
-                      message:
-                        "No downstream app is connected yet. Auto-connect is enabled; call maple_autoroute_call or call a downstream tool name directly and Maple will attempt to resolve/connect automatically.",
-                    },
-                  ],
-                },
-              },
-            },
-            200
-          );
+        if (!target && routeLockTargetOverrideDenied) {
+          return proxyTargetErrorResponse();
         }
 
-        if (mcpMarketplaceEnabled && target.mode === "configured") {
-          const catalog = await buildMarketplaceCatalog(target);
-          if (catalog.tools.length === 0 && catalog.warnings.length > 0 && controlTools.length === 0) {
-            return c.json(
-              jsonRpcErrorPayload(id, -32002, "Marketplace tools/list failed.", {
-                warnings: catalog.warnings,
-              }),
-              502
-            );
-          }
-
-          const multipleApps = new Set(catalog.appIds).size > 1;
-          const tools = catalog.tools
-            .sort((a, b) => a.qualifiedName.localeCompare(b.qualifiedName))
-            .map((tool) => {
-              const name = multipleApps ? tool.qualifiedName : tool.toolName;
-              const baseDescription = tool.description ?? `Tool from ${tool.appName}`;
-              const description = multipleApps ? `[${tool.appId}] ${baseDescription}` : baseDescription;
-              return {
-                name,
-                ...(description ? { description } : {}),
-                ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
-                ...(tool.annotations ? { annotations: tool.annotations } : {}),
-                _meta: {
-                  mapleProxyAppId: tool.appId,
-                  mapleProxyToolName: tool.toolName,
-                  mapleQualifiedName: tool.qualifiedName,
-                },
-              };
+        const explicitChain = asString(c.req.header("x-maple-chain-apps")) ?? asString(c.req.query("mapleChain"));
+        const appIds = target
+          ? [target.app.id]
+          : resolveDispatchAppIds({
+              explicitChain,
+              includeDefaultExecutionOrder: true,
             });
-          const combinedTools = [...tools, ...controlTools];
 
+        if (target?.mode === "dynamic" && appIds.length > 1) {
           return c.json(
-            {
-              jsonrpc: "2.0",
+            jsonRpcErrorPayload(
               id,
-              result: {
-                tools: combinedTools,
-                mapleMarketplace: {
-                  enabled: true,
-                  appCount: catalog.appIds.length,
-                  warnings: catalog.warnings,
-                  controlTools: controlTools.length,
-                },
-              },
-            },
-            200
+              -32602,
+              "Dynamic target mode does not support multi-app tools/list.",
+              {
+                mode: target.mode,
+                appIds,
+              }
+            ),
+            400
           );
         }
 
-        const listed = await listToolsFromDownstreamCached(target.app);
-        const toolsRaw = listed.tools.map((tool) => ({
-          name: tool.name,
-          ...(tool.description ? { description: tool.description } : {}),
-          ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
-          ...(tool.annotations ? { annotations: tool.annotations } : {}),
-        }));
-        const tools = [...applyToolAllowlist(target.app, toolsRaw), ...controlTools];
+        const multipleApps = appIds.length > 1;
+        const tools: Array<Record<string, unknown>> = [];
+
+        for (const appId of appIds) {
+          const app =
+            target?.mode === "dynamic" && target.app.id === appId
+              ? target.app
+              : resolveDownstreamApp(appId);
+          const listed = await listToolsFromDownstreamCached(app);
+          const normalized = applyToolAllowlist(
+            app,
+            listed.tools.map((tool) => ({
+              name: tool.name,
+              ...(tool.description ? { description: tool.description } : {}),
+              ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+              ...(tool.annotations ? { annotations: tool.annotations } : {}),
+            }))
+          );
+
+          for (const tool of normalized) {
+            const toolName = asString(tool.name) ?? "";
+            if (!toolName) {
+              continue;
+            }
+            const qualifiedName = `${app.id}::${toolName}`;
+            tools.push({
+              name: multipleApps ? qualifiedName : toolName,
+              ...(tool.description
+                ? {
+                    description: multipleApps
+                      ? `[${app.id}] ${String(tool.description)}`
+                      : String(tool.description),
+                  }
+                : {}),
+              ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+              ...(tool.annotations ? { annotations: tool.annotations } : {}),
+              _meta: {
+                mapleProxyAppId: app.id,
+                mapleProxyToolName: toolName,
+                mapleQualifiedName: qualifiedName,
+              },
+            });
+          }
+        }
+
         return c.json(
           {
             jsonrpc: "2.0",
             id,
             result: {
               tools,
+              appIds,
             },
           },
           200
@@ -402,49 +311,8 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
           400
         );
       }
-      const rawToolArgs =
-        params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments)
-          ? (params.arguments as Record<string, unknown>)
-          : {};
-      const toolArgs: Record<string, unknown> = { ...rawToolArgs };
-      const autoConnectRequested = asBoolean(
-        rawToolArgs._mapleAutoConnect,
-        mcpMarketplaceAutoConnectEnabled
-      );
-      const autoConnectProvider = parseMarketplaceProvider(rawToolArgs._mapleProvider) ?? "all";
-      const autoConnectSearchQuery = asString(rawToolArgs._mapleSearchQuery);
-      const autoConnectSearchLimitRaw = asNumber(rawToolArgs._mapleSearchLimit);
-      const autoConnectSearchLimit = autoConnectSearchLimitRaw
-        ? Math.max(1, Math.min(20, Math.trunc(autoConnectSearchLimitRaw)))
-        : 10;
-      delete toolArgs._mapleAutoConnect;
-      delete toolArgs._mapleProvider;
-      delete toolArgs._mapleSearchQuery;
-      delete toolArgs._mapleSearchLimit;
 
-      if (isMarketplaceControlToolName(toolName)) {
-        try {
-          const result = await executeMarketplaceControlTool(toolName, toolArgs);
-          return c.json(
-            {
-              jsonrpc: "2.0",
-              id,
-              result,
-            },
-            200
-          );
-        } catch (controlError) {
-          return c.json(
-            jsonRpcErrorPayload(id, -32603, "Marketplace control tool failed.", {
-              toolName,
-              detail: errorMessage(controlError),
-            }),
-            400
-          );
-        }
-      }
-
-      if (isMapleNativeToolName(toolName)) {
+      if (isLocalToolName(toolName)) {
         return undefined;
       }
 
@@ -452,106 +320,76 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
         return proxyTargetErrorResponse();
       }
 
-      const singleEnabledAppWhenUnresolved =
-        !target && mcpMarketplaceEnabled && listEnabledDownstreamAppIds().length === 1
-          ? listEnabledDownstreamAppIds()[0]
-          : undefined;
-      const sessionId =
-        asString(c.req.header("x-maple-session-id")) ??
-        asString(c.req.header("mcp-session-id")) ??
-        `mcp-proxy-${target?.app.id ?? singleEnabledAppWhenUnresolved ?? "marketplace"}`;
-      const traceId = asString(c.req.header("x-maple-trace-id"));
       const chainHeader = asString(c.req.header("x-maple-chain-apps"));
       const chainQuery = asString(c.req.query("mapleChain"));
-      const qualifiedTool = parseMarketplaceToolName(toolName);
+      const qualifiedTool = parseQualifiedToolName(toolName);
       let normalizedToolName = toolName;
       let explicitAppIds: string[] | undefined;
-      let autoConnectDiagnostics:
-        | {
-            attempted: string[];
-            warnings: string[];
-          }
-        | undefined;
 
       if (qualifiedTool) {
-        const allowedMarketplaceAppIds = target
-          ? resolveMarketplaceAppIds(target)
-          : listEnabledDownstreamAppIds();
-        if (mcpRouteLockEnabled && !allowedMarketplaceAppIds.includes(qualifiedTool.appId)) {
-          return c.json(
-            jsonRpcErrorPayload(
-              id,
-              -32003,
-              `Tool "${toolName}" targets app "${qualifiedTool.appId}" which is outside locked marketplace route.`,
-              {
-                requestedAppId: qualifiedTool.appId,
-                allowedAppIds: allowedMarketplaceAppIds,
-              }
-            ),
-            403
-          );
-        }
+        normalizedToolName = qualifiedTool.toolName;
+
         try {
           resolveDownstreamApp(qualifiedTool.appId);
         } catch (resolutionError) {
           return c.json(
-            jsonRpcErrorPayload(id, -32602, "Invalid tools/call params: unknown marketplace app.", {
+            jsonRpcErrorPayload(id, -32602, "Invalid tools/call params: unknown app.", {
               detail: errorMessage(resolutionError),
               requestedAppId: qualifiedTool.appId,
             }),
             400
           );
         }
-        normalizedToolName = qualifiedTool.toolName;
-        explicitAppIds = [qualifiedTool.appId];
-      } else if (!target) {
-        const enabledMarketplaceApps = listEnabledDownstreamAppIds();
-        if (enabledMarketplaceApps.length === 1) {
-          explicitAppIds = [enabledMarketplaceApps[0]];
-        } else if (enabledMarketplaceApps.length > 1) {
+
+        if (target?.mode === "dynamic" && target.app.id !== qualifiedTool.appId) {
           return c.json(
             jsonRpcErrorPayload(
               id,
               -32602,
-              "Multiple downstream apps are connected. Use namespaced tool format appId::toolName."
+              "Dynamic target mode does not allow qualified appId overrides.",
+              {
+                mode: target.mode,
+                requestedAppId: qualifiedTool.appId,
+                resolvedAppId: target.app.id,
+              }
             ),
             400
           );
-        } else if (mcpMarketplaceEnabled && autoConnectRequested) {
-          const autoConnected = await autoConnectAndResolveToolMatch({
-            toolName: normalizedToolName,
-            provider: autoConnectProvider,
-            searchQuery: autoConnectSearchQuery ?? normalizedToolName,
-            searchLimit: autoConnectSearchLimit,
-          });
-          autoConnectDiagnostics = {
-            attempted: autoConnected.attempted,
-            warnings: autoConnected.warnings,
-          };
-          if (autoConnected.match) {
-            explicitAppIds = [autoConnected.match.appId];
-            normalizedToolName = autoConnected.match.toolName;
-          } else {
-            return c.json(
-              jsonRpcErrorPayload(
-                id,
-                -32002,
-                `Maple could not auto-resolve tool "${normalizedToolName}" to a downstream app.`,
-                {
-                  autoConnectEnabled: true,
-                  provider: autoConnectProvider,
-                  attempted: autoConnected.attempted,
-                  warnings: autoConnected.warnings,
-                  hint: "Try namespaced appId::toolName, or call maple_marketplace_search to find a compatible server.",
-                }
-              ),
-              400
-            );
-          }
-        } else {
-          return proxyTargetErrorResponse();
         }
+
+        if (
+          mcpRouteLockEnabled &&
+          target?.mode === "configured" &&
+          target.app.id !== qualifiedTool.appId
+        ) {
+          return c.json(
+            jsonRpcErrorPayload(
+              id,
+              -32003,
+              `Tool "${toolName}" targets app "${qualifiedTool.appId}" which is outside route lock.`,
+              {
+                requestedAppId: qualifiedTool.appId,
+                allowedAppId: target.app.id,
+              }
+            ),
+            403
+          );
+        }
+
+        explicitAppIds = [qualifiedTool.appId];
       }
+
+      const rawToolArgs =
+        params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments)
+          ? (params.arguments as Record<string, unknown>)
+          : {};
+      const toolArgs: Record<string, unknown> = { ...rawToolArgs };
+
+      const sessionId =
+        asString(c.req.header("x-maple-session-id")) ??
+        asString(c.req.header("mcp-session-id")) ??
+        `mcp-proxy-${target?.app.id ?? explicitAppIds?.[0] ?? "downstream"}`;
+      const traceId = asString(c.req.header("x-maple-trace-id"));
 
       try {
         const appIds =
@@ -559,8 +397,9 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
           resolveDispatchAppIds({
             explicitChain: chainHeader ?? chainQuery,
             fallbackAppId: target?.app.id,
-            includeDefaultExecutionOrder: target ? target.mode !== "dynamic" : false,
+            includeDefaultExecutionOrder: target ? target.mode !== "dynamic" : true,
           });
+
         if (target?.mode === "dynamic" && appIds.length > 1) {
           return c.json(
             jsonRpcErrorPayload(
@@ -597,7 +436,6 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
               appId: result.app.id,
               chainAppIds: chainResult.appIds,
               chainStages: chainResult.stages,
-              autoConnect: autoConnectDiagnostics ?? null,
               toolName: normalizedToolName,
               requestedToolName: toolName,
               traceId: result.trace.id,
@@ -611,7 +449,6 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
         }
 
         const final = chainResult.finalResult;
-
         return c.json(
           {
             jsonrpc: "2.0",
@@ -632,7 +469,6 @@ export function createMcpFirewallProxyHandler(deps: CreateMcpFirewallProxyHandle
           jsonRpcErrorPayload(id, -32603, "Downstream dispatch could not be completed.", {
             detail: errorMessage(dispatchError),
             appId: target?.app.id,
-            autoConnect: autoConnectDiagnostics ?? null,
             toolName: normalizedToolName,
             requestedToolName: toolName,
           }),

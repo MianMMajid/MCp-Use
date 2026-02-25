@@ -13,7 +13,6 @@ curl -sS "${BASE_URL}/api/runtime/status" "${auth[@]}" | jq '{
   routeMode:.status.routeMode,
   routeSummary:.status.routeSummary,
   routeLock:.status.routeLock,
-  marketplaceEnabled:.status.marketplaceEnabled,
   executionOrder:.status.executionOrder,
   activeDownstreamIds:.status.activeDownstreamIds
 }'

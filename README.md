@@ -240,7 +240,7 @@ If you want to integrate this into your own runtime, use:
 
 - `backend/backendA-platform-infra/scripts/maple-trace-logger.mjs`
 - `logAction(...)` for generic events
-- `logWebGet(...)`, `logMarketplaceSearch(...)`, `logMarketplaceToolCall(...)` wrappers
+- `logWebGet(...)` for URL-driven events
 
 Example:
 
@@ -258,8 +258,8 @@ await logger.logAction({
   type: "tool_call",
   actor: "agent",
   toolName: "web_get",
-  prompt: "Fetch provider docs",
-  url: "https://docs.mcp.so/providers",
+  prompt: "Fetch OpenClaw integration docs",
+  url: "https://github.com/openclaw/openclaw",
 });
 ```
 
@@ -278,7 +278,7 @@ npm run hackathon:up
 ```
 
 This starts a local downstream MCP app (`toolhub`) and route-locks Maple so all downstream calls go through it.
-Marketplace mode is canonically disabled in this build; execution only routes through cleared downstream apps.
+Only configured downstream apps are used in this build; external catalog providers are not part of runtime routing.
 
 Included tools (diverse coverage):
 

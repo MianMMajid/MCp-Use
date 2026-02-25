@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import net from "node:net";
 import { promisify } from "node:util";
 import {
@@ -30,6 +31,161 @@ const runtimeState = {
 };
 
 let gatewayProcess;
+let sessionEventSequence = 0;
+
+const sessionStore = new Map();
+const runStore = new Map();
+const sessionWatchers = new Map();
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function parseCursorOffset(cursor) {
+  const parsed = Number.parseInt(String(cursor ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
+}
+
+function parseEventCursor(cursor) {
+  const parsed = Number.parseInt(String(cursor ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+  return parsed;
+}
+
+function ensureSessionRecord(sessionId) {
+  const normalizedSessionId = String(sessionId ?? "").trim();
+  if (!normalizedSessionId) {
+    throw new Error("sessionId is required.");
+  }
+  const existing = sessionStore.get(normalizedSessionId);
+  if (existing) {
+    return existing;
+  }
+  const created = {
+    sessionId: normalizedSessionId,
+    status: "idle",
+    updatedAt: nowIso(),
+    createdAt: nowIso(),
+    runIds: [],
+    lastRunId: "",
+    lastError: "",
+    cancelRequested: false,
+    events: [],
+  };
+  sessionStore.set(normalizedSessionId, created);
+  return created;
+}
+
+function emitSessionEvent(sessionId, eventType, payload = {}) {
+  const session = ensureSessionRecord(sessionId);
+  const sequence = ++sessionEventSequence;
+  const event = {
+    id: `evt_${sequence}`,
+    sequence,
+    cursor: String(sequence),
+    sessionId: session.sessionId,
+    eventType: String(eventType ?? "event"),
+    timestamp: nowIso(),
+    payload,
+  };
+  session.events.push(event);
+  if (session.events.length > 500) {
+    session.events.splice(0, session.events.length - 500);
+  }
+  session.updatedAt = event.timestamp;
+
+  const watchers = sessionWatchers.get(session.sessionId);
+  if (watchers) {
+    for (const callback of watchers) {
+      try {
+        callback(event);
+      } catch {
+        // Ignore watcher callback failures.
+      }
+    }
+  }
+  return event;
+}
+
+function createRunRecord({ type, sessionId, input }) {
+  const session = ensureSessionRecord(sessionId);
+  const runId = randomUUID();
+  const createdAt = nowIso();
+  const run = {
+    runId,
+    type: String(type ?? "turn"),
+    sessionId: session.sessionId,
+    status: "running",
+    createdAt,
+    updatedAt: createdAt,
+    input,
+    output: null,
+    error: "",
+    artifacts: [],
+  };
+  runStore.set(runId, run);
+  session.status = "running";
+  session.updatedAt = createdAt;
+  session.lastRunId = runId;
+  session.lastError = "";
+  session.cancelRequested = false;
+  session.runIds.push(runId);
+  emitSessionEvent(session.sessionId, "run_started", {
+    runId,
+    type: run.type,
+  });
+  return run;
+}
+
+function completeRunRecord(run, output, artifacts = []) {
+  const session = ensureSessionRecord(run.sessionId);
+  run.status = session.cancelRequested ? "canceled" : "completed";
+  run.output = output;
+  run.artifacts = Array.isArray(artifacts) ? artifacts : [];
+  run.updatedAt = nowIso();
+
+  session.status = run.status;
+  session.updatedAt = run.updatedAt;
+  if (run.status === "canceled") {
+    session.lastError = "Run canceled by operator request.";
+    emitSessionEvent(session.sessionId, "run_canceled", {
+      runId: run.runId,
+      type: run.type,
+    });
+  } else {
+    session.lastError = "";
+    emitSessionEvent(session.sessionId, "run_completed", {
+      runId: run.runId,
+      type: run.type,
+    });
+  }
+}
+
+function failRunRecord(run, errorText) {
+  const session = ensureSessionRecord(run.sessionId);
+  run.status = "failed";
+  run.error = String(errorText ?? "Unknown execution error.");
+  run.updatedAt = nowIso();
+
+  session.status = "failed";
+  session.lastError = run.error;
+  session.updatedAt = run.updatedAt;
+  emitSessionEvent(session.sessionId, "run_failed", {
+    runId: run.runId,
+    type: run.type,
+    error: run.error,
+  });
+}
+
+function isSessionCancelRequested(sessionId) {
+  const session = sessionStore.get(String(sessionId ?? ""));
+  return Boolean(session?.cancelRequested);
+}
 
 function clampInt(value, min, max, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -377,9 +533,25 @@ export async function runOpenClawTurn(options = {}) {
   if (!message) {
     throw new Error("Missing OpenClaw agent message.");
   }
+  const requestedSessionId =
+    asString(options.sessionId) ?? openclawAgentDefaultSessionId;
+  const run = createRunRecord({
+    type: "turn",
+    sessionId: requestedSessionId,
+    input: {
+      message,
+      mode: resolved.mode,
+      deliver: options.deliver === true,
+    },
+  });
+  if (isSessionCancelRequested(run.sessionId)) {
+    completeRunRecord(run, { canceled: true }, []);
+    throw new Error("OpenClaw session was canceled.");
+  }
   const args = buildOpenClawAgentArgs({
     ...options,
     message,
+    sessionId: run.sessionId,
     mode: resolved.mode,
     devProfile: resolved.devProfile,
   });
@@ -393,7 +565,7 @@ export async function runOpenClawTurn(options = {}) {
   try {
     mapleLog("info", "openclaw_agent.turn_begin", {
       mode: resolved.mode,
-      sessionId: asString(options.sessionId) ?? openclawAgentDefaultSessionId,
+      sessionId: run.sessionId,
       deliver: options.deliver === true,
     });
     const { stdout, stderr } = await execFileAsync("openclaw", args, {
@@ -404,16 +576,31 @@ export async function runOpenClawTurn(options = {}) {
     if (!parsed.ok) {
       throw new Error(parsed.error || "OpenClaw agent call returned no usable reply.");
     }
+    const resolvedSessionId = run.sessionId;
+    const resultPayload = {
+      mode: resolved.mode,
+      sessionId: resolvedSessionId,
+      reply: parsed.reply,
+      raw: parsed.parsed ?? null,
+    };
+    completeRunRecord(run, resultPayload, [
+      {
+        artifactType: "reply",
+        content: parsed.reply,
+      },
+      {
+        artifactType: "raw",
+        content: parsed.parsed ?? null,
+      },
+    ]);
     mapleLog("info", "openclaw_agent.turn_complete", {
       mode: resolved.mode,
-      sessionId: parsed.sessionId || asString(options.sessionId) || openclawAgentDefaultSessionId,
+      sessionId: resolvedSessionId,
       replyChars: parsed.reply.length,
     });
     return {
-      mode: resolved.mode,
-      sessionId: parsed.sessionId || asString(options.sessionId) || openclawAgentDefaultSessionId,
-      reply: parsed.reply,
-      raw: parsed.parsed ?? null,
+      ...resultPayload,
+      runId: run.runId,
     };
   } catch (error) {
     const stdout = error && typeof error === "object" ? error.stdout : "";
@@ -427,6 +614,7 @@ export async function runOpenClawTurn(options = {}) {
       mode: resolved.mode,
       error: messageText,
     });
+    failRunRecord(run, messageText);
     throw new Error(`OpenClaw agent execution failed: ${messageText}`);
   }
 }
@@ -438,6 +626,14 @@ export async function runOpenClawLongform(options = {}) {
   }
   const maxTurns = clampInt(options.maxTurns, 1, 8, 4);
   const sessionId = asString(options.sessionId) ?? openclawAgentDefaultSessionId;
+  const run = createRunRecord({
+    type: "longform",
+    sessionId,
+    input: {
+      objective,
+      maxTurns,
+    },
+  });
   const turns = [];
   let completed = false;
 
@@ -448,31 +644,233 @@ export async function runOpenClawLongform(options = {}) {
     "When fully complete, prefix your final response with TASK_COMPLETE:.",
   ].join("\n");
 
-  for (let turn = 1; turn <= maxTurns; turn += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const result = await runOpenClawTurn({
-      ...options,
-      sessionId,
-      message: prompt,
-    });
-    turns.push({ turn, reply: result.reply });
-    if (/TASK_COMPLETE:/i.test(result.reply)) {
-      completed = true;
-      break;
+  try {
+    for (let turn = 1; turn <= maxTurns; turn += 1) {
+      if (isSessionCancelRequested(run.sessionId)) {
+        const output = {
+          sessionId: run.sessionId,
+          objective,
+          completed: false,
+          turns,
+          canceled: true,
+        };
+        completeRunRecord(run, output, [
+          {
+            artifactType: "turns",
+            content: turns,
+          },
+        ]);
+        return {
+          ...output,
+          runId: run.runId,
+        };
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const result = await runOpenClawTurn({
+        ...options,
+        sessionId: run.sessionId,
+        message: prompt,
+      });
+      turns.push({ turn, reply: result.reply });
+      if (/TASK_COMPLETE:/i.test(result.reply)) {
+        completed = true;
+        break;
+      }
+      prompt = [
+        `Objective: ${objective}`,
+        `Previous response: ${result.reply}`,
+        "Continue execution toward completion. Use concrete next actions.",
+        "When done, prefix your final response with TASK_COMPLETE:.",
+      ].join("\n");
     }
-    prompt = [
-      `Objective: ${objective}`,
-      `Previous response: ${result.reply}`,
-      "Continue execution toward completion. Use concrete next actions.",
-      "When done, prefix your final response with TASK_COMPLETE:.",
-    ].join("\n");
-  }
 
+    const output = {
+      sessionId: run.sessionId,
+      objective,
+      completed,
+      turns,
+    };
+    completeRunRecord(run, output, [
+      {
+        artifactType: "turns",
+        content: turns,
+      },
+    ]);
+
+    return {
+      ...output,
+      runId: run.runId,
+    };
+  } catch (error) {
+    const errorText = error instanceof Error ? error.message : String(error);
+    failRunRecord(run, errorText);
+    throw error;
+  }
+}
+
+function toPublicSession(session) {
   return {
-    sessionId,
-    objective,
-    completed,
-    turns,
+    sessionId: session.sessionId,
+    status: session.status,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    lastRunId: session.lastRunId,
+    lastError: session.lastError,
+    cancelRequested: session.cancelRequested,
+    runCount: session.runIds.length,
+  };
+}
+
+function toPublicRun(run) {
+  return {
+    runId: run.runId,
+    type: run.type,
+    sessionId: run.sessionId,
+    status: run.status,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    error: run.error,
+  };
+}
+
+export function listOpenClawSessions(options = {}) {
+  const limit = clampInt(options.limit, 1, 100, 20);
+  const offset = parseCursorOffset(options.cursor);
+  const all = [...sessionStore.values()].sort((a, b) =>
+    String(b.updatedAt).localeCompare(String(a.updatedAt))
+  );
+  const items = all.slice(offset, offset + limit).map(toPublicSession);
+  const nextCursor = offset + limit < all.length ? String(offset + limit) : "";
+  return { items, nextCursor };
+}
+
+export function getOpenClawSession(sessionId) {
+  const session = sessionStore.get(String(sessionId ?? ""));
+  if (!session) {
+    return null;
+  }
+  const runs = session.runIds
+    .map((runId) => runStore.get(runId))
+    .filter(Boolean)
+    .map(toPublicRun)
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  return {
+    ...toPublicSession(session),
+    runs,
+    latestEventCursor:
+      session.events.length > 0
+        ? session.events[session.events.length - 1].cursor
+        : "0",
+  };
+}
+
+export function cancelOpenClawSession(sessionId) {
+  const session = sessionStore.get(String(sessionId ?? ""));
+  if (!session) {
+    return null;
+  }
+  session.cancelRequested = true;
+  if (session.status === "running") {
+    session.status = "cancel_requested";
+  } else if (session.status !== "completed") {
+    session.status = "canceled";
+  }
+  session.updatedAt = nowIso();
+  emitSessionEvent(session.sessionId, "cancel_requested", {
+    sessionId: session.sessionId,
+  });
+  return toPublicSession(session);
+}
+
+export function getOpenClawRunArtifacts(runId) {
+  const run = runStore.get(String(runId ?? ""));
+  if (!run) {
+    return null;
+  }
+  return {
+    ...toPublicRun(run),
+    output: run.output,
+    artifacts: run.artifacts,
+  };
+}
+
+export function listOpenClawRuns(options = {}) {
+  const limit = clampInt(options.limit, 1, 100, 20);
+  const offset = parseCursorOffset(options.cursor);
+  const all = [...runStore.values()].sort((a, b) =>
+    String(b.updatedAt).localeCompare(String(a.updatedAt))
+  );
+  const items = all.slice(offset, offset + limit).map(toPublicRun);
+  const nextCursor = offset + limit < all.length ? String(offset + limit) : "";
+  return { items, nextCursor };
+}
+
+export function getOpenClawRun(runId) {
+  const run = runStore.get(String(runId ?? ""));
+  if (!run) {
+    return null;
+  }
+  return {
+    ...toPublicRun(run),
+    input: run.input,
+    output: run.output,
+  };
+}
+
+export function getOpenClawRunTimeline(runId) {
+  const run = runStore.get(String(runId ?? ""));
+  if (!run) {
+    return null;
+  }
+  const session = sessionStore.get(run.sessionId);
+  const timeline = Array.isArray(session?.events)
+    ? session.events
+        .filter((event) => String(event.payload?.runId ?? "") === run.runId)
+        .map((event) => ({
+          id: event.id,
+          eventType: event.eventType,
+          timestamp: event.timestamp,
+          payload: event.payload,
+          cursor: event.cursor,
+        }))
+    : [];
+  return {
+    run: toPublicRun(run),
+    timeline,
+  };
+}
+
+export function listOpenClawSessionEvents(sessionId, options = {}) {
+  const session = sessionStore.get(String(sessionId ?? ""));
+  if (!session) {
+    return { items: [], latestCursor: "0" };
+  }
+  const minSequence = parseEventCursor(options.afterCursor);
+  const items = session.events.filter((event) => event.sequence > minSequence);
+  const latestCursor =
+    session.events.length > 0
+      ? session.events[session.events.length - 1].cursor
+      : String(minSequence);
+  return { items, latestCursor };
+}
+
+export function subscribeOpenClawSessionEvents(sessionId, callback) {
+  const normalizedSessionId = String(sessionId ?? "").trim();
+  if (!normalizedSessionId || typeof callback !== "function") {
+    return () => {};
+  }
+  const watchers = sessionWatchers.get(normalizedSessionId) ?? new Set();
+  watchers.add(callback);
+  sessionWatchers.set(normalizedSessionId, watchers);
+  return () => {
+    const nextWatchers = sessionWatchers.get(normalizedSessionId);
+    if (!nextWatchers) {
+      return;
+    }
+    nextWatchers.delete(callback);
+    if (nextWatchers.size === 0) {
+      sessionWatchers.delete(normalizedSessionId);
+    }
   };
 }
 
@@ -502,4 +900,8 @@ export async function shutdownOpenClawRuntime() {
     gatewayProcess.kill("SIGTERM");
   }
   gatewayProcess = undefined;
+  sessionEventSequence = 0;
+  sessionStore.clear();
+  runStore.clear();
+  sessionWatchers.clear();
 }

@@ -90,12 +90,12 @@ const topologyEndpointApproveBtn = document.getElementById("topologyEndpointAppr
 const topologyEndpointCloseBtn = document.getElementById("topologyEndpointCloseBtn");
 
 // Admin panel DOM refs
-const marketplaceProviderSelect = document.getElementById("marketplaceProvider");
-const marketplaceSearchInput = document.getElementById("marketplaceSearch");
-const marketplaceSearchBtn = document.getElementById("marketplaceSearchBtn");
-const marketplaceResultsBody = document.getElementById("marketplaceResultsBody");
-const marketplaceConnectedBody = document.getElementById("marketplaceConnectedBody");
-const marketplaceToolsBody = document.getElementById("marketplaceToolsBody");
+const toolhubProviderSelect = document.getElementById("toolhubProvider");
+const toolhubSearchInput = document.getElementById("toolhubSearch");
+const toolhubSearchBtn = document.getElementById("toolhubSearchBtn");
+const toolhubResultsBody = document.getElementById("toolhubResultsBody");
+const toolhubConnectedBody = document.getElementById("toolhubConnectedBody");
+const toolhubToolsBody = document.getElementById("toolhubToolsBody");
 const dispatchToolNameInput = document.getElementById("dispatchToolName");
 const dispatchToolArgsInput = document.getElementById("dispatchToolArgs");
 const dispatchToolBtn = document.getElementById("dispatchToolBtn");
@@ -182,24 +182,25 @@ const state = {
   ycMetrics: null,
   authenticated: false,
   runtimeStatus: null,
-  marketplaceProviders: {},
-  marketplaceSearchResults: [],
-  marketplaceConnectedApps: [],
-  marketplaceTools: [],
+  featureCapabilities: null,
+  toolhubProviders: {},
+  toolhubSearchResults: [],
+  toolhubConnectedApps: [],
+  toolhubTools: [],
 };
 
 const CATEGORY_VIEWS = {
   observe: ["timeline", "live"],
   analyze: ["control", "topology"],
   govern:  ["fork", "guard"],
-  admin:   ["marketplace", "policy", "settings"],
+  admin:   ["toolhub", "policy", "settings"],
 };
 
 const VIEW_LABELS = {
   live: "Live", timeline: "Timeline", control: "Control",
   topology: "Topology",
   guard: "Guardrails", fork: "Insights",
-  marketplace: "Marketplace", policy: "Policy", settings: "Settings",
+  toolhub: "Toolhub", policy: "Policy", settings: "Settings",
 };
 
 const VIEW_TO_CATEGORY = {};
@@ -1009,13 +1010,34 @@ function updateChatModeBadge() {
   badge.className = `chat-mode-badge ${chatAiEnabled ? "ai" : "rules"}`;
 }
 
+function applyFeatureCapabilities(capabilities) {
+  state.featureCapabilities = capabilities ?? null;
+  const chatFeature = capabilities?.features?.chatOrchestration;
+  const openclawFeature = capabilities?.features?.openclawAgent;
+  const enabled = Boolean(chatFeature?.enabled || openclawFeature?.enabled);
+  chatAiEnabled = enabled;
+  updateChatModeBadge();
+  if (firewallChatSendBtn instanceof HTMLButtonElement) {
+    firewallChatSendBtn.disabled = !enabled;
+  }
+  if (firewallChatRefreshBtn instanceof HTMLButtonElement) {
+    firewallChatRefreshBtn.disabled = !enabled;
+  }
+}
+
 async function checkChatCapabilities() {
   try {
-    const data = await fetchJson("/api/chat/capabilities");
-    chatAiEnabled = Boolean(data?.aiEnabled);
-    updateChatModeBadge();
+    const capabilities = await fetchJson("/api/runtime/feature-capabilities");
+    applyFeatureCapabilities(capabilities);
   } catch {
-    chatAiEnabled = false;
+    try {
+      const data = await fetchJson("/api/chat/capabilities");
+      chatAiEnabled = Boolean(data?.aiEnabled);
+      updateChatModeBadge();
+    } catch {
+      chatAiEnabled = false;
+      updateChatModeBadge();
+    }
   }
 }
 
@@ -2819,11 +2841,11 @@ async function loadBridgeSessions() {
   }
 }
 
-/* ── Admin: Marketplace handlers ── */
+/* ── Admin: Toolhub handlers ── */
 
-async function refreshMarketplaceProviders() {
-  // Marketplace execution is disabled in hackathon mode; tab is repurposed to show fixed local tools.
-  state.marketplaceProviders = {
+async function refreshToolhubProviders() {
+  // Toolhub execution is disabled in hackathon mode; tab is repurposed to show fixed local tools.
+  state.toolhubProviders = {
     hackathon: {
       enabled: true,
       source: "local_downstream_apps",
@@ -2831,9 +2853,9 @@ async function refreshMarketplaceProviders() {
   };
 }
 
-function filterMarketplaceTools(query) {
+function filterToolhubTools(query) {
   const normalized = String(query ?? "").trim().toLowerCase();
-  const tools = Array.isArray(state.marketplaceTools) ? state.marketplaceTools : [];
+  const tools = Array.isArray(state.toolhubTools) ? state.toolhubTools : [];
   if (!normalized) {
     return tools;
   }
@@ -2849,23 +2871,23 @@ function filterMarketplaceTools(query) {
   });
 }
 
-async function searchMarketplace() {
-  const query = marketplaceSearchInput?.value?.trim() ?? "";
-  if (!state.marketplaceTools.length) {
-    await refreshMarketplaceTools();
+async function searchToolhub() {
+  const query = toolhubSearchInput?.value?.trim() ?? "";
+  if (!state.toolhubTools.length) {
+    await refreshToolhubTools();
   }
-  state.marketplaceSearchResults = filterMarketplaceTools(query);
-  renderMarketplaceResults();
+  state.toolhubSearchResults = filterToolhubTools(query);
+  renderToolhubResults();
 }
 
-function renderMarketplaceResults() {
-  if (!marketplaceResultsBody) return;
-  const results = Array.isArray(state.marketplaceSearchResults) ? state.marketplaceSearchResults : [];
+function renderToolhubResults() {
+  if (!toolhubResultsBody) return;
+  const results = Array.isArray(state.toolhubSearchResults) ? state.toolhubSearchResults : [];
   if (!results.length) {
-    marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No installed tools found.</td></tr>`;
+    toolhubResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No installed tools found.</td></tr>`;
     return;
   }
-  marketplaceResultsBody.innerHTML = results.map((r) => `
+  toolhubResultsBody.innerHTML = results.map((r) => `
     <tr>
       <td class="mono">${escapeHtml(r.name ?? "-")}</td>
       <td class="mono">${escapeHtml(shortId(r.appId ?? "-", 16))}</td>
@@ -2874,7 +2896,7 @@ function renderMarketplaceResults() {
     </tr>
   `).join("");
 
-  marketplaceResultsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
+  toolhubResultsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const name = btn.getAttribute("data-dispatch-tool");
       const appId = btn.getAttribute("data-dispatch-app") ?? "";
@@ -2886,30 +2908,30 @@ function renderMarketplaceResults() {
   });
 }
 
-async function connectMarketplaceApp(serverId, provider) {
-  setStatus("Marketplace connect is disabled in canonical hackathon mode.", "error");
+async function connectToolhubApp(serverId, provider) {
+  setStatus("Toolhub connect is disabled in canonical hackathon mode.", "error");
 }
 
-async function refreshMarketplaceConnected() {
+async function refreshToolhubConnected() {
   try {
     const data = await httpModule.fetchJson("/api/downstream/apps");
     const apps = Array.isArray(data?.apps) ? data.apps : [];
-    state.marketplaceConnectedApps = apps.filter((app) => app?.enabled !== false);
-    renderMarketplaceConnected();
+    state.toolhubConnectedApps = apps.filter((app) => app?.enabled !== false);
+    renderToolhubConnected();
   } catch {
-    state.marketplaceConnectedApps = [];
-    renderMarketplaceConnected();
+    state.toolhubConnectedApps = [];
+    renderToolhubConnected();
   }
 }
 
-function renderMarketplaceConnected() {
-  if (!marketplaceConnectedBody) return;
-  const apps = state.marketplaceConnectedApps;
+function renderToolhubConnected() {
+  if (!toolhubConnectedBody) return;
+  const apps = state.toolhubConnectedApps;
   if (!apps.length) {
-    marketplaceConnectedBody.innerHTML = `<tr><td colspan="4" class="empty-row">No connected apps.</td></tr>`;
+    toolhubConnectedBody.innerHTML = `<tr><td colspan="4" class="empty-row">No connected apps.</td></tr>`;
     return;
   }
-  marketplaceConnectedBody.innerHTML = apps.map((app) => `
+  toolhubConnectedBody.innerHTML = apps.map((app) => `
     <tr>
       <td class="mono">${escapeHtml(shortId(app.id ?? "-", 16))}</td>
       <td>${escapeHtml(app.name ?? "-")}</td>
@@ -2919,18 +2941,18 @@ function renderMarketplaceConnected() {
   `).join("");
 }
 
-async function disconnectMarketplaceApp(appId) {
-  setStatus("Marketplace disconnect is disabled in canonical hackathon mode.", "error");
+async function disconnectToolhubApp(appId) {
+  setStatus("Toolhub disconnect is disabled in canonical hackathon mode.", "error");
 }
 
-async function refreshMarketplaceTools() {
+async function refreshToolhubTools() {
   try {
-    let apps = Array.isArray(state.marketplaceConnectedApps) ? state.marketplaceConnectedApps : [];
+    let apps = Array.isArray(state.toolhubConnectedApps) ? state.toolhubConnectedApps : [];
     if (!apps.length) {
       const connected = await httpModule.fetchJson("/api/downstream/apps");
       apps = Array.isArray(connected.apps) ? connected.apps : [];
-      state.marketplaceConnectedApps = apps;
-      renderMarketplaceConnected();
+      state.toolhubConnectedApps = apps;
+      renderToolhubConnected();
     }
 
     const collected = [];
@@ -2955,27 +2977,27 @@ async function refreshMarketplaceTools() {
       }
     }
 
-    state.marketplaceTools = collected;
-    const query = marketplaceSearchInput?.value?.trim() ?? "";
-    state.marketplaceSearchResults = filterMarketplaceTools(query);
-    renderMarketplaceResults();
-    renderMarketplaceTools();
+    state.toolhubTools = collected;
+    const query = toolhubSearchInput?.value?.trim() ?? "";
+    state.toolhubSearchResults = filterToolhubTools(query);
+    renderToolhubResults();
+    renderToolhubTools();
   } catch {
-    state.marketplaceTools = [];
-    state.marketplaceSearchResults = [];
-    renderMarketplaceResults();
-    renderMarketplaceTools();
+    state.toolhubTools = [];
+    state.toolhubSearchResults = [];
+    renderToolhubResults();
+    renderToolhubTools();
   }
 }
 
-function renderMarketplaceTools() {
-  if (!marketplaceToolsBody) return;
-  const tools = state.marketplaceTools;
+function renderToolhubTools() {
+  if (!toolhubToolsBody) return;
+  const tools = state.toolhubTools;
   if (!tools.length) {
-    marketplaceToolsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>`;
+    toolhubToolsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>`;
     return;
   }
-  marketplaceToolsBody.innerHTML = tools.map((tool) => `
+  toolhubToolsBody.innerHTML = tools.map((tool) => `
     <tr>
       <td class="mono">${escapeHtml(tool.name ?? "-")}</td>
       <td class="mono">${escapeHtml(shortId(tool.appId ?? "-", 16))}</td>
@@ -2984,7 +3006,7 @@ function renderMarketplaceTools() {
     </tr>
   `).join("");
 
-  marketplaceToolsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
+  toolhubToolsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const name = btn.getAttribute("data-dispatch-tool");
       const appId = btn.getAttribute("data-dispatch-app") ?? "";
@@ -3093,10 +3115,41 @@ async function refreshSettingsPanel() {
 
   // Runtime status
   try {
-    const runtime = await httpModule.fetchJson("/api/runtime/status");
+    const [runtime, capabilities] = await Promise.all([
+      httpModule.fetchJson("/api/runtime/status"),
+      httpModule.fetchJson("/api/runtime/feature-capabilities"),
+    ]);
+    const journeyChecks = await Promise.all([
+      probeFeatureEndpoint("/api/openclaw/agent/status"),
+      probeFeatureEndpoint("/api/openclaw/agent/turn", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      probeFeatureEndpoint("/api/openclaw/agent/longform", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      probeFeatureEndpoint("/api/hitl/approvals?limit=1"),
+      probeFeatureEndpoint("/api/billing/subscription"),
+      probeFeatureEndpoint("/api/org"),
+      probeFeatureEndpoint("/api/runtime/logs?limit=5"),
+      probeFeatureEndpoint("/api/traces?limit=1"),
+      probeFeatureEndpoint("/api/tools/registry"),
+    ]);
     state.runtimeStatus = runtime;
+    applyFeatureCapabilities(capabilities);
     if (settingsRuntimeStatusEl) {
-      settingsRuntimeStatusEl.textContent = JSON.stringify(runtime, null, 2);
+      settingsRuntimeStatusEl.textContent = JSON.stringify(
+        {
+          runtime,
+          capabilities,
+          journeyChecks,
+        },
+        null,
+        2
+      );
     }
   } catch {
     if (settingsRuntimeStatusEl) settingsRuntimeStatusEl.textContent = "{}";
@@ -3108,6 +3161,47 @@ function setSettingsActionResult(message, tone = "") {
   settingsActionResultEl.textContent = message;
   settingsActionResultEl.classList.remove("ok", "error");
   if (tone) settingsActionResultEl.classList.add(tone);
+}
+
+async function probeFeatureEndpoint(path, init = {}) {
+  const requestMethod = String(init.method ?? "GET").toUpperCase();
+  const headers = {
+    ...headersWithKey(),
+    ...(init.headers && typeof init.headers === "object" ? init.headers : {}),
+  };
+  try {
+    const response = await fetch(path, {
+      method: requestMethod,
+      credentials: "include",
+      headers,
+      body: init.body,
+    });
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+    return {
+      path,
+      method: requestMethod,
+      ok: response.ok || response.status === 400,
+      status: response.status,
+      error:
+        typeof payload?.error === "string"
+          ? payload.error
+          : typeof payload?.reason === "string"
+            ? payload.reason
+            : "",
+    };
+  } catch (error) {
+    return {
+      path,
+      ok: false,
+      status: 0,
+      error: parseErrorMessage(error),
+    };
+  }
 }
 
 async function clearTraceHistory() {
@@ -3125,9 +3219,9 @@ async function clearTraceHistory() {
 
 async function refreshAdminPanels() {
   await Promise.allSettled([
-    refreshMarketplaceProviders(),
-    refreshMarketplaceConnected(),
-    refreshMarketplaceTools(),
+    refreshToolhubProviders(),
+    refreshToolhubConnected(),
+    refreshToolhubTools(),
     refreshSettingsPanel(),
   ]);
 }
@@ -3943,12 +4037,12 @@ if (topologyEndpointApproveBtn instanceof HTMLButtonElement) {
 }
 
 // Admin panel event listeners
-if (marketplaceSearchBtn instanceof HTMLButtonElement) {
-  marketplaceSearchBtn.addEventListener("click", () => searchMarketplace());
+if (toolhubSearchBtn instanceof HTMLButtonElement) {
+  toolhubSearchBtn.addEventListener("click", () => searchToolhub());
 }
-if (marketplaceSearchInput instanceof HTMLInputElement) {
-  marketplaceSearchInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") searchMarketplace();
+if (toolhubSearchInput instanceof HTMLInputElement) {
+  toolhubSearchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") searchToolhub();
   });
 }
 if (dispatchToolNameInput instanceof HTMLInputElement) {

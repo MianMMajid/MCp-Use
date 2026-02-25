@@ -11,16 +11,29 @@ import {
   businessApiRequired,
 } from "../config.js";
 import { mapleLog } from "../logging.js";
+import { apiErrorPayload } from "../api-error.js";
 
 const FORWARDED_HEADERS = [
   "cookie",
   "authorization",
   "x-request-id",
   "x-forwarded-for",
+  "x-trace-id",
   "x-maple-tenant-id",
   "x-maple-user-id",
   "x-maple-device-id",
   "x-maple-session-id",
+];
+
+const CONTEXT_HEADER_ALIASES = [
+  { target: "x-maple-tenant-id", sources: ["x-maple-tenant-id", "x-tenant-id"] },
+  { target: "x-maple-user-id", sources: ["x-maple-user-id", "x-user-id"] },
+  { target: "x-maple-device-id", sources: ["x-maple-device-id", "x-device-id", "user-agent"] },
+  {
+    target: "x-maple-session-id",
+    sources: ["x-maple-session-id", "mcp-session-id", "x-session-id"],
+  },
+  { target: "x-trace-id", sources: ["x-trace-id", "x-maple-trace-id"] },
 ];
 
 let cachedBusinessApiCaPem;
@@ -199,6 +212,20 @@ function buildForwardHeaders(c, options) {
     }
   }
 
+  for (const alias of CONTEXT_HEADER_ALIASES) {
+    if (headers[alias.target]) {
+      continue;
+    }
+    for (const source of alias.sources) {
+      const value = c.req.header(source);
+      if (!value) {
+        continue;
+      }
+      headers[alias.target] = value;
+      break;
+    }
+  }
+
   if (options.bodyText !== undefined) {
     headers["content-type"] = options.contentType ?? "application/json";
     headers["content-length"] = String(Buffer.byteLength(options.bodyText, "utf8"));
@@ -242,15 +269,15 @@ export function isBusinessApiRequired() {
 }
 
 export function businessApiUnavailableResponse(c, proxiedResponse, operation) {
-  return c.json(
-    {
-      error: "Business API unavailable",
-      operation,
-      reason: proxiedResponse?.reason ?? "request_failed",
-      detail: proxiedResponse?.error ?? "Business API is required but unreachable.",
-    },
-    503
-  );
+  return c.json({
+    ...apiErrorPayload(
+      "BUSINESS_API_UNAVAILABLE",
+      "Business API unavailable",
+      proxiedResponse?.error ?? "Business API is required but unreachable."
+    ),
+    operation,
+    reason: proxiedResponse?.reason ?? "request_failed",
+  }, 503);
 }
 
 export async function proxyBusinessApiRequest(c, path, options = {}) {

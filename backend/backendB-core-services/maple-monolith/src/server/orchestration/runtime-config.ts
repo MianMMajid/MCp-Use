@@ -28,21 +28,15 @@ export interface RuntimeConfig {
   firewallChatPrimaryProvider: FirewallChatAiProvider;
   firewallChatTimeoutMs: number;
   judgeUiRoutesEnabled: boolean;
-  legacySmitheryRoutesEnabled: boolean;
   mapleDefaultTargetAppId: string;
   mcpExecutionOrderAppIds: string[];
   mcpFirewallDefaultAppId?: string;
-  mcpMarketplaceAutoConnectEnabled: boolean;
-  mcpMarketplaceEnabled: boolean;
   mcpProxyAllowDynamicTargets: boolean;
   mcpProxyAllowHttp: boolean;
   mcpProxyAllowPrivateTargets: boolean;
   mcpProxyAllowedHosts: string[];
   mcpProxyDefaultTargetUrl?: string;
   mcpRouteLockEnabled: boolean;
-  mcpSoBaseUrl: string;
-  mcpSoEnabled: boolean;
-  mcpSoTimeoutMs: number;
   normalizeDynamicMcpUrl: (rawUrl: string) => string;
   primaryConfiguredApiKeyFingerprint?: string;
   sessionCookieName: string;
@@ -50,28 +44,11 @@ export interface RuntimeConfig {
   sessionPollEnabled: boolean;
   sessionPollIntervalMs: number;
   sessionTtlSeconds: number;
-  smitheryApiBaseUrl: string;
-  smitheryApiKey?: string;
-  smitheryEnabled: boolean;
-  smitheryTimeoutMs: number;
 }
 
 function envBool(key: string, fallback = "0"): boolean {
   const value = String(process.env[key] ?? fallback).trim().toLowerCase();
   return value === "true" || value === "1";
-}
-
-function validateHttpUrl(name: string, value: string): void {
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      throw new Error(`${name} must be http/https.`);
-    }
-  } catch (error) {
-    throw new Error(
-      `${name} is invalid: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-  }
 }
 
 function isPrivateOrLocalHost(hostname: string): boolean {
@@ -166,31 +143,6 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 
-  const marketplaceHardDisabled = true;
-  const mcpMarketplaceEnabled =
-    !marketplaceHardDisabled && envBool("MAPLE_MCP_MARKETPLACE_ENABLED");
-  const mcpMarketplaceAutoConnectEnabled =
-    !marketplaceHardDisabled && envBool("MAPLE_MCP_MARKETPLACE_AUTO_CONNECT");
-  const smitheryEnabled = !marketplaceHardDisabled && envBool("MAPLE_SMITHERY_ENABLED");
-  const smitheryApiBaseUrl = asString(process.env.MAPLE_SMITHERY_API_BASE_URL) ?? "https://api.smithery.ai";
-  const smitheryApiKey = asString(process.env.MAPLE_SMITHERY_API_KEY);
-  const smitheryTimeoutMsRaw = Number.parseInt(
-    String(process.env.MAPLE_SMITHERY_TIMEOUT_MS ?? "12000"),
-    10
-  );
-  const smitheryTimeoutMs = Number.isFinite(smitheryTimeoutMsRaw)
-    ? Math.max(1_000, Math.min(60_000, smitheryTimeoutMsRaw))
-    : 12_000;
-  const mcpSoEnabled = !marketplaceHardDisabled && envBool("MAPLE_MCPSO_ENABLED");
-  const mcpSoBaseUrl = asString(process.env.MAPLE_MCPSO_BASE_URL) ?? "https://mcp.so";
-  const mcpSoTimeoutMsRaw = Number.parseInt(
-    String(process.env.MAPLE_MCPSO_TIMEOUT_MS ?? "12000"),
-    10
-  );
-  const mcpSoTimeoutMs = Number.isFinite(mcpSoTimeoutMsRaw)
-    ? Math.max(1_000, Math.min(60_000, mcpSoTimeoutMsRaw))
-    : 12_000;
-
   const downstreamToolsCacheTtlMsRaw = Number.parseInt(
     String(process.env.MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS ?? "15000"),
     10
@@ -217,7 +169,6 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
       : undefined;
 
   const demoRoutesEnabled = envBool("MAPLE_ENABLE_DEMO_ROUTES", "1");
-  const legacySmitheryRoutesEnabled = envBool("MAPLE_ENABLE_LEGACY_SMITHERY_ROUTES");
   const judgeUiRoutesEnabled = envBool("MAPLE_ENABLE_JUDGE_UI", "1");
 
   const firewallChatOpenAiApiKey =
@@ -292,14 +243,6 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
     );
   }
 
-  if (smitheryEnabled) {
-    validateHttpUrl("MAPLE_SMITHERY_API_BASE_URL", smitheryApiBaseUrl);
-  }
-
-  if (mcpSoEnabled) {
-    validateHttpUrl("MAPLE_MCPSO_BASE_URL", mcpSoBaseUrl);
-  }
-
   if (mcpProxyDefaultTargetUrl) {
     try {
       normalizeDynamicMcpUrl(mcpProxyDefaultTargetUrl);
@@ -312,11 +255,7 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
     }
   }
 
-  if (
-    mcpFirewallDefaultAppId &&
-    !downstreamAppRegistry.has(mcpFirewallDefaultAppId) &&
-    !(smitheryEnabled && mcpFirewallDefaultAppId.startsWith("smithery-"))
-  ) {
+  if (mcpFirewallDefaultAppId && !downstreamAppRegistry.has(mcpFirewallDefaultAppId)) {
     throw new Error(
       `MAPLE_MCP_FIREWALL_DEFAULT_APP="${mcpFirewallDefaultAppId}" is not present in MAPLE_DOWNSTREAM_APPS.`
     );
@@ -325,9 +264,6 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
   for (const appId of mcpExecutionOrderAppIds) {
     const app = downstreamAppRegistry.get(appId);
     if (!app) {
-      if (smitheryEnabled && appId.startsWith("smithery-")) {
-        continue;
-      }
       throw new Error(
         `MAPLE_MCP_EXECUTION_ORDER includes unknown app "${appId}". Configure it in MAPLE_DOWNSTREAM_APPS.`
       );
@@ -341,12 +277,10 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
   if (
     activeDownstreamAppCount === 0 &&
     !mcpProxyAllowDynamicTargets &&
-    !mcpProxyDefaultTargetUrl &&
-    !smitheryEnabled &&
-    !mcpSoEnabled
+    !mcpProxyDefaultTargetUrl
   ) {
     throw new Error(
-      "Maple MCP firewall requires MAPLE_DOWNSTREAM_APPS, MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS=true, MAPLE_MCP_PROXY_DEFAULT_TARGET_URL, or an enabled marketplace provider (MAPLE_SMITHERY_ENABLED / MAPLE_MCPSO_ENABLED)."
+      "Maple MCP firewall requires MAPLE_DOWNSTREAM_APPS, MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS=true, or MAPLE_MCP_PROXY_DEFAULT_TARGET_URL."
     );
   }
 
@@ -365,9 +299,7 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
       mcpExecutionOrderAppIds.length > 0 ||
         mcpFirewallDefaultAppId ||
         mcpProxyDefaultTargetUrl ||
-        activeDownstreamAppCount === 1 ||
-        smitheryEnabled ||
-        mcpSoEnabled
+        activeDownstreamAppCount === 1
     );
     if (!deterministicRouteConfigured) {
       throw new Error(
@@ -393,21 +325,15 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
     firewallChatPrimaryProvider,
     firewallChatTimeoutMs,
     judgeUiRoutesEnabled,
-    legacySmitheryRoutesEnabled,
     mapleDefaultTargetAppId,
     mcpExecutionOrderAppIds,
     mcpFirewallDefaultAppId,
-    mcpMarketplaceAutoConnectEnabled,
-    mcpMarketplaceEnabled,
     mcpProxyAllowDynamicTargets,
     mcpProxyAllowHttp,
     mcpProxyAllowPrivateTargets,
     mcpProxyAllowedHosts,
     mcpProxyDefaultTargetUrl,
     mcpRouteLockEnabled,
-    mcpSoBaseUrl,
-    mcpSoEnabled,
-    mcpSoTimeoutMs,
     normalizeDynamicMcpUrl,
     primaryConfiguredApiKeyFingerprint,
     sessionCookieName,
@@ -415,9 +341,5 @@ export function createRuntimeConfig(options: CreateRuntimeConfigOptions): Runtim
     sessionPollEnabled,
     sessionPollIntervalMs,
     sessionTtlSeconds,
-    smitheryApiBaseUrl,
-    smitheryApiKey,
-    smitheryEnabled,
-    smitheryTimeoutMs,
   };
 }

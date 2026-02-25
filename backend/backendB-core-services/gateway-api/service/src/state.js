@@ -3,7 +3,7 @@ import { TraceStore } from "./core/trace-store.js";
 import { SharedTraceStore } from "./network/shared-trace-store.js";
 import { MaplePostgresDatabase, } from "@maple/persistence";
 import { listDownstreamApps, } from "./control/downstream-proxy.js";
-import { downstreamAppRegistry, mcpExecutionOrderAppIds, mcpFirewallDefaultAppId, mcpProxyDefaultTargetUrl, mcpProxyAllowDynamicTargets, mcpProxyAllowPrivateTargets, mcpProxyAllowedHosts, mcpRouteLockEnabled, mcpMarketplaceEnabled, mcpMarketplaceAutoConnectEnabled, smitheryEnabled, mcpSoEnabled, } from "./config.js";
+import { downstreamAppRegistry, mcpExecutionOrderAppIds, mcpFirewallDefaultAppId, mcpProxyDefaultTargetUrl, mcpProxyAllowDynamicTargets, mcpProxyAllowPrivateTargets, mcpProxyAllowedHosts, mcpRouteLockEnabled, } from "./config.js";
 // ── Server ──────────────────────────────────────────────────────────────────
 export const server = new MCPServer({
     name: "maple",
@@ -78,10 +78,6 @@ export function buildRuntimeStatus() {
         routeMode = "single_app";
         routeSummary = `single_app:${singleActiveAppId}`;
     }
-    else if (mcpMarketplaceEnabled) {
-        routeMode = "marketplace";
-        routeSummary = "marketplace:auto";
-    }
     return {
         strict: true,
         routeLock: mcpRouteLockEnabled,
@@ -94,10 +90,6 @@ export function buildRuntimeStatus() {
         dynamicTargetsAllowed: mcpProxyAllowDynamicTargets,
         privateTargetsAllowed: mcpProxyAllowPrivateTargets,
         allowedHosts: [...mcpProxyAllowedHosts],
-        marketplaceEnabled: mcpMarketplaceEnabled,
-        marketplaceAutoConnectEnabled: mcpMarketplaceAutoConnectEnabled,
-        smitheryEnabled,
-        mcpsoEnabled: mcpSoEnabled,
         activeDownstreamCount: activeDownstreamApps.length,
         activeDownstreamIds,
         activeDownstreamApps,
