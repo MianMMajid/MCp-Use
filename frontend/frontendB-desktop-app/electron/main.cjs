@@ -87,9 +87,18 @@ app.whenReady().then(() => {
     error: bridgeError,
   }));
 
-  ipcMain.handle("desktop:get-runtime-status", async () => runtimeController.getStatus());
-  ipcMain.handle("desktop:start-runtime", async () => runtimeController.start());
-  ipcMain.handle("desktop:stop-runtime", async () => runtimeController.stop());
+  ipcMain.handle("desktop:get-runtime-status", async () => {
+    try { return await runtimeController.getStatus(); }
+    catch (err) { return { running: false, healthy: false, pid: null, mode: "external", error: String(err.message ?? err) }; }
+  });
+  ipcMain.handle("desktop:start-runtime", async () => {
+    try { return await runtimeController.start(); }
+    catch (err) { return { ok: false, error: String(err.message ?? err) }; }
+  });
+  ipcMain.handle("desktop:stop-runtime", async () => {
+    try { return await runtimeController.stop(); }
+    catch (err) { return { ok: false, error: String(err.message ?? err) }; }
+  });
   ipcMain.handle("desktop:get-runtime-logs", async (_event, limit) => {
     const safeLimit = typeof limit === "number" && limit > 0 ? Math.min(limit, 5000) : 120;
     return runtimeController.getLogs(safeLimit);
@@ -120,10 +129,12 @@ app.whenReady().then(() => {
     {
       label: "View",
       submenu: [
-        { role: "reload" },
-        { role: "forceReload" },
-        { role: "toggleDevTools" },
-        { type: "separator" },
+        ...(app.isPackaged ? [] : [
+          { role: "reload" },
+          { role: "forceReload" },
+          { role: "toggleDevTools" },
+          { type: "separator" },
+        ]),
         { role: "resetZoom" },
         { role: "zoomIn" },
         { role: "zoomOut" },
@@ -148,7 +159,7 @@ app.whenReady().then(() => {
     autoUpdater.autoDownload = false;
     autoUpdater.on("update-available", (info) => {
       const win = BrowserWindow.getAllWindows()[0];
-      if (win) {
+      if (win && !win.isDestroyed()) {
         win.webContents.send("desktop:update-available", {
           version: info.version,
           releaseDate: info.releaseDate,
@@ -161,8 +172,13 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:download-update", async () => {
     if (!autoUpdater) return { ok: false, error: "Auto-updater not available" };
     try {
-      await autoUpdater.downloadUpdate();
-      autoUpdater.quitAndInstall(false, true);
+      const downloadResult = await autoUpdater.downloadUpdate();
+      if (!downloadResult || (Array.isArray(downloadResult) && downloadResult.length === 0)) {
+        return { ok: false, error: "Download returned no files. Update may have failed." };
+      }
+      setImmediate(() => {
+        try { autoUpdater.quitAndInstall(false, true); } catch { app.quit(); }
+      });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: String(err.message ?? err) };
@@ -177,12 +193,13 @@ app.whenReady().then(() => {
   tray.setToolTip("Maple Desktop");
 
   function updateTrayMenu(statusLabel) {
+    if (!tray || tray.isDestroyed()) return;
     const contextMenu = Menu.buildFromTemplate([
       { label: `Status: ${statusLabel}`, enabled: false },
       { type: "separator" },
       { label: "Show Window", click: () => {
         const win = BrowserWindow.getAllWindows()[0];
-        if (win) { win.show(); win.focus(); }
+        if (win && !win.isDestroyed()) { win.show(); win.focus(); }
       }},
       { label: "Start Runtime", click: () => runtimeController.start().catch(() => {}) },
       { label: "Stop Runtime", click: () => runtimeController.stop().catch(() => {}) },
@@ -224,6 +241,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   if (trayPollTimer) clearInterval(trayPollTimer);
+  if (tray && !tray.isDestroyed()) tray.destroy();
   runtimeController.stop().catch(() => {
     // best-effort shutdown only
   });

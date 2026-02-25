@@ -35,7 +35,7 @@ function riskTone(score: number) {
 const TraceTimelineWidget: React.FC = () => {
   const { props, isPending } = useWidget<TimelineWidgetProps>();
 
-  if (isPending || !props.steps) {
+  if (isPending || !Array.isArray(props.steps)) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />

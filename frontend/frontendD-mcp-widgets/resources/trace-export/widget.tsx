@@ -55,7 +55,7 @@ const TraceExportWidget: React.FC = () => {
             borderRadius: "6px",
           }}
         >
-          {props.content}
+          {String(props.content ?? "")}
         </pre>
       </div>
     </section>

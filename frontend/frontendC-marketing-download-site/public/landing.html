@@ -6,7 +6,7 @@
     <title>Maple — AI Firewall for Safe Agent Execution</title>
     <meta name="description" content="Monitor, guard, and replay AI agent sessions in real-time. Open-source MCP-native security layer for safe agent execution." />
     <meta name="theme-color" content="#e8740c" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; img-src 'self' data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; img-src 'self' data:;">
     <meta name="apple-mobile-web-app-capable" content="yes" />
 
     <!-- Open Graph -->
@@ -62,7 +62,7 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#download">Download</a>
-        <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer">Docs</a>
         <a href="#auth" class="nav-cta">Sign In</a>
       </div>
     </nav>
@@ -101,7 +101,7 @@
         <p class="hero-subtitle">Monitor, guard, and replay AI agent sessions in real-time. Open-source MCP-native security layer.</p>
         <div class="hero-ctas">
           <a href="#auth" class="btn btn-primary">Get Started</a>
-          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener" class="btn btn-secondary">View on GitHub</a>
+          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">View on GitHub</a>
         </div>
       </section>
 
@@ -151,7 +151,7 @@
             </div>
             <h3>macOS</h3>
             <p class="platform-format">.dmg</p>
-            <a href="#" class="btn btn-primary btn-download">Download for macOS</a>
+            <a href="https://github.com/MianMMajid/MCp-Use/releases/latest/download/maple-desktop-latest-mac-arm64.dmg" class="btn btn-primary btn-download">Download for macOS</a>
           </div>
           <div class="platform-card">
             <div class="platform-icon" aria-hidden="true">
@@ -159,7 +159,7 @@
             </div>
             <h3>Windows</h3>
             <p class="platform-format">.exe</p>
-            <a href="#" class="btn btn-primary btn-download">Download for Windows</a>
+            <a href="https://github.com/MianMMajid/MCp-Use/releases/latest/download/maple-desktop-latest-win-x64.exe" class="btn btn-primary btn-download">Download for Windows</a>
           </div>
           <div class="platform-card">
             <div class="platform-icon" aria-hidden="true">
@@ -167,10 +167,10 @@
             </div>
             <h3>Linux</h3>
             <p class="platform-format">.AppImage</p>
-            <a href="#" class="btn btn-primary btn-download">Download for Linux</a>
+            <a href="https://github.com/MianMMajid/MCp-Use/releases/latest/download/maple-desktop-latest-linux-x86_64.AppImage" class="btn btn-primary btn-download">Download for Linux</a>
           </div>
         </div>
-        <p class="releases-link"><a href="https://github.com/MianMMajid/MCp-Use/releases" target="_blank" rel="noopener">View all releases on GitHub</a></p>
+        <p class="releases-link"><a href="https://github.com/MianMMajid/MCp-Use/releases" target="_blank" rel="noopener noreferrer">View all releases on GitHub</a></p>
       </section>
 
       <!-- Auth Section (preserved exactly) -->
@@ -188,7 +188,7 @@
             <label for="username">Username</label>
             <input id="username" name="username" type="text" autocomplete="username" placeholder="Username" required maxlength="64" />
             <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required minlength="1" />
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required />
             <button type="submit">Open Dashboard</button>
             <p id="signinError" class="error" role="alert" aria-live="polite"></p>
           </form>
@@ -197,7 +197,7 @@
             <div class="divider">or</div>
             <div id="googleSignInContainer"></div>
           </div>
-          <p style="margin-top: 10px; text-align: center;"><a href="#" id="forgotPasswordLink" style="color: var(--accent); font-size: 0.88rem; text-decoration: none;">Forgot password?</a></p>
+          <p class="forgot-link-wrap"><a href="#" id="forgotPasswordLink" class="forgot-link">Forgot password?</a></p>
         </div>
 
         <div id="forgotPasswordPane" class="hidden">
@@ -208,7 +208,7 @@
             <button type="submit">Send Reset Link</button>
             <p id="forgotPasswordError" class="error" role="alert" aria-live="polite"></p>
           </form>
-          <p style="margin-top: 10px; text-align: center;"><a href="#" id="forgotBackLink" style="color: var(--muted); font-size: 0.88rem; text-decoration: none;">Back to Sign In</a></p>
+          <p class="forgot-link-wrap"><a href="#" id="forgotBackLink" class="forgot-back-link">Back to Sign In</a></p>
         </div>
 
         <div id="signupPane" class="hidden">
@@ -217,7 +217,7 @@
           <form id="signupForm">
             <label for="signupUsername">Username</label>
             <input id="signupUsername" name="username" type="text" autocomplete="username" placeholder="Username" required maxlength="64" pattern="[a-zA-Z0-9_.\-]+" />
-            <label for="signupEmail">Email <span style="color:var(--muted);font-weight:normal">(optional)</span></label>
+            <label for="signupEmail">Email <span class="label-hint">(optional)</span></label>
             <input id="signupEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
             <label for="signupPassword">Password</label>
             <input id="signupPassword" name="password" type="password" autocomplete="new-password" placeholder="Password (min 8 characters)" required minlength="8" />
@@ -233,8 +233,8 @@
       <div class="footer-inner">
         <p class="footer-copy">&copy; 2026 Maple. All rights reserved.</p>
         <div class="footer-links">
-          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener">Docs</a>
+          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer">Docs</a>
           <a href="#">Privacy</a>
         </div>
       </div>

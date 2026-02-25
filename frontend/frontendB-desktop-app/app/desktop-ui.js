@@ -226,10 +226,13 @@
   const updateBtn = document.getElementById("updateBtn");
 
   if (api?.onUpdateAvailable) {
-    api.onUpdateAvailable((info) => {
+    const cleanupUpdateListener = api.onUpdateAvailable((info) => {
       if (updateBanner) updateBanner.style.display = "block";
       if (updateVersion) updateVersion.textContent = `Version ${info?.version ?? "unknown"} is ready.`;
     });
+    if (typeof cleanupUpdateListener === "function") {
+      window.addEventListener("beforeunload", cleanupUpdateListener);
+    }
   }
 
   if (updateBtn && api?.downloadUpdate) {

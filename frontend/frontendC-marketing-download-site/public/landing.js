@@ -258,7 +258,7 @@
         if (!res.ok || !data.ok) {
           let msg = data.error || "Registration failed.";
           if (res.status === 403) msg = "Account registration is currently disabled.";
-          if (res.status === 409) msg = "Username is already taken.";
+          if (res.status === 409) msg = "That username is not available. Please try another.";
           if (res.status === 400) msg = data.error || "Invalid input. Check your fields.";
           if (signupError) signupError.textContent = msg;
           if (signupSubmitBtn) {
@@ -321,15 +321,26 @@
         return;
       }
       const btn = forgotForm.querySelector("button[type=submit]");
-      if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
-      // Placeholder: backend does not have a reset endpoint yet
-      setTimeout(() => {
+      if (btn) { btn.disabled = true; btn.textContent = "Sending\u2026"; }
+      try {
+        const res = await fetchWithTimeout("/api/auth/password-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ email }),
+        });
+        // Always show same message regardless of result to prevent email enumeration
         if (forgotError) {
-          forgotError.style.color = "#e8740c";
           forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
         }
+      } catch {
+        // Show same message on network error to avoid leaking info
+        if (forgotError) {
+          forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
+        }
+      } finally {
         if (btn) { btn.disabled = false; btn.textContent = "Send Reset Link"; }
-      }, 1500);
+      }
     });
   }
 })();
