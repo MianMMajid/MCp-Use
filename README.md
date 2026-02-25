@@ -95,7 +95,7 @@ Authoritative source folders:
 Primary endpoints after `npm run dev`:
 - `http://localhost:3000` (gateway-api / judge / inspector / API)
 - `http://localhost:3100` (frontendA-it-console)
-- `http://localhost:3200` (frontendB-desktop-app shell)
+- `http://localhost:3200` (frontendB desktop web shell)
 - `http://localhost:3300` (frontendC-marketing-site)
 - `http://localhost:3400` (frontendD-mcp-widgets)
 - `http://localhost:4010/health` (openclaw-bridge)
@@ -115,6 +115,19 @@ npm run dev:frontendB
 npm run dev:frontendC
 npm run dev:widgets
 ```
+
+Desktop native app commands (`.dmg/.exe` pipeline):
+
+```bash
+npm run desktop:install
+npm run desktop:dev
+npm run desktop:dist:mac
+npm run desktop:dist:win
+```
+
+Desktop artifacts output:
+- `frontend/frontendB-desktop-app/installers/dist/`
+- CI workflow: `.github/workflows/desktop-packaging.yml` (builds macOS `.dmg` + Windows `.exe` on tag `desktop-v*`)
 
 ## Local Kubernetes (kind)
 
@@ -140,7 +153,7 @@ npm run dev
 Open:
 - `http://localhost:3000` (gateway-api)
 - `http://localhost:3100` (frontendA-it-console)
-- `http://localhost:3200` (frontendB-desktop-app shell)
+- `http://localhost:3200` (frontendB desktop web shell)
 - `http://localhost:3300` (frontendC-marketing-site)
 - `http://localhost:3400` (frontendD-mcp-widgets)
 - `http://localhost:4010/health` (openclaw-bridge)

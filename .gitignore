@@ -46,3 +46,8 @@ Thumbs.db
 
 # Local external research clones
 mcp-firewall-reference/
+
+# Desktop app build/runtime artifacts
+/frontend/frontendB-desktop-app/node_modules/
+/frontend/frontendB-desktop-app/installers/dist/
+/frontend/frontendB-desktop-app/bridge-runtime/

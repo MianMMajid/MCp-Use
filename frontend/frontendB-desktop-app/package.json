@@ -1,0 +1,22 @@
+{
+  "name": "@maple/frontendb-desktop-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Maple desktop app (.dmg/.exe) packaging surface",
+  "author": "Maple Team",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "sync:bridge": "node scripts/sync-bridge.mjs",
+    "predev": "npm run sync:bridge",
+    "dev": "electron ./electron/main.cjs",
+    "predist": "npm run sync:bridge",
+    "dist": "electron-builder --config electron-builder.yml",
+    "dist:mac": "electron-builder --config electron-builder.yml --mac dmg",
+    "dist:win": "electron-builder --config electron-builder.yml --win nsis",
+    "dist:linux": "electron-builder --config electron-builder.yml --linux AppImage"
+  },
+  "devDependencies": {
+    "electron": "^31.0.2",
+    "electron-builder": "^24.13.3"
+  }
+}

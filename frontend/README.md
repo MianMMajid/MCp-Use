@@ -12,7 +12,7 @@ This folder defines frontend ownership boundaries for collaboration.
 - IT/Ops + judge/landing pages: `frontend/frontendA-it-console/public/`
 - Marketing/download pages: `frontend/frontendC-marketing-download-site/public/`
 - MCP widgets: `frontend/frontendD-mcp-widgets/resources/`
-- Desktop UI shell remains scaffolded in `frontend/frontendB-desktop-app/`.
+- Desktop native packaging/app source: `frontend/frontendB-desktop-app/`.
 
 Runtime note:
 - `npm run sync:runtime-assets` copies frontend assets into backend runtime paths under `backend/backendB-core-services/maple-monolith/`.

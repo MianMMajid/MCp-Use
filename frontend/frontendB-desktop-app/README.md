@@ -3,11 +3,40 @@
 Owner: Frontend engineer.
 
 Purpose:
-- Desktop UI shell and interaction layer for packaged app distributions (`.exe`/`.dmg`).
+- Desktop UI and native packaging surface for `.exe/.dmg` distributions.
 
-Scaffold folders:
+Folders:
 - `app/`
 - `installers/`
+- `electron/`
+- `scripts/`
 
-Note:
-- Packaging/runtime bridge can be coordinated with backend under `backend/backendC-desktop-runtime-bridge`.
+Runtime bridge source:
+- `backend/backendC-desktop-runtime-bridge/bridge/runtime-controller.cjs`
+- Synced into `frontend/frontendB-desktop-app/bridge-runtime/` during desktop build/dev.
+
+## Local Commands (from repo root)
+
+Install desktop dependencies:
+```bash
+npm run desktop:install
+```
+
+Run native desktop app:
+```bash
+npm run desktop:dev
+```
+
+Build installers:
+```bash
+npm run desktop:dist:mac
+npm run desktop:dist:win
+```
+
+Artifacts:
+- `frontend/frontendB-desktop-app/installers/dist/`
+- CI automation: `.github/workflows/desktop-packaging.yml` (tag with `desktop-v*`)
+
+Runtime modes:
+- Default `external`: app connects to an existing backend at `http://127.0.0.1:3000`.
+- Managed mode: set `MAPLE_DESKTOP_RUNTIME_MODE=managed` to allow Start/Stop runtime controls.

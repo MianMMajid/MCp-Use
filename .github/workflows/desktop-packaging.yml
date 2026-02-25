@@ -1,0 +1,82 @@
+name: desktop-packaging
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos-dmg:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/frontendB-desktop-app/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm --prefix frontend/frontendB-desktop-app ci
+
+      - name: Build macOS dmg
+        run: npm --prefix frontend/frontendB-desktop-app run dist:mac
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maple-desktop-macos
+          path: frontend/frontendB-desktop-app/installers/dist/*.dmg
+          if-no-files-found: error
+
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/frontendB-desktop-app/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm --prefix frontend/frontendB-desktop-app ci
+
+      - name: Build Windows exe
+        run: npm --prefix frontend/frontendB-desktop-app run dist:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maple-desktop-windows
+          path: frontend/frontendB-desktop-app/installers/dist/*.exe
+          if-no-files-found: error
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs:
+      - build-macos-dmg
+      - build-windows-exe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

@@ -1,0 +1,83 @@
+"use strict";
+
+const path = require("node:path");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { createRuntimeController } = require("../bridge-runtime/runtime-controller.cjs");
+
+const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
+const runtimeController = createRuntimeController();
+
+function createMainWindow() {
+  const window = new BrowserWindow({
+    width: 1260,
+    height: 860,
+    minWidth: 1000,
+    minHeight: 700,
+    title: "Maple Desktop",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  window.loadFile(path.join(__dirname, "..", "app", "index.html"));
+}
+
+function isAllowedExternalUrl(url) {
+  if (typeof url !== "string") {
+    return false;
+  }
+  return /^https?:\/\//i.test(url.trim());
+}
+
+app.whenReady().then(() => {
+  ipcMain.handle("desktop:get-config", async () => {
+    return {
+      gatewayUrl: defaultGatewayUrl,
+      mode: process.env.MAPLE_DESKTOP_RUNTIME_MODE ?? "external",
+      healthUrl: process.env.MAPLE_DESKTOP_RUNTIME_HEALTH_URL ?? "http://127.0.0.1:3000/health",
+    };
+  });
+
+  ipcMain.handle("desktop:get-runtime-status", async () => runtimeController.getStatus());
+  ipcMain.handle("desktop:start-runtime", async () => runtimeController.start());
+  ipcMain.handle("desktop:stop-runtime", async () => runtimeController.stop());
+  ipcMain.handle("desktop:get-runtime-logs", async (_event, limit) =>
+    runtimeController.getLogs(limit)
+  );
+  ipcMain.handle("desktop:open-external", async (_event, url) => {
+    if (!isAllowedExternalUrl(url)) {
+      throw new Error("Only http/https URLs are allowed");
+    }
+    await shell.openExternal(url);
+    return { ok: true };
+  });
+
+  createMainWindow();
+
+  if (String(process.env.MAPLE_DESKTOP_AUTOSTART_RUNTIME ?? "0") === "1") {
+    runtimeController.start().catch(() => {
+      // keep app running even if managed runtime fails
+    });
+  }
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("before-quit", () => {
+  runtimeController.stop().catch(() => {
+    // best-effort shutdown only
+  });
+});
