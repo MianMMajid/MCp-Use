@@ -15,4 +15,12 @@ Scaffold folders:
 - `deploy/`
 
 Current status:
-- `k8s/` currently has no tracked manifests in this branch.
+- `k8s/` includes local kind manifests and kustomize config for multi-workload laptop debugging.
+
+Helper scripts:
+- `scripts/k8s-local-up.sh`
+- `scripts/k8s-local-dev.sh`
+- `scripts/k8s-local-all.sh`
+- `scripts/k8s-local-port-forward.sh`
+- `scripts/k8s-local-status.sh`
+- `scripts/k8s-local-down.sh`

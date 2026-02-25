@@ -1,0 +1,223 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-api
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway-api
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-bridge
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway-api
+  ports:
+    - name: http
+      port: 8787
+      targetPort: 8787
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-gateway
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: openclaw-gateway
+  ports:
+    - name: ws
+      port: 19001
+      targetPort: 19001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maple-monolith
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway-api
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: context-wall
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: context-wall
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model-router
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: model-router
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-proxy
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: mcp-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cyber-proxy
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: cyber-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tool-runner
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: tool-runner
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-writer
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: audit-writer
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: secrets-broker
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: secrets-broker
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-console-api
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: admin-console-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-a-it-console
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-a-it-console
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-b-desktop-app
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-b-desktop-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-c-marketing-site
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-c-marketing-site
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-d-mcp-widgets
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend-d-mcp-widgets
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

@@ -1,0 +1,749 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-api
+  namespace: maple
+  labels:
+    app: gateway-api
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-api
+  template:
+    metadata:
+      labels:
+        app: gateway-api
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "backend/backendA-platform-infra/scripts/hackathon-start.sh"]
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: toolhub
+              containerPort: 8788
+          env:
+            - name: MAPLE_PROJECT_PATH
+              value: /app/backend/backendB-core-services/maple-monolith
+            - name: MAPLE_STATE_DIR
+              value: /app/backend/backendB-core-services/maple-monolith/.mcp-use
+            - name: OPENCLAW_BRIDGE_URL
+              value: http://127.0.0.1:8787
+            - name: OPENCLAW_GATEWAY_WS_URL
+              value: ws://openclaw-gateway.maple.svc.cluster.local:19001
+            - name: OPENCLAW_BRIDGE_MODE
+              value: local
+          envFrom:
+            - configMapRef:
+                name: maple-config
+            - secretRef:
+                name: maple-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: maple-data
+              mountPath: /app/backend/backendB-core-services/maple-monolith/data
+        - name: openclaw-bridge
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs"]
+          env:
+            - name: OPENCLAW_BRIDGE_PORT
+              value: "8787"
+            - name: OPENCLAW_BRIDGE_MODE
+              value: local
+            - name: OPENCLAW_GATEWAY_WS_URL
+              value: ws://openclaw-gateway.maple.svc.cluster.local:19001
+            - name: OPENCLAW_GATEWAY_SESSION_KEY
+              value: agent:dev:main
+          envFrom:
+            - secretRef:
+                name: maple-secrets
+          ports:
+            - name: openclaw-bridge
+              containerPort: 8787
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: openclaw-bridge
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: maple-data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw-gateway
+  namespace: maple
+  labels:
+    app: openclaw-gateway
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw-gateway
+  template:
+    metadata:
+      labels:
+        app: openclaw-gateway
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: ws
+              containerPort: 19001
+          env:
+            - name: PORT
+              value: "19001"
+            - name: SERVICE_NAME
+              value: openclaw-gateway
+            - name: SERVICE_DESCRIPTION
+              value: OpenClaw gateway simulation shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: ws
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: context-wall
+  namespace: maple
+  labels:
+    app: context-wall
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: context-wall
+  template:
+    metadata:
+      labels:
+        app: context-wall
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: context-wall
+            - name: SERVICE_DESCRIPTION
+              value: Context policy/orchestration shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-router
+  namespace: maple
+  labels:
+    app: model-router
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-router
+  template:
+    metadata:
+      labels:
+        app: model-router
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: model-router
+            - name: SERVICE_DESCRIPTION
+              value: Model routing shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-proxy
+  namespace: maple
+  labels:
+    app: mcp-proxy
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-proxy
+  template:
+    metadata:
+      labels:
+        app: mcp-proxy
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: mcp-proxy
+            - name: SERVICE_DESCRIPTION
+              value: MCP proxy shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyber-proxy
+  namespace: maple
+  labels:
+    app: cyber-proxy
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cyber-proxy
+  template:
+    metadata:
+      labels:
+        app: cyber-proxy
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: cyber-proxy
+            - name: SERVICE_DESCRIPTION
+              value: Cyber proxy shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tool-runner
+  namespace: maple
+  labels:
+    app: tool-runner
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tool-runner
+  template:
+    metadata:
+      labels:
+        app: tool-runner
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: tool-runner
+            - name: SERVICE_DESCRIPTION
+              value: Tool execution shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-writer
+  namespace: maple
+  labels:
+    app: audit-writer
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audit-writer
+  template:
+    metadata:
+      labels:
+        app: audit-writer
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: audit-writer
+            - name: SERVICE_DESCRIPTION
+              value: Audit writer shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secrets-broker
+  namespace: maple
+  labels:
+    app: secrets-broker
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secrets-broker
+  template:
+    metadata:
+      labels:
+        app: secrets-broker
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: secrets-broker
+            - name: SERVICE_DESCRIPTION
+              value: Secret minting shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-console-api
+  namespace: maple
+  labels:
+    app: admin-console-api
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-console-api
+  template:
+    metadata:
+      labels:
+        app: admin-console-api
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command: ["node", "backend/backendA-platform-infra/scripts/service-shell.mjs"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: admin-console-api
+            - name: SERVICE_DESCRIPTION
+              value: Admin control plane shell service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-a-it-console
+  namespace: maple
+  labels:
+    app: frontend-a-it-console
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-a-it-console
+  template:
+    metadata:
+      labels:
+        app: frontend-a-it-console
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "node",
+              "backend/backendA-platform-infra/scripts/static-server.mjs",
+              "--root",
+              "/app/frontend/frontendA-it-console/public",
+              "--port",
+              "8080",
+              "--index",
+              "judges.html"
+            ]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-b-desktop-app
+  namespace: maple
+  labels:
+    app: frontend-b-desktop-app
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-b-desktop-app
+  template:
+    metadata:
+      labels:
+        app: frontend-b-desktop-app
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "node",
+              "backend/backendA-platform-infra/scripts/static-server.mjs",
+              "--root",
+              "/app/frontend/frontendB-desktop-app/app",
+              "--port",
+              "8080",
+              "--index",
+              "index.html"
+            ]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-c-marketing-site
+  namespace: maple
+  labels:
+    app: frontend-c-marketing-site
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-c-marketing-site
+  template:
+    metadata:
+      labels:
+        app: frontend-c-marketing-site
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "node",
+              "backend/backendA-platform-infra/scripts/static-server.mjs",
+              "--root",
+              "/app/frontend/frontendC-marketing-download-site/public",
+              "--port",
+              "8080",
+              "--index",
+              "landing.html"
+            ]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-d-mcp-widgets
+  namespace: maple
+  labels:
+    app: frontend-d-mcp-widgets
+    app.kubernetes.io/part-of: maple-stack
+    maple-image: managed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-d-mcp-widgets
+  template:
+    metadata:
+      labels:
+        app: frontend-d-mcp-widgets
+        app.kubernetes.io/part-of: maple-stack
+        maple-image: managed
+    spec:
+      containers:
+        - name: app
+          image: maple-local:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            [
+              "node",
+              "backend/backendA-platform-infra/scripts/static-server.mjs",
+              "--root",
+              "/app/frontend/frontendD-mcp-widgets/resources",
+              "--port",
+              "8080",
+              "--index",
+              "index.html"
+            ]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
