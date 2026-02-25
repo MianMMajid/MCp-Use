@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("mapleDesktop", {
   getConfig: () => ipcRenderer.invoke("desktop:get-config"),
+  getBridgeStatus: () => ipcRenderer.invoke("desktop:get-bridge-status"),
   getStatus: () => ipcRenderer.invoke("desktop:get-runtime-status"),
   startRuntime: () => ipcRenderer.invoke("desktop:start-runtime"),
   stopRuntime: () => ipcRenderer.invoke("desktop:stop-runtime"),

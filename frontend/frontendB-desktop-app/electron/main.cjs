@@ -1,15 +1,19 @@
 "use strict";
 
 const path = require("node:path");
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, shell } = require("electron");
 let createRuntimeController;
+let bridgeAvailable = true;
+let bridgeError = "";
 try {
   ({ createRuntimeController } = require("../bridge-runtime/runtime-controller.cjs"));
 } catch (err) {
-  console.warn("[desktop] bridge-runtime unavailable, using stub:", err.message);
+  bridgeAvailable = false;
+  bridgeError = String(err.message ?? "unknown error");
+  console.warn("[desktop] bridge-runtime unavailable, using stub:", bridgeError);
   createRuntimeController = () => ({
     getStatus: async () => ({ running: false, healthy: false, pid: null, mode: "external" }),
-    start: async () => ({ ok: false, error: "runtime controller not available" }),
+    start: async () => ({ ok: false, error: "Runtime bridge is not installed. Run 'npm run sync:bridge' to set up the runtime controller." }),
     stop: async () => ({ ok: true }),
     getLogs: async () => [],
   });
@@ -60,6 +64,11 @@ app.whenReady().then(() => {
     };
   });
 
+  ipcMain.handle("desktop:get-bridge-status", async () => ({
+    available: bridgeAvailable,
+    error: bridgeError,
+  }));
+
   ipcMain.handle("desktop:get-runtime-status", async () => runtimeController.getStatus());
   ipcMain.handle("desktop:start-runtime", async () => runtimeController.start());
   ipcMain.handle("desktop:stop-runtime", async () => runtimeController.stop());
@@ -74,6 +83,45 @@ app.whenReady().then(() => {
     await shell.openExternal(url);
     return { ok: true };
   });
+
+  const isMac = process.platform === "darwin";
+  const menuTemplate = [
+    ...(isMac ? [{ role: "appMenu" }] : []),
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [
+        { role: "minimize" },
+        ...(isMac ? [{ role: "zoom" }, { type: "separator" }, { role: "front" }] : [{ role: "close" }]),
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
   createMainWindow();
 

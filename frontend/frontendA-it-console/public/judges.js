@@ -95,6 +95,11 @@ const marketplaceSearchBtn = document.getElementById("marketplaceSearchBtn");
 const marketplaceResultsBody = document.getElementById("marketplaceResultsBody");
 const marketplaceConnectedBody = document.getElementById("marketplaceConnectedBody");
 const marketplaceToolsBody = document.getElementById("marketplaceToolsBody");
+const marketplaceDiscoverInput = document.getElementById("marketplaceDiscoverInput");
+const marketplaceDiscoverBtn = document.getElementById("marketplaceDiscoverBtn");
+const marketplaceDiscoverBody = document.getElementById("marketplaceDiscoverBody");
+const smitheryRefreshBtn = document.getElementById("smitheryRefreshBtn");
+const smitheryServersBody = document.getElementById("smitheryServersBody");
 const dispatchToolNameInput = document.getElementById("dispatchToolName");
 const dispatchToolArgsInput = document.getElementById("dispatchToolArgs");
 const dispatchToolBtn = document.getElementById("dispatchToolBtn");
@@ -193,6 +198,9 @@ const state = {
   marketplaceSearchResults: [],
   marketplaceConnectedApps: [],
   marketplaceTools: [],
+  marketplaceDiscoverResults: [],
+  smitheryServers: [],
+  smitheryRegistered: [],
 };
 
 const CATEGORY_VIEWS = {
@@ -1199,8 +1207,31 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
     }
   } catch (error) {
     if (streamingEl && streamingEl.parentNode) streamingEl.parentNode.removeChild(streamingEl);
-    const msg = streamController.signal.aborted ? "Chat request timed out." : parseErrorMessage(error);
-    appendFirewallChatMessage("assistant", `Chat error: ${msg}`, { error: true });
+    streamingEl = null;
+
+    // Fallback to synchronous chat endpoint
+    try {
+      const traceId = currentTraceId();
+      const sessionId =
+        state.currentTrace && typeof state.currentTrace.sessionId === "string"
+          ? String(state.currentTrace.sessionId)
+          : undefined;
+      const fallbackResponse = await postJson("/api/firewall/chat", {
+        messages: chatHistory.slice(-CHAT_HISTORY_CONTEXT_SIZE),
+        traceId: traceId || undefined,
+        sessionId,
+      });
+      const content = fallbackResponse?.reply ?? fallbackResponse?.content ?? "";
+      if (content) {
+        appendFirewallChatMessage("assistant", content);
+        chatHistory.push({ role: "assistant", content });
+      } else {
+        appendFirewallChatMessage("assistant", "Chat error: no response from fallback.", { error: true });
+      }
+    } catch (fallbackError) {
+      const msg = streamController.signal.aborted ? "Chat request timed out." : parseErrorMessage(fallbackError);
+      appendFirewallChatMessage("assistant", `Chat error: ${msg}`, { error: true });
+    }
   } finally {
     clearTimeout(streamTimeout);
     setFirewallChatBusy(false);
@@ -2865,6 +2896,174 @@ async function loadBridgeSessions() {
 
 /* ── Admin: Marketplace handlers ── */
 
+async function discoverMarketplaceServers() {
+  const query = marketplaceDiscoverInput?.value?.trim() ?? "";
+  if (!query) {
+    setStatus("Enter a search term to discover MCP servers.", "warn");
+    return;
+  }
+  if (marketplaceDiscoverBtn) marketplaceDiscoverBtn.disabled = true;
+  try {
+    const data = await fetchJson(`/api/marketplace/search?q=${encodeURIComponent(query)}`);
+    const servers = Array.isArray(data?.results) ? data.results : [];
+    state.marketplaceDiscoverResults = servers;
+    renderMarketplaceDiscover();
+  } catch (err) {
+    const msg = parseErrorMessage(err);
+    if (msg.includes("403")) {
+      setStatus("Marketplace discovery is disabled in this build.", "error");
+    } else {
+      setStatus(`Marketplace search failed: ${msg}`, "error");
+    }
+    state.marketplaceDiscoverResults = [];
+    renderMarketplaceDiscover();
+  } finally {
+    if (marketplaceDiscoverBtn) marketplaceDiscoverBtn.disabled = false;
+  }
+}
+
+function renderMarketplaceDiscover() {
+  if (!marketplaceDiscoverBody) return;
+  const results = Array.isArray(state.marketplaceDiscoverResults) ? state.marketplaceDiscoverResults : [];
+  if (!results.length) {
+    marketplaceDiscoverBody.innerHTML = `<tr><td colspan="4" class="empty-row">No servers found.</td></tr>`;
+    return;
+  }
+  marketplaceDiscoverBody.innerHTML = results.map((server, i) => `
+    <tr>
+      <td class="mono">${escapeHtml(server.name ?? server.qualifiedName ?? "-")}</td>
+      <td>${escapeHtml(server.provider ?? "-")}</td>
+      <td>${escapeHtml(trim(server.description ?? "-", 80))}</td>
+      <td><button type="button" class="demo-btn" data-connect-idx="${i}" aria-label="Connect ${escapeHtml(server.name ?? "server")}">Connect</button></td>
+    </tr>
+  `).join("");
+
+  marketplaceDiscoverBody.querySelectorAll("[data-connect-idx]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-connect-idx"), 10);
+      const server = state.marketplaceDiscoverResults[idx];
+      if (!server) return;
+      btn.disabled = true;
+      btn.textContent = "Connecting...";
+      try {
+        await postJson("/api/marketplace/connect", {
+          provider: server.provider ?? "smithery",
+          id: server.qualifiedName ?? server.id ?? server.name,
+        });
+        btn.textContent = "Connected";
+        setStatus(`Connected to ${server.name ?? "server"}.`, "ok");
+        await refreshMarketplaceConnected();
+        await refreshMarketplaceTools();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Connect";
+        const msg = parseErrorMessage(err);
+        if (msg.includes("403")) {
+          setStatus("Marketplace is disabled in this build.", "error");
+        } else {
+          setStatus(`Connect failed: ${msg}`, "error");
+        }
+      }
+    });
+  });
+}
+
+async function refreshSmitheryServers() {
+  if (smitheryRefreshBtn) smitheryRefreshBtn.disabled = true;
+  try {
+    const data = await fetchJson("/api/smithery/servers");
+    state.smitheryServers = Array.isArray(data?.servers) ? data.servers : [];
+    const regData = await fetchJson("/api/smithery/downstream/registered");
+    state.smitheryRegistered = Array.isArray(regData?.apps) ? regData.apps : [];
+    renderSmitheryServers();
+  } catch (err) {
+    const msg = parseErrorMessage(err);
+    if (msg.includes("403")) {
+      setStatus("Smithery integration is not available.", "error");
+    } else {
+      setStatus(`Smithery refresh failed: ${msg}`, "error");
+    }
+    state.smitheryServers = [];
+    state.smitheryRegistered = [];
+    renderSmitheryServers();
+  } finally {
+    if (smitheryRefreshBtn) smitheryRefreshBtn.disabled = false;
+  }
+}
+
+function renderSmitheryServers() {
+  if (!smitheryServersBody) return;
+  const servers = Array.isArray(state.smitheryServers) ? state.smitheryServers : [];
+  const registered = new Set((state.smitheryRegistered ?? []).map((a) => a.qualifiedName ?? a.id));
+
+  if (!servers.length) {
+    smitheryServersBody.innerHTML = `<tr><td colspan="4" class="empty-row">No Smithery servers found.</td></tr>`;
+    return;
+  }
+
+  smitheryServersBody.innerHTML = servers.map((server, i) => {
+    const isRegistered = registered.has(server.qualifiedName ?? server.id);
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(server.qualifiedName ?? server.name ?? "-")}</td>
+        <td>${escapeHtml(trim(server.description ?? "-", 80))}</td>
+        <td>${isRegistered ? '<span class="chip chip-ok">Registered</span>' : '<span class="chip">Available</span>'}</td>
+        <td>${isRegistered
+          ? `<button type="button" class="demo-btn warn" data-smithery-unreg="${i}" aria-label="Unregister ${escapeHtml(server.name ?? "server")}">Unregister</button>`
+          : `<button type="button" class="demo-btn" data-smithery-reg="${i}" aria-label="Register ${escapeHtml(server.name ?? "server")}">Register</button>`
+        }</td>
+      </tr>
+    `;
+  }).join("");
+
+  smitheryServersBody.querySelectorAll("[data-smithery-reg]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-smithery-reg"), 10);
+      const server = state.smitheryServers[idx];
+      if (!server) return;
+      btn.disabled = true;
+      btn.textContent = "Registering...";
+      try {
+        await postJson("/api/smithery/downstream/register", {
+          qualifiedName: server.qualifiedName ?? server.id ?? server.name,
+        });
+        setStatus(`Registered Smithery server: ${server.name ?? server.qualifiedName}.`, "ok");
+        await refreshSmitheryServers();
+        await refreshMarketplaceConnected();
+        await refreshMarketplaceTools();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Register";
+        setStatus(`Register failed: ${parseErrorMessage(err)}`, "error");
+      }
+    });
+  });
+
+  smitheryServersBody.querySelectorAll("[data-smithery-unreg]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-smithery-unreg"), 10);
+      const server = state.smitheryServers[idx];
+      if (!server) return;
+      if (!confirm(`Unregister Smithery server "${server.name ?? server.qualifiedName}"?`)) return;
+      btn.disabled = true;
+      btn.textContent = "Removing...";
+      try {
+        await postJson("/api/smithery/downstream/unregister", {
+          qualifiedName: server.qualifiedName ?? server.id ?? server.name,
+        });
+        setStatus(`Unregistered Smithery server: ${server.name ?? server.qualifiedName}.`, "ok");
+        await refreshSmitheryServers();
+        await refreshMarketplaceConnected();
+        await refreshMarketplaceTools();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Unregister";
+        setStatus(`Unregister failed: ${parseErrorMessage(err)}`, "error");
+      }
+    });
+  });
+}
+
 async function refreshMarketplaceProviders() {
   try {
     const data = await fetchJson("/api/marketplace/providers");
@@ -4041,6 +4240,17 @@ if (marketplaceSearchInput instanceof HTMLInputElement) {
   marketplaceSearchInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") searchMarketplace();
   });
+}
+if (marketplaceDiscoverBtn) {
+  marketplaceDiscoverBtn.addEventListener("click", () => discoverMarketplaceServers());
+}
+if (marketplaceDiscoverInput) {
+  marketplaceDiscoverInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") discoverMarketplaceServers();
+  });
+}
+if (smitheryRefreshBtn) {
+  smitheryRefreshBtn.addEventListener("click", () => refreshSmitheryServers());
 }
 if (dispatchToolNameInput instanceof HTMLInputElement) {
   dispatchToolNameInput.addEventListener("input", () => {

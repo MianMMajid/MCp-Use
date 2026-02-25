@@ -163,3 +163,36 @@ export interface BookResultsWidgetProps {
   results: BookItem[];
   totalResults?: number;
 }
+
+export interface AnomalyFlag {
+  metric: string;
+  observed: number;
+  baseline: number;
+  zScore: number;
+  severity: Severity;
+  description?: string;
+}
+
+export interface AnomalyReportWidgetProps {
+  traceId: string;
+  sessionId?: string;
+  overallAnomalyScore: number;
+  communityBaseline?: {
+    meanRisk: number;
+    stdRisk: number;
+    sampleSize: number;
+  };
+  anomalies: AnomalyFlag[];
+  summary?: string;
+}
+
+export interface GuardActionWidgetProps {
+  traceId: string;
+  stepIndex: number;
+  action: GuardAction;
+  stepType?: string;
+  stepSummary?: string;
+  reason?: string;
+  quarantined?: boolean;
+  updatedStatus?: string;
+}

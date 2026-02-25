@@ -2053,6 +2053,11 @@ body {
   letter-spacing: 0.03em;
   padding: 0.14rem 0.36rem;
 }
+.chip-ok {
+  border-color: #8abf7a;
+  background: #e8f5e4;
+  color: #3a7a2a;
+}
 
 /* ── Trace Detail split layout ── */
 .detail-split {

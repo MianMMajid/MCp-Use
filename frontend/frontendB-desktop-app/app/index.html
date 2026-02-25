@@ -211,6 +211,10 @@
         <button type="button" id="openGatewayBtn" class="secondary">Open Gateway</button>
       </div>
 
+      <div id="bridgeWarning" class="fallback" style="display: none;">
+        <strong>Runtime bridge not installed.</strong> Run <code>npm run sync:bridge</code> to enable native runtime control.
+      </div>
+
       <div id="fallbackBox" class="fallback" style="display: none;">
         Electron bridge is not available in browser shell mode. Use
         <code>npm run desktop:dev</code> for full native behavior.
@@ -221,7 +225,7 @@
     </section>
 
     <section class="workspace" aria-label="Gateway Workspace">
-      <iframe id="gatewayFrame" title="Maple Gateway" sandbox="allow-scripts allow-forms allow-popups"></iframe>
+      <iframe id="gatewayFrame" title="Maple Gateway" sandbox="allow-scripts allow-forms allow-popups allow-same-origin"></iframe>
     </section>
   </main>
 

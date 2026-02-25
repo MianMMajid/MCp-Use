@@ -502,6 +502,42 @@
               <button id="marketplaceSearchBtn" class="demo-btn primary" type="button">Filter</button>
             </div>
             <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Discover MCP Servers</h3>
+              <div class="marketplace-controls">
+                <div class="marketplace-field marketplace-field-grow">
+                  <label for="marketplaceDiscoverInput">Search Smithery &amp; MCP.so</label>
+                  <input id="marketplaceDiscoverInput" type="text" placeholder="Search for MCP servers..." autocomplete="off" />
+                </div>
+                <button id="marketplaceDiscoverBtn" class="demo-btn primary" type="button">Search</button>
+              </div>
+              <div class="table-wrap">
+                <table class="timeline-table marketplace-discover-table">
+                  <thead>
+                    <tr><th>Server</th><th>Provider</th><th>Description</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="marketplaceDiscoverBody">
+                    <tr><td colspan="4" class="empty-row">Search for MCP servers above.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Smithery Servers</h3>
+              <div class="marketplace-controls">
+                <button id="smitheryRefreshBtn" class="demo-btn secondary" type="button">Refresh Servers</button>
+              </div>
+              <div class="table-wrap">
+                <table class="timeline-table smithery-servers-table">
+                  <thead>
+                    <tr><th>Server</th><th>Description</th><th>Status</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="smitheryServersBody">
+                    <tr><td colspan="4" class="empty-row">Click Refresh to load Smithery servers.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
               <h3 class="marketplace-section-title">Installed Tools</h3>
               <div class="table-wrap">
                 <table class="timeline-table marketplace-results-table">

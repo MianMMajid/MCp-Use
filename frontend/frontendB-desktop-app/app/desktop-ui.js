@@ -34,6 +34,7 @@
   };
 
   const api = window.mapleDesktop ?? null;
+  const bridgeWarning = document.getElementById("bridgeWarning");
   let currentGatewayUrl = defaultConfig.gatewayUrl;
   let consecutivePollFailures = 0;
 
@@ -181,6 +182,16 @@
     }
     window.open(url, "_blank", "noopener");
   });
+
+  // Check bridge availability on startup
+  if (api?.getBridgeStatus) {
+    api.getBridgeStatus().then((bridge) => {
+      if (!bridge.available && bridgeWarning) {
+        bridgeWarning.style.display = "block";
+        setBadge("Bridge not installed", "danger");
+      }
+    }).catch(() => {});
+  }
 
   refreshAll().catch((error) => {
     runtimeLogs.textContent = String(error?.message ?? error);
