@@ -41,6 +41,7 @@
     "dev:frontendD": "bash backend/backendA-platform-infra/scripts/dev-surface.sh frontendD",
     "dev:widgets": "bash backend/backendA-platform-infra/scripts/dev-surface.sh frontendD",
     "contracts:generate": "node backend/backendA-platform-infra/scripts/generate-contract-protos.mjs",
+    "branch-protection:check": "node backend/backendA-platform-infra/scripts/check-branch-protection.mjs --branch=main --required-check=backend-checks",
     "desktop:install": "cd frontend/frontendB-desktop-app && npm install",
     "desktop:dev": "cd frontend/frontendB-desktop-app && npm run dev",
     "desktop:dist": "cd frontend/frontendB-desktop-app && npm run dist --",

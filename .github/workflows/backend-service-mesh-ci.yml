@@ -17,6 +17,8 @@ on:
 jobs:
   backend-checks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +31,12 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: Branch Protection Gate (main)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run branch-protection:check
 
       - name: Preflight
         run: npm run preflight
