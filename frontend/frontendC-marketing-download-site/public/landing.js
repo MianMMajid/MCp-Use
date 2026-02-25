@@ -1,6 +1,16 @@
 (function () {
   const FETCH_TIMEOUT_MS = 12000;
 
+  // Mobile nav toggle
+  const navHamburger = document.querySelector(".nav-hamburger");
+  const navLinks = document.querySelector(".nav-links");
+  if (navHamburger && navLinks) {
+    navHamburger.addEventListener("click", () => {
+      const isOpen = navLinks.classList.toggle("open");
+      navHamburger.setAttribute("aria-expanded", String(isOpen));
+    });
+  }
+
   const form = document.getElementById("signinForm");
   const usernameInput = document.getElementById("username");
   const passwordInput = document.getElementById("password");

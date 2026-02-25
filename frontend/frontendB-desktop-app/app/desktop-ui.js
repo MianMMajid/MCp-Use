@@ -180,7 +180,7 @@
       await api.openExternal(url);
       return;
     }
-    window.open(url, "_blank", "noopener");
+    if (isSafeUrl(url)) window.open(url, "_blank", "noopener");
   });
 
   // Check bridge availability on startup
@@ -237,7 +237,9 @@
       updateBtn.disabled = true;
       updateBtn.textContent = "Installing...";
       const result = await api.downloadUpdate();
-      if (!result?.ok) {
+      if (result?.ok) {
+        updateBtn.textContent = "Restarting\u2026";
+      } else {
         updateBtn.disabled = false;
         updateBtn.textContent = "Install & Restart";
         runtimeLogs.textContent = `Update failed: ${result?.error ?? "unknown"}`;

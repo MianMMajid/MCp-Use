@@ -36,7 +36,7 @@ const WikiCardWidget: React.FC = () => {
 
       <div className="cc-pane">
         <p style={{ lineHeight: 1.55, margin: 0 }}>
-          {(() => { const text = props.extract ?? props.summary; return text.length > 500 ? text.slice(0, 500) + "\u2026" : text; })()}
+          {(() => { const text = props.extract ?? props.summary ?? ""; return text.length > 500 ? text.slice(0, 500) + "\u2026" : text; })()}
         </p>
         {props.url ? (
           <a href={props.url} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.6rem" }}>
@@ -48,4 +48,6 @@ const WikiCardWidget: React.FC = () => {
   );
 };
 
-export default WikiCardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedWikiCardWidget: React.FC = () => <WidgetErrorBoundary><WikiCardWidget /></WidgetErrorBoundary>;
+export default WrappedWikiCardWidget;

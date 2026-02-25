@@ -95,4 +95,6 @@ const TraceTimelineWidget: React.FC = () => {
   );
 };
 
-export default TraceTimelineWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedTraceTimelineWidget: React.FC = () => <WidgetErrorBoundary><TraceTimelineWidget /></WidgetErrorBoundary>;
+export default WrappedTraceTimelineWidget;

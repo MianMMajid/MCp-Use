@@ -582,9 +582,44 @@ button:focus-visible, input:focus-visible {
   }
 }
 
+.nav-hamburger {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--text);
+  cursor: pointer;
+}
+
 @media (max-width: 480px) {
-  .nav-links a:not(.nav-cta) {
+  .nav-hamburger {
+    display: flex;
+    align-items: center;
+  }
+
+  .nav-links {
     display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: rgba(250, 247, 242, 0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    gap: 12px;
+    z-index: 99;
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+  .nav-links a {
+    display: block;
+    text-align: center;
   }
 
   .hero-tagline {

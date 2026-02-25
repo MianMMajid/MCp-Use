@@ -90,4 +90,6 @@ const TraceListWidget: React.FC = () => {
   );
 };
 
-export default TraceListWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedTraceListWidget: React.FC = () => <WidgetErrorBoundary><TraceListWidget /></WidgetErrorBoundary>;
+export default WrappedTraceListWidget;

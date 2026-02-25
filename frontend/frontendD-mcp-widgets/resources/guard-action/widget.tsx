@@ -76,4 +76,6 @@ const GuardActionWidget: React.FC = () => {
   );
 };
 
-export default GuardActionWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedGuardActionWidget: React.FC = () => <WidgetErrorBoundary><GuardActionWidget /></WidgetErrorBoundary>;
+export default WrappedGuardActionWidget;

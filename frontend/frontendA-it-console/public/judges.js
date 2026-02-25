@@ -2013,15 +2013,15 @@ function renderLiveActionStrip(trace, forkContext = null) {
   }
 
   const overallRiskScore = Number(
-    trace.metadata?.overallRiskScore ?? Math.max(0, ...trace.steps.map((step) => Number(step.riskScore ?? 0)))
+    trace.metadata?.overallRiskScore ?? Math.max(0, ...(Array.isArray(trace.steps) ? trace.steps : []).map((step) => Number(step.riskScore ?? 0)))
   );
-  const flagsCount = trace.steps.reduce((sum, step) => sum + (Array.isArray(step.riskFlags) ? step.riskFlags.length : 0), 0);
+  const flagsCount = (Array.isArray(trace.steps) ? trace.steps : []).reduce((sum, step) => sum + (Array.isArray(step.riskFlags) ? step.riskFlags.length : 0), 0);
   if (liveRiskBadgeEl) {
     liveRiskBadgeEl.className = `risk-badge ${riskClass(overallRiskScore)}`;
     liveRiskBadgeEl.textContent = `${overallRiskScore} (${riskLevel(overallRiskScore)})`;
   }
   if (liveRiskTextEl) {
-    liveRiskTextEl.textContent = `${flagsCount} flags across ${trace.steps.length} steps.`;
+    liveRiskTextEl.textContent = `${flagsCount} flags across ${(Array.isArray(trace.steps) ? trace.steps : []).length} steps.`;
   }
 
   const stats = state.communityStats ?? {};
@@ -3496,7 +3496,7 @@ async function clearTraceHistory() {
 async function changePassword() {
   const current = settingsCurrentPasswordEl?.value ?? "";
   const newPass = settingsNewPasswordEl?.value ?? "";
-  const confirm = settingsConfirmPasswordEl?.value ?? "";
+  const confirmPw = settingsConfirmPasswordEl?.value ?? "";
 
   if (!current) {
     setSettingsActionResult("Enter your current password.", "error");
@@ -3506,7 +3506,7 @@ async function changePassword() {
     setSettingsActionResult("New password must be at least 8 characters.", "error");
     return;
   }
-  if (newPass !== confirm) {
+  if (newPass !== confirmPw) {
     setSettingsActionResult("New passwords do not match.", "error");
     return;
   }
@@ -4068,11 +4068,11 @@ traceListEl.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
   const deleteBtn = target.closest("[data-delete-trace]");
-  if (!(deleteBtn instanceof HTMLElement)) return;
+  if (!(deleteBtn instanceof HTMLButtonElement)) return;
   event.stopPropagation();
   const traceId = deleteBtn.dataset.deleteTrace;
   if (!traceId) return;
-  if (!confirm(`Delete trace "${traceId}"? This cannot be undone.`)) return;
+  if (!window.confirm(`Delete trace "${traceId}"? This cannot be undone.`)) return;
   deleteBtn.disabled = true;
   postJson("/api/traces/clear", { traceId })
     .then(() => {

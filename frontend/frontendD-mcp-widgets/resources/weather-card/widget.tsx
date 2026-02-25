@@ -111,4 +111,6 @@ const WeatherCardWidget: React.FC = () => {
   );
 };
 
-export default WeatherCardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedWeatherCardWidget: React.FC = () => <WidgetErrorBoundary><WeatherCardWidget /></WidgetErrorBoundary>;
+export default WrappedWeatherCardWidget;

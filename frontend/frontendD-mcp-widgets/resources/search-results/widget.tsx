@@ -69,4 +69,6 @@ const SearchResultsWidget: React.FC = () => {
   );
 };
 
-export default SearchResultsWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedSearchResultsWidget: React.FC = () => <WidgetErrorBoundary><SearchResultsWidget /></WidgetErrorBoundary>;
+export default WrappedSearchResultsWidget;

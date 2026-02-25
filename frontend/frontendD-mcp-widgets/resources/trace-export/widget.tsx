@@ -62,4 +62,6 @@ const TraceExportWidget: React.FC = () => {
   );
 };
 
-export default TraceExportWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedTraceExportWidget: React.FC = () => <WidgetErrorBoundary><TraceExportWidget /></WidgetErrorBoundary>;
+export default WrappedTraceExportWidget;

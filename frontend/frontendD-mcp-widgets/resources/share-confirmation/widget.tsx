@@ -73,4 +73,6 @@ const ShareConfirmationWidget: React.FC = () => {
   );
 };
 
-export default ShareConfirmationWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedShareConfirmationWidget: React.FC = () => <WidgetErrorBoundary><ShareConfirmationWidget /></WidgetErrorBoundary>;
+export default WrappedShareConfirmationWidget;

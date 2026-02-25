@@ -2084,6 +2084,23 @@ body {
   color: #3a7a2a;
 }
 
+/* Badge variants */
+.badge.ok {
+  border-color: #8abf7a;
+  background: #e8f5e4;
+  color: #3a7a2a;
+}
+.badge.warn {
+  border-color: #d4a843;
+  background: #fef9e7;
+  color: #7a5c14;
+}
+.badge.danger {
+  border-color: #cf5e5e;
+  background: #fce8e8;
+  color: #7a1e1e;
+}
+
 /* ── Trace Detail split layout ── */
 .detail-split {
   display: grid;
@@ -3155,11 +3172,29 @@ div.empty-row {
 }
 
 /* ── Toast notifications ── */
+/* Shared utility classes */
+.secondary {
+  background: #f5f1ec;
+  color: var(--text, #1a1a1a);
+  border: 1px solid #d1c5b8;
+}
+.secondary:hover {
+  border-color: var(--accent, #e8740c);
+}
+.mono {
+  font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .toast-container {
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 10000;
+  z-index: 99999;
   display: flex;
   flex-direction: column;
   gap: 8px;

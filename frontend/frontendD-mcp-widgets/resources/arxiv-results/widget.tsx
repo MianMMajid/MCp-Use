@@ -89,4 +89,6 @@ const ArxivResultsWidget: React.FC = () => {
   );
 };
 
-export default ArxivResultsWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedArxivResultsWidget: React.FC = () => <WidgetErrorBoundary><ArxivResultsWidget /></WidgetErrorBoundary>;
+export default WrappedArxivResultsWidget;

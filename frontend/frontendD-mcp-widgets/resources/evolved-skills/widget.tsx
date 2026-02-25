@@ -75,4 +75,6 @@ const EvolvedSkillsWidget: React.FC = () => {
   );
 };
 
-export default EvolvedSkillsWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedEvolvedSkillsWidget: React.FC = () => <WidgetErrorBoundary><EvolvedSkillsWidget /></WidgetErrorBoundary>;
+export default WrappedEvolvedSkillsWidget;

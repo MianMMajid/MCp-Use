@@ -49,7 +49,7 @@ const BookResultsWidget: React.FC = () => {
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
                 <div className="cc-step-row">
-                  <strong>{book.title}</strong>
+                  <strong title={book.title}>{book.title}</strong>
                   {book.firstPublishYear != null ? (
                     <span className="cc-chip cc-chip-muted">{book.firstPublishYear}</span>
                   ) : null}
@@ -81,4 +81,6 @@ const BookResultsWidget: React.FC = () => {
   );
 };
 
-export default BookResultsWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedBookResultsWidget: React.FC = () => <WidgetErrorBoundary><BookResultsWidget /></WidgetErrorBoundary>;
+export default WrappedBookResultsWidget;

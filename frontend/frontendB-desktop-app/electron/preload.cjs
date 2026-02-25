@@ -14,5 +14,9 @@ contextBridge.exposeInMainWorld("mapleDesktop", {
     return ipcRenderer.invoke("desktop:open-external", url);
   },
   downloadUpdate: () => ipcRenderer.invoke("desktop:download-update"),
-  onUpdateAvailable: (callback) => ipcRenderer.on("desktop:update-available", (_event, info) => callback(info)),
+  onUpdateAvailable: (callback) => {
+    const handler = (_event, info) => callback(info);
+    ipcRenderer.on("desktop:update-available", handler);
+    return () => ipcRenderer.removeListener("desktop:update-available", handler);
+  },
 });

@@ -86,4 +86,6 @@ const GithubCardWidget: React.FC = () => {
   );
 };
 
-export default GithubCardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedGithubCardWidget: React.FC = () => <WidgetErrorBoundary><GithubCardWidget /></WidgetErrorBoundary>;
+export default WrappedGithubCardWidget;

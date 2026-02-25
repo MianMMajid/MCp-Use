@@ -94,4 +94,6 @@ const RiskDashboardWidget: React.FC = () => {
   );
 };
 
-export default RiskDashboardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedRiskDashboardWidget: React.FC = () => <WidgetErrorBoundary><RiskDashboardWidget /></WidgetErrorBoundary>;
+export default WrappedRiskDashboardWidget;

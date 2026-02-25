@@ -117,4 +117,6 @@ const AnomalyReportWidget: React.FC = () => {
   );
 };
 
-export default AnomalyReportWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedAnomalyReportWidget: React.FC = () => <WidgetErrorBoundary><AnomalyReportWidget /></WidgetErrorBoundary>;
+export default WrappedAnomalyReportWidget;
