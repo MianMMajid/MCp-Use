@@ -30,7 +30,7 @@ const TraceExportWidget: React.FC = () => {
           <h2>Trace {props.traceId.slice(0, 12)}</h2>
         </div>
         <div className="cc-summary-grid">
-          <span className="cc-chip">{props.format.toUpperCase()}</span>
+          <span className="cc-chip">{String(props.format ?? "json").toUpperCase()}</span>
           {props.stepCount != null ? (
             <span className="cc-chip cc-chip-muted">{props.stepCount} steps</span>
           ) : null}

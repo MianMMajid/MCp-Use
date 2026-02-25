@@ -67,7 +67,7 @@ const BookResultsWidget: React.FC = () => {
                     <span className="cc-chip cc-chip-muted">ISBN {book.isbn}</span>
                   ) : null}
                 </div>
-                {book.url ? (
+                {book.url && /^https?:\/\//i.test(book.url) ? (
                   <a href={book.url} target="_blank" rel="noopener noreferrer" className="cc-link">
                     {book.url}
                   </a>

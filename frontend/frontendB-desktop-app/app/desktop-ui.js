@@ -228,7 +228,7 @@
   if (api?.onUpdateAvailable) {
     api.onUpdateAvailable((info) => {
       if (updateBanner) updateBanner.style.display = "block";
-      if (updateVersion) updateVersion.textContent = `Version ${info.version} is ready.`;
+      if (updateVersion) updateVersion.textContent = `Version ${info?.version ?? "unknown"} is ready.`;
     });
   }
 
@@ -236,13 +236,19 @@
     updateBtn.addEventListener("click", async () => {
       updateBtn.disabled = true;
       updateBtn.textContent = "Installing...";
-      const result = await api.downloadUpdate();
-      if (result?.ok) {
-        updateBtn.textContent = "Restarting\u2026";
-      } else {
+      try {
+        const result = await api.downloadUpdate();
+        if (result?.ok) {
+          updateBtn.textContent = "Restarting\u2026";
+        } else {
+          updateBtn.disabled = false;
+          updateBtn.textContent = "Install & Restart";
+          runtimeLogs.textContent = `Update failed: ${result?.error ?? "unknown"}`;
+        }
+      } catch (err) {
         updateBtn.disabled = false;
         updateBtn.textContent = "Install & Restart";
-        runtimeLogs.textContent = `Update failed: ${result?.error ?? "unknown"}`;
+        runtimeLogs.textContent = `Update error: ${err?.message ?? err}`;
       }
     });
   }

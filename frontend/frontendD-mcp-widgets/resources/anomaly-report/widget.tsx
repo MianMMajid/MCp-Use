@@ -68,7 +68,7 @@ const AnomalyReportWidget: React.FC = () => {
           <p className="cc-eyebrow" style={{ marginBottom: "0.3rem" }}>Community Baseline</p>
           <div className="cc-step-row">
             <span className="cc-chip cc-chip-muted">Mean Risk: {formatScore(baseline.meanRisk)}</span>
-            <span className="cc-chip cc-chip-muted">Std Dev: {baseline.stdRisk.toFixed(3)}</span>
+            <span className="cc-chip cc-chip-muted">Std Dev: {Number.isFinite(baseline.stdRisk) ? baseline.stdRisk.toFixed(3) : "--"}</span>
             <span className="cc-chip cc-chip-muted">Sample: {baseline.sampleSize}</span>
           </div>
         </div>
@@ -95,11 +95,11 @@ const AnomalyReportWidget: React.FC = () => {
                   <span className="cc-chip" style={{ color: severityColor[anomaly.severity] ?? severityColor.medium }}>
                     {severityLabel(anomaly.severity)}
                   </span>
-                  <span className="cc-chip cc-chip-muted">z={anomaly.zScore.toFixed(2)}</span>
+                  <span className="cc-chip cc-chip-muted">z={Number.isFinite(anomaly.zScore) ? anomaly.zScore.toFixed(2) : "--"}</span>
                 </div>
                 <div className="cc-step-row" style={{ marginTop: "0.2rem" }}>
-                  <span className="cc-chip cc-chip-muted">Observed: {anomaly.observed.toFixed(3)}</span>
-                  <span className="cc-chip cc-chip-muted">Baseline: {anomaly.baseline.toFixed(3)}</span>
+                  <span className="cc-chip cc-chip-muted">Observed: {Number.isFinite(anomaly.observed) ? anomaly.observed.toFixed(3) : "--"}</span>
+                  <span className="cc-chip cc-chip-muted">Baseline: {Number.isFinite(anomaly.baseline) ? anomaly.baseline.toFixed(3) : "--"}</span>
                 </div>
                 {anomaly.description ? (
                   <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", opacity: 0.85 }}>{anomaly.description}</p>

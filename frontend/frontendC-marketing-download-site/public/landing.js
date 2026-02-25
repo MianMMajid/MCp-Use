@@ -80,7 +80,7 @@
   function navigateAfterLogin() {
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next") || "/judge";
-    const safeNext = /^\/[a-zA-Z0-9_\-\/\.]+$/.test(next) ? next : "/judge";
+    const safeNext = /^\/[a-zA-Z0-9_\-\/]+$/.test(next) && !next.includes("..") ? next : "/judge";
     window.location.assign(safeNext);
   }
 
@@ -149,6 +149,7 @@
   // --- Sign-in form ---
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submitBtn?.disabled) return;
     if (errorEl) errorEl.textContent = "";
 
     const username = usernameInput.value.trim();
@@ -206,6 +207,7 @@
   if (signupForm instanceof HTMLFormElement && signupUsername instanceof HTMLInputElement && signupPassword instanceof HTMLInputElement) {
     signupForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (signupSubmitBtn?.disabled) return;
       if (signupError) signupError.textContent = "";
 
       const username = signupUsername.value.trim();

@@ -75,7 +75,7 @@ const ArxivResultsWidget: React.FC = () => {
                       : paper.summary}
                   </p>
                 ) : null}
-                {paper.url ? (
+                {paper.url && /^https?:\/\//i.test(paper.url) ? (
                   <a href={paper.url} target="_blank" rel="noopener noreferrer" className="cc-link">
                     {paper.url}
                   </a>

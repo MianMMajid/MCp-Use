@@ -27,11 +27,18 @@ try {
 }
 
 let tray = null;
+let trayPollTimer = null;
 
 const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
 const runtimeController = createRuntimeController();
 
+let mainWindow = null;
+
 function createMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.focus();
+    return;
+  }
   const window = new BrowserWindow({
     width: 1260,
     height: 860,
@@ -50,6 +57,8 @@ function createMainWindow() {
 
   window.webContents.on("will-navigate", (event, url) => { if (!url.startsWith("file://")) event.preventDefault(); });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.on("closed", () => { mainWindow = null; });
+  mainWindow = window;
 }
 
 function isAllowedExternalUrl(url) {
@@ -185,12 +194,12 @@ app.whenReady().then(() => {
   updateTrayMenu("Checking...");
 
   // Periodic tray status update
-  setInterval(async () => {
+  trayPollTimer = setInterval(async () => {
     try {
       const status = await runtimeController.getStatus();
       const label = status.running && status.healthy ? "Running" : status.running ? "Starting..." : "Stopped";
       updateTrayMenu(label);
-      tray.setToolTip(`Maple Desktop — ${label}`);
+      if (tray && !tray.isDestroyed()) tray.setToolTip(`Maple Desktop — ${label}`);
     } catch {
       updateTrayMenu("Unknown");
     }
@@ -214,6 +223,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  if (trayPollTimer) clearInterval(trayPollTimer);
   runtimeController.stop().catch(() => {
     // best-effort shutdown only
   });

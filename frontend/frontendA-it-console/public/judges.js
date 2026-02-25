@@ -270,7 +270,7 @@ function setStatus(message, tone = "") {
   if (tone) {
     statusEl.classList.add(tone);
   }
-  statusEl.classList.toggle("hidden", tone === "ok" || !String(message ?? "").trim());
+  statusEl.classList.toggle("hidden", !String(message ?? "").trim());
 }
 
 function setDemoResult(message, tone = "") {
@@ -1339,7 +1339,7 @@ function openNodeModalWithStep(trace, step) {
     actor: step.actor,
     currentGuard: step.guardStatus,
   });
-  nodeActionModalEl.classList.remove("hidden");
+  if (nodeActionModalEl) nodeActionModalEl.classList.remove("hidden");
 }
 
 async function openNodeModalFromSelection(traceId, stepIndex) {
@@ -1678,7 +1678,7 @@ function renderSessionStrip(trace) {
   const lastStep = steps[steps.length - 1];
   const overallRiskScore = Number(
     trace.metadata?.overallRiskScore ??
-      (steps.length ? Math.max(0, ...steps.map((step) => Number(step.riskScore ?? 0))) : 0)
+      (steps.length ? steps.reduce((max, step) => Math.max(max, Number(step.riskScore ?? 0)), 0) : 0)
   );
 
   sessionTraceIdEl.textContent = trace.id;
@@ -2013,7 +2013,7 @@ function renderLiveActionStrip(trace, forkContext = null) {
   }
 
   const overallRiskScore = Number(
-    trace.metadata?.overallRiskScore ?? Math.max(0, ...(Array.isArray(trace.steps) ? trace.steps : []).map((step) => Number(step.riskScore ?? 0)))
+    trace.metadata?.overallRiskScore ?? (Array.isArray(trace.steps) ? trace.steps : []).reduce((max, step) => Math.max(max, Number(step.riskScore ?? 0)), 0)
   );
   const flagsCount = (Array.isArray(trace.steps) ? trace.steps : []).reduce((sum, step) => sum + (Array.isArray(step.riskFlags) ? step.riskFlags.length : 0), 0);
   if (liveRiskBadgeEl) {
@@ -2494,7 +2494,7 @@ function renderExplorerMeta(trace) {
   const steps = Array.isArray(trace.steps) ? trace.steps : [];
   const overallRiskScore = Number(
     trace.metadata?.overallRiskScore ??
-      (steps.length ? Math.max(0, ...steps.map((step) => Number(step.riskScore ?? 0))) : 0)
+      (steps.length ? steps.reduce((max, step) => Math.max(max, Number(step.riskScore ?? 0)), 0) : 0)
   );
   selectedTraceInfoEl.textContent = [
     `${trace.id} • session ${trace.sessionId}`,

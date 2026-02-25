@@ -38,7 +38,7 @@ const WikiCardWidget: React.FC = () => {
         <p style={{ lineHeight: 1.55, margin: 0 }}>
           {(() => { const text = props.extract ?? props.summary ?? ""; return text.length > 500 ? text.slice(0, 500) + "\u2026" : text; })()}
         </p>
-        {props.url ? (
+        {props.url && /^https?:\/\//i.test(props.url) ? (
           <a href={props.url} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.6rem" }}>
             {props.url}
           </a>

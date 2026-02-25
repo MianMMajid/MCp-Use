@@ -37,7 +37,7 @@ function resolveIcon(condition: string): string {
 }
 
 function formatTemp(value: number | undefined, unit?: string): string {
-  if (value == null) return "--";
+  if (value == null || !Number.isFinite(value)) return "--";
   const suffix = unit?.toLowerCase() === "fahrenheit" ? "\u00B0F" : "\u00B0C";
   return `${Math.round(value)}${suffix}`;
 }

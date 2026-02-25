@@ -29,7 +29,7 @@ function severityClass(severity: RiskDashboardProps["severity"]) {
 const RiskDashboardWidget: React.FC = () => {
   const { props, isPending } = useWidget<RiskDashboardProps>();
 
-  if (isPending || !props.flags || !props.traceId) {
+  if (isPending || !Array.isArray(props.flags) || !props.traceId) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
