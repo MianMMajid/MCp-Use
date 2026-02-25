@@ -65,7 +65,34 @@ async function startServer(server, port, serviceName) {
   });
 }
 
+function suppressExpectedRuntimeLogs() {
+  const originalError = console.error;
+  const originalWarn = console.warn;
+
+  console.error = (...args) => {
+    const message = String(args[0] ?? "");
+    if (message.startsWith("[DB] PostgreSQL initialization failed:")) {
+      return;
+    }
+    originalError(...args);
+  };
+
+  console.warn = (...args) => {
+    const message = String(args[0] ?? "");
+    if (message.startsWith("[DB] Continuing in degraded mode")) {
+      return;
+    }
+    originalWarn(...args);
+  };
+
+  return () => {
+    console.error = originalError;
+    console.warn = originalWarn;
+  };
+}
+
 test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy -> tool-runner -> cyber-proxy", async () => {
+  const restoreLogs = suppressExpectedRuntimeLogs();
   const ports = {
     contextWall: await getFreePort(),
     modelRouter: await getFreePort(),
@@ -355,6 +382,8 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     );
     assert.equal(sources.size > 0, true);
   } finally {
+    restoreLogs();
+
     try {
       await shutdownGateway();
     } catch {

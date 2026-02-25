@@ -11,11 +11,50 @@ function restoreEnv(key, value) {
   process.env[key] = value;
 }
 
+function suppressExpectedDbLogs() {
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  let failedInitLogs = 0;
+  let degradedModeLogs = 0;
+
+  console.error = (...args) => {
+    const message = String(args[0] ?? "");
+    if (message.startsWith("[DB] PostgreSQL initialization failed:")) {
+      failedInitLogs += 1;
+      return;
+    }
+    originalError(...args);
+  };
+
+  console.warn = (...args) => {
+    const message = String(args[0] ?? "");
+    if (message.startsWith("[DB] Continuing in degraded mode")) {
+      degradedModeLogs += 1;
+      return;
+    }
+    originalWarn(...args);
+  };
+
+  return {
+    restore() {
+      console.error = originalError;
+      console.warn = originalWarn;
+    },
+    get failedInitLogs() {
+      return failedInitLogs;
+    },
+    get degradedModeLogs() {
+      return degradedModeLogs;
+    },
+  };
+}
+
 test("initializeDatabase fails closed by default when PostgreSQL initialization fails", async () => {
   const envBackup = process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE;
   const databaseInit = database.initialize;
   const traceInit = traceStore.init;
   const sharedTraceInit = sharedTraceStore.init;
+  const logs = suppressExpectedDbLogs();
 
   try {
     process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE = "0";
@@ -26,7 +65,10 @@ test("initializeDatabase fails closed by default when PostgreSQL initialization 
     sharedTraceStore.init = async () => undefined;
 
     await assert.rejects(initializeDatabase(), /db down/);
+    assert.equal(logs.failedInitLogs >= 1, true);
+    assert.equal(logs.degradedModeLogs, 0);
   } finally {
+    logs.restore();
     database.initialize = databaseInit;
     traceStore.init = traceInit;
     sharedTraceStore.init = sharedTraceInit;
@@ -39,6 +81,7 @@ test("initializeDatabase allows degraded mode when explicitly enabled", async ()
   const databaseInit = database.initialize;
   const traceInit = traceStore.init;
   const sharedTraceInit = sharedTraceStore.init;
+  const logs = suppressExpectedDbLogs();
 
   try {
     process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE = "1";
@@ -49,7 +92,10 @@ test("initializeDatabase allows degraded mode when explicitly enabled", async ()
     sharedTraceStore.init = async () => undefined;
 
     await assert.doesNotReject(initializeDatabase());
+    assert.equal(logs.failedInitLogs >= 1, true);
+    assert.equal(logs.degradedModeLogs >= 1, true);
   } finally {
+    logs.restore();
     database.initialize = databaseInit;
     traceStore.init = traceInit;
     sharedTraceStore.init = sharedTraceInit;
