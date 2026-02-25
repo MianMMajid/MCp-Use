@@ -193,3 +193,27 @@ export async function evaluateBusinessRuntimeDependencies(options = {}) {
   cachedAt = Date.now();
   return report;
 }
+
+export async function enforceBusinessStartupDependencies() {
+  const strict = parseBooleanEnv(
+    process.env.MAPLE_RUNTIME_STRICT_DEPENDENCIES,
+    isProductionRuntime()
+  );
+  const enforce = parseBooleanEnv(process.env.MAPLE_ENFORCE_STARTUP_DEPENDENCIES, strict);
+  if (!enforce) {
+    return {
+      enforced: false,
+      report: await evaluateBusinessRuntimeDependencies({ force: true }),
+    };
+  }
+  const report = await evaluateBusinessRuntimeDependencies({ force: true });
+  if (!report.ready) {
+    const summary = report.requiredFailures
+      .map((check) => `${check.id}: ${check.reason}`)
+      .join("; ");
+    throw new Error(
+      `Business API startup blocked by missing required runtime dependencies. ${summary}`
+    );
+  }
+  return { enforced: true, report };
+}

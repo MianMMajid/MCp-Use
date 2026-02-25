@@ -13,12 +13,15 @@ import {
 } from "./config.js";
 import { createApp } from "./app.js";
 import { createAuditEmitter } from "./audit-emitter.js";
+import { enforceBusinessStartupDependencies } from "./runtime-dependencies.js";
 
 async function main() {
   mapleLog("info", "business_api.starting", {
     host: businessApiHost,
     port: businessApiPort,
   });
+
+  await enforceBusinessStartupDependencies();
 
   const { app, shutdown } = await createApp({
     auditEmitter: createAuditEmitter(),

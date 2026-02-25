@@ -71,22 +71,6 @@ server.app.use("*", async (c, next) => {
         sessionId,
         traceId,
     });
-    if (method !== "OPTIONS" && shouldLogRequest) {
-        emitAuditEvent({
-            eventType: "AUDIT_EVENT_TYPE_PROXY_REQUEST",
-            sourceService: "maple-edge",
-            traceId: traceId || undefined,
-            sessionId: sessionId || undefined,
-            userId: forwardedUserId || undefined,
-            summary: `Edge ingress ${method} ${path}`,
-            payload: {
-                requestId,
-                tenantId,
-                deviceId,
-                origin: c.req.header("origin") ?? "",
-            },
-        });
-    }
     try {
         await next();
     }
@@ -100,6 +84,34 @@ server.app.use("*", async (c, next) => {
         throw error;
     }
     finally {
+        if (method !== "OPTIONS" && path.startsWith("/api/")) {
+            const status = c.res.status;
+            const durationMs = Date.now() - startedAt;
+            const severity = status >= 500
+                ? "RISK_SEVERITY_HIGH"
+                : status >= 400
+                    ? "RISK_SEVERITY_MEDIUM"
+                    : "RISK_SEVERITY_LOW";
+            emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_PROXY_REQUEST",
+                sourceService: "gateway-api",
+                traceId: traceId || undefined,
+                sessionId: sessionId || undefined,
+                userId: forwardedUserId || undefined,
+                severity,
+                summary: `Gateway API ${method} ${path} -> ${status}`,
+                payload: {
+                    requestId,
+                    tenantId,
+                    deviceId,
+                    method,
+                    path,
+                    status,
+                    durationMs,
+                    origin: c.req.header("origin") ?? "",
+                },
+            });
+        }
         if (shouldLogRequest) {
             const durationMs = Date.now() - startedAt;
             const status = c.res.status;

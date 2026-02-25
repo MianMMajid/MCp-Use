@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { accessSync, constants } from "node:fs";
+import { spawnSync } from "node:child_process";
 import net from "node:net";
 import { resolve } from "node:path";
 
@@ -119,6 +120,19 @@ function createCheck({ id, label, required, result, expected }) {
   };
 }
 
+function runNodeScript(scriptPath, args = []) {
+  const result = spawnSync(process.execPath, [scriptPath, ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status === 0) {
+    return { ok: true };
+  }
+  const detail = String(result.stderr || result.stdout || "").trim();
+  const firstLine = detail.split(/\r?\n/).find((line) => line.trim().length > 0) || "script_failed";
+  return { ok: false, reason: firstLine };
+}
+
 async function run() {
   const args = parseArgs(process.argv);
   const strict = args.strict || isProductionRuntime() || args.mode === "deploy";
@@ -127,6 +141,11 @@ async function run() {
   const requireGoogle = parseBoolean(process.env.MAPLE_DEP_REQUIRE_GOOGLE_AUTH, strict);
   const requireStripe = parseBoolean(process.env.MAPLE_DEP_REQUIRE_STRIPE, strict);
   const requireOpenclaw = parseBoolean(process.env.MAPLE_DEP_REQUIRE_OPENCLAW, strict);
+  const checkContractSync = parseBoolean(process.env.MAPLE_PREFLIGHT_CHECK_CONTRACT_SYNC, true);
+  const checkServiceSourceSync = parseBoolean(
+    process.env.MAPLE_PREFLIGHT_CHECK_SOURCE_SYNC,
+    strict || args.mode === "deploy"
+  );
 
   const checks = [];
   const localCertDir = resolve(process.cwd(), "backend/backendA-platform-infra/certs");
@@ -309,6 +328,34 @@ async function run() {
         })
       );
     }
+  }
+
+  if (checkContractSync) {
+    checks.push(
+      createCheck({
+        id: "contracts.proto_sync",
+        label: "Proto mirror sync",
+        required: strict || args.mode === "deploy",
+        expected: "Generated proto mirrors must match canonical backend/proto",
+        result: runNodeScript(
+          resolve(process.cwd(), "backend/backendA-platform-infra/scripts/check-proto-sync.mjs")
+        ),
+      })
+    );
+  }
+
+  if (checkServiceSourceSync) {
+    checks.push(
+      createCheck({
+        id: "services.source_sync",
+        label: "Service source/dist sync",
+        required: strict || args.mode === "deploy",
+        expected: "service/src must be canonical for tracked service/dist outputs",
+        result: runNodeScript(
+          resolve(process.cwd(), "backend/backendA-platform-infra/scripts/check-service-sources.mjs")
+        ),
+      })
+    );
   }
 
   const failures = checks.filter((check) => check.required && !check.ok);

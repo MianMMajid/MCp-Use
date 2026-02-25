@@ -181,6 +181,18 @@ const MAX_TOPOLOGY_ALLOW_ENTRIES = 200;
 const authModule = typeof window !== "undefined" ? window.MapleAuth : undefined;
 const httpModule = typeof window !== "undefined" ? window.MapleHttp : undefined;
 const API_KEY_STORAGE_KEY = authModule?.STORAGE_KEY ?? "maple_judge_api_key";
+const FRONTEND_API_ENDPOINTS = Object.freeze({
+  runtimeFeatureCapabilities: "/api/runtime/feature-capabilities",
+  openclawAgentStatus: "/api/openclaw/agent/status",
+  openclawAgentTurn: "/api/openclaw/agent/turn",
+  openclawAgentLongform: "/api/openclaw/agent/longform",
+  hitlApprovals: "/api/hitl/approvals",
+  billingSubscription: "/api/billing/subscription",
+  organization: "/api/org",
+  runtimeLogs: "/api/runtime/logs",
+  traces: "/api/traces",
+  toolsRegistry: "/api/tools/registry",
+});
 
 const state = {
   activeView: "live",
@@ -206,6 +218,7 @@ const state = {
   marketplaceDiscoverResults: [],
   smitheryServers: [],
   smitheryRegistered: [],
+  featureCapabilities: null,
 };
 
 const CATEGORY_VIEWS = {
@@ -2831,7 +2844,7 @@ async function refreshTracePanels({ silent = false } = {}) {
   traceRefreshInFlight = true;
 
   try {
-    const traceListPayload = await fetchJson("/api/traces");
+    const traceListPayload = await fetchJson(FRONTEND_API_ENDPOINTS.traces);
     const traces = Array.isArray(traceListPayload?.traces) ? traceListPayload.traces : [];
     state.traces = traces;
 
@@ -3468,10 +3481,18 @@ async function refreshSettingsPanel() {
 
   // Runtime status
   try {
-    const runtime = await fetchJson("/api/runtime/status");
-    state.runtimeStatus = runtime;
+    const [runtime, featureCapabilities] = await Promise.all([
+      fetchJson("/api/runtime/status"),
+      fetchJson(FRONTEND_API_ENDPOINTS.runtimeFeatureCapabilities),
+    ]);
+    state.featureCapabilities = featureCapabilities;
+    state.runtimeStatus = {
+      runtime,
+      featureCapabilities,
+      endpointInventory: FRONTEND_API_ENDPOINTS,
+    };
     if (settingsRuntimeStatusEl) {
-      settingsRuntimeStatusEl.textContent = JSON.stringify(runtime, null, 2);
+      settingsRuntimeStatusEl.textContent = JSON.stringify(state.runtimeStatus, null, 2);
     }
   } catch {
     if (settingsRuntimeStatusEl) settingsRuntimeStatusEl.textContent = "{}";

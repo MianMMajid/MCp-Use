@@ -8,6 +8,7 @@ import { registerTraceRoutes } from "./routes/trace-routes.js";
 import { registerDownstreamRoutes } from "./routes/downstream-routes.js";
 import { mapleLog } from "./logging.js";
 import { bootstrapOpenClawRuntime, shutdownOpenClawRuntime } from "./core/openclaw-agent-runtime.js";
+import { enforceGatewayStartupDependencies } from "./core/runtime-dependencies.js";
 // Side-effect imports — these register middleware/routes on `server.app` at load time.
 import "./middleware.js";
 import "./routes/mcp-middleware.js";
@@ -26,6 +27,7 @@ export async function createApp() {
     const app = server.app;
     const grpcClients = createGrpcClients();
     setGrpcClients(grpcClients);
+    await enforceGatewayStartupDependencies();
     const disableHitlBroker = String(process.env.MAPLE_DISABLE_HITL_BROKER ?? "0").trim().toLowerCase() === "true" ||
         String(process.env.MAPLE_DISABLE_HITL_BROKER ?? "0").trim() === "1";
     if (!disableHitlBroker) {

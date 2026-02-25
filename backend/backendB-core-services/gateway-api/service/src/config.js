@@ -24,8 +24,12 @@ export function incrementEvolvedSuggestionsServed(count) {
 }
 export const configuredApiKeys = loadApiKeysFromEnv();
 export const apiKeyAuthEnabled = configuredApiKeys.length > 0;
-export const allowNoAuth = String(process.env.MAPLE_ALLOW_NO_AUTH ?? "0").trim().toLowerCase() === "true" ||
-    String(process.env.MAPLE_ALLOW_NO_AUTH ?? "0").trim().toLowerCase() === "1";
+const allowNoAuthRaw = String(process.env.MAPLE_ALLOW_NO_AUTH ?? "0").trim().toLowerCase();
+const allowNoAuthRequested = allowNoAuthRaw === "true" || allowNoAuthRaw === "1";
+if (isProductionRuntime && allowNoAuthRequested) {
+    throw new Error("MAPLE_ALLOW_NO_AUTH cannot be enabled in production runtime.");
+}
+export const allowNoAuth = allowNoAuthRequested;
 export const allowBridgeOverride = String(process.env.MAPLE_ALLOW_BRIDGE_OVERRIDE ?? "0").trim().toLowerCase() === "true" ||
     String(process.env.MAPLE_ALLOW_BRIDGE_OVERRIDE ?? "0").trim().toLowerCase() === "1";
 export const explicitBridgeLock = String(process.env.MAPLE_LOCK_BRIDGE_TARGET ?? "0").trim().toLowerCase() === "true" ||
@@ -143,6 +147,8 @@ export const contextWallAddress = getEnvOrDefault("CONTEXT_WALL_ADDRESS", "local
 /** @deprecated Gateway no longer calls model-router directly; all LLM calls route through context-wall */
 export const modelRouterAddress = getEnvOrDefault("MODEL_ROUTER_ADDRESS", "localhost:9100");
 export const mcpProxyAddress = getEnvOrDefault("MCP_PROXY_ADDRESS", "localhost:9200");
+export const toolRunnerAddress = getEnvOrDefault("TOOL_RUNNER_ADDRESS", "localhost:9250");
+export const cyberProxyAddress = getEnvOrDefault("CYBER_PROXY_ADDRESS", "localhost:8080");
 export const secretsBrokerAddress = getEnvOrDefault("SECRETS_BROKER_ADDRESS", "localhost:9300");
 export const auditWriterAddress = getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400");
 export const businessApiBaseUrl = asString(process.env.MAPLE_BUSINESS_API_BASE_URL);

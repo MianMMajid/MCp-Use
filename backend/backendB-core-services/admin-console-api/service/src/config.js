@@ -22,6 +22,13 @@ function loadAdminApiKeys(env = process.env) {
         MAPLE_API_KEYS: env.MAPLE_ADMIN_API_KEYS ?? env.MAPLE_API_KEYS,
     });
 }
+function isProductionRuntime() {
+    return String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production";
+}
+const allowNoAuthRequested = parseBoolean(process.env.MAPLE_ADMIN_ALLOW_NO_AUTH, false);
+if (isProductionRuntime() && allowNoAuthRequested) {
+    throw new Error("MAPLE_ADMIN_ALLOW_NO_AUTH cannot be enabled in production runtime.");
+}
 export const config = {
     port: getEnvPort("ADMIN_CONSOLE_PORT", 9443),
     host: getEnvOrDefault("ADMIN_CONSOLE_HOST", "0.0.0.0"),
@@ -30,7 +37,7 @@ export const config = {
     tlsCertPath: getEnvOrDefault("MAPLE_ADMIN_TLS_CERT", "/etc/maple/admin-tls/tls.crt"),
     tlsKeyPath: getEnvOrDefault("MAPLE_ADMIN_TLS_KEY", "/etc/maple/admin-tls/tls.key"),
     tlsCaPath: getEnvOrDefault("MAPLE_ADMIN_TLS_CA", "/etc/maple/admin-tls/ca.crt"),
-    allowNoAuth: parseBoolean(process.env.MAPLE_ADMIN_ALLOW_NO_AUTH, false),
+    allowNoAuth: allowNoAuthRequested,
     apiKeys: loadAdminApiKeys(),
 };
 //# sourceMappingURL=config.js.map

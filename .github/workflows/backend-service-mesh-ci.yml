@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - main
+      - backend
       - s1
       - s2
       - s3
       - s4
       - s5
+      - s6
       - a6
   pull_request:
 
@@ -28,11 +30,23 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Preflight
+        run: npm run preflight
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Tests
         run: npm test
 
+      - name: Contract Sync Gate
+        run: |
+          npm run contracts:generate
+          git diff --exit-code -- backend/proto backend/backendB-core-services/proto backend/backendB-core-services/contracts/proto backend/backendB-core-services/admin-console-api/proto
+
       - name: Build Mesh Services
         run: npm run mesh:build
+
+      - name: Dist Sync Gate
+        run: |
+          git diff --exit-code -- backend/backendB-core-services/*/service/dist backend/backendC-saas-services/*/service/dist

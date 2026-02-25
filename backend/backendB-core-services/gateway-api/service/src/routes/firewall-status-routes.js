@@ -1,4 +1,4 @@
-import { server, database, buildRuntimeStatus, getGrpcClients } from "../state.js";
+import { server, database, getGrpcClients } from "../state.js";
 import { requireApiKeyResponse } from "../auth.js";
 import { asString } from "../helpers.js";
 import { buildFirewallChatContext, buildYcMetrics, } from "../trace-helpers.js";
@@ -53,34 +53,31 @@ export function registerFirewallStatusRoutes() {
             return unauthorized;
         }
         const grpcClients = getGrpcClients();
-        if (grpcClients?.contextWall) {
-            try {
-                const response = await grpcUnary(grpcClients.contextWall, "listPolicyRules", {});
-                const rules = Array.isArray(response?.rules) ? response.rules : [];
-                return c.json({
-                    ok: true,
-                    source: "context-wall",
-                    ruleCount: Number(response?.ruleCount ?? rules.length),
-                    rules,
-                });
-            }
-            catch (error) {
-                return c.json({
-                    ok: true,
-                    source: "gateway-fallback",
-                    ruleCount: 0,
-                    rules: [],
-                    warning: error instanceof Error ? error.message : String(error),
-                });
-            }
+        if (!grpcClients?.contextWall) {
+            return c.json({
+                ok: false,
+                source: "context-wall",
+                error: "context-wall unavailable",
+            }, 503);
         }
-        return c.json({
-            ok: true,
-            source: "gateway-fallback",
-            ruleCount: 0,
-            rules: [],
-            runtime: buildRuntimeStatus(),
-        });
+        try {
+            const response = await grpcUnary(grpcClients.contextWall, "listPolicyRules", {});
+            const rules = Array.isArray(response?.rules) ? response.rules : [];
+            return c.json({
+                ok: true,
+                source: "context-wall",
+                ruleCount: Number(response?.ruleCount ?? rules.length),
+                rules,
+            });
+        }
+        catch (error) {
+            return c.json({
+                ok: false,
+                source: "context-wall",
+                error: "context-wall policy fetch failed",
+                warning: error instanceof Error ? error.message : String(error),
+            }, 503);
+        }
     });
 }
 //# sourceMappingURL=firewall-status-routes.js.map

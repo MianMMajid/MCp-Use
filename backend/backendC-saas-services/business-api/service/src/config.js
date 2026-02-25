@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { asString, getEnvOrDefault, getEnvPort } from "@maple/common";
 import { loadApiKeysFromEnv } from "@maple/security";
+const isProductionRuntime = String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production";
 
 export const serviceName = "business-api";
 export const businessApiHost = getEnvOrDefault("BUSINESS_API_HOST", "0.0.0.0");
@@ -67,9 +68,14 @@ export const allowSelfSignup =
 export const googleClientId = asString(process.env.GOOGLE_CLIENT_ID) ?? null;
 export const configuredApiKeys = loadApiKeysFromEnv();
 export const apiKeyAuthEnabled = configuredApiKeys.length > 0;
-export const allowNoAuth =
-  String(process.env.MAPLE_ALLOW_NO_AUTH ?? "0").trim().toLowerCase() === "true" ||
-  String(process.env.MAPLE_ALLOW_NO_AUTH ?? "0").trim().toLowerCase() === "1";
+const allowNoAuthRaw = String(process.env.MAPLE_ALLOW_NO_AUTH ?? "0")
+  .trim()
+  .toLowerCase();
+const allowNoAuthRequested = allowNoAuthRaw === "true" || allowNoAuthRaw === "1";
+if (isProductionRuntime && allowNoAuthRequested) {
+  throw new Error("MAPLE_ALLOW_NO_AUTH cannot be enabled in production runtime.");
+}
+export const allowNoAuth = allowNoAuthRequested;
 export const sessionOwnerScopeMode = (() => {
   const raw = String(process.env.MAPLE_SESSION_OWNER_SCOPE ?? "auto")
     .trim()

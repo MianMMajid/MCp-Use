@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createServer as createHttpServer } from "node:http";
 import net from "node:net";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
@@ -101,6 +102,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     cyberProxy: await getFreePort(),
     secretsBroker: await getFreePort(),
     auditWriter: await getFreePort(),
+    downstreamMcp: await getFreePort(),
   };
 
   const certScript = resolve("backend/backendA-platform-infra/scripts/generate-local-certs.sh");
@@ -133,6 +135,8 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     "AUDIT_WRITER_ADDRESS",
     "MAPLE_TOOL_RUNNER_MODE",
     "MAPLE_DOWNSTREAM_APPS",
+    "MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW",
+    "CONTEXT_WALL_HITL_TIMEOUT_MS",
   ];
   const envBackup = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 
@@ -155,11 +159,13 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   process.env.SECRETS_BROKER_ADDRESS = `localhost:${ports.secretsBroker}`;
   process.env.AUDIT_WRITER_ADDRESS = `localhost:${ports.auditWriter}`;
   process.env.MAPLE_TOOL_RUNNER_MODE = "service";
+  process.env.MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW = "0";
+  process.env.CONTEXT_WALL_HITL_TIMEOUT_MS = "1000";
   process.env.MAPLE_DOWNSTREAM_APPS = JSON.stringify([
     {
       id: "web-app",
       name: "Web App",
-      mcpUrl: "https://example.com",
+      mcpUrl: `http://127.0.0.1:${ports.downstreamMcp}/mcp`,
       tools: [
         {
           name: "web_search",
@@ -174,6 +180,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   ]);
 
   const startedServers = [];
+  let downstreamMcpServer;
   const auditEvents = [];
   let modelGenerateCalls = 0;
   let mintCredentialCalls = 0;
@@ -181,6 +188,90 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   let shutdownGateway = async () => {};
 
   try {
+    downstreamMcpServer = createHttpServer((req, res) => {
+      if (req.method !== "POST" || req.url !== "/mcp") {
+        res.writeHead(404, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found" }));
+        return;
+      }
+
+      let rawBody = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk) => {
+        rawBody += chunk;
+      });
+      req.on("end", () => {
+        let payload = {};
+        try {
+          payload = JSON.parse(rawBody || "{}");
+        } catch {
+          payload = {};
+        }
+        const id = "id" in payload ? payload.id : null;
+        const method = String(payload?.method || "");
+
+        if (method === "tools/list") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                tools: [
+                  {
+                    name: "web_search",
+                    description: "Search the web",
+                    inputSchema: {
+                      type: "object",
+                      properties: { query: { type: "string" } },
+                    },
+                  },
+                ],
+              },
+            })
+          );
+          return;
+        }
+
+        if (method === "tools/call") {
+          const query = String(payload?.params?.arguments?.query || "unknown");
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                content: [
+                  {
+                    type: "text",
+                    text: `stub-result:${query}`,
+                  },
+                ],
+              },
+            })
+          );
+          return;
+        }
+
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32601, message: "Method not found" },
+          })
+        );
+      });
+    });
+
+    await new Promise((resolveListen, rejectListen) => {
+      downstreamMcpServer.once("error", rejectListen);
+      downstreamMcpServer.listen(ports.downstreamMcp, "127.0.0.1", () => {
+        downstreamMcpServer.off("error", rejectListen);
+        resolveListen();
+      });
+    });
+
     const auditProto = loadProto("maple/audit/v1/audit_writer.proto").maple.audit.v1;
     const auditServer = new grpc.Server();
     auditServer.addService(auditProto.AuditWriterService.service, {
@@ -323,21 +414,21 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     if (typeof closeContextWallClients === "function")
       clientCleanupFns.push(closeContextWallClients);
 
-    const cyberServer = createCyberProxyService();
+    let cyberServer = createCyberProxyService();
     await startServer(cyberServer, ports.cyberProxy, "cyber-proxy-e2e");
     startedServers.push(cyberServer);
 
-    const toolRunnerServer = createToolRunnerService();
+    let toolRunnerServer = createToolRunnerService();
     await startServer(toolRunnerServer, ports.toolRunner, "tool-runner-e2e");
     startedServers.push(toolRunnerServer);
 
     const registry = new DownstreamRegistry();
     registry.loadFromEnv();
-    const mcpProxyServer = createMcpProxyService(registry);
+    let mcpProxyServer = createMcpProxyService(registry);
     await startServer(mcpProxyServer, ports.mcpProxy, "mcp-proxy-e2e");
     startedServers.push(mcpProxyServer);
 
-    const contextWallServer = createContextWallService(new ApprovalQueue());
+    let contextWallServer = createContextWallService(new ApprovalQueue());
     await startServer(contextWallServer, ports.contextWall, "context-wall-e2e");
     startedServers.push(contextWallServer);
 
@@ -370,6 +461,12 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
         return source === "tool-runner";
       });
     }, 4000);
+    await waitFor(() => {
+      return auditEvents.some((event) => {
+        const source = String(event?.sourceService || event?.source_service || "").toLowerCase();
+        return source === "gateway-api";
+      });
+    }, 4000);
 
     assert.equal(modelGenerateCalls >= 2, true);
     assert.equal(mintCredentialCalls >= 1, true);
@@ -381,6 +478,56 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
         .filter(Boolean)
     );
     assert.equal(sources.size > 0, true);
+    assert.equal(sources.has("gateway-api"), true);
+    assert.equal(sources.has("context-wall"), true);
+
+    const chatRequest = async () => {
+      const chatResponse = await app.request("http://localhost/api/firewall/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "Use web_search and summarize",
+          tenantId: "tenant-e2e",
+          userId: "user-e2e",
+          deviceId: "device-e2e",
+        }),
+      });
+      const chatBody = await chatResponse.json();
+      return { status: chatResponse.status, body: chatBody };
+    };
+
+    mcpProxyServer.forceShutdown();
+    const mcpProxyOutage = await chatRequest();
+    assert.equal(mcpProxyOutage.status, 503);
+    assert.equal(mcpProxyOutage.body.ok, false);
+    assert.equal(mcpProxyOutage.body.mode, "unavailable");
+    mcpProxyServer = createMcpProxyService(registry);
+    await startServer(mcpProxyServer, ports.mcpProxy, "mcp-proxy-e2e-restart");
+    startedServers.push(mcpProxyServer);
+
+    toolRunnerServer.forceShutdown();
+    const toolRunnerOutage = await chatRequest();
+    assert.equal(toolRunnerOutage.status, 503);
+    assert.equal(toolRunnerOutage.body.ok, false);
+    assert.equal(toolRunnerOutage.body.mode, "unavailable");
+    toolRunnerServer = createToolRunnerService();
+    await startServer(toolRunnerServer, ports.toolRunner, "tool-runner-e2e-restart");
+    startedServers.push(toolRunnerServer);
+
+    cyberServer.forceShutdown();
+    const cyberProxyOutage = await chatRequest();
+    assert.equal(cyberProxyOutage.status, 503);
+    assert.equal(cyberProxyOutage.body.ok, false);
+    assert.equal(cyberProxyOutage.body.mode, "unavailable");
+    cyberServer = createCyberProxyService();
+    await startServer(cyberServer, ports.cyberProxy, "cyber-proxy-e2e-restart");
+    startedServers.push(cyberServer);
+
+    contextWallServer.forceShutdown();
+    const contextWallOutage = await chatRequest();
+    assert.equal(contextWallOutage.status, 503);
+    assert.equal(contextWallOutage.body.ok, false);
+    assert.equal(contextWallOutage.body.mode, "unavailable");
   } finally {
     restoreLogs();
 
@@ -406,6 +553,12 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
       } catch {
         // ignore
       }
+    }
+
+    if (downstreamMcpServer) {
+      await new Promise((resolveClose) => {
+        downstreamMcpServer.close(() => resolveClose());
+      });
     }
 
     for (const key of envKeys) {

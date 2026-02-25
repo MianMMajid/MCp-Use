@@ -30,6 +30,7 @@
     "sync:runtime-assets": "bash backend/backendA-platform-infra/scripts/sync-runtime-assets.sh",
     "mesh:bootstrap:src": "node backend/backendA-platform-infra/scripts/bootstrap-service-sources.mjs",
     "mesh:build": "node backend/backendA-platform-infra/scripts/build-core-services.mjs",
+    "contracts:check": "node backend/backendA-platform-infra/scripts/check-proto-sync.mjs",
     "prebuild": "npm run sync:runtime-assets",
     "predev": "npm run preflight && npm run sync:runtime-assets && npm run mesh:build",
     "prestart": "npm run preflight && npm run sync:runtime-assets && npm run mesh:build",

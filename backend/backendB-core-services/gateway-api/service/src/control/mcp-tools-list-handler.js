@@ -85,12 +85,16 @@ export async function handleMcpToolsListMethod(options) {
       200
     );
   } catch (listError) {
+    const detail = errorMessage(listError);
+    const authorityUnavailable = detail.includes("Context-wall policy authority is unavailable.");
     return options.c.json(
       jsonRpcErrorPayload(options.id, -32002, "Downstream tools/list failed.", {
-        detail: errorMessage(listError),
+        detail,
         appId: options.target?.app.id,
+        authority: "context-wall",
+        authorityUnavailable,
       }),
-      502
+      authorityUnavailable ? 503 : 502
     );
   }
 }

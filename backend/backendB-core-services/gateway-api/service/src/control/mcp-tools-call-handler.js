@@ -99,14 +99,18 @@ export async function handleMcpToolsCallMethod(options) {
       200
     );
   } catch (dispatchError) {
+    const detail = errorMessage(dispatchError);
+    const authorityUnavailable = detail.includes("Context-wall policy authority is unavailable.");
     return options.c.json(
       jsonRpcErrorPayload(options.id, -32603, "Downstream dispatch could not be completed.", {
-        detail: errorMessage(dispatchError),
+        detail,
         appId: options.target?.app.id,
         toolName: routing.normalizedToolName,
         requestedToolName: toolName,
+        authority: "context-wall",
+        authorityUnavailable,
       }),
-      502
+      authorityUnavailable ? 503 : 502
     );
   }
 }

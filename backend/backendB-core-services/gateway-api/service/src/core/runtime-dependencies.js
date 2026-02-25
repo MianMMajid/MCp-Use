@@ -10,13 +10,16 @@ import {
   businessApiProxyCertPath,
   businessApiProxyKeyPath,
   businessApiRequired,
+  cyberProxyAddress,
   gatewayTlsCaPath,
   gatewayTlsCertPath,
   gatewayTlsKeyPath,
   googleClientId,
+  mcpProxyAddress,
   modelRouterAddress,
   openclawAgentRequired,
   stripeSecretKey,
+  toolRunnerAddress,
 } from "../config.js";
 import { getGrpcClients } from "../state.js";
 import { getOpenClawRuntimeStatus } from "./openclaw-agent-runtime.js";
@@ -326,7 +329,7 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
     ),
     chatOrchestration: capabilityFromDependencies(
       "chatOrchestration",
-      ["grpc.context_wall", "grpc.mcp_proxy"],
+      ["grpc.context_wall"],
       checkMap
     ),
     hitlApprovals: capabilityFromDependencies(
@@ -336,7 +339,12 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
     ),
     toolsDispatch: capabilityFromDependencies(
       "toolsDispatch",
-      ["grpc.mcp_proxy"],
+      [
+        "grpc.context_wall",
+        "grpc.mcp_proxy",
+        "grpc.tool_runner",
+        "grpc.cyber_proxy",
+      ],
       checkMap
     ),
     tracesAndLogs: {
@@ -399,11 +407,13 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
     "MAPLE_DEP_REQUIRE_CONTEXT_WALL",
     strict
   );
-  const requireMcpProxy = resolveFeatureRequired("MAPLE_DEP_REQUIRE_MCP_PROXY", strict);
   const requireBusinessApi = resolveFeatureRequired(
     "MAPLE_DEP_REQUIRE_BUSINESS_API",
     strict || businessApiRequired
   );
+  const requireMcpProxy = resolveFeatureRequired("MAPLE_DEP_REQUIRE_MCP_PROXY", strict);
+  const requireToolRunner = resolveFeatureRequired("MAPLE_DEP_REQUIRE_TOOL_RUNNER", strict);
+  const requireCyberProxy = resolveFeatureRequired("MAPLE_DEP_REQUIRE_CYBER_PROXY", strict);
   const requireStripe = resolveFeatureRequired("MAPLE_DEP_REQUIRE_STRIPE", strict);
   const requireGoogle = resolveFeatureRequired("MAPLE_DEP_REQUIRE_GOOGLE_AUTH", strict);
 
@@ -496,11 +506,25 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
   checks.push(
     buildCheckRecord(
       "grpc.mcp_proxy",
-      "MCP-proxy gRPC reachability",
+      "MCP-proxy TCP reachability",
       requireMcpProxy,
-      await checkGrpcCall(grpcClients?.mcpProxy, "ListDownstreamApps", {
-        includeDisabled: false,
-      })
+      await checkTcpAddress(String(process.env.MCP_PROXY_ADDRESS ?? mcpProxyAddress).trim())
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "grpc.tool_runner",
+      "Tool-runner TCP reachability",
+      requireToolRunner,
+      await checkTcpAddress(String(process.env.TOOL_RUNNER_ADDRESS ?? toolRunnerAddress).trim())
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "grpc.cyber_proxy",
+      "Cyber-proxy TCP reachability",
+      requireCyberProxy,
+      await checkTcpAddress(String(process.env.CYBER_PROXY_ADDRESS ?? cyberProxyAddress).trim())
     )
   );
   checks.push(
@@ -584,4 +608,25 @@ export async function evaluateGatewayRuntimeDependencies(options = {}) {
       inflightReportPromise = undefined;
     });
   return inflightReportPromise;
+}
+
+export async function enforceGatewayStartupDependencies() {
+  const strict = resolveStrictMode();
+  const enforce = parseBooleanEnv(process.env.MAPLE_ENFORCE_STARTUP_DEPENDENCIES, strict);
+  if (!enforce) {
+    return {
+      enforced: false,
+      report: await evaluateGatewayRuntimeDependencies({ force: true }),
+    };
+  }
+  const report = await evaluateGatewayRuntimeDependencies({ force: true });
+  if (!report.ready) {
+    const summary = report.requiredFailures
+      .map((check) => `${check.id}: ${check.reason}`)
+      .join("; ");
+    throw new Error(
+      `Gateway startup blocked by missing required runtime dependencies. ${summary}`
+    );
+  }
+  return { enforced: true, report };
 }

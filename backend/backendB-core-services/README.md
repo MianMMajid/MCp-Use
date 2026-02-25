@@ -18,8 +18,8 @@ Service shells:
 Canonical implementation locations:
 - `<service-name>/service/src/` (canonical source for mesh services)
 - `<service-name>/service/dist/` (generated runtime output)
-- `contracts/proto/`
-- `../proto/` and `./proto/` (runtime copies used by dist services)
+- Canonical proto source: `../proto/` (`backend/proto`)
+- Generated proto mirrors: `contracts/proto/`, `./proto/`, and `admin-console-api/proto/`
 - `shared/packages/`
 
 Runtime assets:
@@ -28,5 +28,7 @@ Runtime assets:
 Service-mesh source-first workflow:
 - Bootstrap service sources from historical `dist/`: `npm run mesh:bootstrap:src`
 - Build all service `dist/` outputs from `src/`: `npm run mesh:build`
+- Generate/update proto mirrors from canonical definitions: `npm run contracts:generate`
+- Verify proto mirrors are in sync: `npm run contracts:check`
 - Validate backend typing/syntax policy: `npm run typecheck`
 - Run backend tests (service-level + infra scripts): `npm test`

@@ -37,10 +37,19 @@ export const sharedTraceStore = new SharedTraceStore(undefined, {
 });
 function allowDegradedPersistenceMode() {
     const raw = String(process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE ?? "0").trim().toLowerCase();
-    return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+    const enabled = raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+    const isProductionRuntime = String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production";
+    if (enabled && isProductionRuntime) {
+        throw new Error("MAPLE_ALLOW_DEGRADED_PERSISTENCE cannot be enabled in production runtime.");
+    }
+    return enabled;
+}
+export function assertGatewayStartupPolicy() {
+    void allowDegradedPersistenceMode();
 }
 // ── Database Initialization ─────────────────────────────────────────────────
 export async function initializeDatabase() {
+    assertGatewayStartupPolicy();
     try {
         await database.initialize();
         await traceStore.init();

@@ -6,10 +6,10 @@ import { createHash } from "node:crypto";
 
 const scriptDir = path.dirname(new URL(import.meta.url).pathname);
 const rootDir = path.resolve(scriptDir, "../../..");
-const canonicalRoot = path.resolve(rootDir, "backend/backendB-core-services/contracts/proto");
+const canonicalRoot = path.resolve(rootDir, "backend/proto");
 const mirrorRoots = [
-  path.resolve(rootDir, "backend/proto"),
   path.resolve(rootDir, "backend/backendB-core-services/proto"),
+  path.resolve(rootDir, "backend/backendB-core-services/contracts/proto"),
   path.resolve(rootDir, "backend/backendB-core-services/admin-console-api/proto"),
 ];
 

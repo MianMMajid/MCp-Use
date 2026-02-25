@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { asBoolean, asString, readJsonBody } from "../helpers.js";
 import { requireApiKeyResponse } from "../auth.js";
-import { database, buildRuntimeStatus, getGrpcClients } from "../state.js";
+import { database, buildRuntimeStatus } from "../state.js";
 import {
   listTracesForCurrentOwner,
   getTraceForCurrentOwner,
@@ -13,9 +13,14 @@ import {
   getOpenClawRunTimeline,
   listOpenClawRuns,
 } from "../core/openclaw-agent-runtime.js";
-import { grpcUnary } from "../grpc-clients.js";
 import { ToolGovernanceStore } from "../core/tool-governance-store.js";
 import { evaluateGatewayRuntimeDependencies } from "../core/runtime-dependencies.js";
+import { downstreamAppRegistry } from "../config.js";
+import { listDownstreamApps } from "../control/downstream-proxy.js";
+import {
+  listToolsFromDownstreamCached,
+  resolveDownstreamApp,
+} from "../firewall-proxy.js";
 
 const governanceStore = new ToolGovernanceStore({ database });
 
@@ -112,41 +117,44 @@ function resolveLogFilePath() {
   return "";
 }
 
-async function hydrateToolRegistryFromMcpProxy(grpcClients) {
-  if (!grpcClients?.mcpProxy) {
-    return;
+function parseSchemaPayload(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
   }
-  const downstreamAppsResponse = await grpcUnary(grpcClients.mcpProxy, "ListDownstreamApps", {
-    includeDisabled: false,
-  });
-  const appIds = Array.isArray(downstreamAppsResponse?.apps)
-    ? downstreamAppsResponse.apps
-        .map((app) => asString(app.appId))
-        .filter(Boolean)
-    : [];
-  const targets = appIds.length > 0 ? appIds : [""];
+  return parseSchemaBytes(value);
+}
 
-  for (const appId of targets) {
-    let toolsResponse;
+async function hydrateToolRegistryFromContextWall() {
+  const configuredApps = listDownstreamApps(downstreamAppRegistry, false);
+  for (const appInfo of configuredApps) {
+    let downstreamApp;
     try {
-      toolsResponse = await grpcUnary(grpcClients.mcpProxy, "ListTools", { appId });
+      downstreamApp = resolveDownstreamApp(appInfo.id);
     } catch {
       continue;
     }
-    const tools = Array.isArray(toolsResponse?.tools) ? toolsResponse.tools : [];
+    let listed;
+    try {
+      listed = await listToolsFromDownstreamCached(downstreamApp, {
+        forceRefresh: true,
+      });
+    } catch {
+      continue;
+    }
+    const tools = Array.isArray(listed?.tools) ? listed.tools : [];
     for (const tool of tools) {
       const name = asString(tool.name);
       if (!name) {
         continue;
       }
-      const resolvedAppId = asString(tool.appId) ?? appId;
+      const resolvedAppId = asString(tool.appId) ?? downstreamApp.id;
       const toolId = resolvedAppId ? `${resolvedAppId}.${name}` : name;
       await governanceStore.upsertTool({
         toolId,
         name,
         description: asString(tool.description) ?? "",
-        schema: parseSchemaBytes(tool.inputSchemaJson),
-        source: "mcp-proxy",
+        schema: parseSchemaPayload(tool.inputSchema ?? tool.inputSchemaJson),
+        source: "context-wall",
       });
     }
   }
@@ -297,8 +305,7 @@ export function registerOpsGovernanceRoutes(app) {
     await governanceStore.ensureInitialized();
     let items = await governanceStore.listTools();
     if (items.length === 0) {
-      const grpcClients = getGrpcClients();
-      await hydrateToolRegistryFromMcpProxy(grpcClients);
+      await hydrateToolRegistryFromContextWall();
       items = await governanceStore.listTools();
     }
     return c.json({

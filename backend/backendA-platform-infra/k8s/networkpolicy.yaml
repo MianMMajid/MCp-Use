@@ -95,13 +95,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: mcp-proxy
-      ports:
-        - protocol: TCP
-          port: 9200
-    - to:
-        - podSelector:
-            matchLabels:
               app: secrets-broker
       ports:
         - protocol: TCP

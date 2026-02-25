@@ -8,10 +8,10 @@ const stubsRoot = path.resolve(
   rootDir,
   "backend/backendB-core-services/shared/packages/maple-proto-ts/dist",
 );
-const contractsRoot = path.resolve(rootDir, "backend/backendB-core-services/contracts/proto");
-const runtimeProtoRoots = [
-  path.resolve(rootDir, "backend/proto"),
+const canonicalProtoRoot = path.resolve(rootDir, "backend/proto");
+const mirrorProtoRoots = [
   path.resolve(rootDir, "backend/backendB-core-services/proto"),
+  path.resolve(rootDir, "backend/backendB-core-services/contracts/proto"),
   path.resolve(rootDir, "backend/backendB-core-services/admin-console-api/proto"),
 ];
 
@@ -239,9 +239,9 @@ async function main() {
     throw new Error(`No *_pb.d.ts files found under ${stubsRoot}`);
   }
 
-  await cleanTree(contractsRoot);
-  for (const runtimeRoot of runtimeProtoRoots) {
-    await cleanTree(runtimeRoot);
+  await cleanTree(canonicalProtoRoot);
+  for (const mirrorRoot of mirrorProtoRoots) {
+    await cleanTree(mirrorRoot);
   }
 
   let generatedCount = 0;
@@ -260,22 +260,22 @@ async function main() {
 
     const output = renderProto({ protoPath, imports, enums, messages, services });
 
-    const contractsFile = path.resolve(contractsRoot, toPosix(protoPath));
-    await fs.mkdir(path.dirname(contractsFile), { recursive: true });
-    await fs.writeFile(contractsFile, output, "utf8");
-    for (const runtimeRoot of runtimeProtoRoots) {
-      const runtimeFile = path.resolve(runtimeRoot, toPosix(protoPath));
-      await fs.mkdir(path.dirname(runtimeFile), { recursive: true });
-      await fs.writeFile(runtimeFile, output, "utf8");
+    const canonicalFile = path.resolve(canonicalProtoRoot, toPosix(protoPath));
+    await fs.mkdir(path.dirname(canonicalFile), { recursive: true });
+    await fs.writeFile(canonicalFile, output, "utf8");
+    for (const mirrorRoot of mirrorProtoRoots) {
+      const mirrorFile = path.resolve(mirrorRoot, toPosix(protoPath));
+      await fs.mkdir(path.dirname(mirrorFile), { recursive: true });
+      await fs.writeFile(mirrorFile, output, "utf8");
     }
 
     generatedCount += 1;
   }
 
   console.log(`Generated ${generatedCount} proto files.`);
-  console.log(`Contracts: ${path.relative(rootDir, contractsRoot)}`);
-  for (const runtimeRoot of runtimeProtoRoots) {
-    console.log(`Runtime:   ${path.relative(rootDir, runtimeRoot)}`);
+  console.log(`Canonical: ${path.relative(rootDir, canonicalProtoRoot)}`);
+  for (const mirrorRoot of mirrorProtoRoots) {
+    console.log(`Mirror:    ${path.relative(rootDir, mirrorRoot)}`);
   }
 }
 

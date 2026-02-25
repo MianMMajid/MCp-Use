@@ -122,13 +122,17 @@ export async function handleMcpFirewallProxy(c) {
 
     return c.json(forwarded.forward?.payload ?? {}, forwarded.forward?.responseStatus ?? 200);
   } catch (forwardError) {
+    const detail = errorMessage(forwardError);
+    const authorityUnavailable = detail.includes("Context-wall policy authority is unavailable.");
     return c.json(
       jsonRpcErrorPayload(id, -32603, "Downstream MCP proxy forward failed.", {
-        detail: errorMessage(forwardError),
+        detail,
         appId: target.app.id,
         mode: target.mode,
+        authority: "context-wall",
+        authorityUnavailable,
       }),
-      502
+      authorityUnavailable ? 503 : 502
     );
   }
 }

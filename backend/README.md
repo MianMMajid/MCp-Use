@@ -18,6 +18,19 @@ This folder defines backend and platform ownership boundaries.
 - Core backend runtime source: `backend/backendB-core-services/<service>/service/src/`
 - Service artifacts/source boundaries: `backend/backendB-core-services/<service>/service/dist/`
 - Shared backend libraries: `backend/backendB-core-services/shared/packages/`
-- Proto/contracts: `backend/backendB-core-services/contracts/proto/`
+- Canonical proto source: `backend/proto/`
+- Generated proto mirrors: `backend/backendB-core-services/contracts/proto/`, `backend/backendB-core-services/proto/`, `backend/backendB-core-services/admin-console-api/proto/`
 - SaaS backend services: `backend/backendC-saas-services/*`
 - Deployment files: `backend/backendA-platform-infra/deploy/`
+
+## Runtime Policy
+- Production is fail-closed by default for dependency readiness and auth bypass guards.
+- Startup dependency enforcement:
+  - `MAPLE_ENFORCE_STARTUP_DEPENDENCIES=1` enforces hard startup checks.
+  - Default is enabled in production, optional in non-production.
+- Strict dependency posture:
+  - `MAPLE_RUNTIME_STRICT_DEPENDENCIES=1` treats required runtime deps as blocking.
+- Simulation flags are non-production only:
+  - `MAPLE_GOOGLE_AUTH_SIMULATION`
+  - `MAPLE_BILLING_SIMULATION`
+- Local development can opt into simulation and relaxed checks, but production should keep strict startup enforcement enabled.

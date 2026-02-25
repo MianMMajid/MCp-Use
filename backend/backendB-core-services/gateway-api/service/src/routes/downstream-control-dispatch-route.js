@@ -57,16 +57,21 @@ export function registerDownstreamDispatchRoute(app) {
             });
             const result = chainResult.finalResult;
             if (!chainResult.ok) {
-                const status = chainResult.blockedByPolicy ? 403 : 502;
+                const authorityUnavailable = result.preExecutionDecision?.rule === "context-wall-unavailable";
+                const status = authorityUnavailable ? 503 : chainResult.blockedByPolicy ? 403 : 502;
                 return c.json({
                     ok: false,
-                    error: result.failure ?? "Downstream dispatch failed.",
+                    error: authorityUnavailable
+                        ? "Policy authority is unavailable. Downstream dispatch denied."
+                        : result.failure ?? "Downstream dispatch failed.",
                     appId: result.app.id,
                     chainAppIds: chainResult.appIds,
                     chainStages: chainResult.stages,
                     toolName,
                     blocked: chainResult.blockedByPolicy,
                     blockedByPolicy: chainResult.blockedByPolicy,
+                    authority: "context-wall",
+                    authorityUnavailable,
                     executeAllowed: false,
                     policyWouldBlock: result.preExecutionWouldBlock,
                     traceId: result.trace.id,
@@ -105,10 +110,16 @@ export function registerDownstreamDispatchRoute(app) {
             });
         }
         catch (dispatchError) {
+            const detail = errorMessage(dispatchError);
+            const authorityUnavailable = detail.includes("Context-wall policy authority is unavailable.");
             return c.json({
-                error: "Downstream dispatch could not be completed.",
-                detail: errorMessage(dispatchError),
-            }, 400);
+                error: authorityUnavailable
+                    ? "Policy authority is unavailable. Downstream dispatch denied."
+                    : "Downstream dispatch could not be completed.",
+                detail,
+                authority: "context-wall",
+                authorityUnavailable,
+            }, authorityUnavailable ? 503 : 502);
         }
     });
 }

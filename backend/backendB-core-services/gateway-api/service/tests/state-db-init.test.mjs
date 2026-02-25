@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { database, initializeDatabase, sharedTraceStore, traceStore } from "../src/state.js";
+import {
+  assertGatewayStartupPolicy,
+  database,
+  initializeDatabase,
+  sharedTraceStore,
+  traceStore,
+} from "../src/state.js";
 
 function restoreEnv(key, value) {
   if (value === undefined) {
@@ -100,5 +106,22 @@ test("initializeDatabase allows degraded mode when explicitly enabled", async ()
     traceStore.init = traceInit;
     sharedTraceStore.init = sharedTraceInit;
     restoreEnv("MAPLE_ALLOW_DEGRADED_PERSISTENCE", envBackup);
+  }
+});
+
+test("gateway startup policy rejects degraded persistence mode in production", () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousAllowDegraded = process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE;
+  process.env.NODE_ENV = "production";
+  process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE = "1";
+
+  try {
+    assert.throws(
+      () => assertGatewayStartupPolicy(),
+      /MAPLE_ALLOW_DEGRADED_PERSISTENCE cannot be enabled in production runtime\./
+    );
+  } finally {
+    restoreEnv("NODE_ENV", previousNodeEnv);
+    restoreEnv("MAPLE_ALLOW_DEGRADED_PERSISTENCE", previousAllowDegraded);
   }
 });

@@ -134,6 +134,18 @@ function toProtoPolicyRule(rule) {
         payloadBytesExceeds: Number(match.payloadBytesExceeds || 0),
     };
 }
+function parseJsonBytes(rawValue, fallback) {
+    const rawText = bytesToUtf8String(rawValue, "").trim();
+    if (!rawText) {
+        return fallback;
+    }
+    try {
+        return JSON.parse(rawText);
+    }
+    catch {
+        return fallback;
+    }
+}
 function traceFromProto(protoTrace) {
     return {
         id: protoTrace.id || "",
@@ -145,7 +157,7 @@ function traceFromProto(protoTrace) {
         ownerKeyFingerprint: protoTrace.ownerKeyFingerprint,
         parentTraceId: protoTrace.parentTraceId,
         tags: protoTrace.tags || [],
-        metadata: protoTrace.metadataJson ? JSON.parse(Buffer.from(protoTrace.metadataJson).toString()) : {},
+        metadata: parseJsonBytes(protoTrace.metadataJson, {}),
         steps: (protoTrace.steps || []).map((s) => ({
             index: s.index || 0,
             timestamp: s.timestamp || new Date().toISOString(),
@@ -155,8 +167,8 @@ function traceFromProto(protoTrace) {
             output: s.output,
             command: s.command,
             externalUrl: s.externalUrl,
-            toolCall: s.toolCall ? { name: s.toolCall.name, input: s.toolCall.inputJson ? JSON.parse(Buffer.from(s.toolCall.inputJson).toString()) : undefined, output: s.toolCall.outputJson ? JSON.parse(Buffer.from(s.toolCall.outputJson).toString()) : undefined } : undefined,
-            metadata: s.metadataJson ? JSON.parse(Buffer.from(s.metadataJson).toString()) : undefined,
+            toolCall: s.toolCall ? { name: s.toolCall.name, input: parseJsonBytes(s.toolCall.inputJson, undefined), output: parseJsonBytes(s.toolCall.outputJson, undefined) } : undefined,
+            metadata: parseJsonBytes(s.metadataJson, undefined),
             riskScore: s.riskScore || 0,
             riskFlags: (s.riskFlags || []).map((f) => ({ id: f.id, type: f.type, severity: f.severity?.toLowerCase()?.replace("risk_severity_", "") || "low", stepIndex: f.stepIndex, message: f.message, recommendation: f.recommendation, evidence: f.evidence })),
             guardStatus: s.guardStatus === "GUARD_ACTION_ALLOW" ? "allow" : s.guardStatus === "GUARD_ACTION_BLOCK" ? "block" : "pending",
@@ -174,7 +186,7 @@ function stepFromProto(protoStep) {
         command: protoStep.command,
         externalUrl: protoStep.externalUrl,
         toolCall: protoStep.toolCall ? { name: protoStep.toolCall.name } : undefined,
-        metadata: protoStep.metadataJson ? JSON.parse(Buffer.from(protoStep.metadataJson).toString()) : undefined,
+        metadata: parseJsonBytes(protoStep.metadataJson, undefined),
         riskScore: protoStep.riskScore || 0,
         riskFlags: protoStep.riskFlags || [],
         guardStatus: protoStep.guardStatus === "GUARD_ACTION_ALLOW" ? "allow" : protoStep.guardStatus === "GUARD_ACTION_BLOCK" ? "block" : "pending",
