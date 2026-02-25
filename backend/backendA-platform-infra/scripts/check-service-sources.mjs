@@ -4,7 +4,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SERVICE_MESH_SERVICES, SERVICE_ROOT } from "./service-mesh-manifest.mjs";
+import { SERVICE_MESH_SERVICES, SERVICE_MESH_TARGETS } from "./service-mesh-manifest.mjs";
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const onlyService = process.argv[2]?.trim();
@@ -113,11 +113,12 @@ function validateSourceBackedPackage(packageName) {
   console.log(`[ok] ${packageName}: ${srcJsFiles.length} JS source files validated`);
 }
 
-for (const serviceName of SERVICE_MESH_SERVICES) {
-  if (onlyService && serviceName !== onlyService) {
+for (const target of SERVICE_MESH_TARGETS) {
+  if (onlyService && target.name !== onlyService) {
     continue;
   }
-  const serviceDir = join(rootDir, SERVICE_ROOT, serviceName, "service");
+  const serviceName = target.name;
+  const serviceDir = join(rootDir, target.servicePath);
   const srcDir = join(serviceDir, "src");
   const distDir = join(serviceDir, "dist");
   if (!existsSync(srcDir)) {

@@ -186,6 +186,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: business-api
+  namespace: maple
+spec:
+  type: ClusterIP
+  selector:
+    app: business-api
+  ports:
+    - name: https
+      port: 9550
+      targetPort: 9550
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: frontend-a-it-console
   namespace: maple
 spec:

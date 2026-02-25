@@ -18,6 +18,7 @@ spec:
           - secrets-broker
           - audit-writer
           - admin-console-api
+          - business-api
           - postgres
           - openclaw-gateway
   policyTypes:
@@ -44,6 +45,7 @@ spec:
           - secrets-broker
           - audit-writer
           - admin-console-api
+          - business-api
           - openclaw-gateway
   policyTypes:
     - Egress
@@ -118,6 +120,13 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: business-api
+      ports:
+        - protocol: TCP
+          port: 9550
     - to:
         - podSelector:
             matchLabels:
@@ -388,6 +397,7 @@ spec:
                   - tool-runner
                   - secrets-broker
                   - admin-console-api
+                  - business-api
       ports:
         - protocol: TCP
           port: 9400
@@ -401,6 +411,45 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -421,6 +470,9 @@ spec:
         - podSelector:
             matchLabels:
               app: audit-writer
+        - podSelector:
+            matchLabels:
+              app: business-api
       ports:
         - protocol: TCP
           port: 5432
@@ -459,6 +511,48 @@ spec:
       ports:
         - protocol: TCP
           port: 9400
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: business-api-network
+  namespace: maple
+spec:
+  podSelector:
+    matchLabels:
+      app: business-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway-api
+      ports:
+        - protocol: TCP
+          port: 9550
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audit-writer
+      ports:
+        - protocol: TCP
+          port: 9400
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

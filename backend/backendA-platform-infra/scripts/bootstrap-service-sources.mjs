@@ -3,7 +3,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, extname, join, relative, resolve } from "node:path";
-import { SERVICE_MESH_SERVICES, SERVICE_ROOT } from "./service-mesh-manifest.mjs";
+import { SERVICE_MESH_TARGETS } from "./service-mesh-manifest.mjs";
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const force = process.argv.includes("--force");
@@ -26,19 +26,19 @@ function listJsFiles(root, prefix = "") {
   return out;
 }
 
-for (const serviceName of SERVICE_MESH_SERVICES) {
-  const serviceDir = join(rootDir, SERVICE_ROOT, serviceName, "service");
+for (const target of SERVICE_MESH_TARGETS) {
+  const serviceDir = join(rootDir, target.servicePath);
   const distDir = join(serviceDir, "dist");
   const srcDir = join(serviceDir, "src");
 
   if (!existsSync(distDir)) {
-    console.warn(`[skip] ${serviceName}: missing dist/`);
+    console.warn(`[skip] ${target.name}: missing dist/`);
     continue;
   }
 
   if (existsSync(srcDir)) {
     if (!force) {
-      console.log(`[keep] ${serviceName}: src/ already exists`);
+      console.log(`[keep] ${target.name}: src/ already exists`);
       continue;
     }
     rmSync(srcDir, { recursive: true, force: true });
@@ -54,7 +54,7 @@ for (const serviceName of SERVICE_MESH_SERVICES) {
   }
 
   console.log(
-    `[ok] ${serviceName}: bootstrapped ${jsFiles.length} files from ${relative(
+    `[ok] ${target.name}: bootstrapped ${jsFiles.length} files from ${relative(
       rootDir,
       distDir
     )} -> ${relative(rootDir, srcDir)}`

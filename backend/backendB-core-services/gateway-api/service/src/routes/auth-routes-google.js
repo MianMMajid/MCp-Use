@@ -4,15 +4,34 @@ import { sessionTtlSeconds, googleClientId, } from "../config.js";
 import { buildSessionCookie, verifyGoogleJwt, } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
+import { applyBusinessApiProxyHeaders, businessApiUnavailableResponse, isBusinessApiRequired, proxyBusinessApiRequest, } from "../core/business-api-client.js";
 export function registerAuthGoogleRoutes(app) {
     app.get("/api/auth/google/client-id", async (c) => {
+        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/google/client-id");
+        if (proxied.proxied) {
+            return c.json(proxied.payload, proxied.status);
+        }
+        if (isBusinessApiRequired()) {
+            return businessApiUnavailableResponse(c, proxied, "auth.google_client_id");
+        }
         return c.json({ clientId: googleClientId });
     });
     app.post("/api/auth/google", async (c) => {
+        const body = await readJsonBody(c);
+        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/google", {
+            method: "POST",
+            body,
+        });
+        if (proxied.proxied) {
+            applyBusinessApiProxyHeaders(c, proxied);
+            return c.json(proxied.payload, proxied.status);
+        }
+        if (isBusinessApiRequired()) {
+            return businessApiUnavailableResponse(c, proxied, "auth.google");
+        }
         if (!googleClientId) {
             return c.json({ error: "Google sign-in is not configured." }, 501);
         }
-        const body = await readJsonBody(c);
         const credential = asString(body.credential);
         if (!credential) {
             return c.json({ error: "credential is required." }, 400);

@@ -171,5 +171,15 @@ export const modelRouterAddress = getEnvOrDefault("MODEL_ROUTER_ADDRESS", "local
 export const mcpProxyAddress = getEnvOrDefault("MCP_PROXY_ADDRESS", "localhost:9200");
 export const secretsBrokerAddress = getEnvOrDefault("SECRETS_BROKER_ADDRESS", "localhost:9300");
 export const auditWriterAddress = getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400");
+export const businessApiBaseUrl = asString(process.env.MAPLE_BUSINESS_API_BASE_URL);
+const businessApiRequiredRaw = String(process.env.MAPLE_BUSINESS_API_REQUIRED ?? "").trim().toLowerCase();
+export const businessApiRequired = businessApiRequiredRaw === "true" || businessApiRequiredRaw === "1";
+export const businessApiProxyCaPath = getEnvOrDefault("MAPLE_BUSINESS_API_CA", "/etc/maple/tls/ca.crt");
+export const businessApiProxyCertPath = getEnvOrDefault("MAPLE_BUSINESS_API_CERT", gatewayTlsCertPath);
+export const businessApiProxyKeyPath = getEnvOrDefault("MAPLE_BUSINESS_API_KEY", gatewayTlsKeyPath);
+const businessApiProxyTimeoutMsRaw = Number.parseInt(String(process.env.MAPLE_BUSINESS_API_TIMEOUT_MS ?? "3000"), 10);
+export const businessApiProxyTimeoutMs = Number.isFinite(businessApiProxyTimeoutMsRaw)
+    ? Math.max(250, Math.min(15_000, businessApiProxyTimeoutMsRaw))
+    : 3_000;
 export const corsOrigin = getEnvOrDefault("CORS_ORIGIN", "*");
 //# sourceMappingURL=config.js.map

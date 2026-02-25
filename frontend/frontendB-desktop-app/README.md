@@ -12,7 +12,7 @@ Folders:
 - `scripts/`
 
 Runtime bridge source:
-- `backend/backendC-desktop-runtime-bridge/bridge/runtime-controller.cjs`
+- `backend/backendD-desktop-runtime-bridge/bridge/runtime-controller.cjs`
 - Synced into `frontend/frontendB-desktop-app/bridge-runtime/` during desktop build/dev.
 
 ## Local Commands (from repo root)

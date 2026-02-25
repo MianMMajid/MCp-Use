@@ -4,9 +4,21 @@ import { buildSessionCookie, } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { hashPassword, verifyPassword } from "@maple/security";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
+import { applyBusinessApiProxyHeaders, businessApiUnavailableResponse, isBusinessApiRequired, proxyBusinessApiRequest, } from "../core/business-api-client.js";
 export function registerAuthLoginRegisterRoutes(app) {
     app.post("/api/auth/login", async (c) => {
         const body = await readJsonBody(c);
+        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/login", {
+            method: "POST",
+            body,
+        });
+        if (proxied.proxied) {
+            applyBusinessApiProxyHeaders(c, proxied);
+            return c.json(proxied.payload, proxied.status);
+        }
+        if (isBusinessApiRequired()) {
+            return businessApiUnavailableResponse(c, proxied, "auth.login");
+        }
         const username = asString(body.username);
         const password = asString(body.password);
         if (!username || !password) {
@@ -21,11 +33,22 @@ export function registerAuthLoginRegisterRoutes(app) {
         return c.json(buildSessionAuthResponse(user, session));
     });
     app.post("/api/auth/register", async (c) => {
+        const body = await readJsonBody(c);
+        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/register", {
+            method: "POST",
+            body,
+        });
+        if (proxied.proxied) {
+            applyBusinessApiProxyHeaders(c, proxied);
+            return c.json(proxied.payload, proxied.status);
+        }
+        if (isBusinessApiRequired()) {
+            return businessApiUnavailableResponse(c, proxied, "auth.register");
+        }
         const existingUsers = await database.countUsers();
         if (!allowSelfSignup && existingUsers > 0) {
             return c.json({ error: "Self-signup is disabled." }, 403);
         }
-        const body = await readJsonBody(c);
         const username = asString(body.username);
         const password = asString(body.password);
         const email = asString(body.email);

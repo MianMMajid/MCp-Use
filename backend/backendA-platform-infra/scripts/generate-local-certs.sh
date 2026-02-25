@@ -19,6 +19,12 @@ if [ "${MAPLE_FORCE_CERT_REGEN:-0}" = "1" ]; then
   rm -f "${CA_KEY}" "${CA_CRT}" "${TLS_KEY}" "${TLS_CSR}" "${TLS_CRT}" "${TLS_SRL}" "${TLS_EXT}"
 fi
 
+if [ -f "${TLS_CRT}" ]; then
+  if ! openssl x509 -in "${TLS_CRT}" -noout -text 2>/dev/null | grep -q "DNS:business-api.maple.svc.cluster.local"; then
+    rm -f "${TLS_KEY}" "${TLS_CSR}" "${TLS_CRT}" "${TLS_SRL}" "${TLS_EXT}"
+  fi
+fi
+
 if [ ! -f "${CA_KEY}" ] || [ ! -f "${CA_CRT}" ]; then
   openssl req -x509 -newkey rsa:4096 -nodes \
     -keyout "${CA_KEY}" \
@@ -46,6 +52,7 @@ DNS.9 = tool-runner.maple.svc.cluster.local
 DNS.10 = audit-writer.maple.svc.cluster.local
 DNS.11 = secrets-broker.maple.svc.cluster.local
 DNS.12 = postgres.maple.svc.cluster.local
+DNS.13 = business-api.maple.svc.cluster.local
 IP.1 = 127.0.0.1
 EOT
 

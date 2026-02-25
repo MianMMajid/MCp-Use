@@ -17,7 +17,7 @@ run_service() {
   shift 3
 
   local log_file
-  log_file="$(mktemp "/tmp/maple-${name}.XXXXXX.log")"
+  log_file="$(mktemp "/tmp/maple-${name}.XXXXXX")"
 
   (
     export MAPLE_GRPC_TLS_CERT="${CERT_DIR}/tls.crt"
@@ -89,5 +89,15 @@ run_service "admin-console-api" "19600" \
   "MAPLE_ADMIN_TLS_CERT=${CERT_DIR}/tls.crt" \
   "MAPLE_ADMIN_TLS_KEY=${CERT_DIR}/tls.key" \
   "MAPLE_ADMIN_TLS_CA=${CERT_DIR}/ca.crt"
+
+run_service "business-api" "19700" \
+  "${ROOT_DIR}/backend/backendC-saas-services/business-api/service/src/main.js" \
+  "BUSINESS_API_PORT=19700" \
+  "MAPLE_BUSINESS_API_TLS_CERT=${CERT_DIR}/tls.crt" \
+  "MAPLE_BUSINESS_API_TLS_KEY=${CERT_DIR}/tls.key" \
+  "MAPLE_BUSINESS_API_TLS_CA=${CERT_DIR}/ca.crt" \
+  "MAPLE_BUSINESS_API_MTLS_REQUIRED=1" \
+  "MAPLE_BUSINESS_API_SKIP_DB_INIT=1" \
+  "MAPLE_DISABLE_AUDIT_EMIT=1"
 
 echo "Core service smoke checks passed: ${pass_count}"

@@ -1,42 +1,11 @@
-import { database } from "../state.js";
-import { findRequestSession, toPublicUser, isApiKeyPresent, verifyIncomingApiKey, } from "../auth.js";
-import { unauthorizedBody } from "../helpers.js";
-import { ownerScopesForSessionUser } from "./auth-routes-common.js";
+import { businessApiUnavailableResponse, proxyBusinessApiRequest, } from "../core/business-api-client.js";
 export function registerAuthMeRoute(app) {
     app.get("/api/auth/me", async (c) => {
-        const session = await findRequestSession(database, c.req.header("cookie"));
-        if (session) {
-            return c.json({
-                ok: true,
-                authenticated: true,
-                method: "session",
-                user: toPublicUser(session.user),
-                ownerScopes: ownerScopesForSessionUser(session.user.id),
-            });
+        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/me");
+        if (proxied.proxied) {
+            return c.json(proxied.payload, proxied.status);
         }
-        const xApiKey = c.req.header("x-api-key");
-        const authorization = c.req.header("authorization");
-        const apiKeyProvided = isApiKeyPresent(xApiKey, authorization);
-        const apiKeyResult = verifyIncomingApiKey(xApiKey, authorization);
-        if (apiKeyProvided) {
-            if (!apiKeyResult.ok) {
-                return c.json(unauthorizedBody(apiKeyResult.reason ?? "invalid_key"), 401);
-            }
-            return c.json({
-                ok: true,
-                authenticated: true,
-                method: "api_key",
-                user: null,
-                ownerScopes: apiKeyResult.keyFingerprint ? [apiKeyResult.keyFingerprint] : [],
-            });
-        }
-        return c.json({
-            ok: true,
-            authenticated: false,
-            method: null,
-            user: null,
-            ownerScopes: [],
-        });
+        return businessApiUnavailableResponse(c, proxied, "auth.me");
     });
 }
 //# sourceMappingURL=auth-routes-me.js.map

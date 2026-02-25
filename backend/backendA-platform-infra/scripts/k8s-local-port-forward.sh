@@ -19,6 +19,7 @@ FORWARDS=(
   "tool-runner:4006:9250"
   "audit-writer:4007:9400"
   "secrets-broker:4008:9300"
+  "business-api:4009:9550"
   "postgres:5432:5432"
 )
 
@@ -81,6 +82,7 @@ echo "  grpc://localhost:4005  -> cyber-proxy"
 echo "  grpc://localhost:4006  -> tool-runner"
 echo "  grpc://localhost:4007  -> audit-writer"
 echo "  grpc://localhost:4008  -> secrets-broker"
+echo "  https://localhost:4009 -> business-api"
 echo "  postgres://localhost:5432 -> postgres"
 echo ""
 echo "OpenClaw endpoints:"

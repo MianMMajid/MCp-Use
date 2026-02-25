@@ -21,7 +21,8 @@ This repo now has explicit collaboration shells:
 
 - `backend/backendA-platform-infra`
 - `backend/backendB-core-services`
-- `backend/backendC-desktop-runtime-bridge`
+- `backend/backendC-saas-services`
+- `backend/backendD-desktop-runtime-bridge`
 
 ## Migration Rule
 
@@ -44,6 +45,7 @@ Backend runtime files are consumed directly from shell folders:
 - `backend/backendB-core-services/<service-name>/service`
 - `backend/backendB-core-services/shared/packages`
 - `backend/backendB-core-services/contracts/proto`
+- `backend/backendC-saas-services/*`
 - `backend/backendA-platform-infra/deploy/*`
 
 Use:
