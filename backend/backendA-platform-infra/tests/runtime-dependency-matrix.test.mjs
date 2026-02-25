@@ -40,8 +40,7 @@ function hasFailure(report, dependencyId) {
 const gatewayBaseEnv = {
   NODE_ENV: "production",
   MAPLE_RUNTIME_STRICT_DEPENDENCIES: "0",
-  MAPLE_GOOGLE_AUTH_SIMULATION: "0",
-  MAPLE_BILLING_SIMULATION: "0",
+  DATABASE_URL: "postgresql://maple:maple@127.0.0.1:5432/maple_test",
   MAPLE_DEP_REQUIRE_CONTEXT_WALL: "0",
   MAPLE_DEP_REQUIRE_MCP_PROXY: "0",
   MAPLE_DEP_REQUIRE_TOOL_RUNNER: "0",
@@ -55,8 +54,7 @@ const gatewayBaseEnv = {
 const businessBaseEnv = {
   NODE_ENV: "production",
   MAPLE_RUNTIME_STRICT_DEPENDENCIES: "0",
-  MAPLE_GOOGLE_AUTH_SIMULATION: "0",
-  MAPLE_BILLING_SIMULATION: "0",
+  DATABASE_URL: "postgresql://maple:maple@127.0.0.1:5432/maple_test",
 };
 
 test("gateway dependency matrix fails closed when OpenClaw is required and runtime is unavailable", () => {

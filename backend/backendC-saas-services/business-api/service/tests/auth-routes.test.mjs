@@ -176,9 +176,9 @@ test("business auth logout revokes existing session and clears cookie", async ()
   assert.equal(setCookie.includes("Max-Age=0"), true);
 });
 
-test("business google auth endpoints expose client metadata and support simulation when unconfigured", async () => {
-  const previousSimulation = process.env.MAPLE_GOOGLE_AUTH_SIMULATION;
-  process.env.MAPLE_GOOGLE_AUTH_SIMULATION = "1";
+test("business google auth endpoints fail closed when Google is unconfigured", async () => {
+  const previousGoogleClientId = process.env.GOOGLE_CLIENT_ID;
+  delete process.env.GOOGLE_CLIENT_ID;
   const app = new Hono();
   registerAuthGoogleRoutes(app, { database: createDatabaseStub() });
 
@@ -190,7 +190,6 @@ test("business google auth endpoints expose client metadata and support simulati
     const clientIdPayload = await clientIdResponse.json();
     assert.equal(Object.hasOwn(clientIdPayload, "clientId"), true);
     assert.equal(clientIdPayload.configured, false);
-    assert.equal(clientIdPayload.simulated, true);
 
     const googleLogin = await app.request("http://localhost/api/business/auth/google", {
       method: "POST",
@@ -198,26 +197,22 @@ test("business google auth endpoints expose client metadata and support simulati
       body: JSON.stringify({ email: "google-sim@example.com" }),
     });
 
-    assert.equal(googleLogin.status, 200);
+    assert.equal(googleLogin.status, 503);
     const googlePayload = await googleLogin.json();
-    assert.equal(googlePayload.ok, true);
-    assert.equal(googlePayload.simulated, true);
-    assert.equal(googlePayload.user.email, "google-sim@example.com");
+    assert.equal(googlePayload.code, "GOOGLE_AUTH_UNAVAILABLE");
   } finally {
-    if (previousSimulation === undefined) {
-      delete process.env.MAPLE_GOOGLE_AUTH_SIMULATION;
+    if (previousGoogleClientId === undefined) {
+      delete process.env.GOOGLE_CLIENT_ID;
     } else {
-      process.env.MAPLE_GOOGLE_AUTH_SIMULATION = previousSimulation;
+      process.env.GOOGLE_CLIENT_ID = previousGoogleClientId;
     }
   }
 });
 
-test("business google auth simulation is fail-closed in production", async () => {
+test("business google auth remains unavailable in production when unconfigured", async () => {
   const previousNodeEnv = process.env.NODE_ENV;
-  const previousSimulation = process.env.MAPLE_GOOGLE_AUTH_SIMULATION;
   const previousGoogleClientId = process.env.GOOGLE_CLIENT_ID;
   process.env.NODE_ENV = "production";
-  process.env.MAPLE_GOOGLE_AUTH_SIMULATION = "1";
   delete process.env.GOOGLE_CLIENT_ID;
 
   const app = new Hono();
@@ -230,7 +225,6 @@ test("business google auth simulation is fail-closed in production", async () =>
     assert.equal(clientIdResponse.status, 200);
     const clientIdPayload = await clientIdResponse.json();
     assert.equal(clientIdPayload.configured, false);
-    assert.equal(clientIdPayload.simulated, false);
 
     const login = await app.request("http://localhost/api/business/auth/google", {
       method: "POST",
@@ -245,11 +239,6 @@ test("business google auth simulation is fail-closed in production", async () =>
       delete process.env.NODE_ENV;
     } else {
       process.env.NODE_ENV = previousNodeEnv;
-    }
-    if (previousSimulation === undefined) {
-      delete process.env.MAPLE_GOOGLE_AUTH_SIMULATION;
-    } else {
-      process.env.MAPLE_GOOGLE_AUTH_SIMULATION = previousSimulation;
     }
     if (previousGoogleClientId === undefined) {
       delete process.env.GOOGLE_CLIENT_ID;

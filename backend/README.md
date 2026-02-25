@@ -30,7 +30,8 @@ This folder defines backend and platform ownership boundaries.
   - Default is enabled in production, optional in non-production.
 - Strict dependency posture:
   - `MAPLE_RUNTIME_STRICT_DEPENDENCIES=1` treats required runtime deps as blocking.
-- Simulation flags are non-production only:
-  - `MAPLE_GOOGLE_AUTH_SIMULATION`
-  - `MAPLE_BILLING_SIMULATION`
-- Local development can opt into simulation and relaxed checks, but production should keep strict startup enforcement enabled.
+- PostgreSQL is required in runtime:
+  - `DATABASE_URL` (or `MAPLE_DATABASE_URL`) must be configured.
+- Runtime behavior is fail-closed:
+  - No Google/Billing fallback behavior is supported.
+  - No degraded database startup mode is supported.

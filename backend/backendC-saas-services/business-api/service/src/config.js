@@ -35,6 +35,14 @@ export const businessApiSkipDatabaseInit =
   businessApiSkipDatabaseInitRaw === "1" ||
   businessApiSkipDatabaseInitRaw === "true" ||
   businessApiSkipDatabaseInitRaw === "yes";
+if (businessApiSkipDatabaseInit) {
+  throw new Error("MAPLE_BUSINESS_API_SKIP_DB_INIT is not supported.");
+}
+
+export const databaseUrl = asString(process.env.DATABASE_URL ?? process.env.MAPLE_DATABASE_URL);
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL (or MAPLE_DATABASE_URL) is required for business-api runtime.");
+}
 
 export const stripeSecretKey = asString(process.env.STRIPE_SECRET_KEY);
 export const stripeWebhookSecret = asString(process.env.STRIPE_WEBHOOK_SECRET);

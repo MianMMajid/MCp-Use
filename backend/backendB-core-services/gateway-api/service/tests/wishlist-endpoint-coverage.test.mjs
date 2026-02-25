@@ -89,7 +89,7 @@ const gatewayEndpoints = [
   "POST /api/firewall/chat",
   "POST /api/chat/stream",
   "GET /api/chat/capabilities",
-  "POST /api/firewall/simulate",
+  "POST /api/firewall/preview",
   "GET /api/firewall/rules/effective",
   "GET /api/hitl/approvals",
   "GET /api/hitl/approvals/watch",

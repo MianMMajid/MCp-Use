@@ -50,7 +50,7 @@ Gateway routes:
 - `POST /api/firewall/chat`
 - `POST /api/chat/stream`
 - `GET /api/chat/capabilities`
-- `POST /api/firewall/simulate` (dry-run decision without side effects)
+- `POST /api/firewall/preview` (dry-run decision without side effects)
 - `GET /api/firewall/rules/effective`
 
 Admin routes:
@@ -274,4 +274,3 @@ Every new API in this wishlist should enforce:
 - `M2`: Phase 2 (multi-tenant platform)
 - `M3`: Phase 3 (observability/compliance depth)
 - `M4`: Phase 4 (ecosystem polish)
-

@@ -8,6 +8,54 @@ CERT_DIR="${ROOT_DIR}/backend/backendA-platform-infra/certs"
 
 bash "${CERT_SCRIPT}" >/dev/null
 
+TMP_PG_CONTAINER=""
+TMP_PG_PORT=""
+
+cleanup_tmp_postgres() {
+  if [ -n "${TMP_PG_CONTAINER}" ]; then
+    docker rm -f "${TMP_PG_CONTAINER}" >/dev/null 2>&1 || true
+  fi
+}
+
+trap cleanup_tmp_postgres EXIT
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[FAIL] DATABASE_URL is unset and docker is unavailable."
+    echo "Set DATABASE_URL (PostgreSQL) and rerun, for example:"
+    echo "  DATABASE_URL=postgresql://<user>:<pass>@127.0.0.1:5432/<db> npm run test:backend-smoke"
+    exit 1
+  fi
+
+  TMP_PG_PORT="$(( (RANDOM % 1000) + 55432 ))"
+  TMP_PG_CONTAINER="maple-smoke-pg-${TMP_PG_PORT}"
+
+  echo "[info] DATABASE_URL not provided. Starting temporary PostgreSQL container ${TMP_PG_CONTAINER}..."
+  docker run -d --rm \
+    --name "${TMP_PG_CONTAINER}" \
+    -e POSTGRES_USER=maple \
+    -e POSTGRES_PASSWORD=maple \
+    -e POSTGRES_DB=maple \
+    -p "127.0.0.1:${TMP_PG_PORT}:5432" \
+    postgres:16-alpine >/dev/null
+
+  ready=0
+  for _ in {1..30}; do
+    if docker exec "${TMP_PG_CONTAINER}" pg_isready -U maple -d maple >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "${ready}" != "1" ]; then
+    echo "[FAIL] Temporary PostgreSQL container failed to become ready."
+    exit 1
+  fi
+
+  export DATABASE_URL="postgresql://maple:maple@127.0.0.1:${TMP_PG_PORT}/maple"
+  echo "[info] Using DATABASE_URL=${DATABASE_URL}"
+fi
+
 pass_count=0
 
 run_service() {
@@ -93,11 +141,11 @@ run_service "admin-console-api" "19600" \
 run_service "business-api" "19700" \
   "${ROOT_DIR}/backend/backendC-saas-services/business-api/service/src/main.js" \
   "BUSINESS_API_PORT=19700" \
+  "DATABASE_URL=${DATABASE_URL}" \
   "MAPLE_BUSINESS_API_TLS_CERT=${CERT_DIR}/tls.crt" \
   "MAPLE_BUSINESS_API_TLS_KEY=${CERT_DIR}/tls.key" \
   "MAPLE_BUSINESS_API_TLS_CA=${CERT_DIR}/ca.crt" \
   "MAPLE_BUSINESS_API_MTLS_REQUIRED=1" \
-  "MAPLE_BUSINESS_API_SKIP_DB_INIT=1" \
   "MAPLE_DISABLE_AUDIT_EMIT=1"
 
 echo "Core service smoke checks passed: ${pass_count}"

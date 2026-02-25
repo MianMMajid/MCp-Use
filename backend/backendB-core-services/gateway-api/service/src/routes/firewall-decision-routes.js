@@ -144,8 +144,8 @@ export function registerFirewallDecisionRoutes() {
             bridgeLocked: bridgeOverrideLockEnabled,
         });
     });
-    // ── POST /api/firewall/simulate ───────────────────────────────────────────
-    server.app.post("/api/firewall/simulate", async (c) => {
+    // ── POST /api/firewall/preview ────────────────────────────────────────────
+    server.app.post("/api/firewall/preview", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) {
             return unauthorized;
@@ -158,7 +158,7 @@ export function registerFirewallDecisionRoutes() {
         const decision = await evaluateFirewallStepViaGrpc(candidateStep);
         return c.json({
             ok: true,
-            mode: "simulate",
+            mode: "preview",
             decision: decision.action,
             executeAllowed: !decision.shouldBlock,
             shouldBlock: decision.shouldBlock,

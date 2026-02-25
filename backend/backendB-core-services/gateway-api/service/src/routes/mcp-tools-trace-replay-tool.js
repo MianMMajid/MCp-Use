@@ -12,7 +12,7 @@ export function registerReplayForkTool() {
         schema: zodCompat(replayForkInputSchema),
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
         widget: {
-            name: "replay-simulator",
+            name: "replay-review",
             invoking: "Forking trace...",
             invoked: "Replay diff ready",
         },

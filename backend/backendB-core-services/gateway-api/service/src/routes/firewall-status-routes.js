@@ -1,4 +1,4 @@
-import { server, database, getGrpcClients } from "../state.js";
+import { server, database, getGrpcClients, buildRuntimeStatus } from "../state.js";
 import { requireApiKeyResponse } from "../auth.js";
 import { asString } from "../helpers.js";
 import { buildFirewallChatContext, buildYcMetrics, } from "../trace-helpers.js";

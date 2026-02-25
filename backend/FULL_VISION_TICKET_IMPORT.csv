@@ -14,7 +14,7 @@ M1-12,M1,Add OpenClaw session detail endpoint,backendB-gateway,todo,P0,M1-11,S,/
 M1-13,M1,Add OpenClaw session cancel endpoint,backendB-gateway,todo,P0,M1-11,S,/api/openclaw/agent/sessions/:sessionId/cancel
 M1-14,M1,Add OpenClaw session stream endpoint (SSE),backendB-gateway,todo,P0,M1-11,M,/api/openclaw/agent/sessions/:sessionId/stream
 M1-15,M1,Add OpenClaw run artifacts endpoint,backendB-gateway,todo,P0,M1-11,M,/api/openclaw/agent/runs/:runId/artifacts
-M1-16,M1,Add firewall simulate endpoint,backendB+context-wall,todo,P0,,M,/api/firewall/simulate
+M1-16,M1,Add firewall preview endpoint,backendB+context-wall,todo,P0,,M,/api/firewall/preview
 M1-17,M1,Add effective rules endpoint,backendB-admin+gateway,todo,P0,M1-16,S,/api/firewall/rules/effective
 M1-18,M1,Add admin policy versions list endpoint,backendB-admin,todo,P0,,M,/admin/api/policies/versions
 M1-19,M1,Add admin policy activate endpoint,backendB-admin+context-wall,todo,P0,M1-18,M,/admin/api/policies/versions/:versionId/activate
@@ -63,4 +63,4 @@ M4-06,M4,Add desktop runtime and API e2e tests,frontendB+backendD+backendB,todo,
 M4-07,M4,Global API error envelope normalization pass,backendB+backendC+backendD,todo,P2,"M4-02|M4-06",M,all APIs
 M4-08,M4,Global audit coverage closure pass,backendB+backendC,todo,P2,M4-07,M,audit
 M4-09,M4,Publish versioned API docs and deprecation policy,backendB+backendC,todo,P2,M4-08,M,docs
-M4-10,M4,Run full-system simulation and signoff,backendA+backendB+backendC+backendD,todo,P2,M4-09,L,release signoff
+M4-10,M4,Run full-system verification and signoff,backendA+backendB+backendC+backendD,todo,P2,M4-09,L,release signoff

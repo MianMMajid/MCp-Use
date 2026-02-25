@@ -14,6 +14,10 @@ import { registerAuthRecoveryRoutes } from "./routes/auth-recovery-routes.js";
 import { registerPlatformRoutes } from "./routes/platform-routes.js";
 import { apiErrorPayload } from "./api-error.js";
 
+function hasPool(database) {
+  return Boolean(database && typeof database.pool?.query === "function");
+}
+
 export async function createApp(options = {}) {
   const database = options.database ?? new MaplePostgresDatabase();
   const authRecoveryStore =
@@ -21,6 +25,17 @@ export async function createApp(options = {}) {
   const auditEmitter =
     typeof options.auditEmitter === "function" ? options.auditEmitter : () => {};
   const shouldInitialize = options.skipDatabaseInit !== true;
+
+  if (!hasPool(database)) {
+    throw new Error(
+      "business-api requires PostgreSQL pool-backed persistence. In-memory fallback is disabled."
+    );
+  }
+  if (!shouldInitialize) {
+    throw new Error(
+      "skipDatabaseInit is not supported for business-api runtime."
+    );
+  }
 
   if (shouldInitialize && typeof database.initialize === "function") {
     await database.initialize();

@@ -52,6 +52,6 @@ mcp-firewall-reference/
 /frontend/frontendB-desktop-app/installers/dist/
 /frontend/frontendB-desktop-app/bridge-runtime/
 
-# Local TLS materials generated for K8s/compose simulation
+# Local TLS materials generated for K8s/compose local stack
 /backend/backendA-platform-infra/certs/*
 !/backend/backendA-platform-infra/certs/.gitkeep

@@ -30,7 +30,7 @@ export const replayForkInputSchema = z.object({
         command: z.string().optional(),
         toolName: z.string().optional(),
         toolResponse: z.string().optional(),
-        appendSimulationNote: z.string().optional(),
+        appendReplayNote: z.string().optional(),
     })
         .default({}),
 });

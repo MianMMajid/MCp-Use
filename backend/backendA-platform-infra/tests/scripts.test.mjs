@@ -92,8 +92,6 @@ test("preflight script is non-blocking by default and fail-closed in strict mode
     env: {
       ...process.env,
       NODE_ENV: "development",
-      MAPLE_GOOGLE_AUTH_SIMULATION: "0",
-      MAPLE_BILLING_SIMULATION: "0",
     },
     stdio: "pipe",
   });

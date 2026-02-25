@@ -22,7 +22,7 @@ echo ""
 bash "${SCRIPT_DIR}/k8s-local-status.sh"
 echo ""
 
-echo "Starting unified services for full simulation..."
+echo "Starting unified services for full stack..."
 bash "${SCRIPT_DIR}/k8s-local-port-forward.sh" &
 PORT_FORWARD_PID="$!"
 sleep 2
@@ -30,7 +30,7 @@ bash "${SCRIPT_DIR}/k8s-logs-aggregate.sh" &
 LOG_STREAM_PID="$!"
 
 echo ""
-echo "Full simulation is live."
+echo "Full stack is live."
 echo "Press Ctrl+C to stop port-forwards and log streaming."
 
 while true; do

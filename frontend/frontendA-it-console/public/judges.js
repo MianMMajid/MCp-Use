@@ -508,7 +508,7 @@ function sourceHint(trace) {
 
   if (trace.source === "mock") {
     const mode = trace.metadata?.mode ? `mode=${trace.metadata.mode}` : "mock fallback mode";
-    return `source=mock (${mode}). This run is simulated.`;
+    return `source=mock (${mode}). This run is synthetic.`;
   }
 
   if (trace.source === "openclaw") {
@@ -3801,7 +3801,7 @@ async function createForkFromNode() {
     edits.command = nodeForkCommandEl.value.trim();
   }
   if (nodeForkNoteEl instanceof HTMLInputElement && nodeForkNoteEl.value.trim()) {
-    edits.appendSimulationNote = nodeForkNoteEl.value.trim();
+    edits.appendReplayNote = nodeForkNoteEl.value.trim();
   }
 
   const launchIsolatedSession =

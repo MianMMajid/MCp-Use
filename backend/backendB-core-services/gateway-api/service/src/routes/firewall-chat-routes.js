@@ -122,23 +122,70 @@ export function registerFirewallChatRoutes() {
         }
         const reply = chatResult.reply;
         const encoder = new TextEncoder();
+        let closed = false;
+        let timer;
         const stream = new ReadableStream({
             start(controller) {
                 const words = reply.split(" ");
                 let i = 0;
                 const chunkSize = 3;
-                function pushChunk() {
-                    if (i >= words.length) {
-                        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                const safeClose = () => {
+                    if (closed) {
+                        return;
+                    }
+                    closed = true;
+                    if (timer) {
+                        clearTimeout(timer);
+                        timer = undefined;
+                    }
+                    try {
                         controller.close();
+                    }
+                    catch {
+                        // Ignore closed stream errors.
+                    }
+                };
+                const safeEnqueue = (payload) => {
+                    if (closed) {
+                        return false;
+                    }
+                    try {
+                        controller.enqueue(payload);
+                        return true;
+                    }
+                    catch {
+                        closed = true;
+                        if (timer) {
+                            clearTimeout(timer);
+                            timer = undefined;
+                        }
+                        return false;
+                    }
+                };
+                function pushChunk() {
+                    if (closed) {
+                        return;
+                    }
+                    if (i >= words.length) {
+                        safeEnqueue(encoder.encode("data: [DONE]\n\n"));
+                        safeClose();
                         return;
                     }
                     const chunk = words.slice(i, i + chunkSize).join(" ") + (i + chunkSize < words.length ? " " : "");
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`));
+                    if (!safeEnqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`))) {
+                        return;
+                    }
                     i += chunkSize;
-                    setTimeout(pushChunk, 30);
+                    timer = setTimeout(pushChunk, 30);
                 }
                 pushChunk();
+            },
+            cancel() {
+                closed = true;
+                if (timer) {
+                    clearTimeout(timer);
+                    timer = undefined;
+                }
             },
         });
         return new Response(stream, {

@@ -39,7 +39,7 @@ function applyEdits(step, edits) {
     }
     if (edits.toolResponse !== undefined) {
         patched.toolCall = {
-            ...(patched.toolCall ?? { name: "simulated_tool" }),
+            ...(patched.toolCall ?? { name: "replayed_tool" }),
             output: edits.toolResponse,
         };
     }
@@ -130,13 +130,13 @@ export function forkTrace(original, forkStepIndex, edits) {
     const seedSteps = structuredClone(original.steps.slice(0, forkStepIndex + 1));
     const editedStep = applyEdits(seedSteps[forkStepIndex], edits);
     seedSteps[forkStepIndex] = editedStep;
-    const simulationStep = {
+    const replayStep = {
         index: seedSteps.length,
         timestamp: new Date().toISOString(),
         actor: "system",
         type: "system",
-        output: edits.appendSimulationNote ??
-            "Simulated replay after fork: downstream actions paused for safe review.",
+        output: edits.appendReplayNote ??
+            "Replay after fork: downstream actions paused for safe review.",
         metadata: {
             replayMode: "dry-run",
             derivedFromTrace: original.id,
@@ -145,7 +145,7 @@ export function forkTrace(original, forkStepIndex, edits) {
         riskFlags: [],
         guardStatus: "pending",
     };
-    const nextSteps = normalizeStepIndexes([...seedSteps, simulationStep]);
+    const nextSteps = normalizeStepIndexes([...seedSteps, replayStep]);
     const hasBlockedSteps = nextSteps.some((step) => step.guardStatus === "block");
     const forkedTrace = {
         ...structuredClone(original),

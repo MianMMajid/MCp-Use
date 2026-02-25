@@ -4,6 +4,7 @@ import {
   businessApiTlsCaPath,
   businessApiTlsCertPath,
   businessApiTlsKeyPath,
+  databaseUrl,
   googleClientId,
   stripeSecretKey,
   stripeWebhookSecret,
@@ -55,20 +56,6 @@ function checkReadableFile(pathname) {
   }
 }
 
-function checkSimulationPolicy(simulationEnvName) {
-  const simulationEnabled = parseBooleanEnv(process.env[simulationEnvName], false);
-  if (!simulationEnabled) {
-    return { ok: true, reason: "disabled" };
-  }
-  if (isProductionRuntime()) {
-    return {
-      ok: false,
-      reason: `${simulationEnvName} cannot be enabled in production.`,
-    };
-  }
-  return { ok: true, reason: "enabled_non_prod" };
-}
-
 function checkStripeConfig() {
   if (!stripeSecretKey || !stripeWebhookSecret) {
     return {
@@ -109,6 +96,7 @@ export async function evaluateBusinessRuntimeDependencies(options = {}) {
     process.env.MAPLE_RUNTIME_STRICT_DEPENDENCIES,
     isProductionRuntime()
   );
+  const requireDatabase = parseBooleanEnv(process.env.MAPLE_DEP_REQUIRE_DATABASE, strict);
   const checks = [];
 
   checks.push(
@@ -138,18 +126,15 @@ export async function evaluateBusinessRuntimeDependencies(options = {}) {
 
   checks.push(
     buildCheckRecord(
-      "policy.simulation_google",
-      "Google auth simulation policy",
-      true,
-      checkSimulationPolicy("MAPLE_GOOGLE_AUTH_SIMULATION")
-    )
-  );
-  checks.push(
-    buildCheckRecord(
-      "policy.simulation_billing",
-      "Billing simulation policy",
-      true,
-      checkSimulationPolicy("MAPLE_BILLING_SIMULATION")
+      "config.database_url",
+      "Database URL configured",
+      requireDatabase,
+      databaseUrl
+        ? { ok: true }
+        : {
+            ok: false,
+            reason: "DATABASE_URL (or MAPLE_DATABASE_URL) is missing.",
+          }
     )
   );
 

@@ -68,7 +68,6 @@ async function startServer(server, port, serviceName) {
 
 function suppressExpectedRuntimeLogs() {
   const originalError = console.error;
-  const originalWarn = console.warn;
 
   console.error = (...args) => {
     const message = String(args[0] ?? "");
@@ -78,17 +77,8 @@ function suppressExpectedRuntimeLogs() {
     originalError(...args);
   };
 
-  console.warn = (...args) => {
-    const message = String(args[0] ?? "");
-    if (message.startsWith("[DB] Continuing in degraded mode")) {
-      return;
-    }
-    originalWarn(...args);
-  };
-
   return () => {
     console.error = originalError;
-    console.warn = originalWarn;
   };
 }
 
@@ -120,7 +110,6 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     "MAPLE_GRPC_TLS_KEY",
     "MAPLE_GRPC_TLS_CA",
     "MAPLE_ALLOW_NO_AUTH",
-    "MAPLE_ALLOW_DEGRADED_PERSISTENCE",
     "MAPLE_DISABLE_HITL_BROKER",
     "MAPLE_SKIP_AUTH_BOOTSTRAP",
     "PGCONNECT_TIMEOUT",
@@ -144,7 +133,6 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   process.env.MAPLE_GRPC_TLS_KEY = resolve(certDir, "tls.key");
   process.env.MAPLE_GRPC_TLS_CA = resolve(certDir, "ca.crt");
   process.env.MAPLE_ALLOW_NO_AUTH = "true";
-  process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE = "1";
   process.env.MAPLE_DISABLE_HITL_BROKER = "1";
   process.env.MAPLE_SKIP_AUTH_BOOTSTRAP = "1";
   process.env.PGCONNECT_TIMEOUT = "1";
@@ -186,6 +174,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   let mintCredentialCalls = 0;
   const clientCleanupFns = [];
   let shutdownGateway = async () => {};
+  let restoreGatewayPersistence = async () => {};
 
   try {
     downstreamMcpServer = createHttpServer((req, res) => {
@@ -432,6 +421,19 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     await startServer(contextWallServer, ports.contextWall, "context-wall-e2e");
     startedServers.push(contextWallServer);
 
+    const gatewayStateModule = await import("../../backendB-core-services/gateway-api/service/src/state.js");
+    const previousDatabaseInit = gatewayStateModule.database.initialize;
+    const previousTraceInit = gatewayStateModule.traceStore.init;
+    const previousSharedTraceInit = gatewayStateModule.sharedTraceStore.init;
+    gatewayStateModule.database.initialize = async () => undefined;
+    gatewayStateModule.traceStore.init = async () => undefined;
+    gatewayStateModule.sharedTraceStore.init = async () => undefined;
+    restoreGatewayPersistence = async () => {
+      gatewayStateModule.database.initialize = previousDatabaseInit;
+      gatewayStateModule.traceStore.init = previousTraceInit;
+      gatewayStateModule.sharedTraceStore.init = previousSharedTraceInit;
+    };
+
     const { createApp } = await import("../../backendB-core-services/gateway-api/service/src/app.js");
     const gatewayRuntime = await createApp();
     const app = gatewayRuntime.app;
@@ -530,6 +532,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     assert.equal(contextWallOutage.body.mode, "unavailable");
   } finally {
     restoreLogs();
+    await restoreGatewayPersistence();
 
     try {
       await shutdownGateway();

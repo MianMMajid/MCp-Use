@@ -16,5 +16,6 @@ Migration note:
 
 Runtime note:
 - `business-api` startup dependency enforcement is fail-closed in production by default.
-- Override only in non-production with `MAPLE_ENFORCE_STARTUP_DEPENDENCIES=0` for local simulation/debug loops.
-- Simulation flags such as `MAPLE_GOOGLE_AUTH_SIMULATION` and `MAPLE_BILLING_SIMULATION` must remain disabled in production.
+- Override only in non-production with `MAPLE_ENFORCE_STARTUP_DEPENDENCIES=0` for local debugging.
+- Google and billing routes are provider-backed only; fallback stubs are disabled.
+- PostgreSQL is mandatory for runtime (`DATABASE_URL` or `MAPLE_DATABASE_URL`).

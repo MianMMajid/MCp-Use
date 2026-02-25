@@ -58,55 +58,39 @@ export class AuditStore {
             mapleLog("error", "audit_store_pg_init_failed", {
                 error: err.message,
             });
-            // Continue with in-memory only — degrade gracefully
             this.pgReady = false;
+            throw err;
         }
     }
-    append(event) {
+    async append(event) {
+        if (!this.pgReady || !this.pool) {
+            throw new Error("AuditStore PostgreSQL backend is not ready.");
+        }
         if (!event.eventId) {
             event.eventId = randomUUID();
         }
         if (!event.timestamp) {
             event.timestamp = new Date().toISOString();
         }
-        // Write to in-memory cache
         this.events.push(event);
         if (this.events.length > this.maxInMemory) {
             this.events = this.events.slice(-this.maxInMemory);
         }
-        // Write to PostgreSQL asynchronously (fire-and-forget with error logging)
-        if (this.pgReady && this.pool) {
-            this.insertEventPg(event).catch((err) => {
-                mapleLog("error", "audit_pg_insert_failed", {
-                    eventId: event.eventId,
-                    error: err.message,
-                });
-            });
-        }
+        await this.insertEventPg(event);
         return event.eventId;
     }
-    appendBatch(events) {
-        return events.map((e) => this.append(e));
+    async appendBatch(events) {
+        const eventIds = [];
+        for (const event of events) {
+            eventIds.push(await this.append(event));
+        }
+        return eventIds;
     }
     async query(filters) {
-        const hasAdvancedFilters = filters.traceId ||
-            filters.sessionId ||
-            filters.sourceService ||
-            (filters.eventTypes && filters.eventTypes.length > 0) ||
-            filters.since ||
-            filters.until;
-        // Use PostgreSQL for filtered/paginated queries when available
-        if (this.pgReady && this.pool && hasAdvancedFilters) {
-            try {
-                return await this.queryPg(filters);
-            }
-            catch (err) {
-                mapleLog("error", "audit_pg_query_failed", { error: err.message });
-                // Fall through to in-memory
-            }
+        if (!this.pgReady || !this.pool) {
+            throw new Error("AuditStore PostgreSQL backend is not ready.");
         }
-        // In-memory fallback for simple recent queries or when PG is unavailable
-        return this.queryInMemory(filters);
+        return this.queryPg(filters);
     }
     getAll() {
         return [...this.events];
@@ -199,40 +183,6 @@ export class AuditStore {
         const events = dataResult.rows.map(rowToAuditEvent);
         const nextCursor = events.length > 0 ? events[events.length - 1].eventId : "";
         return { events, nextCursor, totalCount };
-    }
-    queryInMemory(filters) {
-        let filtered = [...this.events];
-        if (filters.traceId) {
-            filtered = filtered.filter((e) => e.traceId === filters.traceId);
-        }
-        if (filters.sessionId) {
-            filtered = filtered.filter((e) => e.sessionId === filters.sessionId);
-        }
-        if (filters.sourceService) {
-            filtered = filtered.filter((e) => e.sourceService === filters.sourceService);
-        }
-        if (filters.eventTypes && filters.eventTypes.length > 0) {
-            const types = new Set(filters.eventTypes);
-            filtered = filtered.filter((e) => types.has(e.eventType));
-        }
-        if (filters.since) {
-            filtered = filtered.filter((e) => e.timestamp >= filters.since);
-        }
-        if (filters.until) {
-            filtered = filtered.filter((e) => e.timestamp <= filters.until);
-        }
-        filtered.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-        const totalCount = filtered.length;
-        const limit = filters.limit || 100;
-        let startIndex = 0;
-        if (filters.cursor) {
-            const cursorIdx = filtered.findIndex((e) => e.eventId === filters.cursor);
-            if (cursorIdx >= 0)
-                startIndex = cursorIdx + 1;
-        }
-        const page = filtered.slice(startIndex, startIndex + limit);
-        const nextCursor = page.length > 0 ? page[page.length - 1].eventId : "";
-        return { events: page, nextCursor, totalCount };
     }
 }
 function rowToAuditEvent(row) {

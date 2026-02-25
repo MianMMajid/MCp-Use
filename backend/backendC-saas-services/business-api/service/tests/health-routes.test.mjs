@@ -2,15 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { Hono } from "hono";
-import { createApp } from "../src/app.js";
 import { registerHealthRoutes } from "../src/routes/health-routes.js";
 
 test("health and ready endpoints return business-api status", async () => {
-  const { app } = await createApp({
-    database: { initialize: async () => {}, close: async () => {} },
-    skipDatabaseInit: true,
-    manageDatabaseLifecycle: false,
-  });
+  const app = new Hono();
+  registerHealthRoutes(app);
 
   const healthResponse = await app.request("http://localhost/health");
   assert.equal(healthResponse.status, 200);

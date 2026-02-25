@@ -38,13 +38,10 @@ server.app.get("/api/openclaw/agent/status", async (c) => {
   }
   await bootstrapOpenClawRuntime();
   const status = getOpenClawRuntimeStatus();
-  return c.json(
-    {
-      ok: status.ready,
-      ...status,
-    },
-    status.ready ? 200 : 503
-  );
+  return c.json({
+    ok: status.ready,
+    ...status,
+  });
 });
 
 server.app.get("/api/openclaw/agent/sessions", async (c) => {
@@ -117,17 +114,53 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
   const startedCursor = asString(c.req.query("cursor")) ?? "0";
   const timeoutMs = asBoundedInteger(c.req.query("timeoutMs"), 25000, 1000, 120000);
 
+  let closed = false;
+  let timeout;
+  let unsubscribe = () => {};
   const stream = new ReadableStream({
     start(controller) {
       let cursor = startedCursor;
+      closed = false;
+      unsubscribe = () => {};
       const writeEvent = (name, payload) => {
-        controller.enqueue(encoder.encode(toSseEvent(name, payload)));
+        if (closed) {
+          return false;
+        }
+        try {
+          controller.enqueue(encoder.encode(toSseEvent(name, payload)));
+          return true;
+        } catch {
+          closed = true;
+          return false;
+        }
+      };
+      const closeStream = () => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = undefined;
+        }
+        try {
+          unsubscribe();
+        } catch {
+          // best effort
+        }
+        try {
+          controller.close();
+        } catch {
+          // Ignore closed stream errors.
+        }
       };
 
       const flushBacklog = () => {
         const events = listOpenClawSessionEvents(sessionId, { afterCursor: cursor });
         for (const event of events.items) {
-          writeEvent(event.eventType, event);
+          if (!writeEvent(event.eventType, event)) {
+            break;
+          }
         }
         cursor = events.latestCursor;
         return events;
@@ -143,12 +176,15 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
           status: detail?.status ?? "completed",
           cursor,
         });
-        controller.close();
+        closeStream();
         return;
       }
 
-      const unsubscribe = subscribeOpenClawSessionEvents(sessionId, (event) => {
-        writeEvent(event.eventType, event);
+      unsubscribe = subscribeOpenClawSessionEvents(sessionId, (event) => {
+        if (!writeEvent(event.eventType, event)) {
+          closeStream();
+          return;
+        }
         cursor = event.cursor;
         const nextDetail = getOpenClawSession(sessionId);
         if (!nextDetail || isTerminalSessionStatus(nextDetail.status)) {
@@ -157,21 +193,30 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
             status: nextDetail?.status ?? "completed",
             cursor,
           });
-          clearTimeout(timeout);
-          unsubscribe();
-          controller.close();
+          closeStream();
         }
       });
 
-      const timeout = setTimeout(() => {
-        unsubscribe();
+      timeout = setTimeout(() => {
         writeEvent("done", {
           sessionId,
           status: "timeout",
           cursor,
         });
-        controller.close();
+        closeStream();
       }, timeoutMs);
+    },
+    cancel() {
+      closed = true;
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = undefined;
+      }
+      try {
+        unsubscribe();
+      } catch {
+        // best effort
+      }
     },
   });
 

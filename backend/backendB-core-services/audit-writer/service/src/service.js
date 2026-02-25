@@ -17,7 +17,7 @@ const auditProto = proto.maple.audit.v1;
 export function createAuditWriterService(store) {
     const server = new grpc.Server();
     const serviceImpl = {
-        AppendEvent(call, callback) {
+        async AppendEvent(call, callback) {
             try {
                 const event = call.request.event;
                 const auditEvent = {
@@ -34,7 +34,7 @@ export function createAuditWriterService(store) {
                     severity: event?.severity,
                     summary: event?.summary,
                 };
-                const eventId = store.append(auditEvent);
+                const eventId = await store.append(auditEvent);
                 mapleLog("debug", "audit_event_appended", { eventId, type: auditEvent.eventType });
                 callback(null, { eventId, persistedAt: new Date().toISOString() });
             }
@@ -43,7 +43,7 @@ export function createAuditWriterService(store) {
                 callback({ code: grpc.status.INTERNAL, message: err.message });
             }
         },
-        AppendEventBatch(call, callback) {
+        async AppendEventBatch(call, callback) {
             try {
                 const events = (call.request.events || []).map((event) => ({
                     eventId: event?.eventId || "",
@@ -58,7 +58,7 @@ export function createAuditWriterService(store) {
                     severity: event?.severity,
                     summary: event?.summary,
                 }));
-                const eventIds = store.appendBatch(events);
+                const eventIds = await store.appendBatch(events);
                 mapleLog("debug", "audit_batch_appended", { count: eventIds.length });
                 callback(null, { persistedCount: eventIds.length, eventIds, persistedAt: new Date().toISOString() });
             }
@@ -68,7 +68,8 @@ export function createAuditWriterService(store) {
         },
         StreamEvents(call) {
             call.on("data", (request) => {
-                try {
+                void (async () => {
+                    try {
                     const event = request.event;
                     const auditEvent = {
                         eventId: event?.eventId || "",
@@ -76,12 +77,13 @@ export function createAuditWriterService(store) {
                         timestamp: event?.timestamp || new Date().toISOString(),
                         sourceService: event?.sourceService || "unknown",
                     };
-                    const eventId = store.append(auditEvent);
+                    const eventId = await store.append(auditEvent);
                     call.write({ eventId, accepted: true });
                 }
-                catch {
-                    call.write({ eventId: "", accepted: false });
-                }
+                    catch {
+                        call.write({ eventId: "", accepted: false });
+                    }
+                })();
             });
             call.on("end", () => call.end());
         },

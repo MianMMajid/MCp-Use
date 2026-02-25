@@ -39,10 +39,13 @@ export class MaplePostgresDatabase {
     pool;
     initialized = false;
     constructor(connectionString) {
-        const connStr = connectionString ??
+        const configuredConnectionString = connectionString ??
             process.env.DATABASE_URL ??
-            process.env.MAPLE_DATABASE_URL ??
-            "postgresql://localhost:5432/maple";
+            process.env.MAPLE_DATABASE_URL;
+        if (!configuredConnectionString) {
+            throw new Error("DATABASE_URL (or MAPLE_DATABASE_URL) is required for PostgreSQL-backed runtime.");
+        }
+        const connStr = configuredConnectionString;
         this.pool = new Pool({
             connectionString: connStr,
             max: 20,

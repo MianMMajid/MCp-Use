@@ -71,6 +71,7 @@ test("billing subscription route enforces auth and returns subscription status",
   registerBillingRoutes(app, {
     database: createDatabaseStub(),
     billingEnabled: true,
+    stripeClient: {},
   });
 
   const unauthenticated = await app.request(
@@ -94,9 +95,7 @@ test("billing subscription route enforces auth and returns subscription status",
   assert.equal(payload.subscription.plan, "free");
 });
 
-test("billing routes simulate lifecycle when stripe client is not configured", async () => {
-  const previousBillingSimulation = process.env.MAPLE_BILLING_SIMULATION;
-  process.env.MAPLE_BILLING_SIMULATION = "1";
+test("billing routes fail closed when stripe client is not configured", async () => {
   const app = new Hono();
   registerBillingRoutes(app, {
     database: createDatabaseStub(),
@@ -105,86 +104,65 @@ test("billing routes simulate lifecycle when stripe client is not configured", a
     stripeClient: null,
   });
 
-  try {
-    const checkout = await app.request(
-      "http://localhost/api/business/billing/create-checkout-session",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: "maple_session=session-123",
-        },
-        body: JSON.stringify({ plan: "pro" }),
-      }
-    );
-    assert.equal(checkout.status, 200);
-    const checkoutPayload = await checkout.json();
-    assert.equal(checkoutPayload.ok, true);
-    assert.equal(checkoutPayload.simulated, true);
-
-    const portal = await app.request(
-      "http://localhost/api/business/billing/portal-session",
-      {
-        method: "POST",
-        headers: {
-          cookie: "maple_session=session-123",
-        },
-      }
-    );
-    assert.equal(portal.status, 200);
-    const portalPayload = await portal.json();
-    assert.equal(portalPayload.ok, true);
-    assert.equal(portalPayload.simulated, true);
-
-    const invoices = await app.request("http://localhost/api/business/billing/invoices", {
-      headers: { cookie: "maple_session=session-123" },
-    });
-    assert.equal(invoices.status, 200);
-    const invoicesPayload = await invoices.json();
-    assert.equal(invoicesPayload.ok, true);
-    assert.equal(invoicesPayload.simulated, true);
-    assert.equal(Array.isArray(invoicesPayload.items), true);
-
-    const cancel = await app.request(
-      "http://localhost/api/business/billing/subscription/cancel",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: "maple_session=session-123",
-        },
-        body: JSON.stringify({ atPeriodEnd: true }),
-      }
-    );
-    assert.equal(cancel.status, 200);
-    const cancelPayload = await cancel.json();
-    assert.equal(cancelPayload.ok, true);
-    assert.equal(cancelPayload.simulated, true);
-    assert.equal(cancelPayload.cancelAtPeriodEnd, true);
-
-    const resume = await app.request(
-      "http://localhost/api/business/billing/subscription/resume",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: "maple_session=session-123",
-        },
-        body: JSON.stringify({}),
-      }
-    );
-    assert.equal(resume.status, 200);
-    const resumePayload = await resume.json();
-    assert.equal(resumePayload.ok, true);
-    assert.equal(resumePayload.simulated, true);
-    assert.equal(resumePayload.cancelAtPeriodEnd, false);
-  } finally {
-    if (previousBillingSimulation === undefined) {
-      delete process.env.MAPLE_BILLING_SIMULATION;
-    } else {
-      process.env.MAPLE_BILLING_SIMULATION = previousBillingSimulation;
+  const checkout = await app.request(
+    "http://localhost/api/business/billing/create-checkout-session",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: "maple_session=session-123",
+      },
+      body: JSON.stringify({ plan: "pro" }),
     }
-  }
+  );
+  assert.equal(checkout.status, 503);
+  assert.equal((await checkout.json()).error, "Billing provider unavailable.");
+
+  const portal = await app.request(
+    "http://localhost/api/business/billing/portal-session",
+    {
+      method: "POST",
+      headers: {
+        cookie: "maple_session=session-123",
+      },
+    }
+  );
+  assert.equal(portal.status, 503);
+  assert.equal((await portal.json()).error, "Billing provider unavailable.");
+
+  const invoices = await app.request("http://localhost/api/business/billing/invoices", {
+    headers: { cookie: "maple_session=session-123" },
+  });
+  assert.equal(invoices.status, 503);
+  assert.equal((await invoices.json()).error, "Billing provider unavailable.");
+
+  const cancel = await app.request(
+    "http://localhost/api/business/billing/subscription/cancel",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: "maple_session=session-123",
+      },
+      body: JSON.stringify({ atPeriodEnd: true }),
+    }
+  );
+  assert.equal(cancel.status, 503);
+  assert.equal((await cancel.json()).error, "Billing provider unavailable.");
+
+  const resume = await app.request(
+    "http://localhost/api/business/billing/subscription/resume",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: "maple_session=session-123",
+      },
+      body: JSON.stringify({}),
+    }
+  );
+  assert.equal(resume.status, 503);
+  assert.equal((await resume.json()).error, "Billing provider unavailable.");
 });
 
 test("billing invoices route returns normalized invoice payload with cursor", async () => {
@@ -329,9 +307,7 @@ test("billing subscription cancel/resume routes update status through stripe cli
   assert.equal(database.state.upserts.length >= 2, true);
 });
 
-test("billing webhook route accepts events in simulation mode when webhook integration is not configured", async () => {
-  const previousBillingSimulation = process.env.MAPLE_BILLING_SIMULATION;
-  process.env.MAPLE_BILLING_SIMULATION = "1";
+test("billing webhook route fails closed when webhook integration is not configured", async () => {
   const app = new Hono();
   registerBillingRoutes(app, {
     database: createDatabaseStub(),
@@ -340,66 +316,14 @@ test("billing webhook route accepts events in simulation mode when webhook integ
     stripeClient: null,
   });
 
-  try {
-    const webhook = await app.request("http://localhost/api/business/billing/webhook", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({}),
-    });
-    assert.equal(webhook.status, 200);
-    const payload = await webhook.json();
-    assert.equal(payload.received, true);
-    assert.equal(payload.simulated, true);
-  } finally {
-    if (previousBillingSimulation === undefined) {
-      delete process.env.MAPLE_BILLING_SIMULATION;
-    } else {
-      process.env.MAPLE_BILLING_SIMULATION = previousBillingSimulation;
-    }
-  }
-});
-
-test("billing simulation is fail-closed in production", async () => {
-  const previousNodeEnv = process.env.NODE_ENV;
-  const previousBillingSimulation = process.env.MAPLE_BILLING_SIMULATION;
-  process.env.NODE_ENV = "production";
-  process.env.MAPLE_BILLING_SIMULATION = "1";
-
-  const app = new Hono();
-  registerBillingRoutes(app, {
-    database: createDatabaseStub(),
-    billingEnabled: false,
-    stripeWebhookSecret: "",
-    stripeClient: null,
+  const webhook = await app.request("http://localhost/api/business/billing/webhook", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({}),
   });
-
-  try {
-    const checkout = await app.request(
-      "http://localhost/api/business/billing/create-checkout-session",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          cookie: "maple_session=session-123",
-        },
-        body: JSON.stringify({ plan: "pro" }),
-      }
-    );
-    assert.equal(checkout.status, 503);
-    const payload = await checkout.json();
-    assert.equal(payload.error, "Billing provider unavailable.");
-  } finally {
-    if (previousNodeEnv === undefined) {
-      delete process.env.NODE_ENV;
-    } else {
-      process.env.NODE_ENV = previousNodeEnv;
-    }
-    if (previousBillingSimulation === undefined) {
-      delete process.env.MAPLE_BILLING_SIMULATION;
-    } else {
-      process.env.MAPLE_BILLING_SIMULATION = previousBillingSimulation;
-    }
-  }
+  assert.equal(webhook.status, 503);
+  const payload = await webhook.json();
+  assert.equal(payload.error, "Webhook provider unavailable.");
 });

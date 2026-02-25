@@ -141,6 +141,7 @@ async function run() {
   const requireGoogle = parseBoolean(process.env.MAPLE_DEP_REQUIRE_GOOGLE_AUTH, strict);
   const requireStripe = parseBoolean(process.env.MAPLE_DEP_REQUIRE_STRIPE, strict);
   const requireOpenclaw = parseBoolean(process.env.MAPLE_DEP_REQUIRE_OPENCLAW, strict);
+  const requireDatabase = parseBoolean(process.env.MAPLE_DEP_REQUIRE_DATABASE, strict);
   const checkContractSync = parseBoolean(process.env.MAPLE_PREFLIGHT_CHECK_CONTRACT_SYNC, true);
   const checkServiceSourceSync = parseBoolean(
     process.env.MAPLE_PREFLIGHT_CHECK_SOURCE_SYNC,
@@ -246,37 +247,14 @@ async function run() {
     })
   );
 
-  const googleSimulation = parseBoolean(process.env.MAPLE_GOOGLE_AUTH_SIMULATION, false);
+  const databaseUrl = String(process.env.DATABASE_URL ?? process.env.MAPLE_DATABASE_URL ?? "").trim();
   checks.push(
     createCheck({
-      id: "policy.simulation_google",
-      label: "Google simulation policy",
-      required: true,
-      expected: "MAPLE_GOOGLE_AUTH_SIMULATION only allowed outside production",
-      result:
-        googleSimulation && isProductionRuntime()
-          ? {
-              ok: false,
-              reason: "MAPLE_GOOGLE_AUTH_SIMULATION is enabled in production",
-            }
-          : { ok: true },
-    })
-  );
-
-  const billingSimulation = parseBoolean(process.env.MAPLE_BILLING_SIMULATION, false);
-  checks.push(
-    createCheck({
-      id: "policy.simulation_billing",
-      label: "Billing simulation policy",
-      required: true,
-      expected: "MAPLE_BILLING_SIMULATION only allowed outside production",
-      result:
-        billingSimulation && isProductionRuntime()
-          ? {
-              ok: false,
-              reason: "MAPLE_BILLING_SIMULATION is enabled in production",
-            }
-          : { ok: true },
+      id: "db.database_url",
+      label: "Database URL",
+      required: requireDatabase,
+      expected: "DATABASE_URL or MAPLE_DATABASE_URL must be set",
+      result: databaseUrl ? { ok: true } : { ok: false, reason: "DATABASE_URL missing" },
     })
   );
 
@@ -325,6 +303,18 @@ async function run() {
           required: true,
           expected: openclawBridge || "OPENCLAW_BRIDGE_URL host:port",
           result: await checkTcpReachability(openclawBridge),
+        })
+      );
+    }
+
+    if (requireDatabase && databaseUrl) {
+      checks.push(
+        createCheck({
+          id: "reach.database",
+          label: "Database reachability",
+          required: strict,
+          expected: databaseUrl,
+          result: await checkTcpReachability(databaseUrl),
         })
       );
     }

@@ -64,6 +64,7 @@ function toDateKey(timestamp) {
 export class PlatformStore {
   constructor(options = {}) {
     this.database = options.database;
+    this.allowInMemoryStore = options.allowInMemoryStore === true;
     this.initialized = false;
     this.memory = {
       orgs: new Map(),
@@ -77,6 +78,11 @@ export class PlatformStore {
   async ensureInitialized() {
     if (this.initialized) {
       return;
+    }
+    if (!hasPool(this.database) && !this.allowInMemoryStore) {
+      throw new Error(
+        "PlatformStore requires PostgreSQL pool-backed persistence. In-memory fallback is disabled."
+      );
     }
     if (hasPool(this.database)) {
       await this.database.pool.query(`

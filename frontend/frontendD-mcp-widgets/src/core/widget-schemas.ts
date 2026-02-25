@@ -51,7 +51,7 @@ export interface ReplayChange {
   after?: string;
 }
 
-export interface ReplaySimulatorProps {
+export interface ReplayReviewProps {
   originalTraceId: string;
   forkedTraceId: string;
   forkStepIndex: number;

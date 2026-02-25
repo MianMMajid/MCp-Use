@@ -53,7 +53,8 @@ function createRecoveryApp(options = {}) {
   const app = new Hono();
   const database = options.database ?? createDatabaseStub();
   const recoveryStore =
-    options.recoveryStore ?? new AuthRecoveryStore({ database, tokenBytes: 24 });
+    options.recoveryStore ??
+    new AuthRecoveryStore({ database, tokenBytes: 24, allowInMemoryStore: true });
   const deliveries = [];
 
   registerAuthRecoveryRoutes(app, {

@@ -80,26 +80,6 @@ function checkReadableFile(pathname) {
   }
 }
 
-function checkSimulationPolicy(simulationEnvName) {
-  const simulationEnabled = parseBooleanEnv(process.env[simulationEnvName], false);
-  if (!simulationEnabled) {
-    return {
-      ok: true,
-      reason: "disabled",
-    };
-  }
-  if (isProductionRuntime()) {
-    return {
-      ok: false,
-      reason: `${simulationEnvName} cannot be enabled in production.`,
-    };
-  }
-  return {
-    ok: true,
-    reason: "enabled_non_prod",
-  };
-}
-
 function withTimeout(promise, timeoutMs, timeoutReason) {
   return Promise.race([
     promise,
@@ -298,16 +278,11 @@ function capabilityFromDependencies(name, requiredDeps, checkMap) {
 function resolveGoogleAuthCapability(checkMap) {
   const googleConfigured = checkMap.get("config.google_client_id")?.ok === true;
   const businessApiReady = checkMap.get("http.business_api")?.ok === true;
-  const googleSimulationAllowed =
-    checkMap.get("policy.simulation_google")?.ok === true &&
-    parseBooleanEnv(process.env.MAPLE_GOOGLE_AUTH_SIMULATION, false);
-  const enabled = googleConfigured || businessApiReady || googleSimulationAllowed;
+  const enabled = googleConfigured || businessApiReady;
   let reason = "ok";
   if (!enabled) {
     reason =
       "Google auth unavailable: configure GOOGLE_CLIENT_ID or enable business-api reachability.";
-  } else if (googleSimulationAllowed && !googleConfigured && !businessApiReady) {
-    reason = "simulation_enabled_non_prod";
   }
   return {
     enabled,
@@ -459,23 +434,6 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
             reason:
               "MAPLE_GRPC_TLS_CERT/MAPLE_GRPC_TLS_KEY/MAPLE_GRPC_TLS_CA are not configured.",
           }
-    )
-  );
-
-  checks.push(
-    buildCheckRecord(
-      "policy.simulation_google",
-      "Google auth simulation policy",
-      true,
-      checkSimulationPolicy("MAPLE_GOOGLE_AUTH_SIMULATION")
-    )
-  );
-  checks.push(
-    buildCheckRecord(
-      "policy.simulation_billing",
-      "Billing simulation policy",
-      true,
-      checkSimulationPolicy("MAPLE_BILLING_SIMULATION")
     )
   );
 

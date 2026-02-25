@@ -38,7 +38,7 @@ export const replayChangeSchema = z.object({
     before: z.string().optional(),
     after: z.string().optional(),
 });
-export const replaySimulatorPropsSchema = z.object({
+export const replayReviewPropsSchema = z.object({
     originalTraceId: z.string(),
     forkedTraceId: z.string(),
     forkStepIndex: z.number().int().nonnegative(),

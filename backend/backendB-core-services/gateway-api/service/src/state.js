@@ -35,21 +35,11 @@ export const sharedTraceStore = new SharedTraceStore(undefined, {
     saveSharedTrace: (trace) => database.upsertSharedTrace(trace),
     removeSharedTrace: (traceId) => database.removeSharedTrace(traceId),
 });
-function allowDegradedPersistenceMode() {
-    const raw = String(process.env.MAPLE_ALLOW_DEGRADED_PERSISTENCE ?? "0").trim().toLowerCase();
-    const enabled = raw === "1" || raw === "true" || raw === "yes" || raw === "on";
-    const isProductionRuntime = String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production";
-    if (enabled && isProductionRuntime) {
-        throw new Error("MAPLE_ALLOW_DEGRADED_PERSISTENCE cannot be enabled in production runtime.");
-    }
-    return enabled;
-}
 export function assertGatewayStartupPolicy() {
-    void allowDegradedPersistenceMode();
+    // No-op: gateway startup is strictly fail-closed for persistence.
 }
 // ── Database Initialization ─────────────────────────────────────────────────
 export async function initializeDatabase() {
-    assertGatewayStartupPolicy();
     try {
         await database.initialize();
         await traceStore.init();
@@ -58,10 +48,6 @@ export async function initializeDatabase() {
     }
     catch (err) {
         console.error("[DB] PostgreSQL initialization failed:", err);
-        if (allowDegradedPersistenceMode()) {
-            console.warn("[DB] Continuing in degraded mode because MAPLE_ALLOW_DEGRADED_PERSISTENCE is enabled.");
-            return;
-        }
         throw err;
     }
 }

@@ -72,6 +72,7 @@ export class AuthRecoveryStore {
       16,
       64
     );
+    this.allowInMemoryStore = options.allowInMemoryStore === true;
     this.tokens = new Map();
     this.emailVerifications = new Map();
     this.initialized = false;
@@ -80,6 +81,11 @@ export class AuthRecoveryStore {
   async ensureInitialized() {
     if (this.initialized) {
       return;
+    }
+    if (!hasPool(this.database) && !this.allowInMemoryStore) {
+      throw new Error(
+        "AuthRecoveryStore requires PostgreSQL pool-backed persistence. In-memory fallback is disabled."
+      );
     }
     if (hasPool(this.database)) {
       await this.database.pool.query(`

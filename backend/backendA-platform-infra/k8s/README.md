@@ -33,9 +33,9 @@ Teardown:
 - Workloads + cluster: `npm run k8s:down -- --destroy-cluster`
 
 Defaults:
-- `npm run dev` now runs the full Kubernetes simulation flow (`k8s:all`).
-- `npm run start` now runs the full Kubernetes simulation flow (`k8s:all`).
+- `npm run dev` now runs the full Kubernetes stack flow (`k8s:all`).
+- `npm run start` now runs the full Kubernetes stack flow (`k8s:all`).
 
-Aggregated logs (full Maple simulation stack):
+Aggregated logs (full Maple stack):
 - `npm run k8s:logs`
 - Default output file: `backend/backendA-platform-infra/logs/frontend-backend-stream.log`

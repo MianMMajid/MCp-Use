@@ -21,7 +21,8 @@ function startEdgeAuditIngestServer(store) {
             // Discard request body; all fields come from headers.
         });
         req.on("end", () => {
-            try {
+            void (async () => {
+                try {
                 const method = headerValue(req.headers["x-maple-method"]) || "UNKNOWN";
                 const path = headerValue(req.headers["x-maple-path"]) || "/";
                 const requestId = headerValue(req.headers["x-request-id"]);
@@ -30,7 +31,7 @@ function startEdgeAuditIngestServer(store) {
                 const tenantId = headerValue(req.headers["x-tenant-id"]);
                 const userId = headerValue(req.headers["x-user-id"]);
                 const deviceId = headerValue(req.headers["x-device-id"]);
-                store.append({
+                await store.append({
                     eventId: "",
                     eventType: "proxy_request",
                     timestamp: new Date().toISOString(),
@@ -54,6 +55,7 @@ function startEdgeAuditIngestServer(store) {
             }
             res.statusCode = 202;
             res.end();
+            })();
         });
     });
     server.listen(config.httpPort, config.host, () => {
@@ -77,7 +79,7 @@ async function main() {
     });
     gracefulShutdown(server, "audit-writer");
     // Log service startup event
-    store.append({
+    await store.append({
         eventId: "",
         eventType: "service_started",
         timestamp: new Date().toISOString(),

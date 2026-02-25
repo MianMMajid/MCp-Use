@@ -38,7 +38,7 @@ This board converts `backend/FULL_VISION_API_WISHLIST.md` into executable ticket
 | 13 | M1-13 | Add OpenClaw session cancel endpoint (`POST .../:sessionId/cancel`) | backendB gateway | M1-11 | S | todo |
 | 14 | M1-14 | Add OpenClaw session stream endpoint (`GET .../:sessionId/stream`) | backendB gateway | M1-11 | M | todo |
 | 15 | M1-15 | Add OpenClaw run artifacts endpoint (`GET /api/openclaw/agent/runs/:runId/artifacts`) | backendB gateway | M1-11 | M | todo |
-| 16 | M1-16 | Add firewall dry-run simulation endpoint (`POST /api/firewall/simulate`) | backendB gateway + context-wall | - | M | todo |
+| 16 | M1-16 | Add firewall dry-run preview endpoint (`POST /api/firewall/preview`) | backendB gateway + context-wall | - | M | todo |
 | 17 | M1-17 | Add effective firewall rules endpoint (`GET /api/firewall/rules/effective`) | backendB admin+gateway | M1-16 | S | todo |
 | 18 | M1-18 | Add admin policies versions list endpoint (`GET /admin/api/policies/versions`) | backendB admin | - | M | todo |
 | 19 | M1-19 | Add admin policies activate endpoint (`POST /admin/api/policies/versions/:versionId/activate`) | backendB admin + context-wall | M1-18 | M | todo |
@@ -126,13 +126,13 @@ This board converts `backend/FULL_VISION_API_WISHLIST.md` into executable ticket
 | 7 | M4-07 | Global API error envelope normalization pass | backendB+backendC+backendD | M4-02,M4-06 | M | todo |
 | 8 | M4-08 | Global audit coverage gap closure pass | backendB+backendC | M4-07 | M | todo |
 | 9 | M4-09 | Publish versioned API docs and deprecation policy | backendB+backendC | M4-08 | M | todo |
-| 10 | M4-10 | Final full-system API simulation run + signoff | backendA+backendB+backendC+backendD | M4-09 | L | todo |
+| 10 | M4-10 | Final full-system API verification run + signoff | backendA+backendB+backendC+backendD | M4-09 | L | todo |
 
 ### M4 Exit Criteria
 
 - Desktop and external integrations consume stable contracts.
 - API behavior and error envelopes are consistent across services.
-- Full simulation pass is green.
+- Full verification pass is green.
 
 ## Start Now Queue (Immediate)
 

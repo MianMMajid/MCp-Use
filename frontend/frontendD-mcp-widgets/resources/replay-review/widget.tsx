@@ -1,10 +1,10 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import type React from "react";
-import type { ReplaySimulatorProps } from "../../src/core/widget-schemas";
+import type { ReplayReviewProps } from "../../src/core/widget-schemas";
 import "../styles.css";
 
 export const widgetMetadata: WidgetMetadata = {
-  title: "Replay Simulator",
+  title: "Replay Review",
   description: "Side-by-side comparison of original and forked traces.",
   exposeAsTool: false,
   metadata: {
@@ -26,8 +26,8 @@ function rowTone(score: number) {
   return "cc-risk-low";
 }
 
-const ReplaySimulatorWidget: React.FC = () => {
-  const { props, isPending } = useWidget<ReplaySimulatorProps>();
+const ReplayReviewWidget: React.FC = () => {
+  const { props, isPending } = useWidget<ReplayReviewProps>();
 
   if (isPending || !props.originalSteps?.length || !props.originalTraceId || !props.forkedTraceId) {
     return (
@@ -42,7 +42,7 @@ const ReplaySimulatorWidget: React.FC = () => {
     <section className="cc-card">
       <header className="cc-header">
         <div>
-          <p className="cc-eyebrow">Replay Simulator</p>
+          <p className="cc-eyebrow">Replay Review</p>
           <h2>
             Forked at step {props.forkStepIndex} • {props.originalTraceId.slice(0, 8)} →{" "}
             {props.forkedTraceId.slice(0, 8)}
@@ -124,5 +124,5 @@ const ReplaySimulatorWidget: React.FC = () => {
 };
 
 import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
-const WrappedReplaySimulatorWidget: React.FC = () => <WidgetErrorBoundary><ReplaySimulatorWidget /></WidgetErrorBoundary>;
-export default WrappedReplaySimulatorWidget;
+const WrappedReplayReviewWidget: React.FC = () => <WidgetErrorBoundary><ReplayReviewWidget /></WidgetErrorBoundary>;
+export default WrappedReplayReviewWidget;

@@ -432,23 +432,74 @@ async function main() {
         const sessionId = c.req.query("session_id") || "";
         const encoder = new TextEncoder();
         let approvalStream;
+        let closed = false;
+        let onData;
+        let onError;
+        let onEnd;
         const stream = new ReadableStream({
             start(controller) {
-                controller.enqueue(encoder.encode("event: ready\ndata: {}\n\n"));
+                const safeEnqueue = (payload) => {
+                    if (closed) {
+                        return false;
+                    }
+                    try {
+                        controller.enqueue(payload);
+                        return true;
+                    }
+                    catch {
+                        closed = true;
+                        return false;
+                    }
+                };
+                const safeClose = () => {
+                    if (closed) {
+                        return;
+                    }
+                    closed = true;
+                    try {
+                        controller.close();
+                    }
+                    catch {
+                        // Ignore closed stream errors.
+                    }
+                };
+                safeEnqueue(encoder.encode("event: ready\ndata: {}\n\n"));
                 approvalStream = contextWall.watchApprovalQueue({ sessionId });
-                approvalStream.on("data", (event) => {
-                    controller.enqueue(encoder.encode(`event: approval\ndata: ${JSON.stringify(approvalEventToApi(event))}\n\n`));
-                });
-                approvalStream.on("error", (err) => {
-                    controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ error: String(err?.message || "watch failed") })}\n\n`));
-                    controller.close();
-                });
-                approvalStream.on("end", () => {
-                    controller.enqueue(encoder.encode("event: end\ndata: {}\n\n"));
-                    controller.close();
-                });
+                onData = (event) => {
+                    safeEnqueue(encoder.encode(`event: approval\ndata: ${JSON.stringify(approvalEventToApi(event))}\n\n`));
+                };
+                onError = (err) => {
+                    safeEnqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ error: String(err?.message || "watch failed") })}\n\n`));
+                    safeClose();
+                };
+                onEnd = () => {
+                    safeEnqueue(encoder.encode("event: end\ndata: {}\n\n"));
+                    safeClose();
+                };
+                approvalStream.on("data", onData);
+                approvalStream.on("error", onError);
+                approvalStream.on("end", onEnd);
             },
             cancel() {
+                closed = true;
+                if (approvalStream) {
+                    if (typeof approvalStream.off === "function") {
+                        if (onData)
+                            approvalStream.off("data", onData);
+                        if (onError)
+                            approvalStream.off("error", onError);
+                        if (onEnd)
+                            approvalStream.off("end", onEnd);
+                    }
+                    else if (typeof approvalStream.removeListener === "function") {
+                        if (onData)
+                            approvalStream.removeListener("data", onData);
+                        if (onError)
+                            approvalStream.removeListener("error", onError);
+                        if (onEnd)
+                            approvalStream.removeListener("end", onEnd);
+                    }
+                }
                 if (approvalStream && typeof approvalStream.cancel === "function") {
                     approvalStream.cancel();
                 }

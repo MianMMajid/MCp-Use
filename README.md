@@ -14,7 +14,7 @@ Built with `mcp-use` + Apps SDK widgets.
 
 ### 1) Observability + Control
 - `observe_session`: capture and render timeline widget
-- `replay_fork`: branch from any step and simulate forward
+- `replay_fork`: branch from any step and replay forward
 - `audit_risk`: rule + anomaly risk dashboard
 - `guard_action`: allow/block/pending with quarantine support
 - `ingest_session_event`: stream external bridge events into active trace
@@ -73,7 +73,7 @@ Built with `mcp-use` + Apps SDK widgets.
 - `backend/backendB-core-services/tool-runner/service/src/`: isolated tool execution runtime
 - `backend/backendC-saas-services/business-api/service/src/`: SaaS auth/user/billing APIs
 - `frontend/frontendD-mcp-widgets/resources/trace-timeline/widget.tsx`
-- `frontend/frontendD-mcp-widgets/resources/replay-simulator/widget.tsx`
+- `frontend/frontendD-mcp-widgets/resources/replay-review/widget.tsx`
 - `frontend/frontendD-mcp-widgets/resources/risk-dashboard/widget.tsx`
 
 ## Quick Start
@@ -83,7 +83,7 @@ npm install
 npm run dev
 ```
 
-`dev/start` now default to the full local Kubernetes simulation flow (`k8s:all`):
+`dev/start` now default to the full local Kubernetes stack flow (`k8s:all`):
 - build + deploy all workloads
 - start all service port-forwards
 - stream full-stack logs into one file
@@ -259,7 +259,7 @@ await logger.logAction({
 
 ### Hackathon Gateway Mode (9 Curated MCP Tools)
 
-Canonical startup now uses the full local Kubernetes mesh simulation:
+Canonical startup now uses the full local Kubernetes mesh stack:
 
 ```bash
 npm run hackathon:up
