@@ -90,12 +90,16 @@ const topologyEndpointApproveBtn = document.getElementById("topologyEndpointAppr
 const topologyEndpointCloseBtn = document.getElementById("topologyEndpointCloseBtn");
 
 // Admin panel DOM refs
-const toolhubProviderSelect = document.getElementById("toolhubProvider");
-const toolhubSearchInput = document.getElementById("toolhubSearch");
-const toolhubSearchBtn = document.getElementById("toolhubSearchBtn");
-const toolhubResultsBody = document.getElementById("toolhubResultsBody");
-const toolhubConnectedBody = document.getElementById("toolhubConnectedBody");
-const toolhubToolsBody = document.getElementById("toolhubToolsBody");
+const marketplaceSearchInput = document.getElementById("marketplaceSearch");
+const marketplaceSearchBtn = document.getElementById("marketplaceSearchBtn");
+const marketplaceResultsBody = document.getElementById("marketplaceResultsBody");
+const marketplaceConnectedBody = document.getElementById("marketplaceConnectedBody");
+const marketplaceToolsBody = document.getElementById("marketplaceToolsBody");
+const marketplaceDiscoverInput = document.getElementById("marketplaceDiscoverInput");
+const marketplaceDiscoverBtn = document.getElementById("marketplaceDiscoverBtn");
+const marketplaceDiscoverBody = document.getElementById("marketplaceDiscoverBody");
+const smitheryRefreshBtn = document.getElementById("smitheryRefreshBtn");
+const smitheryServersBody = document.getElementById("smitheryServersBody");
 const dispatchToolNameInput = document.getElementById("dispatchToolName");
 const dispatchToolArgsInput = document.getElementById("dispatchToolArgs");
 const dispatchToolBtn = document.getElementById("dispatchToolBtn");
@@ -111,12 +115,17 @@ const policyToolNameInput = document.getElementById("policyToolName");
 const policyPreviewBtn = document.getElementById("policyPreviewBtn");
 const policyEnforceBtn = document.getElementById("policyEnforceBtn");
 const policyResultEl = document.getElementById("policyResult");
+const policyHistoryListEl = document.getElementById("policyHistoryList");
 const settingsAuthStatusEl = document.getElementById("settingsAuthStatus");
 const settingsAuthUserEl = document.getElementById("settingsAuthUser");
 const settingsRuntimeStatusEl = document.getElementById("settingsRuntimeStatus");
 const settingsRefreshBtn = document.getElementById("settingsRefreshBtn");
 const settingsClearHistoryBtn = document.getElementById("settingsClearHistoryBtn");
 const settingsActionResultEl = document.getElementById("settingsActionResult");
+const settingsCurrentPasswordEl = document.getElementById("settingsCurrentPassword");
+const settingsNewPasswordEl = document.getElementById("settingsNewPassword");
+const settingsConfirmPasswordEl = document.getElementById("settingsConfirmPassword");
+const settingsChangePasswordBtn = document.getElementById("settingsChangePasswordBtn");
 
 const firewallQuickPromptButtons = document.querySelectorAll(".welcome-pill[data-firewall-prompt]");
 const actionTreeCanvasEl = document.getElementById("actionTreeCanvas");
@@ -162,6 +171,13 @@ const metricEls = {
 
 const TRACE_POLL_MS = 1500;
 const METRICS_POLL_MS = 10000;
+const CHAT_STREAM_TIMEOUT_MS = 90000;
+const MAX_CHAT_BUBBLES = 80;
+const MAX_CHAT_HISTORY = 40;
+const CHAT_HISTORY_TRIM_TO = 30;
+const CHAT_HISTORY_CONTEXT_SIZE = 20;
+const TIMESTAMP_GAP_MS = 2 * 60 * 1000;
+const MAX_TOPOLOGY_ALLOW_ENTRIES = 200;
 const authModule = typeof window !== "undefined" ? window.MapleAuth : undefined;
 const httpModule = typeof window !== "undefined" ? window.MapleHttp : undefined;
 const API_KEY_STORAGE_KEY = authModule?.STORAGE_KEY ?? "maple_judge_api_key";
@@ -182,25 +198,28 @@ const state = {
   ycMetrics: null,
   authenticated: false,
   runtimeStatus: null,
-  featureCapabilities: null,
-  toolhubProviders: {},
-  toolhubSearchResults: [],
-  toolhubConnectedApps: [],
-  toolhubTools: [],
+  marketplaceProviders: {},
+  marketplaceDisabled: false,
+  marketplaceSearchResults: [],
+  marketplaceConnectedApps: [],
+  marketplaceTools: [],
+  marketplaceDiscoverResults: [],
+  smitheryServers: [],
+  smitheryRegistered: [],
 };
 
 const CATEGORY_VIEWS = {
   observe: ["timeline", "live"],
   analyze: ["control", "topology"],
   govern:  ["fork", "guard"],
-  admin:   ["toolhub", "policy", "settings"],
+  admin:   ["marketplace", "policy", "settings"],
 };
 
 const VIEW_LABELS = {
   live: "Live", timeline: "Timeline", control: "Control",
   topology: "Topology",
   guard: "Guardrails", fork: "Insights",
-  toolhub: "Toolhub", policy: "Policy", settings: "Settings",
+  marketplace: "Marketplace", policy: "Policy", settings: "Settings",
 };
 
 const VIEW_TO_CATEGORY = {};
@@ -251,7 +270,7 @@ function setStatus(message, tone = "") {
   if (tone) {
     statusEl.classList.add(tone);
   }
-  statusEl.classList.toggle("hidden", tone === "ok" || !String(message ?? "").trim());
+  statusEl.classList.toggle("hidden", !String(message ?? "").trim());
 }
 
 function setDemoResult(message, tone = "") {
@@ -379,10 +398,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function escapeXml(value) {
-  return escapeHtml(value);
 }
 
 function clamp(value, min, max) {
@@ -633,7 +648,7 @@ let edgeFlowOffset = 0;
 let edgeFlowRaf = null;
 
 function tickEdgeFlow() {
-  edgeFlowOffset = (edgeFlowOffset - 1) % 1000;
+  edgeFlowOffset = ((edgeFlowOffset - 1) % 1000 + 1000) % 1000;
   if (actionTreeGraph) {
     actionTreeGraph.edges().style('line-dash-offset', edgeFlowOffset);
   }
@@ -658,12 +673,22 @@ function stopEdgeFlow() {
 
 /* ── Graph resize handling ── */
 
+const activeResizeObservers = [];
+
 function setupGraphResizeObserver(containerEl, graphInstance) {
   if (!containerEl || !graphInstance) return;
   const ro = new ResizeObserver(() => {
     graphInstance.resize();
   });
   ro.observe(containerEl);
+  activeResizeObservers.push(ro);
+}
+
+function cleanupResizeObservers() {
+  for (const ro of activeResizeObservers) {
+    ro.disconnect();
+  }
+  activeResizeObservers.length = 0;
 }
 
 function storedTopologyAllows(traceId) {
@@ -684,6 +709,12 @@ function setTopologyAllow(traceId, target) {
   const entries = new Map(storedTopologyAllows(key));
   entries.set(normalizedTarget, new Date().toISOString());
   topologyAllowStore.set(key, entries);
+
+  // Cap store size to prevent unbounded growth
+  if (topologyAllowStore.size > MAX_TOPOLOGY_ALLOW_ENTRIES) {
+    const oldest = topologyAllowStore.keys().next().value;
+    if (oldest !== undefined) topologyAllowStore.delete(oldest);
+  }
 }
 
 function updateTopologyEndpointStatus(value = "observed") {
@@ -756,10 +787,13 @@ function refreshTopologyEndpointPopupAnchor() {
   closeTopologyEndpointPopup();
 }
 
+let _approveEndpointBusy = false;
 async function approveTopologyEndpointSelection() {
+  if (_approveEndpointBusy) return;
   if (!state.currentTrace?.id || !topologyEndpointState.target) {
     return;
   }
+  _approveEndpointBusy = true;
 
   const trace = state.currentTrace;
   const target = topologyEndpointState.target;
@@ -770,27 +804,31 @@ async function approveTopologyEndpointSelection() {
     return String(contact.target ?? "").trim().toLowerCase() === target.trim().toLowerCase();
   });
 
-  // Persist to backend if we have a matching step
-  if (matchingStep) {
-    try {
-      await postJson("/api/demo/guard", {
-        traceId: trace.id,
-        stepIndex: matchingStep.index,
-        action: "allow",
-        reason: `Endpoint approved via topology map: ${target}`,
-      });
-    } catch (error) {
-      setStatus(`Failed to persist endpoint approval: ${parseErrorMessage(error)}`, "error");
+  try {
+    // Persist to backend if we have a matching step
+    if (matchingStep) {
+      try {
+        await postJson("/api/demo/guard", {
+          traceId: trace.id,
+          stepIndex: matchingStep.index,
+          action: "allow",
+          reason: `Endpoint approved via topology map: ${target}`,
+        });
+      } catch (error) {
+        setStatus(`Failed to persist endpoint approval: ${parseErrorMessage(error)}`, "error");
+      }
     }
+
+    setTopologyAllow(trace.id, target);
+    updateTopologyEndpointStatus("allowed");
+    renderTopologyMap(trace, state.currentForkContext);
+    setStatus(`Approved endpoint ${target}.`, "ok");
+
+    // Refresh to pick up persisted guard action
+    refreshTracePanels({ silent: true }).catch((error) => handleRefreshError("refresh after approval", error, true));
+  } finally {
+    _approveEndpointBusy = false;
   }
-
-  setTopologyAllow(trace.id, target);
-  updateTopologyEndpointStatus("allowed");
-  renderTopologyMap(trace, state.currentForkContext);
-  setStatus(`Approved endpoint ${target}.`, "ok");
-
-  // Refresh to pick up persisted guard action
-  refreshTracePanels({ silent: true }).catch(() => {});
 }
 
 function updateMcpSnippet() {
@@ -813,15 +851,28 @@ function updateMcpSnippet() {
   ].join("\n");
 }
 
+const FALLBACK_FETCH_TIMEOUT_MS = 15000;
+
 async function fetchJson(path) {
   if (httpModule?.fetchJson) {
     return httpModule.fetchJson(path);
   }
-  const response = await fetch(path, {
-    headers: {
-      ...headersWithKey(),
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FALLBACK_FETCH_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(path, {
+      credentials: "include",
+      signal: controller.signal,
+      headers: {
+        ...headersWithKey(),
+      },
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    throw err.name === "AbortError" ? new Error("Request timed out") : err;
+  }
+  clearTimeout(timer);
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -836,14 +887,25 @@ async function postJson(path, body) {
   if (httpModule?.postJson) {
     return httpModule.postJson(path, body);
   }
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...headersWithKey(),
-    },
-    body: JSON.stringify(body ?? {}),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FALLBACK_FETCH_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        ...headersWithKey(),
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    throw err.name === "AbortError" ? new Error("Request timed out") : err;
+  }
+  clearTimeout(timer);
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -920,7 +982,7 @@ function maybeInsertTimestamp(now) {
   if (!(firewallChatLogEl instanceof HTMLElement)) return;
   if (lastMessageTimestamp) {
     const gap = now.getTime() - lastMessageTimestamp.getTime();
-    if (gap > 2 * 60 * 1000) {
+    if (gap > TIMESTAMP_GAP_MS) {
       const divider = document.createElement("div");
       divider.className = "chat-timestamp";
       divider.textContent = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -965,7 +1027,7 @@ function appendFirewallChatMessage(role, text, options = {}) {
   bubble.innerHTML = body;
   firewallChatLogEl.appendChild(bubble);
 
-  while (firewallChatLogEl.children.length > 80) {
+  while (firewallChatLogEl.children.length > MAX_CHAT_BUBBLES) {
     firewallChatLogEl.removeChild(firewallChatLogEl.firstElementChild);
   }
 
@@ -1000,7 +1062,9 @@ function updateStreamingBubble(el, content) {
 function finalizeStreamingBubble(el, content) {
   if (!el) return;
   el.classList.remove("streaming");
+  el.classList.add("stream-done");
   el.innerHTML = escapeHtml(content).replaceAll("\n", "<br>");
+  setTimeout(() => el.classList.remove("stream-done"), 600);
 }
 
 function updateChatModeBadge() {
@@ -1010,34 +1074,13 @@ function updateChatModeBadge() {
   badge.className = `chat-mode-badge ${chatAiEnabled ? "ai" : "rules"}`;
 }
 
-function applyFeatureCapabilities(capabilities) {
-  state.featureCapabilities = capabilities ?? null;
-  const chatFeature = capabilities?.features?.chatOrchestration;
-  const openclawFeature = capabilities?.features?.openclawAgent;
-  const enabled = Boolean(chatFeature?.enabled || openclawFeature?.enabled);
-  chatAiEnabled = enabled;
-  updateChatModeBadge();
-  if (firewallChatSendBtn instanceof HTMLButtonElement) {
-    firewallChatSendBtn.disabled = !enabled;
-  }
-  if (firewallChatRefreshBtn instanceof HTMLButtonElement) {
-    firewallChatRefreshBtn.disabled = !enabled;
-  }
-}
-
 async function checkChatCapabilities() {
   try {
-    const capabilities = await fetchJson("/api/runtime/feature-capabilities");
-    applyFeatureCapabilities(capabilities);
+    const data = await fetchJson("/api/chat/capabilities");
+    chatAiEnabled = Boolean(data?.aiEnabled);
+    updateChatModeBadge();
   } catch {
-    try {
-      const data = await fetchJson("/api/chat/capabilities");
-      chatAiEnabled = Boolean(data?.aiEnabled);
-      updateChatModeBadge();
-    } catch {
-      chatAiEnabled = false;
-      updateChatModeBadge();
-    }
+    chatAiEnabled = false;
   }
 }
 
@@ -1095,6 +1138,8 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
 
   setFirewallChatBusy(true);
   let streamingEl = null;
+  const streamController = new AbortController();
+  const streamTimeout = setTimeout(() => streamController.abort(), CHAT_STREAM_TIMEOUT_MS);
   try {
     const traceId = currentTraceId();
     const sessionId =
@@ -1104,18 +1149,21 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
 
     const response = await fetch("/api/chat/stream", {
       method: "POST",
+      credentials: "include",
+      signal: streamController.signal,
       headers: {
         "Content-Type": "application/json",
         ...headersWithKey(),
       },
       body: JSON.stringify({
-        messages: chatHistory.slice(-20),
+        messages: chatHistory.slice(-CHAT_HISTORY_CONTEXT_SIZE),
         traceId: traceId || undefined,
         sessionId,
       }),
     });
 
     if (!response.ok) throw new Error(`Chat failed: ${response.status}`);
+    if (!response.body) throw new Error("Chat response has no readable body");
 
     streamingEl = createStreamingBubble();
     let fullContent = "";
@@ -1159,13 +1207,38 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
       streamingEl = null;
     }
 
-    if (chatHistory.length > 40) {
-      chatHistory = chatHistory.slice(-30);
+    if (chatHistory.length > MAX_CHAT_HISTORY) {
+      chatHistory = chatHistory.slice(-CHAT_HISTORY_TRIM_TO);
     }
   } catch (error) {
     if (streamingEl && streamingEl.parentNode) streamingEl.parentNode.removeChild(streamingEl);
-    appendFirewallChatMessage("assistant", `Chat error: ${parseErrorMessage(error)}`, { error: true });
+    streamingEl = null;
+
+    // Fallback to synchronous chat endpoint
+    try {
+      const traceId = currentTraceId();
+      const sessionId =
+        state.currentTrace && typeof state.currentTrace.sessionId === "string"
+          ? String(state.currentTrace.sessionId)
+          : undefined;
+      const fallbackResponse = await postJson("/api/firewall/chat", {
+        messages: chatHistory.slice(-CHAT_HISTORY_CONTEXT_SIZE),
+        traceId: traceId || undefined,
+        sessionId,
+      });
+      const content = fallbackResponse?.reply ?? fallbackResponse?.content ?? "";
+      if (content) {
+        appendFirewallChatMessage("assistant", content);
+        chatHistory.push({ role: "assistant", content });
+      } else {
+        appendFirewallChatMessage("assistant", "Chat error: no response from fallback.", { error: true });
+      }
+    } catch (fallbackError) {
+      const msg = streamController.signal.aborted ? "Chat request timed out." : parseErrorMessage(fallbackError);
+      appendFirewallChatMessage("assistant", `Chat error: ${msg}`, { error: true });
+    }
   } finally {
+    clearTimeout(streamTimeout);
     setFirewallChatBusy(false);
   }
 }
@@ -1266,7 +1339,7 @@ function openNodeModalWithStep(trace, step) {
     actor: step.actor,
     currentGuard: step.guardStatus,
   });
-  nodeActionModalEl.classList.remove("hidden");
+  if (nodeActionModalEl) nodeActionModalEl.classList.remove("hidden");
 }
 
 async function openNodeModalFromSelection(traceId, stepIndex) {
@@ -1322,6 +1395,8 @@ function openContextPanel(category, subView) {
       const btn = document.createElement("button");
       btn.className = `context-sub-tab${v === targetView ? " is-active" : ""}`;
       btn.type = "button";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", String(v === targetView));
       btn.dataset.subView = v;
       btn.textContent = VIEW_LABELS[v] || v;
       contextSubTabsEl.appendChild(btn);
@@ -1376,11 +1451,13 @@ function closeContextPanel() {
     contextPanelEl.setAttribute("aria-hidden", "true");
 
     // Return panels to storage after transition (only if still closed)
-    contextPanelEl.addEventListener("transitionend", () => {
+    // Use setTimeout as a reliable fallback — avoids transitionend listener leak
+    // when transitions are interrupted by rapid toggle
+    setTimeout(() => {
       if (!state.contextPanelOpen) {
         returnAllPanelsToStorage();
       }
-    }, { once: true });
+    }, 350);
   }
 
   // Restore chat + disconnect navbar
@@ -1570,7 +1647,7 @@ function restoreNavState() {
   // Handle legacy single-view hashes
   const mappedView =
     hash === "operations" ? "live"
-    : hash === "explorer" ? "evidence"
+    : hash === "explorer" ? "control"
     : hash === "replay" ? "guard"
     : hash === "chat" ? null
     : hash;
@@ -1584,21 +1661,6 @@ function restoreNavState() {
 }
 
 // Legacy wrapper
-function setView(nextView) {
-  if (!nextView) return;
-  const mappedView =
-    nextView === "operations" ? "live"
-    : nextView === "explorer" ? "evidence"
-    : nextView === "replay" ? "guard"
-    : nextView;
-
-  const category = VIEW_TO_CATEGORY[mappedView];
-  if (category) {
-    toggleCategory(category);
-    setSubView(mappedView);
-  }
-}
-
 function setFocus(nextFocus) {
   state.activeFocus = nextFocus;
   for (const button of focusButtons) {
@@ -1611,22 +1673,28 @@ function setFocus(nextFocus) {
 }
 
 function renderSessionStrip(trace) {
-  const lastStep = trace.steps[trace.steps.length - 1];
+  if (!sessionTraceIdEl || !sourceBadgeEl) return;
+  const steps = Array.isArray(trace.steps) ? trace.steps : [];
+  const lastStep = steps[steps.length - 1];
   const overallRiskScore = Number(
     trace.metadata?.overallRiskScore ??
-      Math.max(0, ...trace.steps.map((step) => Number(step.riskScore ?? 0)))
+      (steps.length ? steps.reduce((max, step) => Math.max(max, Number(step.riskScore ?? 0)), 0) : 0)
   );
 
   sessionTraceIdEl.textContent = trace.id;
-  sessionSessionIdEl.textContent = trace.sessionId;
-  sessionLastEventEl.textContent = formatTimestamp(lastStep?.timestamp ?? trace.updatedAt);
-  sessionRiskBadgeEl.className = `risk-badge ${riskClass(overallRiskScore)}`;
-  sessionRiskBadgeEl.textContent = `${overallRiskScore} (${riskLevel(overallRiskScore)})`;
+  if (sessionSessionIdEl) sessionSessionIdEl.textContent = trace.sessionId;
+  if (sessionLastEventEl) sessionLastEventEl.textContent = formatTimestamp(lastStep?.timestamp ?? trace.updatedAt);
+  if (sessionRiskBadgeEl) {
+    sessionRiskBadgeEl.className = `risk-badge ${riskClass(overallRiskScore)}`;
+    sessionRiskBadgeEl.textContent = `${overallRiskScore} (${riskLevel(overallRiskScore)})`;
+  }
 
   sourceBadgeEl.className = `source-badge source-${trace.source}`;
   sourceBadgeEl.textContent = `source=${trace.source}`;
-  sourceHintEl.textContent = sourceHint(trace);
-  sourceHintEl.classList.toggle("mock", trace.source === "mock");
+  if (sourceHintEl) {
+    sourceHintEl.textContent = sourceHint(trace);
+    sourceHintEl.classList.toggle("mock", trace.source === "mock");
+  }
 }
 
 function rowRiskClass(step) {
@@ -1655,7 +1723,7 @@ function rowClasses(step) {
 }
 
 function renderTimeline(trace) {
-  if (!trace.steps.length) {
+  if (!trace || !Array.isArray(trace.steps) || !trace.steps.length) {
     timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No events yet.</td></tr>';
     return;
   }
@@ -1795,7 +1863,7 @@ function initActionTreeGraph() {
     setupGraphResizeObserver(actionTreeCanvasEl, actionTreeGraph);
     startEdgeFlow();
   } catch (err) {
-    console.error("Failed to initialize action tree graph:", err);
+    setStatus("Action tree graph failed to initialize.", "error");
     actionTreeGraph = null;
     actionTreeCanvasEl.innerHTML = '<div class="action-tree-empty"><p>Graph failed to initialize.</p></div>';
   }
@@ -1851,12 +1919,13 @@ function renderActionTree(trace, forkContext = null) {
 }
 
 function collectGuardActions(trace) {
-  return trace.steps
+  const steps = Array.isArray(trace?.steps) ? trace.steps : [];
+  return steps
     .map((step) => {
       const reason =
         typeof step.metadata?.guardReason === "string" ? step.metadata.guardReason : "No reason provided.";
       const updatedAt =
-        typeof step.metadata?.guardUpdatedAt === "string" ? step.metadata.guardUpdatedAt : step.timestamp;
+        typeof step.metadata?.guardUpdatedAt === "string" ? step.metadata.guardUpdatedAt : (step.timestamp ?? "");
       const isAction = step.guardStatus !== "pending" || Boolean(step.metadata?.guardUpdatedAt);
 
       return {
@@ -1868,7 +1937,7 @@ function collectGuardActions(trace) {
       };
     })
     .filter((entry) => entry.isAction)
-    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    .sort((a, b) => (a.updatedAt ?? "").localeCompare(b.updatedAt ?? ""));
 }
 
 function resetLiveActionStrip() {
@@ -1944,15 +2013,15 @@ function renderLiveActionStrip(trace, forkContext = null) {
   }
 
   const overallRiskScore = Number(
-    trace.metadata?.overallRiskScore ?? Math.max(0, ...trace.steps.map((step) => Number(step.riskScore ?? 0)))
+    trace.metadata?.overallRiskScore ?? (Array.isArray(trace.steps) ? trace.steps : []).reduce((max, step) => Math.max(max, Number(step.riskScore ?? 0)), 0)
   );
-  const flagsCount = trace.steps.reduce((sum, step) => sum + (Array.isArray(step.riskFlags) ? step.riskFlags.length : 0), 0);
+  const flagsCount = (Array.isArray(trace.steps) ? trace.steps : []).reduce((sum, step) => sum + (Array.isArray(step.riskFlags) ? step.riskFlags.length : 0), 0);
   if (liveRiskBadgeEl) {
     liveRiskBadgeEl.className = `risk-badge ${riskClass(overallRiskScore)}`;
     liveRiskBadgeEl.textContent = `${overallRiskScore} (${riskLevel(overallRiskScore)})`;
   }
   if (liveRiskTextEl) {
-    liveRiskTextEl.textContent = `${flagsCount} flags across ${trace.steps.length} steps.`;
+    liveRiskTextEl.textContent = `${flagsCount} flags across ${(Array.isArray(trace.steps) ? trace.steps : []).length} steps.`;
   }
 
   const stats = state.communityStats ?? {};
@@ -2009,10 +2078,6 @@ function topologyContactForStep(step) {
   }
 
   return { target: "", surface: "internal" };
-}
-
-function topologyTargetForStep(step) {
-  return topologyContactForStep(step).target;
 }
 
 function humanizeTargetToken(value) {
@@ -2144,14 +2209,6 @@ function buildTopologySurfaceState(trace, limit = 10) {
     .slice(0, Math.max(1, limit));
 }
 
-function isFreshBlock(blockedAt) {
-  const timestamp = new Date(String(blockedAt ?? "")).valueOf();
-  if (Number.isNaN(timestamp)) {
-    return false;
-  }
-  return Date.now() - timestamp < 2300;
-}
-
 /* ── Topology graph data builder ── */
 
 function buildTopologyGraphData(trace, forkContext) {
@@ -2217,7 +2274,7 @@ function initTopologyGraph() {
     setupGraphResizeObserver(topologyMapEl, topologyGraph);
     startEdgeFlow();
   } catch (err) {
-    console.error("Failed to initialize topology graph:", err);
+    setStatus("Topology graph failed to initialize.", "error");
     topologyGraph = null;
     topologyMapEl.innerHTML = '<div class="action-tree-empty"><p>Graph failed to initialize.</p></div>';
   }
@@ -2265,16 +2322,13 @@ function renderTopologyMap(trace, forkContext = null) {
   refreshTopologyEndpointPopupAnchor();
 }
 
-function renderTopologyTouchLog(trace) {
-  void trace;
-}
-
 function renderTopologyView(trace, forkContext = null) {
   renderLiveActionStrip(trace, forkContext);
   renderTopologyMap(trace, forkContext);
 }
 
 function renderGuardLog(trace) {
+  if (!guardLogEl) return;
   const actions = collectGuardActions(trace);
 
   if (actions.length === 0) {
@@ -2294,15 +2348,21 @@ function renderGuardLog(trace) {
       .join("");
   }
 
-  if (trace.status === "quarantined") {
-    const blockedAction = actions.find((action) => action.action === "block");
-    const quarantineAt = blockedAction?.updatedAt ?? trace.updatedAt;
-    const quarantineStep = blockedAction ? ` at step #${blockedAction.stepIndex}` : "";
-    quarantineBannerEl.textContent = `Trace quarantined ${formatTimestamp(quarantineAt)}${quarantineStep}.`;
-    quarantineBannerEl.classList.remove("hidden");
-  } else {
-    quarantineBannerEl.classList.add("hidden");
-    quarantineBannerEl.textContent = "";
+  if (quarantineBannerEl) {
+    if (trace.status === "quarantined") {
+      const blockedAction = actions.find((action) => action.action === "block");
+      const quarantineAt = blockedAction?.updatedAt ?? trace.updatedAt;
+      const quarantineStep = blockedAction ? ` at step #${blockedAction.stepIndex}` : "";
+      quarantineBannerEl.textContent = `Trace quarantined ${formatTimestamp(quarantineAt)}${quarantineStep}.`;
+      quarantineBannerEl.classList.remove("hidden");
+      if (state._lastQuarantineToastTraceId !== trace.id) {
+        state._lastQuarantineToastTraceId = trace.id;
+        showToast("Quarantine Active", "This trace has been quarantined due to high-risk behavior.", "error");
+      }
+    } else {
+      quarantineBannerEl.classList.add("hidden");
+      quarantineBannerEl.textContent = "";
+    }
   }
 }
 
@@ -2325,10 +2385,10 @@ function toolOutput(step) {
 }
 
 function renderForkEmpty(message) {
-  forkMetaEl.textContent = message;
-  forkOriginalIdEl.textContent = "-";
-  forkForkedIdEl.textContent = "-";
-  forkStepIndexEl.textContent = "-";
+  if (forkMetaEl) forkMetaEl.textContent = message;
+  if (forkOriginalIdEl) forkOriginalIdEl.textContent = "-";
+  if (forkForkedIdEl) forkForkedIdEl.textContent = "-";
+  if (forkStepIndexEl) forkStepIndexEl.textContent = "-";
   forkDiffBodyEl.innerHTML = '<tr><td colspan="3" class="empty-row">No fork diff available yet.</td></tr>';
 }
 
@@ -2353,11 +2413,13 @@ async function resolveForkContext(primaryTrace) {
     return null;
   }
 
+  const forkStepCount = Array.isArray(forkTrace.steps) ? forkTrace.steps.length : -1;
   if (
     forkCache.forkId === forkTrace.id &&
     forkCache.parentId === forkTrace.parentTraceId &&
     forkCache.forkTrace &&
-    forkCache.parentTrace
+    forkCache.parentTrace &&
+    forkStepCount === (Array.isArray(forkCache.forkTrace.steps) ? forkCache.forkTrace.steps.length : -1)
   ) {
     return {
       forkTrace: forkCache.forkTrace,
@@ -2385,8 +2447,10 @@ async function renderForkDiff(primaryTrace, preloadedContext = null) {
 
   const { forkTrace, parentTrace } = context;
   const stepIndex = Number(forkTrace.forkedFromStep ?? 0);
-  const originalStep = parentTrace.steps[stepIndex];
-  const forkedStep = forkTrace.steps[stepIndex];
+  const parentSteps = Array.isArray(parentTrace.steps) ? parentTrace.steps : [];
+  const forkSteps = Array.isArray(forkTrace.steps) ? forkTrace.steps : [];
+  const originalStep = parentSteps.find((s) => s.index === stepIndex) ?? parentSteps[stepIndex];
+  const forkedStep = forkSteps.find((s) => s.index === stepIndex) ?? forkSteps[stepIndex];
 
   if (!originalStep || !forkedStep) {
     renderForkEmpty("Fork context found, but the fork step is not available.");
@@ -2421,26 +2485,28 @@ async function renderForkDiff(primaryTrace, preloadedContext = null) {
 }
 
 function renderEvidence(trace) {
-  evidenceSummaryEl.textContent = `Trace ${trace.id} from /api/traces/${trace.id}`;
-  evidenceJsonEl.textContent = JSON.stringify(trace, null, 2);
+  if (evidenceSummaryEl) evidenceSummaryEl.textContent = `Trace ${trace.id} from /api/traces/${trace.id}`;
+  if (evidenceJsonEl) evidenceJsonEl.textContent = JSON.stringify(trace, null, 2);
 }
 
 function renderExplorerMeta(trace) {
+  if (!selectedTraceInfoEl) return;
+  const steps = Array.isArray(trace.steps) ? trace.steps : [];
   const overallRiskScore = Number(
     trace.metadata?.overallRiskScore ??
-      Math.max(0, ...trace.steps.map((step) => Number(step.riskScore ?? 0)))
+      (steps.length ? steps.reduce((max, step) => Math.max(max, Number(step.riskScore ?? 0)), 0) : 0)
   );
   selectedTraceInfoEl.textContent = [
     `${trace.id} • session ${trace.sessionId}`,
     `source=${trace.source}`,
     `status=${trace.status}`,
-    `steps=${trace.steps.length}`,
+    `steps=${steps.length}`,
     `risk=${overallRiskScore} (${riskLevel(overallRiskScore)})`,
   ].join(" • ");
 }
 
 function renderExplorerSteps(trace) {
-  if (!trace.steps.length) {
+  if (!trace || !Array.isArray(trace.steps) || !trace.steps.length) {
     explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
     return;
   }
@@ -2460,6 +2526,12 @@ function renderExplorerSteps(trace) {
 }
 
 function renderStepInspector(trace, stepIndex) {
+  if (!trace || !Array.isArray(trace.steps)) {
+    stepInspectorTitleEl.textContent = "Step Inspector";
+    stepInspectorSummaryEl.textContent = "No step selected";
+    stepInspectorJsonEl.textContent = "{}";
+    return;
+  }
   const step = trace.steps.find((candidate) => candidate.index === stepIndex);
   if (!step) {
     stepInspectorTitleEl.textContent = "Step Inspector";
@@ -2524,7 +2596,7 @@ function renderTraceList() {
       const source = String(summary.source ?? "unknown");
       const status = String(summary.status ?? "unknown");
 
-      return `<button class="trace-item${selected}" type="button" data-trace-id="${escapeHtml(traceId)}">
+      return `<div class="trace-item-row"><button class="trace-item${selected}" type="button" data-trace-id="${escapeHtml(traceId)}">
         <div class="trace-item-head">
           <span class="trace-item-title">${escapeHtml(traceId)}</span>
           <span class="risk-badge ${riskClass(score)}">${escapeHtml(score)}</span>
@@ -2534,7 +2606,7 @@ function renderTraceList() {
           <span>${escapeHtml(status)}</span>
           <span>${escapeHtml(formatTimestamp(String(summary.updatedAt ?? "")))}</span>
         </div>
-      </button>`;
+      </button><button class="trace-delete-btn" type="button" data-delete-trace="${escapeHtml(traceId)}" aria-label="Delete trace ${escapeHtml(traceId)}" title="Delete trace">&times;</button></div>`;
     })
     .join("");
 }
@@ -2609,44 +2681,40 @@ function summarizeBrief(payload) {
 
 async function loadYcBrief() {
   const payload = await fetchJson(`/api/yc/brief?focus=${encodeURIComponent(state.activeFocus)}`);
-  briefSummaryEl.textContent = summarizeBrief(payload);
-  briefJsonEl.textContent = JSON.stringify(payload, null, 2);
+  if (briefSummaryEl) briefSummaryEl.textContent = summarizeBrief(payload);
+  if (briefJsonEl) briefJsonEl.textContent = JSON.stringify(payload, null, 2);
 }
 
 function clearLivePanels(message) {
-  sourceBadgeEl.className = "source-badge source-unknown";
-  sourceBadgeEl.textContent = "source=unknown";
-  sourceHintEl.textContent = message;
-  sourceHintEl.classList.remove("mock");
-  sessionTraceIdEl.textContent = "-";
-  sessionSessionIdEl.textContent = "-";
-  sessionLastEventEl.textContent = "-";
-  sessionRiskBadgeEl.className = "risk-badge risk-low";
-  sessionRiskBadgeEl.textContent = "0 (low)";
+  if (sourceBadgeEl) { sourceBadgeEl.className = "source-badge source-unknown"; sourceBadgeEl.textContent = "source=unknown"; }
+  if (sourceHintEl) { sourceHintEl.textContent = message; sourceHintEl.classList.remove("mock"); }
+  if (sessionTraceIdEl) sessionTraceIdEl.textContent = "-";
+  if (sessionSessionIdEl) sessionSessionIdEl.textContent = "-";
+  if (sessionLastEventEl) sessionLastEventEl.textContent = "-";
+  if (sessionRiskBadgeEl) { sessionRiskBadgeEl.className = "risk-badge risk-low"; sessionRiskBadgeEl.textContent = "0 (low)"; }
 
   if (actionTreeGraph) {
     actionTreeGraph.elements().remove();
-  } else {
+  } else if (actionTreeCanvasEl) {
     actionTreeCanvasEl.innerHTML = '<div class="action-tree-empty">' + LOADING_KIRBY_SVG + '<p>No trace loaded.</p></div>';
   }
 
-  timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No trace loaded.</td></tr>';
+  if (timelineBodyEl) timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No trace loaded.</td></tr>';
   renderTopologyView(null, null);
 
-  guardLogEl.innerHTML = '<div class="empty-row">' + LOADING_KIRBY_SVG + '<p>No guard actions recorded yet.</p></div>';
-  quarantineBannerEl.classList.add("hidden");
-  quarantineBannerEl.textContent = "";
+  if (guardLogEl) guardLogEl.innerHTML = '<div class="empty-row">' + LOADING_KIRBY_SVG + '<p>No guard actions recorded yet.</p></div>';
+  if (quarantineBannerEl) { quarantineBannerEl.classList.add("hidden"); quarantineBannerEl.textContent = ""; }
 
   renderForkEmpty("No forked trace detected yet.");
 
-  selectedTraceInfoEl.textContent = "Select a trace to inspect event-by-event details.";
-  explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
-  stepInspectorTitleEl.textContent = "Step Inspector";
-  stepInspectorSummaryEl.textContent = "No step selected";
-  stepInspectorJsonEl.textContent = "{}";
+  if (selectedTraceInfoEl) selectedTraceInfoEl.textContent = "Select a trace to inspect event-by-event details.";
+  if (explorerStepListEl) explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
+  if (stepInspectorTitleEl) stepInspectorTitleEl.textContent = "Step Inspector";
+  if (stepInspectorSummaryEl) stepInspectorSummaryEl.textContent = "No step selected";
+  if (stepInspectorJsonEl) stepInspectorJsonEl.textContent = "{}";
 
-  evidenceSummaryEl.textContent = "No trace payload loaded.";
-  evidenceJsonEl.textContent = "{}";
+  if (evidenceSummaryEl) evidenceSummaryEl.textContent = "No trace payload loaded.";
+  if (evidenceJsonEl) evidenceJsonEl.textContent = "{}";
   state.currentTrace = null;
   state.currentForkContext = null;
   state.firewallContext = null;
@@ -2660,6 +2728,34 @@ function parseErrorMessage(error) {
     return error.message;
   }
   return String(error ?? "Unknown error");
+}
+
+/* ── Toast notification system ── */
+const toastContainerEl = document.getElementById("toastContainer");
+const TOAST_DURATION_MS = 5000;
+const TOAST_ICONS = { ok: "\u2705", warn: "\u26A0\uFE0F", error: "\u274C", info: "\u2139\uFE0F" };
+
+function showToast(title, message, type = "info") {
+  if (!toastContainerEl) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `
+    <span class="toast-icon">${TOAST_ICONS[type] ?? TOAST_ICONS.info}</span>
+    <div class="toast-body">
+      <div class="toast-title">${escapeHtml(title)}</div>
+      <div class="toast-message">${escapeHtml(message)}</div>
+    </div>
+    <button class="toast-close" type="button" aria-label="Dismiss">&times;</button>
+  `;
+  toast.querySelector(".toast-close").addEventListener("click", () => dismissToast(toast));
+  toastContainerEl.appendChild(toast);
+  setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
+}
+
+function dismissToast(toast) {
+  if (!toast || !toast.parentNode) return;
+  toast.classList.add("toast-exit");
+  setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 200);
 }
 
 function handleRefreshError(context, error, silent) {
@@ -2774,7 +2870,7 @@ async function refreshTracePanels({ silent = false } = {}) {
     renderExplorerMeta(trace);
     renderExplorerSteps(trace);
     renderStepInspector(trace, state.selectedStepIndex);
-    await loadFirewallState({ silent: true }).catch(() => {});
+    await loadFirewallState({ silent: true }).catch((error) => handleRefreshError("load firewall state", error, true));
 
     if (!silent) {
       setStatus("Connected.", "ok");
@@ -2820,7 +2916,7 @@ function startPolling() {
   }, TRACE_POLL_MS);
 
   metricsPollTimer = window.setInterval(() => {
-    refreshMetrics({ silent: true }).catch(() => {});
+    refreshMetrics({ silent: true }).catch((error) => handleRefreshError("poll metrics", error, true));
   }, METRICS_POLL_MS);
 }
 
@@ -2841,21 +2937,218 @@ async function loadBridgeSessions() {
   }
 }
 
-/* ── Admin: Toolhub handlers ── */
+/* ── Admin: Marketplace handlers ── */
 
-async function refreshToolhubProviders() {
-  // Toolhub execution is disabled in hackathon mode; tab is repurposed to show fixed local tools.
-  state.toolhubProviders = {
-    hackathon: {
-      enabled: true,
-      source: "local_downstream_apps",
-    },
-  };
+async function discoverMarketplaceServers() {
+  const query = marketplaceDiscoverInput?.value?.trim() ?? "";
+  if (!query) {
+    setStatus("Enter a search term to discover MCP servers.", "warn");
+    return;
+  }
+  if (marketplaceDiscoverBtn) marketplaceDiscoverBtn.disabled = true;
+  try {
+    const data = await fetchJson(`/api/marketplace/search?q=${encodeURIComponent(query)}`);
+    const servers = Array.isArray(data?.results) ? data.results : [];
+    state.marketplaceDiscoverResults = servers;
+    renderMarketplaceDiscover();
+  } catch (err) {
+    const msg = parseErrorMessage(err);
+    if (msg.includes("403")) {
+      setStatus("Marketplace discovery is disabled in this build.", "error");
+    } else {
+      setStatus(`Marketplace search failed: ${msg}`, "error");
+    }
+    state.marketplaceDiscoverResults = [];
+    renderMarketplaceDiscover();
+  } finally {
+    if (marketplaceDiscoverBtn) marketplaceDiscoverBtn.disabled = false;
+  }
 }
 
-function filterToolhubTools(query) {
+function renderMarketplaceDiscover() {
+  if (!marketplaceDiscoverBody) return;
+  const results = Array.isArray(state.marketplaceDiscoverResults) ? state.marketplaceDiscoverResults : [];
+  if (!results.length) {
+    marketplaceDiscoverBody.innerHTML = `<tr><td colspan="4" class="empty-row">No servers found.</td></tr>`;
+    return;
+  }
+  marketplaceDiscoverBody.innerHTML = results.map((server, i) => `
+    <tr>
+      <td class="mono">${escapeHtml(server.name ?? server.qualifiedName ?? "-")}</td>
+      <td>${escapeHtml(server.provider ?? "-")}</td>
+      <td>${escapeHtml(trim(server.description ?? "-", 80))}</td>
+      <td><button type="button" class="demo-btn" data-connect-idx="${i}" aria-label="Connect ${escapeHtml(server.name ?? "server")}">Connect</button></td>
+    </tr>
+  `).join("");
+
+  marketplaceDiscoverBody.querySelectorAll("[data-connect-idx]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-connect-idx"), 10);
+      const server = state.marketplaceDiscoverResults[idx];
+      if (!server) return;
+      btn.disabled = true;
+      btn.textContent = "Connecting...";
+      try {
+        await postJson("/api/marketplace/connect", {
+          provider: server.provider ?? "smithery",
+          id: server.qualifiedName ?? server.id ?? server.name,
+        });
+        btn.textContent = "Connected";
+        setStatus(`Connected to ${server.name ?? "server"}.`, "ok");
+        await refreshMarketplaceConnected();
+        await refreshMarketplaceTools();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Connect";
+        const msg = parseErrorMessage(err);
+        if (msg.includes("403")) {
+          setStatus("Marketplace is disabled in this build.", "error");
+        } else {
+          setStatus(`Connect failed: ${msg}`, "error");
+        }
+      }
+    });
+  });
+}
+
+async function refreshSmitheryServers() {
+  if (smitheryRefreshBtn) smitheryRefreshBtn.disabled = true;
+  try {
+    const data = await fetchJson("/api/smithery/servers");
+    state.smitheryServers = Array.isArray(data?.servers) ? data.servers : [];
+    const regData = await fetchJson("/api/smithery/downstream/registered");
+    state.smitheryRegistered = Array.isArray(regData?.apps) ? regData.apps : [];
+    renderSmitheryServers();
+  } catch (err) {
+    const msg = parseErrorMessage(err);
+    if (msg.includes("403")) {
+      setStatus("Smithery integration is not available.", "error");
+    } else {
+      setStatus(`Smithery refresh failed: ${msg}`, "error");
+    }
+    state.smitheryServers = [];
+    state.smitheryRegistered = [];
+    renderSmitheryServers();
+  } finally {
+    if (smitheryRefreshBtn) smitheryRefreshBtn.disabled = false;
+  }
+}
+
+function renderSmitheryServers() {
+  if (!smitheryServersBody) return;
+  const servers = Array.isArray(state.smitheryServers) ? state.smitheryServers : [];
+  const registered = new Set((state.smitheryRegistered ?? []).map((a) => a.qualifiedName ?? a.id));
+
+  if (!servers.length) {
+    smitheryServersBody.innerHTML = `<tr><td colspan="4" class="empty-row">No Smithery servers found.</td></tr>`;
+    return;
+  }
+
+  smitheryServersBody.innerHTML = servers.map((server, i) => {
+    const isRegistered = registered.has(server.qualifiedName ?? server.id);
+    return `
+      <tr>
+        <td class="mono">${escapeHtml(server.qualifiedName ?? server.name ?? "-")}</td>
+        <td>${escapeHtml(trim(server.description ?? "-", 80))}</td>
+        <td>${isRegistered ? '<span class="chip chip-ok">Registered</span>' : '<span class="chip">Available</span>'}</td>
+        <td>${isRegistered
+          ? `<button type="button" class="demo-btn warn" data-smithery-unreg="${i}" aria-label="Unregister ${escapeHtml(server.name ?? "server")}">Unregister</button>`
+          : `<button type="button" class="demo-btn" data-smithery-reg="${i}" aria-label="Register ${escapeHtml(server.name ?? "server")}">Register</button>`
+        }</td>
+      </tr>
+    `;
+  }).join("");
+
+  smitheryServersBody.querySelectorAll("[data-smithery-reg]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-smithery-reg"), 10);
+      const server = state.smitheryServers[idx];
+      if (!server) return;
+      btn.disabled = true;
+      btn.textContent = "Registering...";
+      try {
+        await postJson("/api/smithery/downstream/register", {
+          qualifiedName: server.qualifiedName ?? server.id ?? server.name,
+        });
+        setStatus(`Registered Smithery server: ${server.name ?? server.qualifiedName}.`, "ok");
+        await refreshSmitheryServers();
+        await refreshMarketplaceConnected();
+        await refreshMarketplaceTools();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Register";
+        setStatus(`Register failed: ${parseErrorMessage(err)}`, "error");
+      }
+    });
+  });
+
+  smitheryServersBody.querySelectorAll("[data-smithery-unreg]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.getAttribute("data-smithery-unreg"), 10);
+      const server = state.smitheryServers[idx];
+      if (!server) return;
+      if (!window.confirm("Unregister Smithery server \"" + String(server.name ?? server.qualifiedName ?? "").slice(0, 60) + "\"?")) return;
+      btn.disabled = true;
+      btn.textContent = "Removing...";
+      try {
+        await postJson("/api/smithery/downstream/unregister", {
+          qualifiedName: server.qualifiedName ?? server.id ?? server.name,
+        });
+        setStatus(`Unregistered Smithery server: ${server.name ?? server.qualifiedName}.`, "ok");
+        await refreshSmitheryServers();
+        await refreshMarketplaceConnected();
+        await refreshMarketplaceTools();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Unregister";
+        setStatus(`Unregister failed: ${parseErrorMessage(err)}`, "error");
+      }
+    });
+  });
+}
+
+async function refreshMarketplaceProviders() {
+  try {
+    const data = await fetchJson("/api/marketplace/providers");
+    state.marketplaceProviders = data?.providers ?? {};
+    state.marketplaceDisabled = false;
+  } catch (err) {
+    const is403 = String(err?.message ?? "").includes("403");
+    state.marketplaceDisabled = is403;
+    // Fallback to local-only on 403 or network error
+    state.marketplaceProviders = {
+      local: {
+        enabled: true,
+        source: "local_downstream_apps",
+      },
+    };
+  }
+  updateMarketplaceDisabledState();
+}
+
+function updateMarketplaceDisabledState() {
+  const panel = document.querySelector(".marketplace-panel");
+  if (!panel) return;
+  const controls = panel.querySelector(".marketplace-controls");
+  const sections = panel.querySelectorAll(".marketplace-section");
+
+  let banner = panel.querySelector(".marketplace-disabled-banner");
+  if (state.marketplaceDisabled) {
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "marketplace-disabled-banner";
+      banner.setAttribute("role", "alert");
+      banner.textContent = "Marketplace is disabled in this build. Local tools are shown below.";
+      if (controls && controls.parentNode) controls.parentNode.insertBefore(banner, controls);
+    }
+  } else if (banner) {
+    banner.remove();
+  }
+}
+
+function filterMarketplaceTools(query) {
   const normalized = String(query ?? "").trim().toLowerCase();
-  const tools = Array.isArray(state.toolhubTools) ? state.toolhubTools : [];
+  const tools = Array.isArray(state.marketplaceTools) ? state.marketplaceTools : [];
   if (!normalized) {
     return tools;
   }
@@ -2871,23 +3164,28 @@ function filterToolhubTools(query) {
   });
 }
 
-async function searchToolhub() {
-  const query = toolhubSearchInput?.value?.trim() ?? "";
-  if (!state.toolhubTools.length) {
-    await refreshToolhubTools();
+async function searchMarketplace() {
+  const query = marketplaceSearchInput?.value?.trim() ?? "";
+  if (marketplaceSearchBtn) marketplaceSearchBtn.disabled = true;
+  try {
+    if (!state.marketplaceTools.length) {
+      await refreshMarketplaceTools();
+    }
+    state.marketplaceSearchResults = filterMarketplaceTools(query);
+    renderMarketplaceResults();
+  } finally {
+    if (marketplaceSearchBtn) marketplaceSearchBtn.disabled = false;
   }
-  state.toolhubSearchResults = filterToolhubTools(query);
-  renderToolhubResults();
 }
 
-function renderToolhubResults() {
-  if (!toolhubResultsBody) return;
-  const results = Array.isArray(state.toolhubSearchResults) ? state.toolhubSearchResults : [];
+function renderMarketplaceResults() {
+  if (!marketplaceResultsBody) return;
+  const results = Array.isArray(state.marketplaceSearchResults) ? state.marketplaceSearchResults : [];
   if (!results.length) {
-    toolhubResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No installed tools found.</td></tr>`;
+    marketplaceResultsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No installed tools found.</td></tr>`;
     return;
   }
-  toolhubResultsBody.innerHTML = results.map((r) => `
+  marketplaceResultsBody.innerHTML = results.map((r) => `
     <tr>
       <td class="mono">${escapeHtml(r.name ?? "-")}</td>
       <td class="mono">${escapeHtml(shortId(r.appId ?? "-", 16))}</td>
@@ -2896,7 +3194,7 @@ function renderToolhubResults() {
     </tr>
   `).join("");
 
-  toolhubResultsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
+  marketplaceResultsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const name = btn.getAttribute("data-dispatch-tool");
       const appId = btn.getAttribute("data-dispatch-app") ?? "";
@@ -2908,51 +3206,73 @@ function renderToolhubResults() {
   });
 }
 
-async function connectToolhubApp(serverId, provider) {
-  setStatus("Toolhub connect is disabled in canonical hackathon mode.", "error");
-}
-
-async function refreshToolhubConnected() {
+async function refreshMarketplaceConnected() {
   try {
-    const data = await httpModule.fetchJson("/api/downstream/apps");
+    const data = await fetchJson("/api/downstream/apps");
     const apps = Array.isArray(data?.apps) ? data.apps : [];
-    state.toolhubConnectedApps = apps.filter((app) => app?.enabled !== false);
-    renderToolhubConnected();
+    state.marketplaceConnectedApps = apps.filter((app) => app?.enabled !== false);
+    renderMarketplaceConnected();
   } catch {
-    state.toolhubConnectedApps = [];
-    renderToolhubConnected();
+    state.marketplaceConnectedApps = [];
+    renderMarketplaceConnected();
   }
 }
 
-function renderToolhubConnected() {
-  if (!toolhubConnectedBody) return;
-  const apps = state.toolhubConnectedApps;
+function renderMarketplaceConnected() {
+  if (!marketplaceConnectedBody) return;
+  const apps = state.marketplaceConnectedApps;
   if (!apps.length) {
-    toolhubConnectedBody.innerHTML = `<tr><td colspan="4" class="empty-row">No connected apps.</td></tr>`;
+    marketplaceConnectedBody.innerHTML = `<tr><td colspan="5" class="empty-row">No connected apps.</td></tr>`;
     return;
   }
-  toolhubConnectedBody.innerHTML = apps.map((app) => `
+  marketplaceConnectedBody.innerHTML = apps.map((app) => `
     <tr>
       <td class="mono">${escapeHtml(shortId(app.id ?? "-", 16))}</td>
       <td>${escapeHtml(app.name ?? "-")}</td>
       <td class="mono">${escapeHtml(trim(app.mcpUrl ?? "-", 50))}</td>
       <td>${escapeHtml(app.id === "toolhub" ? "route-locked" : "available")}</td>
+      <td>${app.id === "toolhub" ? "" : `<button type="button" class="demo-btn" data-disconnect-app="${escapeHtml(app.id ?? "")}" aria-label="Disconnect ${escapeHtml(app.name ?? "app")}">Disconnect</button>`}</td>
     </tr>
   `).join("");
+
+  marketplaceConnectedBody.querySelectorAll("[data-disconnect-app]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const appId = btn.getAttribute("data-disconnect-app");
+      if (!appId) return;
+      const appName = btn.closest("tr")?.children[1]?.textContent ?? appId;
+      if (!window.confirm("Disconnect downstream app \"" + String(appName).slice(0, 60) + "\"? This will remove its tools from the firewall.")) return;
+      disconnectMarketplaceApp(appId);
+    });
+  });
 }
 
-async function disconnectToolhubApp(appId) {
-  setStatus("Toolhub disconnect is disabled in canonical hackathon mode.", "error");
-}
-
-async function refreshToolhubTools() {
+async function disconnectMarketplaceApp(appId) {
   try {
-    let apps = Array.isArray(state.toolhubConnectedApps) ? state.toolhubConnectedApps : [];
+    await postJson("/api/marketplace/disconnect", { appId });
+    setStatus("Marketplace app disconnected.", "ok");
+    showToast("App Disconnected", `Marketplace app "${appId}" has been disconnected.`, "ok");
+    await refreshMarketplaceConnected();
+    await refreshMarketplaceTools();
+  } catch (err) {
+    const msg = String(err?.message ?? err);
+    if (msg.includes("403")) {
+      setStatus("Marketplace is disabled in this build.", "error");
+    } else if (msg.includes("404")) {
+      setStatus("App not found or already disconnected.", "error");
+    } else {
+      setStatus(`Marketplace disconnect failed: ${msg}`, "error");
+    }
+  }
+}
+
+async function refreshMarketplaceTools() {
+  try {
+    let apps = Array.isArray(state.marketplaceConnectedApps) ? state.marketplaceConnectedApps : [];
     if (!apps.length) {
-      const connected = await httpModule.fetchJson("/api/downstream/apps");
+      const connected = await fetchJson("/api/downstream/apps");
       apps = Array.isArray(connected.apps) ? connected.apps : [];
-      state.toolhubConnectedApps = apps;
-      renderToolhubConnected();
+      state.marketplaceConnectedApps = apps;
+      renderMarketplaceConnected();
     }
 
     const collected = [];
@@ -2962,7 +3282,7 @@ async function refreshToolhubTools() {
         continue;
       }
       try {
-        const data = await httpModule.fetchJson(
+        const data = await fetchJson(
           `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
         );
         const tools = Array.isArray(data?.tools) ? data.tools : [];
@@ -2977,27 +3297,27 @@ async function refreshToolhubTools() {
       }
     }
 
-    state.toolhubTools = collected;
-    const query = toolhubSearchInput?.value?.trim() ?? "";
-    state.toolhubSearchResults = filterToolhubTools(query);
-    renderToolhubResults();
-    renderToolhubTools();
+    state.marketplaceTools = collected;
+    const query = marketplaceSearchInput?.value?.trim() ?? "";
+    state.marketplaceSearchResults = filterMarketplaceTools(query);
+    renderMarketplaceResults();
+    renderMarketplaceTools();
   } catch {
-    state.toolhubTools = [];
-    state.toolhubSearchResults = [];
-    renderToolhubResults();
-    renderToolhubTools();
+    state.marketplaceTools = [];
+    state.marketplaceSearchResults = [];
+    renderMarketplaceResults();
+    renderMarketplaceTools();
   }
 }
 
-function renderToolhubTools() {
-  if (!toolhubToolsBody) return;
-  const tools = state.toolhubTools;
+function renderMarketplaceTools() {
+  if (!marketplaceToolsBody) return;
+  const tools = state.marketplaceTools;
   if (!tools.length) {
-    toolhubToolsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>`;
+    marketplaceToolsBody.innerHTML = `<tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>`;
     return;
   }
-  toolhubToolsBody.innerHTML = tools.map((tool) => `
+  marketplaceToolsBody.innerHTML = tools.map((tool) => `
     <tr>
       <td class="mono">${escapeHtml(tool.name ?? "-")}</td>
       <td class="mono">${escapeHtml(shortId(tool.appId ?? "-", 16))}</td>
@@ -3006,7 +3326,7 @@ function renderToolhubTools() {
     </tr>
   `).join("");
 
-  toolhubToolsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
+  marketplaceToolsBody.querySelectorAll("[data-dispatch-tool]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const name = btn.getAttribute("data-dispatch-tool");
       const appId = btn.getAttribute("data-dispatch-app") ?? "";
@@ -3038,16 +3358,20 @@ async function dispatchTool() {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: "Invalid JSON arguments." }, null, 2);
     return;
   }
+  if (dispatchToolBtn) dispatchToolBtn.disabled = true;
+  if (dispatchResultEl) dispatchResultEl.textContent = "Dispatching...";
   try {
     const body = {
       toolName,
       arguments: args,
       ...(selectedAppId && !routeLockEnabled ? { appId: selectedAppId } : {}),
     };
-    const result = await httpModule.postJson("/api/downstream/dispatch", body);
+    const result = await postJson("/api/downstream/dispatch", body);
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
-    if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+    if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
+  } finally {
+    if (dispatchToolBtn) dispatchToolBtn.disabled = false;
   }
 }
 
@@ -3064,6 +3388,23 @@ function buildPolicyStep() {
   };
 }
 
+function appendPolicyHistory(mode, result) {
+  if (!policyHistoryListEl) return;
+  const isEmpty = policyHistoryListEl.querySelector(".empty-row");
+  if (isEmpty) isEmpty.remove();
+  const entry = document.createElement("div");
+  entry.className = "policy-history-entry";
+  const time = new Date().toLocaleTimeString();
+  const decision = result?.decision ?? result?.error ?? "unknown";
+  const action = result?.action ?? "-";
+  entry.innerHTML = `<span class="mono" style="font-size:0.78rem;color:var(--muted)">${escapeHtml(time)}</span> `
+    + `<span class="chip">${escapeHtml(mode)}</span> `
+    + `<strong>${escapeHtml(String(decision))}</strong> `
+    + `<span class="mono" style="font-size:0.8rem">${escapeHtml(String(action))}</span>`;
+  entry.style.cssText = "padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.85rem;";
+  policyHistoryListEl.prepend(entry);
+}
+
 async function previewPolicyDecision() {
   const step = buildPolicyStep();
   const body = {
@@ -3072,11 +3413,17 @@ async function previewPolicyDecision() {
     sessionId: policySessionIdInput?.value?.trim() || undefined,
     mode: "preview",
   };
+  if (policyPreviewBtn) policyPreviewBtn.disabled = true;
   try {
-    const result = await httpModule.postJson("/api/firewall/decision", body);
+    const result = await postJson("/api/firewall/decision", body);
     if (policyResultEl) policyResultEl.textContent = JSON.stringify(result, null, 2);
+    appendPolicyHistory("preview", result);
   } catch (error) {
-    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+    const errObj = { error: parseErrorMessage(error) };
+    if (policyResultEl) policyResultEl.textContent = JSON.stringify(errObj, null, 2);
+    appendPolicyHistory("preview", errObj);
+  } finally {
+    if (policyPreviewBtn) policyPreviewBtn.disabled = false;
   }
 }
 
@@ -3088,11 +3435,17 @@ async function enforcePolicyDecision() {
     sessionId: policySessionIdInput?.value?.trim() || undefined,
     mode: "enforce",
   };
+  if (policyEnforceBtn) policyEnforceBtn.disabled = true;
   try {
-    const result = await httpModule.postJson("/api/firewall/decision", body);
+    const result = await postJson("/api/firewall/decision", body);
     if (policyResultEl) policyResultEl.textContent = JSON.stringify(result, null, 2);
+    appendPolicyHistory("enforce", result);
   } catch (error) {
-    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+    const errObj = { error: parseErrorMessage(error) };
+    if (policyResultEl) policyResultEl.textContent = JSON.stringify(errObj, null, 2);
+    appendPolicyHistory("enforce", errObj);
+  } finally {
+    if (policyEnforceBtn) policyEnforceBtn.disabled = false;
   }
 }
 
@@ -3101,7 +3454,7 @@ async function enforcePolicyDecision() {
 async function refreshSettingsPanel() {
   // Auth info
   try {
-    const authData = await httpModule.fetchJson("/api/auth/me");
+    const authData = await fetchJson("/api/auth/me");
     if (settingsAuthStatusEl) {
       settingsAuthStatusEl.textContent = authData.authenticated ? "Authenticated" : "Not authenticated";
     }
@@ -3115,41 +3468,10 @@ async function refreshSettingsPanel() {
 
   // Runtime status
   try {
-    const [runtime, capabilities] = await Promise.all([
-      httpModule.fetchJson("/api/runtime/status"),
-      httpModule.fetchJson("/api/runtime/feature-capabilities"),
-    ]);
-    const journeyChecks = await Promise.all([
-      probeFeatureEndpoint("/api/openclaw/agent/status"),
-      probeFeatureEndpoint("/api/openclaw/agent/turn", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      }),
-      probeFeatureEndpoint("/api/openclaw/agent/longform", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      }),
-      probeFeatureEndpoint("/api/hitl/approvals?limit=1"),
-      probeFeatureEndpoint("/api/billing/subscription"),
-      probeFeatureEndpoint("/api/org"),
-      probeFeatureEndpoint("/api/runtime/logs?limit=5"),
-      probeFeatureEndpoint("/api/traces?limit=1"),
-      probeFeatureEndpoint("/api/tools/registry"),
-    ]);
+    const runtime = await fetchJson("/api/runtime/status");
     state.runtimeStatus = runtime;
-    applyFeatureCapabilities(capabilities);
     if (settingsRuntimeStatusEl) {
-      settingsRuntimeStatusEl.textContent = JSON.stringify(
-        {
-          runtime,
-          capabilities,
-          journeyChecks,
-        },
-        null,
-        2
-      );
+      settingsRuntimeStatusEl.textContent = JSON.stringify(runtime, null, 2);
     }
   } catch {
     if (settingsRuntimeStatusEl) settingsRuntimeStatusEl.textContent = "{}";
@@ -3163,65 +3485,57 @@ function setSettingsActionResult(message, tone = "") {
   if (tone) settingsActionResultEl.classList.add(tone);
 }
 
-async function probeFeatureEndpoint(path, init = {}) {
-  const requestMethod = String(init.method ?? "GET").toUpperCase();
-  const headers = {
-    ...headersWithKey(),
-    ...(init.headers && typeof init.headers === "object" ? init.headers : {}),
-  };
-  try {
-    const response = await fetch(path, {
-      method: requestMethod,
-      credentials: "include",
-      headers,
-      body: init.body,
-    });
-    let payload = {};
-    try {
-      payload = await response.json();
-    } catch {
-      payload = {};
-    }
-    return {
-      path,
-      method: requestMethod,
-      ok: response.ok || response.status === 400,
-      status: response.status,
-      error:
-        typeof payload?.error === "string"
-          ? payload.error
-          : typeof payload?.reason === "string"
-            ? payload.reason
-            : "",
-    };
-  } catch (error) {
-    return {
-      path,
-      ok: false,
-      status: 0,
-      error: parseErrorMessage(error),
-    };
-  }
-}
-
 async function clearTraceHistory() {
   if (!confirm("Clear all trace history? This cannot be undone.")) {
     return;
   }
   try {
-    const result = await httpModule.postJson("/api/traces/clear");
+    const result = await postJson("/api/traces/clear");
     setSettingsActionResult(`Cleared ${result.removed ?? 0} traces.`, "ok");
+    showToast("History Cleared", `Removed ${result.removed ?? 0} traces.`, "ok");
     await refreshTracePanels();
   } catch (error) {
-    setSettingsActionResult(`Clear failed: ${error.message}`, "error");
+    setSettingsActionResult(`Clear failed: ${parseErrorMessage(error)}`, "error");
+  }
+}
+
+async function changePassword() {
+  const current = settingsCurrentPasswordEl?.value ?? "";
+  const newPass = settingsNewPasswordEl?.value ?? "";
+  const confirmPw = settingsConfirmPasswordEl?.value ?? "";
+
+  if (!current) {
+    setSettingsActionResult("Enter your current password.", "error");
+    return;
+  }
+  if (newPass.length < 8) {
+    setSettingsActionResult("New password must be at least 8 characters.", "error");
+    return;
+  }
+  if (newPass !== confirmPw) {
+    setSettingsActionResult("New passwords do not match.", "error");
+    return;
+  }
+
+  if (settingsChangePasswordBtn) settingsChangePasswordBtn.disabled = true;
+  try {
+    await postJson("/api/auth/change-password", { currentPassword: current, newPassword: newPass });
+    setSettingsActionResult("Password updated successfully.", "ok");
+    if (settingsCurrentPasswordEl) settingsCurrentPasswordEl.value = "";
+    if (settingsNewPasswordEl) settingsNewPasswordEl.value = "";
+    if (settingsConfirmPasswordEl) settingsConfirmPasswordEl.value = "";
+  } catch (err) {
+    setSettingsActionResult(`Password change failed: ${parseErrorMessage(err)}`, "error");
+  } finally {
+    if (settingsChangePasswordBtn) settingsChangePasswordBtn.disabled = false;
   }
 }
 
 async function refreshAdminPanels() {
   await Promise.allSettled([
-    refreshToolhubProviders(),
-    refreshToolhubConnected(),
-    refreshToolhubTools(),
+    refreshMarketplaceProviders(),
+    refreshMarketplaceConnected(),
+    refreshMarketplaceTools(),
     refreshSettingsPanel(),
   ]);
 }
@@ -3277,7 +3591,7 @@ function modalTraceIdOrCurrent() {
   if (nodeModalState.traceId) {
     return String(nodeModalState.traceId);
   }
-  return "";
+  return currentTraceId();
 }
 
 function parseCommaTags(value) {
@@ -3605,7 +3919,7 @@ async function runNodeShare() {
     objective,
     tags,
   });
-  await refreshMetrics({ silent: true }).catch(() => {});
+  await refreshMetrics({ silent: true }).catch((error) => handleRefreshError("refresh after share", error, true));
   setNodeModalOutput(payload, "share_trace_anon");
   setNodeModalStatus(`Shared trace ${payload.sharedTraceId} with anonymization.`, "ok");
 }
@@ -3627,7 +3941,7 @@ async function runNodeSuggest() {
     limit: 3,
     minConfidence: 0.4,
   });
-  await refreshMetrics({ silent: true }).catch(() => {});
+  await refreshMetrics({ silent: true }).catch((error) => handleRefreshError("refresh after suggest", error, true));
   setNodeModalOutput(payload, "suggest_evolved_skills");
   setNodeModalStatus(`Generated ${payload.count} evolved skill suggestions.`, "ok");
 }
@@ -3645,7 +3959,7 @@ async function runNodeBrief() {
       : "full";
 
   const payload = await postJson("/api/demo/brief", { focus });
-  await loadYcBrief().catch(() => {});
+  await loadYcBrief().catch((error) => handleRefreshError("refresh YC brief", error, true));
   setNodeModalOutput(payload, "yc_app_brief");
   setNodeModalStatus(`YC brief generated for focus=${focus}.`, "ok");
 }
@@ -3754,6 +4068,32 @@ traceListEl.addEventListener("click", (event) => {
 
   state.selectedTraceId = traceId;
   refreshTracePanels().catch((error) => handleRefreshError("select trace", error, false));
+});
+
+traceListEl.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const deleteBtn = target.closest("[data-delete-trace]");
+  if (!(deleteBtn instanceof HTMLButtonElement)) return;
+  event.stopPropagation();
+  const traceId = deleteBtn.dataset.deleteTrace;
+  if (!traceId) return;
+  if (!window.confirm(`Delete trace "${traceId}"? This cannot be undone.`)) return;
+  deleteBtn.disabled = true;
+  postJson("/api/traces/clear", { traceId })
+    .then(() => {
+      state.traces = state.traces.filter((t) => String(t.traceId ?? t.id ?? "") !== traceId);
+      if (state.selectedTraceId === traceId) {
+        state.selectedTraceId = state.traces.length ? String(state.traces[0].traceId ?? state.traces[0].id ?? "") : "";
+      }
+      renderTraceList();
+      setStatus("Trace deleted.", "ok");
+      refreshTracePanels({ silent: true }).catch(() => {});
+    })
+    .catch((err) => {
+      deleteBtn.disabled = false;
+      setStatus(`Delete failed: ${parseErrorMessage(err)}`, "error");
+    });
 });
 
 timelineBodyEl.addEventListener("click", (event) => {
@@ -3875,7 +4215,7 @@ let suggestionActive = true;
 function showNextSuggestion() {
   if (!rotatingPlaceholderEl || !suggestionActive) return;
   const text = SUGGESTION_PROMPTS[suggestionIndex % SUGGESTION_PROMPTS.length];
-  rotatingPlaceholderEl.innerHTML = `<span class="placeholder-text">${text}</span>`;
+  rotatingPlaceholderEl.innerHTML = `<span class="placeholder-text">${escapeHtml(text)}</span>`;
   suggestionIndex++;
 }
 
@@ -4037,13 +4377,24 @@ if (topologyEndpointApproveBtn instanceof HTMLButtonElement) {
 }
 
 // Admin panel event listeners
-if (toolhubSearchBtn instanceof HTMLButtonElement) {
-  toolhubSearchBtn.addEventListener("click", () => searchToolhub());
+if (marketplaceSearchBtn instanceof HTMLButtonElement) {
+  marketplaceSearchBtn.addEventListener("click", () => searchMarketplace());
 }
-if (toolhubSearchInput instanceof HTMLInputElement) {
-  toolhubSearchInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") searchToolhub();
+if (marketplaceSearchInput instanceof HTMLInputElement) {
+  marketplaceSearchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") searchMarketplace();
   });
+}
+if (marketplaceDiscoverBtn) {
+  marketplaceDiscoverBtn.addEventListener("click", () => discoverMarketplaceServers());
+}
+if (marketplaceDiscoverInput) {
+  marketplaceDiscoverInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") discoverMarketplaceServers();
+  });
+}
+if (smitheryRefreshBtn) {
+  smitheryRefreshBtn.addEventListener("click", () => refreshSmitheryServers());
 }
 if (dispatchToolNameInput instanceof HTMLInputElement) {
   dispatchToolNameInput.addEventListener("input", () => {
@@ -4064,6 +4415,9 @@ if (settingsRefreshBtn instanceof HTMLButtonElement) {
 }
 if (settingsClearHistoryBtn instanceof HTMLButtonElement) {
   settingsClearHistoryBtn.addEventListener("click", () => clearTraceHistory());
+}
+if (settingsChangePasswordBtn instanceof HTMLButtonElement) {
+  settingsChangePasswordBtn.addEventListener("click", () => changePassword());
 }
 
 window.addEventListener("keydown", (event) => {
@@ -4124,11 +4478,12 @@ window.addEventListener("popstate", () => restoreNavState());
 window.addEventListener("beforeunload", () => {
   stopPolling();
   stopSuggestionRotation();
+  stopEdgeFlow();
+  cleanupResizeObservers();
 });
 
 // Initialize chat-first dashboard
 try {
-  localStorage.removeItem("maple_judge_view");
   restoreNavState();
   updateMcpSnippet();
   clearLivePanels("Authenticating session...");
@@ -4148,8 +4503,8 @@ try {
       try {
         await fetch("/api/auth/logout", {
           method: "POST",
-          credentials: "same-origin",
-          headers: headersWithKey(),
+          credentials: "include",
+          headers: { "content-type": "application/json", ...headersWithKey() },
         });
       } catch {
         // Best-effort logout
@@ -4164,24 +4519,40 @@ try {
 
   const exportTraceBtn = document.getElementById("exportTraceBtn");
   if (exportTraceBtn instanceof HTMLButtonElement) {
-    exportTraceBtn.addEventListener("click", () => {
+    exportTraceBtn.addEventListener("click", async () => {
       if (!state.currentTrace) {
         setStatus("No trace selected to export.", "error");
         return;
       }
-      const json = JSON.stringify(state.currentTrace, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `maple-trace-${state.currentTrace.id}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatus("Trace exported.", "ok");
+      exportTraceBtn.disabled = true;
+      try {
+        const traceId = state.currentTrace.id ?? state.currentTrace.traceId;
+        let json;
+        try {
+          const exported = await fetchJson(`/api/trace?traceId=${encodeURIComponent(traceId)}`);
+          json = JSON.stringify(exported, null, 2);
+        } catch {
+          // Fallback to client-side trace data if backend fetch fails
+          json = JSON.stringify(state.currentTrace, null, 2);
+        }
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        try {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `maple-trace-${traceId}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setStatus("Trace exported.", "ok");
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      } finally {
+        exportTraceBtn.disabled = false;
+      }
     });
   }
 } catch (err) {
-  // Initialization error — silently handled
+  setStatus(`Initialization failed: ${parseErrorMessage(err)}`, "error");
 }

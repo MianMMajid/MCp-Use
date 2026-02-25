@@ -49,9 +49,9 @@ const TraceTimelineWidget: React.FC = () => {
       <header className="cc-header">
         <div>
           <p className="cc-eyebrow">Maple Timeline</p>
-          <h2>Session {props.sessionId}</h2>
+          <h2>Session {props.sessionId ?? "Unknown"}</h2>
           <p className="cc-meta">
-            {props.steps.length} steps • source: {props.source}
+            {props.steps.length} steps{props.source ? ` • source: ${props.source}` : ""}
           </p>
         </div>
         <div className="cc-summary-grid">
@@ -78,9 +78,9 @@ const TraceTimelineWidget: React.FC = () => {
                 <span className="cc-chip cc-chip-muted">guard {step.guardStatus}</span>
               </div>
               <p>{step.summary}</p>
-              {step.flags.length > 0 ? (
+              {step.flags?.length > 0 ? (
                 <ul className="cc-flags">
-                  {step.flags.slice(0, 3).map((flag) => (
+                  {(step.flags ?? []).slice(0, 3).map((flag) => (
                     <li key={flag.id}>
                       [{flag.severity}] {flag.message}
                     </li>
@@ -95,4 +95,6 @@ const TraceTimelineWidget: React.FC = () => {
   );
 };
 
-export default TraceTimelineWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedTraceTimelineWidget: React.FC = () => <WidgetErrorBoundary><TraceTimelineWidget /></WidgetErrorBoundary>;
+export default WrappedTraceTimelineWidget;

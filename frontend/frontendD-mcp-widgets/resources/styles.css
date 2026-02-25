@@ -244,6 +244,21 @@ body {
   border-color: rgba(86, 211, 155, 0.7);
 }
 
+.cc-link {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--cc-accent);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
 @keyframes cc-spin {
   to {
     transform: rotate(360deg);

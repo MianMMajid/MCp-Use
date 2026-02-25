@@ -12,6 +12,7 @@
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      crossorigin="anonymous"
     />
     <link rel="stylesheet" href="/judges.css?v=47" />
   </head>
@@ -46,12 +47,12 @@
           <span id="chatModeBadge" class="chat-mode-badge rules">Rules</span>
         </div>
         <div class="top-bar-end">
-          <button id="firewallChatRefreshBtn" class="top-bar-icon-btn" type="button" title="Refresh Context">
+          <button id="firewallChatRefreshBtn" class="top-bar-icon-btn" type="button" title="Refresh Context" aria-label="Refresh Context">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M13.5 8a5.5 5.5 0 01-10.58 2.12M2.5 8a5.5 5.5 0 0110.58-2.12M13.5 3v3.5H10M2.5 13V9.5H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button id="logoutBtn" class="top-bar-icon-btn" type="button" title="Sign Out">
+          <button id="logoutBtn" class="top-bar-icon-btn" type="button" title="Sign Out" aria-label="Sign Out">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -99,7 +100,8 @@
           <div id="firewallChatLog" class="chat-log chat-log-home"></div>
 
           <!-- Context panel (replaces chat when a category is selected, drops down / slides up) -->
-          <div class="context-panel" id="contextPanel" aria-hidden="true">
+          <div class="context-panel" id="contextPanel" role="tabpanel" aria-hidden="true">
+            <button id="contextCloseBtn" class="context-close-btn" type="button" aria-label="Close context panel">Close</button>
             <div class="context-panel-body" id="contextPanelBody"></div>
             <div class="context-panel-foot" id="contextSubRow">
               <div class="context-sub-tabs" id="contextSubTabs" role="tablist"></div>
@@ -121,7 +123,7 @@
           <div class="chat-composer chat-composer-home">
             <div class="chat-input-row">
               <div class="chat-input-wrap">
-                <input id="firewallChatInput" type="text" placeholder="" autocomplete="off" />
+                <input id="firewallChatInput" type="text" placeholder="" autocomplete="off" aria-label="Chat message" />
                 <span class="rotating-placeholder" id="rotatingPlaceholder"></span>
                 <button id="firewallChatSendBtn" class="chat-send-btn" type="button" aria-label="Send">
                   <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
@@ -187,23 +189,23 @@
                   <h2 class="panel-title">Traces</h2>
                   <span id="traceCount" class="chip">0</span>
                 </div>
-                <input id="traceSearch" class="inventory-search" type="search" placeholder="Search traces..." />
+                <input id="traceSearch" class="inventory-search" type="search" placeholder="Search traces..." aria-label="Search traces" />
                 <div class="inventory-filter-row">
-                  <select id="traceRisk">
+                  <select id="traceRisk" aria-label="Filter by risk level">
                     <option value="all">All risk</option>
                     <option value="critical">Critical</option>
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
                     <option value="low">Low</option>
                   </select>
-                  <select id="traceSource">
+                  <select id="traceSource" aria-label="Filter by source">
                     <option value="all">All sources</option>
                     <option value="openclaw">OpenClaw</option>
                     <option value="mock">Mock</option>
                     <option value="manual">Manual</option>
                   </select>
                 </div>
-                <div id="traceList" class="trace-list">
+                <div id="traceList" class="trace-list" aria-live="polite">
                   <p class="empty-row">No traces loaded.</p>
                 </div>
               </article>
@@ -274,7 +276,7 @@
                     <button id="demoForkBtn" class="demo-btn" type="button">Fork</button>
                     <button id="demoFullBtn" class="demo-btn primary" type="button">Full Flow</button>
                   </div>
-                  <p id="demoResult" class="demo-result"></p>
+                  <p id="demoResult" class="demo-result" aria-live="polite"></p>
                 </article>
 
                 <article class="panel demo-panel session-compact">
@@ -321,7 +323,7 @@
                     </div>
                     <button id="injectEventBtn" class="demo-btn primary" type="button">Inject Event</button>
                   </div>
-                  <p id="injectResult" class="demo-result">Add events to the current trace for live risk analysis.</p>
+                  <p id="injectResult" class="demo-result" aria-live="polite">Add events to the current trace for live risk analysis.</p>
                 </article>
               </div>
             </div>
@@ -332,7 +334,7 @@
                 <div class="panel-head">
                   <h2 class="panel-title">Trace Detail</h2>
                   <span id="selectedTraceInfo" class="chip">No trace selected</span>
-                  <button id="exportTraceBtn" class="top-bar-icon-btn" type="button" title="Export Trace JSON">
+                  <button id="exportTraceBtn" class="top-bar-icon-btn" type="button" title="Export Trace JSON" aria-label="Export Trace JSON">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <path d="M8 2v8M5 7l3 3 3-3M3 12v1a1 1 0 001 1h8a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -381,7 +383,7 @@
                     <th>Guard</th>
                   </tr>
                 </thead>
-                <tbody id="timelineBody">
+                <tbody id="timelineBody" aria-live="polite">
                   <tr>
                     <td colspan="6" class="empty-row">No trace loaded.</td>
                   </tr>
@@ -396,7 +398,7 @@
             <h2 class="panel-title">Guardrail Decision Log</h2>
             <p class="panel-sub">All allow/block actions with actor rationale and quarantine transitions.</p>
             <div id="quarantineBanner" class="quarantine-banner hidden"></div>
-            <div id="guardLog" class="guard-log">
+            <div id="guardLog" class="guard-log" aria-live="polite">
               <p class="empty-row">No guard actions recorded yet.</p>
             </div>
           </article>
@@ -458,10 +460,10 @@
                 <div class="panel-head">
                   <h2 class="panel-title">YC Brief</h2>
                   <div class="focus-row" role="tablist" aria-label="YC focus selector">
-                    <button class="focus-btn is-active" data-focus="full" type="button">Full</button>
-                    <button class="focus-btn" data-focus="moat" type="button">Moat</button>
-                    <button class="focus-btn" data-focus="traction" type="button">Traction</button>
-                    <button class="focus-btn" data-focus="revenue" type="button">Revenue</button>
+                    <button class="focus-btn is-active" data-focus="full" type="button" role="tab" aria-selected="true">Full</button>
+                    <button class="focus-btn" data-focus="moat" type="button" role="tab" aria-selected="false">Moat</button>
+                    <button class="focus-btn" data-focus="traction" type="button" role="tab" aria-selected="false">Traction</button>
+                    <button class="focus-btn" data-focus="revenue" type="button" role="tab" aria-selected="false">Revenue</button>
                   </div>
                 </div>
                 <p id="briefSummary" class="summary">No YC brief loaded yet.</p>
@@ -486,72 +488,108 @@
           </div>
         </section>
 
-        <section data-view-panel="toolhub" class="view-panel toolhub-view hidden">
-          <article class="panel toolhub-panel">
+        <section data-view-panel="marketplace" class="view-panel marketplace-view hidden">
+          <article class="panel marketplace-panel">
             <div class="panel-head">
-              <h2 class="panel-title">Toolhub</h2>
+              <h2 class="panel-title">Marketplace</h2>
               <span class="chip">MCP</span>
             </div>
-            <div class="toolhub-controls">
-              <div class="toolhub-field toolhub-field-grow">
-                <label for="toolhubSearch">Filter Installed Tools</label>
-                <input id="toolhubSearch" type="text" placeholder="Filter tool name/description..." autocomplete="off" />
+            <div class="marketplace-controls">
+              <div class="marketplace-field marketplace-field-grow">
+                <label for="marketplaceSearch">Filter Installed Tools</label>
+                <input id="marketplaceSearch" type="text" placeholder="Filter tool name/description..." autocomplete="off" />
               </div>
-              <button id="toolhubSearchBtn" class="demo-btn primary" type="button">Filter</button>
+              <button id="marketplaceSearchBtn" class="demo-btn primary" type="button">Filter</button>
             </div>
-            <div class="toolhub-section">
-              <h3 class="toolhub-section-title">Installed Tools (Hackathon Catalog)</h3>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Discover MCP Servers</h3>
+              <div class="marketplace-controls">
+                <div class="marketplace-field marketplace-field-grow">
+                  <label for="marketplaceDiscoverInput">Search Smithery &amp; MCP.so</label>
+                  <input id="marketplaceDiscoverInput" type="text" placeholder="Search for MCP servers..." autocomplete="off" />
+                </div>
+                <button id="marketplaceDiscoverBtn" class="demo-btn primary" type="button">Search</button>
+              </div>
               <div class="table-wrap">
-                <table class="timeline-table toolhub-results-table">
+                <table class="timeline-table marketplace-discover-table">
+                  <thead>
+                    <tr><th>Server</th><th>Provider</th><th>Description</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="marketplaceDiscoverBody">
+                    <tr><td colspan="4" class="empty-row">Search for MCP servers above.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Smithery Servers</h3>
+              <div class="marketplace-controls">
+                <button id="smitheryRefreshBtn" class="demo-btn secondary" type="button">Refresh Servers</button>
+              </div>
+              <div class="table-wrap">
+                <table class="timeline-table smithery-servers-table">
+                  <thead>
+                    <tr><th>Server</th><th>Description</th><th>Status</th><th>Action</th></tr>
+                  </thead>
+                  <tbody id="smitheryServersBody">
+                    <tr><td colspan="4" class="empty-row">Click Refresh to load Smithery servers.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Installed Tools</h3>
+              <div class="table-wrap">
+                <table class="timeline-table marketplace-results-table">
                   <thead>
                     <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
                   </thead>
-                  <tbody id="toolhubResultsBody">
+                  <tbody id="marketplaceResultsBody">
                     <tr><td colspan="4" class="empty-row">Loading installed tools...</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="toolhub-section">
-              <h3 class="toolhub-section-title">Registered Downstream Apps</h3>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Registered Downstream Apps</h3>
               <div class="table-wrap">
-                <table class="timeline-table toolhub-connected-table">
+                <table class="timeline-table marketplace-connected-table">
                   <thead>
-                    <tr><th>App ID</th><th>Name</th><th>URL</th><th>Scope</th></tr>
+                    <tr><th>App ID</th><th>Name</th><th>URL</th><th>Scope</th><th>Action</th></tr>
                   </thead>
-                  <tbody id="toolhubConnectedBody">
-                    <tr><td colspan="4" class="empty-row">No downstream apps found.</td></tr>
+                  <tbody id="marketplaceConnectedBody">
+                    <tr><td colspan="5" class="empty-row">No downstream apps found.</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="toolhub-section">
-              <h3 class="toolhub-section-title">Available Tools</h3>
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Available Tools</h3>
               <div class="table-wrap">
-                <table class="timeline-table toolhub-tools-table">
+                <table class="timeline-table marketplace-tools-table">
                   <thead>
                     <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
                   </thead>
-                  <tbody id="toolhubToolsBody">
+                  <tbody id="marketplaceToolsBody">
                     <tr><td colspan="4" class="empty-row">No tools loaded.</td></tr>
                   </tbody>
                 </table>
               </div>
             </div>
-            <div class="toolhub-section">
-              <h3 class="toolhub-section-title">Dispatch Tool</h3>
-              <div class="toolhub-controls">
-                <div class="toolhub-field toolhub-field-grow">
+            <div class="marketplace-section">
+              <h3 class="marketplace-section-title">Dispatch Tool</h3>
+              <div class="marketplace-controls">
+                <div class="marketplace-field marketplace-field-grow">
                   <label for="dispatchToolName">Tool Name</label>
                   <input id="dispatchToolName" type="text" placeholder="e.g. read_file" autocomplete="off" />
                 </div>
-                <div class="toolhub-field toolhub-field-grow">
+                <div class="marketplace-field marketplace-field-grow">
                   <label for="dispatchToolArgs">Arguments (JSON)</label>
                   <input id="dispatchToolArgs" type="text" placeholder='e.g. {"path": "/tmp/test.txt"}' autocomplete="off" />
                 </div>
                 <button id="dispatchToolBtn" class="demo-btn primary" type="button">Dispatch</button>
               </div>
-              <pre id="dispatchResult" class="json-panel dispatch-result">{}</pre>
+              <pre id="dispatchResult" class="json-panel dispatch-result" aria-live="polite">{}</pre>
             </div>
           </article>
         </section>
@@ -563,7 +601,7 @@
               <span class="chip">Firewall</span>
             </div>
             <div class="policy-controls">
-              <div class="toolhub-field">
+              <div class="marketplace-field">
                 <label for="policyType">Type</label>
                 <select id="policyType">
                   <option value="tool_call">tool_call</option>
@@ -574,7 +612,7 @@
                   <option value="file_write">file_write</option>
                 </select>
               </div>
-              <div class="toolhub-field">
+              <div class="marketplace-field">
                 <label for="policyActor">Actor</label>
                 <select id="policyActor">
                   <option value="agent">agent</option>
@@ -585,31 +623,31 @@
               </div>
             </div>
             <div class="policy-controls">
-              <div class="toolhub-field toolhub-field-grow">
+              <div class="marketplace-field marketplace-field-grow">
                 <label for="policyTraceId">Trace ID (optional)</label>
                 <input id="policyTraceId" type="text" placeholder="Trace ID" autocomplete="off" />
               </div>
-              <div class="toolhub-field toolhub-field-grow">
+              <div class="marketplace-field marketplace-field-grow">
                 <label for="policySessionId">Session ID (optional)</label>
                 <input id="policySessionId" type="text" placeholder="Session ID" autocomplete="off" />
               </div>
             </div>
             <div class="policy-controls">
-              <div class="toolhub-field toolhub-field-grow">
+              <div class="marketplace-field marketplace-field-grow">
                 <label for="policyCommand">Command</label>
                 <input id="policyCommand" type="text" placeholder="e.g. rm -rf /tmp/data" autocomplete="off" />
               </div>
-              <div class="toolhub-field toolhub-field-grow">
+              <div class="marketplace-field marketplace-field-grow">
                 <label for="policyUrl">URL (optional)</label>
                 <input id="policyUrl" type="text" placeholder="e.g. https://api.example.com" autocomplete="off" />
               </div>
             </div>
             <div class="policy-controls">
-              <div class="toolhub-field toolhub-field-grow">
+              <div class="marketplace-field marketplace-field-grow">
                 <label for="policyPrompt">Prompt (optional)</label>
                 <input id="policyPrompt" type="text" placeholder="User prompt text" autocomplete="off" />
               </div>
-              <div class="toolhub-field toolhub-field-grow">
+              <div class="marketplace-field marketplace-field-grow">
                 <label for="policyToolName">Tool Name (optional)</label>
                 <input id="policyToolName" type="text" placeholder="e.g. bash, http_request" autocomplete="off" />
               </div>
@@ -618,7 +656,13 @@
               <button id="policyPreviewBtn" class="demo-btn" type="button">Preview Decision</button>
               <button id="policyEnforceBtn" class="demo-btn primary" type="button">Enforce Decision</button>
             </div>
-            <pre id="policyResult" class="json-panel policy-result">{}</pre>
+            <pre id="policyResult" class="json-panel policy-result" aria-live="polite">{}</pre>
+            <div class="marketplace-section" style="margin-top: 1rem;">
+              <h3 class="marketplace-section-title">Decision History</h3>
+              <div id="policyHistoryList" class="policy-history-list" style="max-height: 300px; overflow-y: auto;">
+                <p class="empty-row">No decisions yet.</p>
+              </div>
+            </div>
           </article>
         </section>
 
@@ -629,7 +673,7 @@
               <span class="chip">Admin</span>
             </div>
             <div class="settings-section">
-              <h3 class="toolhub-section-title">Authentication</h3>
+              <h3 class="marketplace-section-title">Authentication</h3>
               <dl class="kv-grid kv-grid-inline">
                 <div class="kv-row">
                   <dt>Status</dt>
@@ -642,16 +686,34 @@
               </dl>
             </div>
             <div class="settings-section">
-              <h3 class="toolhub-section-title">Runtime Status</h3>
+              <h3 class="marketplace-section-title">Runtime Status</h3>
               <pre id="settingsRuntimeStatus" class="json-panel">{}</pre>
             </div>
             <div class="settings-section">
-              <h3 class="toolhub-section-title">Actions</h3>
+              <h3 class="marketplace-section-title">Change Password</h3>
+              <div class="marketplace-controls" style="flex-direction: column; align-items: stretch;">
+                <div class="marketplace-field">
+                  <label for="settingsCurrentPassword">Current Password</label>
+                  <input id="settingsCurrentPassword" type="password" autocomplete="current-password" />
+                </div>
+                <div class="marketplace-field">
+                  <label for="settingsNewPassword">New Password</label>
+                  <input id="settingsNewPassword" type="password" autocomplete="new-password" placeholder="Min 8 characters" />
+                </div>
+                <div class="marketplace-field">
+                  <label for="settingsConfirmPassword">Confirm New Password</label>
+                  <input id="settingsConfirmPassword" type="password" autocomplete="new-password" />
+                </div>
+                <button id="settingsChangePasswordBtn" class="demo-btn primary" type="button">Update Password</button>
+              </div>
+            </div>
+            <div class="settings-section">
+              <h3 class="marketplace-section-title">Actions</h3>
               <div class="settings-actions">
                 <button id="settingsRefreshBtn" class="demo-btn" type="button">Refresh Status</button>
                 <button id="settingsClearHistoryBtn" class="demo-btn danger" type="button">Clear Trace History</button>
               </div>
-              <p id="settingsActionResult" class="demo-result"></p>
+              <p id="settingsActionResult" class="demo-result" aria-live="polite"></p>
             </div>
           </article>
         </section>
@@ -799,11 +861,13 @@
           </details>
         </div>
 
-        <p id="nodeModalStatus" class="modal-status">Tip: click any node in Action Tree to open this panel.</p>
+        <p id="nodeModalStatus" class="modal-status" aria-live="polite">Tip: click any node in Action Tree to open this panel.</p>
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js" crossorigin="anonymous"></script>
     <script src="/judges-auth.js"></script>
     <script src="/judges-http.js"></script>
     <script src="/judges.js?v=47" type="module"></script>

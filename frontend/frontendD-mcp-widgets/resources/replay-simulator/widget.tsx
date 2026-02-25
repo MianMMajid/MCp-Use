@@ -29,7 +29,7 @@ function rowTone(score: number) {
 const ReplaySimulatorWidget: React.FC = () => {
   const { props, isPending } = useWidget<ReplaySimulatorProps>();
 
-  if (isPending || !props.originalSteps) {
+  if (isPending || !props.originalSteps?.length || !props.originalTraceId || !props.forkedTraceId) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -48,24 +48,24 @@ const ReplaySimulatorWidget: React.FC = () => {
             {props.forkedTraceId.slice(0, 8)}
           </h2>
           <p className="cc-meta">
-            {props.changedSteps.length} changed step(s), {props.addedSteps.length} appended step(s)
+            {(props.changedSteps ?? []).length} changed step(s), {(props.addedSteps ?? []).length} appended step(s)
           </p>
         </div>
         <div className="cc-summary-grid">
-          <span className="cc-chip cc-chip-muted">changed {props.changedSteps.length}</span>
-          <span className="cc-chip cc-chip-muted">added {props.addedSteps.length}</span>
+          <span className="cc-chip cc-chip-muted">changed {(props.changedSteps ?? []).length}</span>
+          <span className="cc-chip cc-chip-muted">added {(props.addedSteps ?? []).length}</span>
         </div>
       </header>
 
       <section className="cc-edit-box">
         <h3>Applied Edits</h3>
-        {Object.keys(props.edits).length === 0 ? (
+        {Object.keys(props.edits ?? {}).length === 0 ? (
           <p>No explicit edits supplied.</p>
         ) : (
           <ul className="cc-flags">
-            {Object.entries(props.edits).map(([key, value]) => (
+            {Object.entries(props.edits ?? {}).map(([key, value]) => (
               <li key={key}>
-                {key}: {String(value)}
+                {key}: {JSON.stringify(value)}
               </li>
             ))}
           </ul>
@@ -88,10 +88,10 @@ const ReplaySimulatorWidget: React.FC = () => {
 
         <section className="cc-pane">
           <h3>Forked</h3>
-          {props.forkedSteps.map((step) => (
+          {(props.forkedSteps ?? []).map((step) => (
             <article
               key={`fork-${step.index}`}
-              className={`cc-step-mini ${props.changedSteps.includes(step.index) ? "cc-step-changed" : ""}`}
+              className={`cc-step-mini ${(props.changedSteps ?? []).includes(step.index) ? "cc-step-changed" : ""}`}
             >
               <div className="cc-step-row">
                 <strong>Step {step.index}</strong>
@@ -105,11 +105,11 @@ const ReplaySimulatorWidget: React.FC = () => {
 
       <section className="cc-edit-box">
         <h3>Change Log</h3>
-        {props.changeLog.length === 0 ? (
+        {(props.changeLog ?? []).length === 0 ? (
           <p>No detectable diffs.</p>
         ) : (
           <ul className="cc-flags">
-            {props.changeLog.slice(0, 10).map((change, idx) => (
+            {(props.changeLog ?? []).slice(0, 10).map((change, idx) => (
               <li key={`${change.stepIndex}-${change.field}-${idx}`}>
                 step {change.stepIndex} • {change.field}
                 {change.before ? ` | before: ${change.before}` : ""}
@@ -123,4 +123,6 @@ const ReplaySimulatorWidget: React.FC = () => {
   );
 };
 
-export default ReplaySimulatorWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedReplaySimulatorWidget: React.FC = () => <WidgetErrorBoundary><ReplaySimulatorWidget /></WidgetErrorBoundary>;
+export default WrappedReplaySimulatorWidget;

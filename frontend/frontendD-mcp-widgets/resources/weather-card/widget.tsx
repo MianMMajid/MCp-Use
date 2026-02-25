@@ -37,7 +37,7 @@ function resolveIcon(condition: string): string {
 }
 
 function formatTemp(value: number | undefined, unit?: string): string {
-  if (value == null) return "--";
+  if (value == null || !Number.isFinite(value)) return "--";
   const suffix = unit?.toLowerCase() === "fahrenheit" ? "\u00B0F" : "\u00B0C";
   return `${Math.round(value)}${suffix}`;
 }
@@ -45,7 +45,7 @@ function formatTemp(value: number | undefined, unit?: string): string {
 const WeatherCardWidget: React.FC = () => {
   const { props, isPending } = useWidget<WeatherCardWidgetProps>();
 
-  if (isPending) {
+  if (isPending || !props.location) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -87,7 +87,7 @@ const WeatherCardWidget: React.FC = () => {
       {props.forecast && props.forecast.length > 0 ? (
         <div className="cc-timeline" role="list">
           {props.forecast.map((day, i) => (
-            <article key={i} className="cc-timeline-item" role="listitem">
+            <article key={day.date ?? `day-${i}`} className="cc-timeline-item" role="listitem">
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
                 <div className="cc-step-row">
@@ -111,4 +111,6 @@ const WeatherCardWidget: React.FC = () => {
   );
 };
 
-export default WeatherCardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedWeatherCardWidget: React.FC = () => <WidgetErrorBoundary><WeatherCardWidget /></WidgetErrorBoundary>;
+export default WrappedWeatherCardWidget;

@@ -1,0 +1,22 @@
+{
+  "name": "maple-mcp-widgets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "exports": {
+    "./schemas": "./src/core/widget-schemas.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "mcp-use": "^1.0.0",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@openai/apps-sdk-ui": "^0.1.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

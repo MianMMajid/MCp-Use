@@ -16,7 +16,7 @@ export const widgetMetadata: WidgetMetadata = {
 const WikiCardWidget: React.FC = () => {
   const { props, isPending } = useWidget<WikiCardWidgetProps>();
 
-  if (isPending) {
+  if (isPending || !props.title) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -36,16 +36,18 @@ const WikiCardWidget: React.FC = () => {
 
       <div className="cc-pane">
         <p style={{ lineHeight: 1.55, margin: 0 }}>
-          {props.extract ?? props.summary}
+          {(() => { const text = props.extract ?? props.summary ?? ""; return text.length > 500 ? text.slice(0, 500) + "\u2026" : text; })()}
         </p>
-        {props.url ? (
-          <p style={{ marginTop: "0.6rem", fontSize: "0.82rem", color: "var(--cc-accent)" }}>
+        {props.url && /^https?:\/\//i.test(props.url) ? (
+          <a href={props.url} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.6rem" }}>
             {props.url}
-          </p>
+          </a>
         ) : null}
       </div>
     </section>
   );
 };
 
-export default WikiCardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedWikiCardWidget: React.FC = () => <WidgetErrorBoundary><WikiCardWidget /></WidgetErrorBoundary>;
+export default WrappedWikiCardWidget;

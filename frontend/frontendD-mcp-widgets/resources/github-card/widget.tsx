@@ -16,6 +16,7 @@ export const widgetMetadata: WidgetMetadata = {
 function formatNumber(n: number | undefined): string {
   if (n == null) return "--";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1_000)}k`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
 }
@@ -23,7 +24,7 @@ function formatNumber(n: number | undefined): string {
 const GithubCardWidget: React.FC = () => {
   const { props, isPending } = useWidget<GithubCardWidgetProps>();
 
-  if (isPending) {
+  if (isPending || !props.name) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />
@@ -66,10 +67,10 @@ const GithubCardWidget: React.FC = () => {
         {props.updatedAt ? (
           <p className="cc-meta">Updated: {props.updatedAt}</p>
         ) : null}
-        {props.url ? (
-          <p style={{ marginTop: "0.4rem", fontSize: "0.82rem", color: "var(--cc-accent)" }}>
+        {props.url && /^https?:\/\//i.test(props.url) ? (
+          <a href={props.url} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.4rem" }}>
             {props.url}
-          </p>
+          </a>
         ) : null}
       </div>
 
@@ -86,4 +87,6 @@ const GithubCardWidget: React.FC = () => {
   );
 };
 
-export default GithubCardWidget;
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedGithubCardWidget: React.FC = () => <WidgetErrorBoundary><GithubCardWidget /></WidgetErrorBoundary>;
+export default WrappedGithubCardWidget;
