@@ -38,39 +38,45 @@ const BookResultsWidget: React.FC = () => {
         </div>
       </header>
 
-      <div className="cc-timeline" role="list">
-        {props.results.map((book, i) => (
-          <article key={book.isbn ?? book.url ?? `book-${i}`} className="cc-timeline-item" role="listitem">
-            <div className="cc-marker cc-risk-low" aria-hidden />
-            <div className="cc-step-main">
-              <div className="cc-step-row">
-                <strong>{book.title}</strong>
-                {book.firstPublishYear != null ? (
-                  <span className="cc-chip cc-chip-muted">{book.firstPublishYear}</span>
+      {props.results.length === 0 ? (
+        <div className="cc-pane" style={{ textAlign: "center", padding: "1.5rem 1rem" }}>
+          <p style={{ margin: 0, opacity: 0.6, fontSize: "0.9rem" }}>No books found for &ldquo;{props.query}&rdquo;.</p>
+        </div>
+      ) : (
+        <div className="cc-timeline" role="list">
+          {props.results.map((book, i) => (
+            <article key={book.isbn ?? book.url ?? `book-${i}`} className="cc-timeline-item" role="listitem">
+              <div className="cc-marker cc-risk-low" aria-hidden />
+              <div className="cc-step-main">
+                <div className="cc-step-row">
+                  <strong>{book.title}</strong>
+                  {book.firstPublishYear != null ? (
+                    <span className="cc-chip cc-chip-muted">{book.firstPublishYear}</span>
+                  ) : null}
+                </div>
+                {book.authors && book.authors.length > 0 ? (
+                  <p className="cc-meta" style={{ marginTop: "0.3rem" }}>
+                    {book.authors.join(", ")}
+                  </p>
+                ) : null}
+                <div className="cc-step-row" style={{ marginTop: "0.3rem" }}>
+                  {book.publisher ? (
+                    <span className="cc-chip cc-chip-muted">{book.publisher}</span>
+                  ) : null}
+                  {book.isbn ? (
+                    <span className="cc-chip cc-chip-muted">ISBN {book.isbn}</span>
+                  ) : null}
+                </div>
+                {book.url ? (
+                  <a href={book.url} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {book.url}
+                  </a>
                 ) : null}
               </div>
-              {book.authors && book.authors.length > 0 ? (
-                <p className="cc-meta" style={{ marginTop: "0.3rem" }}>
-                  {book.authors.join(", ")}
-                </p>
-              ) : null}
-              <div className="cc-step-row" style={{ marginTop: "0.3rem" }}>
-                {book.publisher ? (
-                  <span className="cc-chip cc-chip-muted">{book.publisher}</span>
-                ) : null}
-                {book.isbn ? (
-                  <span className="cc-chip cc-chip-muted">ISBN {book.isbn}</span>
-                ) : null}
-              </div>
-              {book.url ? (
-                <a href={book.url} target="_blank" rel="noopener noreferrer" className="cc-link">
-                  {book.url}
-                </a>
-              ) : null}
-            </div>
-          </article>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 };

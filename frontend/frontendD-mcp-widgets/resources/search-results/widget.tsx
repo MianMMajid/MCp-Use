@@ -38,27 +38,33 @@ const SearchResultsWidget: React.FC = () => {
         </div>
       </header>
 
-      <div className="cc-timeline" role="list">
-        {props.results.map((item, i) => (
-          <article key={item.url ?? `result-${i}`} className="cc-timeline-item" role="listitem">
-            <div className="cc-marker cc-risk-low" aria-hidden />
-            <div className="cc-step-main">
-              <div className="cc-step-row">
-                <strong>{item.title}</strong>
-                {item.source ? (
-                  <span className="cc-chip cc-chip-muted">{item.source}</span>
+      {props.results.length === 0 ? (
+        <div className="cc-pane" style={{ textAlign: "center", padding: "1.5rem 1rem" }}>
+          <p style={{ margin: 0, opacity: 0.6, fontSize: "0.9rem" }}>No results found for &ldquo;{props.query}&rdquo;.</p>
+        </div>
+      ) : (
+        <div className="cc-timeline" role="list">
+          {props.results.map((item, i) => (
+            <article key={item.url ?? `result-${i}`} className="cc-timeline-item" role="listitem">
+              <div className="cc-marker cc-risk-low" aria-hidden />
+              <div className="cc-step-main">
+                <div className="cc-step-row">
+                  <strong>{item.title}</strong>
+                  {item.source ? (
+                    <span className="cc-chip cc-chip-muted">{item.source}</span>
+                  ) : null}
+                </div>
+                {item.url ? (
+                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {item.url}
+                  </a>
                 ) : null}
+                {item.snippet ? <p>{item.snippet}</p> : null}
               </div>
-              {item.url ? (
-                <a href={item.url} target="_blank" rel="noopener noreferrer" className="cc-link">
-                  {item.url}
-                </a>
-              ) : null}
-              {item.snippet ? <p>{item.snippet}</p> : null}
-            </div>
-          </article>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 };

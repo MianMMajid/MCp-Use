@@ -115,6 +115,7 @@ const policyToolNameInput = document.getElementById("policyToolName");
 const policyPreviewBtn = document.getElementById("policyPreviewBtn");
 const policyEnforceBtn = document.getElementById("policyEnforceBtn");
 const policyResultEl = document.getElementById("policyResult");
+const policyHistoryListEl = document.getElementById("policyHistoryList");
 const settingsAuthStatusEl = document.getElementById("settingsAuthStatus");
 const settingsAuthUserEl = document.getElementById("settingsAuthUser");
 const settingsRuntimeStatusEl = document.getElementById("settingsRuntimeStatus");
@@ -2581,7 +2582,7 @@ function renderTraceList() {
       const source = String(summary.source ?? "unknown");
       const status = String(summary.status ?? "unknown");
 
-      return `<button class="trace-item${selected}" type="button" data-trace-id="${escapeHtml(traceId)}">
+      return `<div class="trace-item-row"><button class="trace-item${selected}" type="button" data-trace-id="${escapeHtml(traceId)}">
         <div class="trace-item-head">
           <span class="trace-item-title">${escapeHtml(traceId)}</span>
           <span class="risk-badge ${riskClass(score)}">${escapeHtml(score)}</span>
@@ -2591,7 +2592,7 @@ function renderTraceList() {
           <span>${escapeHtml(status)}</span>
           <span>${escapeHtml(formatTimestamp(String(summary.updatedAt ?? "")))}</span>
         </div>
-      </button>`;
+      </button><button class="trace-delete-btn" type="button" data-delete-trace="${escapeHtml(traceId)}" aria-label="Delete trace ${escapeHtml(traceId)}" title="Delete trace">&times;</button></div>`;
     })
     .join("");
 }
@@ -3123,11 +3124,16 @@ function filterMarketplaceTools(query) {
 
 async function searchMarketplace() {
   const query = marketplaceSearchInput?.value?.trim() ?? "";
-  if (!state.marketplaceTools.length) {
-    await refreshMarketplaceTools();
+  if (marketplaceSearchBtn) marketplaceSearchBtn.disabled = true;
+  try {
+    if (!state.marketplaceTools.length) {
+      await refreshMarketplaceTools();
+    }
+    state.marketplaceSearchResults = filterMarketplaceTools(query);
+    renderMarketplaceResults();
+  } finally {
+    if (marketplaceSearchBtn) marketplaceSearchBtn.disabled = false;
   }
-  state.marketplaceSearchResults = filterMarketplaceTools(query);
-  renderMarketplaceResults();
 }
 
 function renderMarketplaceResults() {
@@ -3190,7 +3196,10 @@ function renderMarketplaceConnected() {
   marketplaceConnectedBody.querySelectorAll("[data-disconnect-app]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const appId = btn.getAttribute("data-disconnect-app");
-      if (appId) disconnectMarketplaceApp(appId);
+      if (!appId) return;
+      const appName = btn.closest("tr")?.children[1]?.textContent ?? appId;
+      if (!confirm(`Disconnect downstream app "${appName}"? This will remove its tools from the firewall.`)) return;
+      disconnectMarketplaceApp(appId);
     });
   });
 }
@@ -3306,6 +3315,8 @@ async function dispatchTool() {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: "Invalid JSON arguments." }, null, 2);
     return;
   }
+  if (dispatchToolBtn) dispatchToolBtn.disabled = true;
+  if (dispatchResultEl) dispatchResultEl.textContent = "Dispatching...";
   try {
     const body = {
       toolName,
@@ -3316,6 +3327,8 @@ async function dispatchTool() {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify(result, null, 2);
   } catch (error) {
     if (dispatchResultEl) dispatchResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
+  } finally {
+    if (dispatchToolBtn) dispatchToolBtn.disabled = false;
   }
 }
 
@@ -3332,6 +3345,23 @@ function buildPolicyStep() {
   };
 }
 
+function appendPolicyHistory(mode, result) {
+  if (!policyHistoryListEl) return;
+  const isEmpty = policyHistoryListEl.querySelector(".empty-row");
+  if (isEmpty) isEmpty.remove();
+  const entry = document.createElement("div");
+  entry.className = "policy-history-entry";
+  const time = new Date().toLocaleTimeString();
+  const decision = result?.decision ?? result?.error ?? "unknown";
+  const action = result?.action ?? "-";
+  entry.innerHTML = `<span class="mono" style="font-size:0.78rem;color:var(--muted)">${escapeHtml(time)}</span> `
+    + `<span class="chip">${escapeHtml(mode)}</span> `
+    + `<strong>${escapeHtml(String(decision))}</strong> `
+    + `<span class="mono" style="font-size:0.8rem">${escapeHtml(String(action))}</span>`;
+  entry.style.cssText = "padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.85rem;";
+  policyHistoryListEl.prepend(entry);
+}
+
 async function previewPolicyDecision() {
   const step = buildPolicyStep();
   const body = {
@@ -3340,11 +3370,17 @@ async function previewPolicyDecision() {
     sessionId: policySessionIdInput?.value?.trim() || undefined,
     mode: "preview",
   };
+  if (policyPreviewBtn) policyPreviewBtn.disabled = true;
   try {
     const result = await postJson("/api/firewall/decision", body);
     if (policyResultEl) policyResultEl.textContent = JSON.stringify(result, null, 2);
+    appendPolicyHistory("preview", result);
   } catch (error) {
-    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
+    const errObj = { error: parseErrorMessage(error) };
+    if (policyResultEl) policyResultEl.textContent = JSON.stringify(errObj, null, 2);
+    appendPolicyHistory("preview", errObj);
+  } finally {
+    if (policyPreviewBtn) policyPreviewBtn.disabled = false;
   }
 }
 
@@ -3356,11 +3392,17 @@ async function enforcePolicyDecision() {
     sessionId: policySessionIdInput?.value?.trim() || undefined,
     mode: "enforce",
   };
+  if (policyEnforceBtn) policyEnforceBtn.disabled = true;
   try {
     const result = await postJson("/api/firewall/decision", body);
     if (policyResultEl) policyResultEl.textContent = JSON.stringify(result, null, 2);
+    appendPolicyHistory("enforce", result);
   } catch (error) {
-    if (policyResultEl) policyResultEl.textContent = JSON.stringify({ error: parseErrorMessage(error) }, null, 2);
+    const errObj = { error: parseErrorMessage(error) };
+    if (policyResultEl) policyResultEl.textContent = JSON.stringify(errObj, null, 2);
+    appendPolicyHistory("enforce", errObj);
+  } finally {
+    if (policyEnforceBtn) policyEnforceBtn.disabled = false;
   }
 }
 
@@ -3952,6 +3994,32 @@ traceListEl.addEventListener("click", (event) => {
   refreshTracePanels().catch((error) => handleRefreshError("select trace", error, false));
 });
 
+traceListEl.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const deleteBtn = target.closest("[data-delete-trace]");
+  if (!(deleteBtn instanceof HTMLElement)) return;
+  event.stopPropagation();
+  const traceId = deleteBtn.dataset.deleteTrace;
+  if (!traceId) return;
+  if (!confirm(`Delete trace "${traceId}"? This cannot be undone.`)) return;
+  deleteBtn.disabled = true;
+  postJson("/api/traces/clear", { traceId })
+    .then(() => {
+      state.traces = state.traces.filter((t) => String(t.traceId ?? t.id ?? "") !== traceId);
+      if (state.selectedTraceId === traceId) {
+        state.selectedTraceId = state.traces.length ? String(state.traces[0].traceId ?? state.traces[0].id ?? "") : "";
+      }
+      renderTraceList();
+      setStatus("Trace deleted.", "ok");
+      refreshTracePanels({ silent: true }).catch(() => {});
+    })
+    .catch((err) => {
+      deleteBtn.disabled = false;
+      setStatus(`Delete failed: ${parseErrorMessage(err)}`, "error");
+    });
+});
+
 timelineBodyEl.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) {
@@ -4372,24 +4440,37 @@ try {
 
   const exportTraceBtn = document.getElementById("exportTraceBtn");
   if (exportTraceBtn instanceof HTMLButtonElement) {
-    exportTraceBtn.addEventListener("click", () => {
+    exportTraceBtn.addEventListener("click", async () => {
       if (!state.currentTrace) {
         setStatus("No trace selected to export.", "error");
         return;
       }
-      const json = JSON.stringify(state.currentTrace, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
+      exportTraceBtn.disabled = true;
       try {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `maple-trace-${state.currentTrace.id}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setStatus("Trace exported.", "ok");
+        const traceId = state.currentTrace.id ?? state.currentTrace.traceId;
+        let json;
+        try {
+          const exported = await fetchJson(`/api/trace?traceId=${encodeURIComponent(traceId)}`);
+          json = JSON.stringify(exported, null, 2);
+        } catch {
+          // Fallback to client-side trace data if backend fetch fails
+          json = JSON.stringify(state.currentTrace, null, 2);
+        }
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        try {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `maple-trace-${traceId}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setStatus("Trace exported.", "ok");
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       } finally {
-        URL.revokeObjectURL(url);
+        exportTraceBtn.disabled = false;
       }
     });
   }

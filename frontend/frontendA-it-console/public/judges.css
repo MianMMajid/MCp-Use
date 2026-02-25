@@ -1995,10 +1995,20 @@ body {
   flex: 1;
 }
 
-.trace-item {
-  width: 100%;
-  border: 0;
+.trace-item-row {
+  display: flex;
+  align-items: stretch;
   border-bottom: 1px solid #ece6dc;
+}
+
+.trace-item-row:last-child {
+  border-bottom: 0;
+}
+
+.trace-item {
+  flex: 1;
+  min-width: 0;
+  border: 0;
   background: transparent;
   text-align: left;
   padding: 0.48rem 0.52rem;
@@ -2008,8 +2018,23 @@ body {
   transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 
-.trace-item:last-child {
-  border-bottom: 0;
+.trace-delete-btn {
+  border: 0;
+  background: transparent;
+  color: #c9a68a;
+  font-size: 1rem;
+  padding: 0 0.45rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease;
+}
+
+.trace-item-row:hover .trace-delete-btn {
+  opacity: 1;
+}
+
+.trace-delete-btn:hover {
+  color: #e74c3c;
 }
 
 .trace-item:hover {

@@ -196,3 +196,51 @@ export interface GuardActionWidgetProps {
   quarantined?: boolean;
   updatedStatus?: string;
 }
+
+export interface TraceSummaryItem {
+  traceId: string;
+  sessionId?: string;
+  source?: string;
+  status?: string;
+  overallRiskScore?: number;
+  severity?: Severity;
+  stepCount?: number;
+  updatedAt?: string;
+}
+
+export interface TraceListWidgetProps {
+  traces: TraceSummaryItem[];
+  totalCount?: number;
+}
+
+export interface TraceExportWidgetProps {
+  traceId: string;
+  format: "json" | "markdown";
+  content: string;
+  stepCount?: number;
+  exportedAt?: string;
+}
+
+export interface EvolvedSkill {
+  label: string;
+  confidence: number;
+  source?: string;
+  description?: string;
+}
+
+export interface EvolvedSkillsWidgetProps {
+  query: string;
+  skills: EvolvedSkill[];
+  communityPoolSize?: number;
+}
+
+export interface ShareConfirmationWidgetProps {
+  traceId: string;
+  sharedId?: string;
+  behaviorSignature?: string;
+  communityStats?: {
+    totalShared: number;
+    uniqueSignatures: number;
+  };
+  previewSuggestions?: string[];
+}
