@@ -3,6 +3,7 @@ import { firewallChatPrimaryProvider } from "../config.js";
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, isContextWallAvailable, } from "../trace-helpers.js";
+import { getOpenClawRuntimeStatus } from "../core/openclaw-agent-runtime.js";
 function resolveFirewallRequestContext(options) {
     const authContext = authContextStorage.getStore();
     const tenantId = asString(options.body.tenantId) ?? asString(options.request.header("x-tenant-id")) ?? "default";
@@ -65,12 +66,14 @@ export function registerFirewallChatRoutes() {
     // ── Chat capabilities + streaming bridge ──────────────────────────────────
     server.get("/api/chat/capabilities", async (c) => {
         const contextWallReady = isContextWallAvailable();
+        const openclaw = getOpenClawRuntimeStatus();
         return c.json({
-            aiEnabled: contextWallReady,
-            mode: contextWallReady ? "model-router" : "unavailable",
+            aiEnabled: contextWallReady || openclaw.ready,
+            mode: openclaw.ready ? "openclaw-agent" : (contextWallReady ? "model-router" : "unavailable"),
             primaryProvider: firewallChatPrimaryProvider,
             contextWallAvailable: contextWallReady,
             modelRouterAvailable: contextWallReady,
+            openclawAgent: openclaw,
         });
     });
     server.app.post("/api/chat/stream", async (c) => {

@@ -1,9 +1,10 @@
 import { asString, errorMessage, } from "../helpers.js";
-import { firewallChatAiEnabled } from "../config.js";
+import { firewallChatAiEnabled, firewallChatPreferOpenClaw } from "../config.js";
 import { mapleLog } from "../logging.js";
 import { getGrpcClients } from "../state.js";
 import { generateViaGrpc } from "./firewall-grpc.js";
 import { answerFirewallChatQuestion, isNetworkActionQuery, } from "./firewall-chat-rules.js";
+import { runOpenClawTurn } from "./openclaw-agent-runtime.js";
 export function parseChatTurnContent(value) {
     if (typeof value === "string") {
         const trimmed = value.trim();
@@ -80,6 +81,7 @@ export function isContextWallAvailable() {
 }
 export async function generateFirewallChatReply(options) {
     const fallbackReply = answerFirewallChatQuestion(options.question, options.context);
+    const attempts = [];
     if (isNetworkActionQuery(options.question) &&
         (options.context.activity?.networkActions?.length ?? 0) > 0) {
         return {
@@ -89,12 +91,36 @@ export async function generateFirewallChatReply(options) {
             attempts: [],
         };
     }
+    if (firewallChatPreferOpenClaw) {
+        try {
+            const agentResult = await runOpenClawTurn({
+                sessionId: options.requestContext?.sessionId ?? options.context.trace?.sessionId,
+                message: options.question,
+                thinking: "medium",
+                timeoutSeconds: 120,
+            });
+            attempts.push({ provider: "openclaw", ok: true });
+            return {
+                reply: agentResult.reply || fallbackReply,
+                mode: "openclaw-agent",
+                provider: "openclaw",
+                attempts,
+            };
+        }
+        catch (err) {
+            attempts.push({ provider: "openclaw", ok: false });
+            mapleLog("warn", "firewall.chat.openclaw_failed", {
+                error: errorMessage(err),
+                traceId: options.context.trace?.id ?? null,
+            });
+        }
+    }
     if (!firewallChatAiEnabled) {
         return {
             reply: fallbackReply,
             mode: "rules",
             provider: null,
-            attempts: [],
+            attempts,
         };
     }
     if (!isContextWallAvailable()) {
@@ -106,11 +132,10 @@ export async function generateFirewallChatReply(options) {
             reply: "Chat orchestration is temporarily unavailable. Context-wall is unreachable.",
             mode: "unavailable",
             provider: null,
-            attempts: [{ provider: "context-wall", ok: false }],
+            attempts: [...attempts, { provider: "context-wall", ok: false }],
         };
     }
     const history = normalizeFirewallChatHistory(options.messages, options.question);
-    const attempts = [];
     // Route all LLM requests through context-wall orchestration via gRPC.
     // Architecture mandates: gateway-api MUST NOT call LLM providers directly.
     try {
@@ -126,7 +151,7 @@ export async function generateFirewallChatReply(options) {
                 reply: grpcResult.content,
                 mode: "ai",
                 provider: null,
-                attempts: [{ provider: "openai", ok: true }],
+                attempts: [...attempts, { provider: "context-wall", ok: true }],
             };
         }
     }
@@ -136,7 +161,7 @@ export async function generateFirewallChatReply(options) {
             reply: "Chat orchestration is temporarily unavailable. Please retry once context services are healthy.",
             mode: "unavailable",
             provider: null,
-            attempts: [{ provider: "context-wall", ok: false }],
+            attempts: [...attempts, { provider: "context-wall", ok: false }],
         };
     }
     mapleLog("warn", "firewall.chat.unavailable", {

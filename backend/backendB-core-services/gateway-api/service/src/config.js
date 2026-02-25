@@ -35,6 +35,29 @@ export const configuredBridgeUrl = asString(process.env.OPENCLAW_BRIDGE_URL) ??
     (process.env.NODE_ENV === "production" ? "" : HARDCODED_BRIDGE_URL);
 export const configuredBridgeToken = asString(process.env.OPENCLAW_BRIDGE_TOKEN) ?? "";
 export const bridgeOverrideLockEnabled = explicitBridgeLock || !allowBridgeOverride || process.env.NODE_ENV === "production";
+const openclawAgentEnabledRaw = String(process.env.MAPLE_OPENCLAW_AGENT_ENABLED ?? "1").trim().toLowerCase();
+export const openclawAgentEnabled = openclawAgentEnabledRaw !== "0" && openclawAgentEnabledRaw !== "false";
+const openclawAgentModeRaw = String(process.env.MAPLE_OPENCLAW_AGENT_MODE ?? "gateway").trim().toLowerCase();
+export const openclawAgentMode = openclawAgentModeRaw === "local" ? "local" : "gateway";
+const openclawAgentRequiredRaw = String(process.env.MAPLE_OPENCLAW_AGENT_REQUIRED ?? "0").trim().toLowerCase();
+export const openclawAgentRequired = openclawAgentRequiredRaw === "1" || openclawAgentRequiredRaw === "true";
+const openclawAgentPreferDevRaw = String(process.env.MAPLE_OPENCLAW_AGENT_DEV_PROFILE ?? (process.env.KUBERNETES_SERVICE_HOST ? "0" : "1")).trim().toLowerCase();
+export const openclawAgentDevProfile = openclawAgentPreferDevRaw === "1" || openclawAgentPreferDevRaw === "true";
+const openclawAgentAutoStartRaw = String(process.env.MAPLE_OPENCLAW_AGENT_AUTOSTART_GATEWAY ?? (openclawAgentDevProfile ? "1" : "0")).trim().toLowerCase();
+export const openclawAgentAutoStartGateway = openclawAgentAutoStartRaw === "1" || openclawAgentAutoStartRaw === "true";
+const openclawAgentGatewayPortRaw = Number.parseInt(String(process.env.MAPLE_OPENCLAW_AGENT_GATEWAY_PORT ?? "19001"), 10);
+export const openclawAgentGatewayPort = Number.isFinite(openclawAgentGatewayPortRaw) && openclawAgentGatewayPortRaw > 0
+    ? openclawAgentGatewayPortRaw
+    : 19001;
+export const openclawAgentGatewayBind = asString(process.env.MAPLE_OPENCLAW_AGENT_GATEWAY_BIND) ?? "loopback";
+export const openclawAgentDefaultSessionId = asString(process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID) ?? "agent:dev:main";
+export const openclawAgentDefaultThinking = asString(process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_THINKING) ?? "medium";
+const openclawAgentDefaultTimeoutRaw = Number.parseInt(String(process.env.MAPLE_OPENCLAW_AGENT_TIMEOUT_SECONDS ?? "120"), 10);
+export const openclawAgentDefaultTimeoutSeconds = Number.isFinite(openclawAgentDefaultTimeoutRaw)
+    ? Math.max(15, Math.min(1200, openclawAgentDefaultTimeoutRaw))
+    : 120;
+const firewallChatPreferOpenClawRaw = String(process.env.MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW ?? "1").trim().toLowerCase();
+export const firewallChatPreferOpenClaw = firewallChatPreferOpenClawRaw !== "0" && firewallChatPreferOpenClawRaw !== "false";
 export const sessionPollEnabled = String(process.env.MAPLE_SESSION_POLL ?? "1") !== "0";
 export const sessionPollIntervalMs = (() => {
     const raw = process.env.MAPLE_SESSION_POLL_MS;

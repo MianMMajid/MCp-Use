@@ -7,12 +7,14 @@ import { redirectRoutes } from "./routes/redirect-routes.js";
 import { registerTraceRoutes } from "./routes/trace-routes.js";
 import { registerDownstreamRoutes } from "./routes/downstream-routes.js";
 import { mapleLog } from "./logging.js";
+import { bootstrapOpenClawRuntime, shutdownOpenClawRuntime } from "./core/openclaw-agent-runtime.js";
 // Side-effect imports — these register middleware/routes on `server.app` at load time.
 import "./middleware.js";
 import "./routes/mcp-middleware.js";
 import "./routes/auth-routes.js";
 import "./routes/billing-routes.js";
 import "./routes/firewall-routes.js";
+import "./routes/openclaw-agent-routes.js";
 import "./routes/hitl-routes.js";
 import "./routes/demo-routes.js";
 import "./routes/gpt-adapter.js";
@@ -40,6 +42,7 @@ export async function createApp() {
     });
     // Database + auth bootstrap
     await initializeDatabase();
+    await bootstrapOpenClawRuntime();
     const skipAuthBootstrap = String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim().toLowerCase() === "true" ||
         String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim() === "1";
     if (!skipAuthBootstrap) {
@@ -48,6 +51,7 @@ export async function createApp() {
     const shutdown = async () => {
         stopHitlBroker();
         closeGrpcClients(grpcClients);
+        await shutdownOpenClawRuntime();
         try {
             await database.close();
         }
