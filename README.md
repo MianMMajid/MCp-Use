@@ -65,13 +65,13 @@ Built with `mcp-use` + Apps SDK widgets.
 
 ## Key Project Files
 
-- `backend/backendB-core-services/maple-monolith/index.ts`: tool + route orchestration
-- `backend/backendB-core-services/maple-monolith/src/core/risk-engine.ts`: rule engine + embedding anomaly integration
-- `backend/backendB-core-services/maple-monolith/src/ml/embeddings.ts`: simple embedding implementation
-- `backend/backendB-core-services/maple-monolith/src/ml/anomaly-detector.ts`: cosine-sim anomaly detection
-- `backend/backendB-core-services/maple-monolith/src/network/anonymizer.ts`: anonymized trace transformation
-- `backend/backendB-core-services/maple-monolith/src/network/shared-trace-store.ts`: community pool + skill suggestions
-- `backend/backendB-core-services/maple-monolith/src/strategy/yc-narrative.ts`: moat/traction/revenue narrative builder
+- `backend/backendB-core-services/gateway-api/service/src/`: public API and orchestration entrypoint
+- `backend/backendB-core-services/context-wall/service/src/`: semantic policy authority and HITL coordination
+- `backend/backendB-core-services/model-router/service/src/`: model provider routing layer
+- `backend/backendB-core-services/mcp-proxy/service/src/`: tool dispatch/proxy and scoped execution path
+- `backend/backendB-core-services/cyber-proxy/service/src/`: outbound safety checks and network mediation
+- `backend/backendB-core-services/tool-runner/service/src/`: isolated tool execution runtime
+- `backend/backendC-saas-services/business-api/service/src/`: SaaS auth/user/billing APIs
 - `frontend/frontendD-mcp-widgets/resources/trace-timeline/widget.tsx`
 - `frontend/frontendD-mcp-widgets/resources/replay-simulator/widget.tsx`
 - `frontend/frontendD-mcp-widgets/resources/risk-dashboard/widget.tsx`
@@ -103,12 +103,6 @@ Primary endpoints after `npm run dev`:
 - `ws://localhost:4011` (openclaw-gateway)
 
 Note: local K8s uses a generated self-signed cert (`npm run k8s:certs`), so browser/curl trust prompts are expected.
-
-Legacy direct monolith runtime:
-
-```bash
-npm run dev:monolith
-```
 
 Frontend surface helpers:
 
@@ -265,39 +259,13 @@ await logger.logAction({
 
 ### Hackathon Gateway Mode (9 Curated MCP Tools)
 
-Canonical startup (local + Railway) for single-source hackathon routing:
-
-```bash
-npm run start:monolith
-```
-
-Equivalent local alias:
+Canonical startup now uses the full local Kubernetes mesh simulation:
 
 ```bash
 npm run hackathon:up
 ```
 
-This starts a local downstream MCP app (`toolhub`) and route-locks Maple so all downstream calls go through it.
-Only configured downstream apps are used in this build; external catalog providers are not part of runtime routing.
-
-Included tools (diverse coverage):
-
-1. `web_search` (general web search)
-2. `web_fetch` (browser-style page fetch/extraction)
-3. `wikipedia_summary` (encyclopedia knowledge)
-4. `github_repo_info` (code/repo intelligence)
-5. `weather_forecast` (real-time practical data)
-6. `slack_post_message` (messaging integration via Slack)
-7. `hn_search` (live tech/news discovery on Hacker News)
-8. `arxiv_search` (academic/research paper search)
-9. `openlibrary_search` (books and publication lookup)
-
-Slack config for `slack_post_message`:
-
-- Incoming webhook mode: set `SLACK_WEBHOOK_URL`
-- Bot mode: set `SLACK_BOT_TOKEN` and optionally `SLACK_DEFAULT_CHANNEL`
-
-Verify wiring end-to-end:
+This boots the same stack as `npm run k8s:all`, then you can run hackathon smoke checks with:
 
 ```bash
 npm run hackathon:verify
@@ -311,10 +279,9 @@ npm run hackathon:down
 
 Implementation files:
 
-- `backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs` (downstream MCP server with 9 tools)
-- `backend/backendA-platform-infra/scripts/hackathon-up.sh` (starts toolhub + Maple in deterministic route-lock mode)
-- `backend/backendA-platform-infra/scripts/hackathon-verify.sh` (smoke tests for routed tool calls through Maple)
-- `backend/backendA-platform-infra/scripts/hackathon-down.sh` (stops Maple + toolhub)
+- `backend/backendA-platform-infra/scripts/hackathon-start.sh` (mesh runtime wrapper)
+- `backend/backendA-platform-infra/scripts/hackathon-verify.sh` (smoke tests through gateway APIs)
+- `backend/backendA-platform-infra/scripts/hackathon-down.sh` (mesh runtime teardown wrapper)
 
 Stop local demo processes:
 

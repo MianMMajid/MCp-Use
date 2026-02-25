@@ -38,10 +38,9 @@ Frontend assets are sourced from shell folders and synced into backend runtime p
 - Canonical source: `frontend/frontendA-it-console/public`
 - Canonical source: `frontend/frontendC-marketing-download-site/public`
 - Canonical source: `frontend/frontendD-mcp-widgets/resources`
-- Runtime sync target: `backend/backendB-core-services/maple-monolith/public` and `backend/backendB-core-services/maple-monolith/resources`
+- Runtime sync target: `backend/backendA-platform-infra/runtime-assets/public` and `backend/backendA-platform-infra/runtime-assets/resources`
 
 Backend runtime files are consumed directly from shell folders:
-- `backend/backendB-core-services/maple-monolith/*`
 - `backend/backendB-core-services/<service-name>/service`
 - `backend/backendB-core-services/shared/packages`
 - `backend/backendB-core-services/contracts/proto`

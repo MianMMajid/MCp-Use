@@ -15,4 +15,4 @@ This folder defines frontend ownership boundaries for collaboration.
 - Desktop native packaging/app source: `frontend/frontendB-desktop-app/`.
 
 Runtime note:
-- `npm run sync:runtime-assets` copies frontend assets into backend runtime paths under `backend/backendB-core-services/maple-monolith/`.
+- `npm run sync:runtime-assets` copies frontend assets into `backend/backendA-platform-infra/runtime-assets/`.

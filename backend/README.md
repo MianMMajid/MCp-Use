@@ -15,8 +15,8 @@ This folder defines backend and platform ownership boundaries.
 - Tracker import CSV: `backend/FULL_VISION_TICKET_IMPORT.csv`
 
 ## Current Source Mapping
-- Core backend runtime source: `backend/backendB-core-services/maple-monolith/`
-- Service artifacts/source boundaries: `backend/backendB-core-services/<service>/`
+- Core backend runtime source: `backend/backendB-core-services/<service>/service/src/`
+- Service artifacts/source boundaries: `backend/backendB-core-services/<service>/service/dist/`
 - Shared backend libraries: `backend/backendB-core-services/shared/packages/`
 - Proto/contracts: `backend/backendB-core-services/contracts/proto/`
 - SaaS backend services: `backend/backendC-saas-services/*`

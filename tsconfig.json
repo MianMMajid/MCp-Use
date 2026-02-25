@@ -1,8 +1,4 @@
 {
   "files": [],
-  "references": [
-    {
-      "path": "./backend/backendB-core-services/maple-monolith"
-    }
-  ]
+  "references": []
 }

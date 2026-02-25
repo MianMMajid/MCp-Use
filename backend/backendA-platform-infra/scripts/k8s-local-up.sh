@@ -57,7 +57,6 @@ kubectl -n "${NAMESPACE}" create secret generic maple-tls \
 
 echo "Applying Kubernetes manifests"
 kubectl apply -k "${K8S_DIR}" >/dev/null
-kubectl -n "${NAMESPACE}" delete deployment maple-monolith --ignore-not-found=true >/dev/null || true
 
 DEPLOYMENTS="$(kubectl -n "${NAMESPACE}" get deployment -l app.kubernetes.io/part-of=maple-stack -o jsonpath='{.items[*].metadata.name}')"
 if [ -z "${DEPLOYMENTS}" ]; then

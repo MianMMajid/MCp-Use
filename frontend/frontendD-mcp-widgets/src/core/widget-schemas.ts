@@ -1,7 +1,7 @@
 /**
  * Widget prop type definitions.
- * Mirrors the Zod-inferred types from the backend monolith
- * (backend/backendB-core-services/maple-monolith/src/core/widget-schemas.ts).
+ * Mirrors the backend runtime schema surface
+ * (backend/backendB-core-services/gateway-api/service/src/core/widget-schemas.js).
  *
  * These are kept as plain TypeScript interfaces so the widget package
  * does not depend on Zod at runtime.

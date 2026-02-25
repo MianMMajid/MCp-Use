@@ -85,7 +85,7 @@ class RuntimeController {
     }
 
     const command = process.platform === "win32" ? "npm.cmd" : "npm";
-    return { command, args: ["run", "start:monolith"] };
+    return { command, args: ["run", "start"] };
   }
 
   isRunning() {

@@ -35,7 +35,6 @@ Teardown:
 Defaults:
 - `npm run dev` now runs the full Kubernetes simulation flow (`k8s:all`).
 - `npm run start` now runs the full Kubernetes simulation flow (`k8s:all`).
-- Legacy direct monolith run is available via `npm run dev:monolith` or `npm run start:monolith`.
 
 Aggregated logs (full Maple simulation stack):
 - `npm run k8s:logs`

@@ -90,7 +90,7 @@ spec:
         - name: app
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
-          workingDir: /app/backend/backendB-core-services/maple-monolith
+          workingDir: /app/backend/backendB-core-services/gateway-api/service
           command: ["node", "/app/backend/backendB-core-services/gateway-api/service/src/main.js"]
           ports:
             - name: https
@@ -99,7 +99,7 @@ spec:
             - name: GATEWAY_PORT
               value: "3000"
             - name: MAPLE_STATE_DIR
-              value: /app/backend/backendB-core-services/maple-monolith/.mcp-use
+              value: /app/backend/backendB-core-services/gateway-api/service/.mcp-use
             - name: MAPLE_GATEWAY_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_GATEWAY_TLS_KEY
@@ -120,8 +120,6 @@ spec:
               value: /etc/maple/tls/ca.crt
             - name: CONTEXT_WALL_ADDRESS
               value: context-wall.maple.svc.cluster.local:9000
-            - name: MCP_PROXY_ADDRESS
-              value: mcp-proxy.maple.svc.cluster.local:9200
             - name: SECRETS_BROKER_ADDRESS
               value: secrets-broker.maple.svc.cluster.local:9300
             - name: AUDIT_WRITER_ADDRESS

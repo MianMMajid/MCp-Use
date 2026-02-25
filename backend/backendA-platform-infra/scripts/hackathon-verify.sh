@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${MAPLE_BASE_URL:-http://localhost:3000}"
+BASE_URL="${MAPLE_BASE_URL:-https://localhost:3000}"
 API_KEY="${MAPLE_API_KEY:-local-demo-key}"
 SESSION_ID="${MAPLE_VERIFY_SESSION_ID:-hackathon-gateway-smoke}"
+INSECURE_TLS="${MAPLE_VERIFY_INSECURE_TLS:-1}"
 
 auth=(-H "x-api-key: ${API_KEY}")
+curl_args=(-sS)
+if [ "${INSECURE_TLS}" = "1" ]; then
+  curl_args+=(-k)
+fi
 
 echo "Checking runtime status..."
-curl -sS "${BASE_URL}/api/runtime/status" "${auth[@]}" | jq '{
+curl "${curl_args[@]}" "${BASE_URL}/api/runtime/status" "${auth[@]}" | jq '{
   ok,
   routeMode:.status.routeMode,
   routeSummary:.status.routeSummary,
@@ -19,7 +24,7 @@ curl -sS "${BASE_URL}/api/runtime/status" "${auth[@]}" | jq '{
 
 echo
 echo "Checking downstream tools..."
-curl -sS "${BASE_URL}/api/downstream/tools?appId=toolhub&refresh=true" "${auth[@]}" | jq '{
+curl "${curl_args[@]}" "${BASE_URL}/api/downstream/tools?appId=toolhub&refresh=true" "${auth[@]}" | jq '{
   appId,
   toolCount,
   tools:(.tools|map(.name))
@@ -35,7 +40,7 @@ dispatch() {
     --argjson args "${args_json}" \
     '{toolName:$toolName,sessionId:$sessionId,arguments:$args}')"
 
-  curl -sS -X POST "${BASE_URL}/api/downstream/dispatch" \
+  curl "${curl_args[@]}" -X POST "${BASE_URL}/api/downstream/dispatch" \
     -H "content-type: application/json" \
     "${auth[@]}" \
     --data "${body}" \
