@@ -82,14 +82,16 @@ const RiskDashboardWidget: React.FC = () => {
         )}
       </section>
 
-      <section className="cc-edit-box">
-        <h3>Guardrail Recommendations</h3>
-        <ul className="cc-flags">
-          {(props.recommendations ?? []).map((recommendation, idx) => (
-            <li key={`${recommendation}-${idx}`}>{recommendation}</li>
-          ))}
-        </ul>
-      </section>
+      {(props.recommendations ?? []).length > 0 ? (
+        <section className="cc-edit-box">
+          <h3>Guardrail Recommendations</h3>
+          <ul className="cc-flags">
+            {props.recommendations.map((recommendation, idx) => (
+              <li key={`${recommendation}-${idx}`}>{recommendation}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </section>
   );
 };

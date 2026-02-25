@@ -29,7 +29,7 @@ const TraceListWidget: React.FC = () => {
     );
   }
 
-  const traces = props.traces ?? [];
+  const traces = props.traces;
 
   return (
     <section className="cc-card">

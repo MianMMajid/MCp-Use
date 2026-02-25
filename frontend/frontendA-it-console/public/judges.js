@@ -1723,7 +1723,7 @@ function rowClasses(step) {
 }
 
 function renderTimeline(trace) {
-  if (!trace.steps.length) {
+  if (!trace || !Array.isArray(trace.steps) || !trace.steps.length) {
     timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No events yet.</td></tr>';
     return;
   }
@@ -2506,7 +2506,7 @@ function renderExplorerMeta(trace) {
 }
 
 function renderExplorerSteps(trace) {
-  if (!trace.steps.length) {
+  if (!trace || !Array.isArray(trace.steps) || !trace.steps.length) {
     explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
     return;
   }
@@ -2526,6 +2526,12 @@ function renderExplorerSteps(trace) {
 }
 
 function renderStepInspector(trace, stepIndex) {
+  if (!trace || !Array.isArray(trace.steps)) {
+    stepInspectorTitleEl.textContent = "Step Inspector";
+    stepInspectorSummaryEl.textContent = "No step selected";
+    stepInspectorJsonEl.textContent = "{}";
+    return;
+  }
   const step = trace.steps.find((candidate) => candidate.index === stepIndex);
   if (!step) {
     stepInspectorTitleEl.textContent = "Step Inspector";
@@ -3081,7 +3087,7 @@ function renderSmitheryServers() {
       const idx = parseInt(btn.getAttribute("data-smithery-unreg"), 10);
       const server = state.smitheryServers[idx];
       if (!server) return;
-      if (!confirm(`Unregister Smithery server "${server.name ?? server.qualifiedName}"?`)) return;
+      if (!window.confirm("Unregister Smithery server \"" + String(server.name ?? server.qualifiedName ?? "").slice(0, 60) + "\"?")) return;
       btn.disabled = true;
       btn.textContent = "Removing...";
       try {
@@ -3234,7 +3240,7 @@ function renderMarketplaceConnected() {
       const appId = btn.getAttribute("data-disconnect-app");
       if (!appId) return;
       const appName = btn.closest("tr")?.children[1]?.textContent ?? appId;
-      if (!confirm(`Disconnect downstream app "${appName}"? This will remove its tools from the firewall.`)) return;
+      if (!window.confirm("Disconnect downstream app \"" + String(appName).slice(0, 60) + "\"? This will remove its tools from the firewall.")) return;
       disconnectMarketplaceApp(appId);
     });
   });

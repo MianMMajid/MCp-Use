@@ -49,7 +49,7 @@ const BookResultsWidget: React.FC = () => {
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
                 <div className="cc-step-row">
-                  <strong title={book.title}>{book.title}</strong>
+                  <strong title={book.title} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "280px", display: "inline-block" }}>{book.title}</strong>
                   {book.firstPublishYear != null ? (
                     <span className="cc-chip cc-chip-muted">{book.firstPublishYear}</span>
                   ) : null}

@@ -27,7 +27,7 @@ const EvolvedSkillsWidget: React.FC = () => {
     );
   }
 
-  const skills = props.skills ?? [];
+  const skills = props.skills;
 
   return (
     <section className="cc-card">

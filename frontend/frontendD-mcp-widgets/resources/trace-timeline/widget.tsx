@@ -49,9 +49,9 @@ const TraceTimelineWidget: React.FC = () => {
       <header className="cc-header">
         <div>
           <p className="cc-eyebrow">Maple Timeline</p>
-          <h2>Session {props.sessionId}</h2>
+          <h2>Session {props.sessionId ?? "Unknown"}</h2>
           <p className="cc-meta">
-            {props.steps.length} steps • source: {props.source}
+            {props.steps.length} steps{props.source ? ` • source: ${props.source}` : ""}
           </p>
         </div>
         <div className="cc-summary-grid">

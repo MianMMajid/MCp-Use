@@ -323,7 +323,7 @@
       // Placeholder: backend does not have a reset endpoint yet
       setTimeout(() => {
         if (forgotError) {
-          forgotError.style.color = "var(--accent)";
+          forgotError.style.color = "#e8740c";
           forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
         }
         if (btn) { btn.disabled = false; btn.textContent = "Send Reset Link"; }
