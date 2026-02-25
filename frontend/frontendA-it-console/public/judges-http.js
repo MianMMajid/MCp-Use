@@ -29,7 +29,8 @@
         clearTimeout(timer);
         lastError = err;
         if (attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFFS[attempt] ?? 3000));
+          const delay = RETRY_BACKOFFS[Math.min(attempt, RETRY_BACKOFFS.length - 1)] ?? 3000;
+          await new Promise((r) => setTimeout(r, delay));
         }
       }
     }

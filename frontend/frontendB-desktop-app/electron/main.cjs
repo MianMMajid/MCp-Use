@@ -211,7 +211,10 @@ app.whenReady().then(() => {
   updateTrayMenu("Checking...");
 
   // Periodic tray status update
+  let trayPollInFlight = false;
   trayPollTimer = setInterval(async () => {
+    if (trayPollInFlight) return;
+    trayPollInFlight = true;
     try {
       const status = await runtimeController.getStatus();
       const label = status.running && status.healthy ? "Running" : status.running ? "Starting..." : "Stopped";
@@ -219,6 +222,8 @@ app.whenReady().then(() => {
       if (tray && !tray.isDestroyed()) tray.setToolTip(`Maple Desktop — ${label}`);
     } catch {
       updateTrayMenu("Unknown");
+    } finally {
+      trayPollInFlight = false;
     }
   }, 10000);
 

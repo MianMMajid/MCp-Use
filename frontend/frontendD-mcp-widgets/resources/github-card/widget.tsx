@@ -67,9 +67,9 @@ const GithubCardWidget: React.FC = () => {
         {props.updatedAt ? (
           <p className="cc-meta">Updated: {props.updatedAt}</p>
         ) : null}
-        {props.url && /^https?:\/\//i.test(props.url) ? (
-          <a href={props.url} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.4rem" }}>
-            {props.url}
+        {props.url && /^https?:\/\//i.test(String(props.url).trim()) ? (
+          <a href={String(props.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.4rem" }}>
+            {String(props.url).trim()}
           </a>
         ) : null}
       </div>

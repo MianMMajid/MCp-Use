@@ -9,6 +9,12 @@
       const isOpen = navLinks.classList.toggle("open");
       navHamburger.setAttribute("aria-expanded", String(isOpen));
     });
+    navLinks.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        navLinks.classList.remove("open");
+        navHamburger.setAttribute("aria-expanded", "false");
+      });
+    });
   }
 
   const form = document.getElementById("signinForm");
@@ -45,11 +51,13 @@
       tabSignUp.classList.remove("active");
       signinPane.classList.remove("hidden");
       signupPane.classList.add("hidden");
+      if (signupError) signupError.textContent = "";
     } else {
       tabSignUp.classList.add("active");
       tabSignIn.classList.remove("active");
       signupPane.classList.remove("hidden");
       signinPane.classList.add("hidden");
+      if (errorEl) errorEl.textContent = "";
     }
   }
 
@@ -107,8 +115,7 @@
   }
 
   function initGoogleSignIn() {
-    // Best-effort — no timeout wrapper for client-id fetch
-    fetch("/api/auth/google/client-id")
+    fetchWithTimeout("/api/auth/google/client-id", {}, 5000)
       .then(res => { if (!res.ok) throw new Error(); return res.json(); })
       .then(function (data) {
         if (!data.clientId) return;

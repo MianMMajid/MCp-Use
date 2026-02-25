@@ -2753,7 +2753,7 @@ function showToast(title, message, type = "info") {
   `;
   const closeBtn = toast.querySelector(".toast-close");
   if (closeBtn) closeBtn.addEventListener("click", () => dismissToast(toast));
-  toastContainerEl.appendChild(toast);
+  if (toastContainerEl) toastContainerEl.appendChild(toast);
   setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
 }
 

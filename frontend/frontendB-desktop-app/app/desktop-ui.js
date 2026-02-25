@@ -96,22 +96,29 @@
     runtimeLogs.scrollTop = runtimeLogs.scrollHeight;
   }
 
+  let refreshInFlight = false;
   async function refreshAll() {
-    const config = api?.getConfig ? await api.getConfig() : defaultConfig;
-    renderConfig(config);
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    try {
+      const config = api?.getConfig ? await api.getConfig() : defaultConfig;
+      renderConfig(config);
 
-    if (api?.getStatus) {
-      const status = await api.getStatus();
-      renderStatus(status);
-    } else {
-      renderStatus({ mode: config.mode, running: false, healthy: false, pid: null });
-      fallbackBox.style.display = "block";
-      startBtn.disabled = true;
-      stopBtn.disabled = true;
-      if (restartBtn) restartBtn.disabled = true;
+      if (api?.getStatus) {
+        const status = await api.getStatus();
+        renderStatus(status);
+      } else {
+        renderStatus({ mode: config.mode, running: false, healthy: false, pid: null });
+        fallbackBox.style.display = "block";
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+        if (restartBtn) restartBtn.disabled = true;
+      }
+
+      await refreshLogs();
+    } finally {
+      refreshInFlight = false;
     }
-
-    await refreshLogs();
   }
 
   refreshBtn.addEventListener("click", () => {

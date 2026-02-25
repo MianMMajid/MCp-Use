@@ -20,7 +20,7 @@ const severityColor: Record<string, string> = {
 const TraceListWidget: React.FC = () => {
   const { props, isPending } = useWidget<TraceListWidgetProps>();
 
-  if (isPending || !props.traces) {
+  if (isPending || !Array.isArray(props.traces)) {
     return (
       <section className="cc-card cc-loading">
         <div className="cc-spinner" />

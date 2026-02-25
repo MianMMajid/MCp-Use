@@ -72,8 +72,8 @@ const RiskDashboardWidget: React.FC = () => {
           <p>No risk flags detected.</p>
         ) : (
           <ul className="cc-flags">
-            {props.flags.map((flag) => (
-              <li key={flag.id}>
+            {props.flags.map((flag, idx) => (
+              <li key={flag?.id ?? `flag-${idx}`}>
                 step {flag.stepIndex} • [{flag.severity}] {flag.message}
                 {flag.evidence ? ` (${flag.evidence})` : ""}
               </li>

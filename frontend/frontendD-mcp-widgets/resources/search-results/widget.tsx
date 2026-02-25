@@ -54,9 +54,9 @@ const SearchResultsWidget: React.FC = () => {
                     <span className="cc-chip cc-chip-muted">{item.source}</span>
                   ) : null}
                 </div>
-                {item.url && /^https?:\/\//i.test(item.url) ? (
-                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="cc-link">
-                    {item.url}
+                {item.url && /^https?:\/\//i.test(String(item.url).trim()) ? (
+                  <a href={String(item.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {String(item.url).trim()}
                   </a>
                 ) : null}
                 {item.snippet ? <p>{item.snippet}</p> : null}
