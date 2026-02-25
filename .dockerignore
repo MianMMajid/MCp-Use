@@ -1,0 +1,16 @@
+node_modules
+dist
+.mcp-use
+.git
+.env
+.env.local
+.demo-secrets.env
+backend/backendB-core-services/maple-monolith/data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.DS_Store
+.vscode
+.idea
+mcp-firewall-reference

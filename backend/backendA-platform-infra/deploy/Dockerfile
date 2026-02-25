@@ -48,4 +48,4 @@ ENV MAPLE_DB_PATH=/app/backend/backendB-core-services/maple-monolith/data/maple.
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+CMD ["bash", "backend/backendA-platform-infra/scripts/hackathon-start.sh"]

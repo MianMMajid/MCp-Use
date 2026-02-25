@@ -83,14 +83,29 @@ npm install
 npm run dev
 ```
 
-`dev/build/start` now run directly from:
-- `backend/backendB-core-services/maple-monolith`
+`dev/start` now default to the full local Kubernetes simulation flow (`k8s:all`):
+- build + deploy all workloads
+- start all service port-forwards
+- stream full-stack logs into one file
 
 Authoritative source folders:
 - `backend/`
 - `frontend/`
 
-Inspector: `http://localhost:3000/inspector`
+Primary endpoints after `npm run dev`:
+- `http://localhost:3000` (gateway-api / judge / inspector / API)
+- `http://localhost:3100` (frontendA-it-console)
+- `http://localhost:3200` (frontendB-desktop-app shell)
+- `http://localhost:3300` (frontendC-marketing-site)
+- `http://localhost:3400` (frontendD-mcp-widgets)
+- `http://localhost:4010/health` (openclaw-bridge)
+- `ws://localhost:4011` (openclaw-gateway)
+
+Legacy direct monolith runtime:
+
+```bash
+npm run dev:monolith
+```
 
 Frontend surface helpers:
 
@@ -99,6 +114,43 @@ npm run dev:frontendA
 npm run dev:frontendB
 npm run dev:frontendC
 npm run dev:widgets
+```
+
+## Local Kubernetes (kind)
+
+You can run the stack on this laptop in a local Kubernetes cluster.
+
+Prerequisites:
+- Docker Desktop running
+- `kubectl` installed
+- `kind` installed (for example: `brew install kind`)
+
+Commands:
+
+```bash
+npm run k8s:all
+```
+
+Equivalent full default:
+
+```bash
+npm run dev
+```
+
+Open:
+- `http://localhost:3000` (gateway-api)
+- `http://localhost:3100` (frontendA-it-console)
+- `http://localhost:3200` (frontendB-desktop-app shell)
+- `http://localhost:3300` (frontendC-marketing-site)
+- `http://localhost:3400` (frontendD-mcp-widgets)
+- `http://localhost:4010/health` (openclaw-bridge)
+- `ws://localhost:4011` (openclaw-gateway)
+
+Cleanup:
+
+```bash
+npm run k8s:down
+npm run k8s:down -- --destroy-cluster
 ```
 
 ## Hardcoded Demo Stack (OpenClaw + Maple)
@@ -197,7 +249,7 @@ await logger.logAction({
 Canonical startup (local + Railway) for single-source hackathon routing:
 
 ```bash
-npm start
+npm run start:monolith
 ```
 
 Equivalent local alias:

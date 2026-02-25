@@ -22,8 +22,8 @@
   "main": "backend/backendB-core-services/maple-monolith/dist/index.js",
   "scripts": {
     "build": "mcp-use build -p backend/backendB-core-services/maple-monolith",
-    "dev": "bash backend/backendA-platform-infra/scripts/hackathon-start.sh",
-    "start": "bash backend/backendA-platform-infra/scripts/hackathon-start.sh",
+    "dev": "bash backend/backendA-platform-infra/scripts/k8s-local-all.sh",
+    "start": "bash backend/backendA-platform-infra/scripts/k8s-local-all.sh",
     "sync:runtime-assets": "bash backend/backendA-platform-infra/scripts/sync-runtime-assets.sh",
     "prebuild": "npm run sync:runtime-assets",
     "predev": "npm run sync:runtime-assets",
@@ -46,6 +46,15 @@
     "hackathon:verify": "bash backend/backendA-platform-infra/scripts/hackathon-verify.sh",
     "local:up": "bash backend/backendA-platform-infra/scripts/local-up.sh",
     "local:down": "bash backend/backendA-platform-infra/scripts/local-down.sh",
+    "k8s:up": "bash backend/backendA-platform-infra/scripts/k8s-local-up.sh",
+    "k8s:dev": "bash backend/backendA-platform-infra/scripts/k8s-local-dev.sh",
+    "k8s:all": "bash backend/backendA-platform-infra/scripts/k8s-local-all.sh",
+    "k8s:down": "bash backend/backendA-platform-infra/scripts/k8s-local-down.sh",
+    "k8s:status": "bash backend/backendA-platform-infra/scripts/k8s-local-status.sh",
+    "k8s:pf": "bash backend/backendA-platform-infra/scripts/k8s-local-port-forward.sh",
+    "k8s:logs": "bash backend/backendA-platform-infra/scripts/k8s-logs-aggregate.sh",
+    "dev:monolith": "bash backend/backendA-platform-infra/scripts/hackathon-start.sh",
+    "start:monolith": "bash backend/backendA-platform-infra/scripts/hackathon-start.sh",
     "postinstall": "echo \"Skipping postinstall type generation\""
   },
   "dependencies": {

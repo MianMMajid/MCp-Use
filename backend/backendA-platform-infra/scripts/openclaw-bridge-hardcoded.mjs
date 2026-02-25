@@ -10,6 +10,7 @@ import { join } from "node:path";
 
 const execFileAsync = promisify(execFile);
 const BRIDGE_PORT = Number(process.env.OPENCLAW_BRIDGE_PORT ?? 8787);
+const BRIDGE_HOST = process.env.OPENCLAW_BRIDGE_HOST ?? "0.0.0.0";
 const BRIDGE_TOKEN =
   process.env.OPENCLAW_BRIDGE_TOKEN && process.env.OPENCLAW_BRIDGE_TOKEN.trim().length > 0
     ? process.env.OPENCLAW_BRIDGE_TOKEN
@@ -881,10 +882,10 @@ const server = createServer(async (req, res) => {
   });
 });
 
-server.listen(BRIDGE_PORT, "127.0.0.1", () => {
+server.listen(BRIDGE_PORT, BRIDGE_HOST, () => {
   const mode = REQUIRE_AUTH ? "auth required" : "auth disabled";
   console.log(
-    `[openclaw-bridge-hardcoded] listening on http://127.0.0.1:${BRIDGE_PORT} (${mode})`
+    `[openclaw-bridge-hardcoded] listening on http://${BRIDGE_HOST}:${BRIDGE_PORT} (${mode})`
   );
   console.log(
     `[openclaw-bridge-hardcoded] mode=${BRIDGE_MODE} gateway=${GATEWAY_WS_URL} session=${DEFAULT_GATEWAY_SESSION_KEY}`
