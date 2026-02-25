@@ -48,7 +48,7 @@
     "test:infra-scripts": "node --test backend/backendA-platform-infra/tests/*.test.mjs",
     "typecheck": "npm run typecheck:monolith && npm run typecheck:mesh",
     "typecheck:monolith": "npx tsc --noEmit --project backend/backendB-core-services/maple-monolith/tsconfig.json",
-    "typecheck:mesh": "node backend/backendA-platform-infra/scripts/check-service-sources.mjs",
+    "typecheck:mesh": "node backend/backendA-platform-infra/scripts/check-service-sources.mjs && node backend/backendA-platform-infra/scripts/check-proto-sync.mjs",
     "test:backend-smoke": "bash backend/backendA-platform-infra/scripts/smoke-core-services.sh",
     "deploy": "mcp-use deploy -p backend/backendB-core-services/maple-monolith",
     "demo:install-openclaw": "bash backend/backendA-platform-infra/scripts/install-openclaw.sh",

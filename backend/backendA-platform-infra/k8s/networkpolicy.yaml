@@ -230,9 +230,6 @@ spec:
         - podSelector:
             matchLabels:
               app: context-wall
-        - podSelector:
-            matchLabels:
-              app: gateway-api
       ports:
         - protocol: TCP
           port: 9200

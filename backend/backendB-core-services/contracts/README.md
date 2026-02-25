@@ -8,6 +8,7 @@ Place protobuf and API contracts in:
 Contract files are generated from the checked-in `maple-proto-ts` stubs:
 
 - Generate/update: `npm run contracts:generate`
+- Drift guard: `npm run typecheck:mesh` (runs proto sync validation)
 - Canonical source: `backend/backendB-core-services/contracts/proto`
 - Runtime sync targets:
   - `backend/proto`
