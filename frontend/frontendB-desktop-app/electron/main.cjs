@@ -158,19 +158,24 @@ app.whenReady().then(() => {
   if (autoUpdater) {
     autoUpdater.autoDownload = false;
     autoUpdater.on("update-available", (info) => {
-      const win = BrowserWindow.getAllWindows()[0];
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length === 0) return;
+      const win = windows[0];
       if (win && !win.isDestroyed()) {
         win.webContents.send("desktop:update-available", {
-          version: info.version,
-          releaseDate: info.releaseDate,
+          version: String(info?.version ?? "unknown"),
+          releaseDate: String(info?.releaseDate ?? ""),
         });
       }
     });
     autoUpdater.checkForUpdates().catch(() => {});
   }
 
+  let updateInstalling = false;
   ipcMain.handle("desktop:download-update", async () => {
     if (!autoUpdater) return { ok: false, error: "Auto-updater not available" };
+    if (updateInstalling) return { ok: false, error: "Update already in progress" };
+    updateInstalling = true;
     try {
       const downloadResult = await autoUpdater.downloadUpdate();
       if (!downloadResult || (Array.isArray(downloadResult) && downloadResult.length === 0)) {
@@ -181,6 +186,7 @@ app.whenReady().then(() => {
       });
       return { ok: true };
     } catch (err) {
+      updateInstalling = false;
       return { ok: false, error: String(err.message ?? err) };
     }
   });

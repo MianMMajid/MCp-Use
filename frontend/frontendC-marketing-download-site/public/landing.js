@@ -47,16 +47,16 @@
   // --- Tab switching ---
   function switchTab(tab) {
     if (tab === "signin") {
-      tabSignIn.classList.add("active");
-      tabSignUp.classList.remove("active");
-      signinPane.classList.remove("hidden");
-      signupPane.classList.add("hidden");
+      if (tabSignIn) tabSignIn.classList.add("active");
+      if (tabSignUp) tabSignUp.classList.remove("active");
+      if (signinPane) signinPane.classList.remove("hidden");
+      if (signupPane) signupPane.classList.add("hidden");
       if (signupError) signupError.textContent = "";
     } else {
-      tabSignUp.classList.add("active");
-      tabSignIn.classList.remove("active");
-      signupPane.classList.remove("hidden");
-      signinPane.classList.add("hidden");
+      if (tabSignUp) tabSignUp.classList.add("active");
+      if (tabSignIn) tabSignIn.classList.remove("active");
+      if (signupPane) signupPane.classList.remove("hidden");
+      if (signinPane) signinPane.classList.add("hidden");
       if (errorEl) errorEl.textContent = "";
     }
   }
@@ -328,6 +328,7 @@
         return;
       }
       const btn = forgotForm.querySelector("button[type=submit]");
+      if (btn && btn.disabled) return;
       if (btn) { btn.disabled = true; btn.textContent = "Sending\u2026"; }
       try {
         const res = await fetchWithTimeout("/api/auth/password-reset", {

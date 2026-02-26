@@ -36,7 +36,7 @@ const WikiCardWidget: React.FC = () => {
 
       <div className="cc-pane">
         <p style={{ lineHeight: 1.55, margin: 0 }}>
-          {(() => { const text = props.extract ?? props.summary ?? ""; return text.length > 500 ? text.slice(0, 500) + "\u2026" : text; })()}
+          {(() => { const text = props.extract ?? props.summary ?? ""; if (text.length <= 500) return text; const sliced = Array.from(text).slice(0, 500).join(""); return sliced + "\u2026"; })()}
         </p>
         {props.url && /^https?:\/\//i.test(String(props.url).trim()) ? (
           <a href={String(props.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.6rem" }}>

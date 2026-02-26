@@ -313,10 +313,10 @@ const primaryConfiguredApiKeyFingerprint =
     ? createHash("sha256").update(configuredApiKeys[0]).digest("hex").slice(0, 12)
     : undefined;
 const demoRoutesEnabled =
-  String(process.env.MAPLE_ENABLE_DEMO_ROUTES ?? "1")
+  String(process.env.MAPLE_ENABLE_DEMO_ROUTES ?? "0")
     .trim()
     .toLowerCase() === "true" ||
-  String(process.env.MAPLE_ENABLE_DEMO_ROUTES ?? "1")
+  String(process.env.MAPLE_ENABLE_DEMO_ROUTES ?? "0")
     .trim()
     .toLowerCase() === "1";
 const legacySmitheryRoutesEnabled =
@@ -370,7 +370,10 @@ if (!apiKeyAuthEnabled && !allowNoAuth) {
 }
 
 if (process.env.NODE_ENV === "production" && allowNoAuth) {
-  console.warn("[MAPLE] WARNING: MAPLE_ALLOW_NO_AUTH is enabled in production. MCP endpoints are publicly accessible.");
+  throw new Error(
+    "[MAPLE] MAPLE_ALLOW_NO_AUTH is enabled in production. This is not allowed. " +
+    "Set MAPLE_API_KEY or MAPLE_API_KEYS to secure the server."
+  );
 }
 
 if (mcpProxyAllowDynamicTargets && mcpProxyAllowedHosts.length === 0) {
@@ -876,7 +879,7 @@ function requireApiKeyResponse(c: {
 
   if (!requireApiKey && allowSessionAuth) {
     const session = findRequestSession(cookieHeader);
-    if (session) {
+    if (session && session.user) {
       authContextStorage.enterWith({
         method: "session",
         keyFingerprint: undefined,
@@ -5796,15 +5799,12 @@ server.app.post("/api/auth/login", async (c) => {
   const body = await readJsonBody(c);
   const username = asString(body.username);
   const password = asString(body.password);
-  console.log(`[LOGIN-DEBUG] username=${JSON.stringify(username)} password=${JSON.stringify(password)} bodyKeys=${JSON.stringify(Object.keys(body))}`);
   if (!username || !password) {
     return c.json({ error: "username and password are required." }, 400);
   }
 
   const user = database.findUserByUsername(username);
-  console.log(`[LOGIN-DEBUG] userFound=${!!user} hashPrefix=${user?.passwordHash?.slice(0, 20)}`);
   if (!user || !verifyPassword(password, user.passwordHash)) {
-    console.log(`[LOGIN-DEBUG] REJECTED — verifyPassword=${user ? verifyPassword(password, user.passwordHash) : "no-user"}`);
     return c.json({ error: "Invalid username or password." }, 401);
   }
 
@@ -6928,7 +6928,15 @@ server.get("/gpt/oauth/authorize", (c) => {
   if (!redirectUri) {
     return c.json({ error: "redirect_uri is required" }, 400);
   }
-  const code = "maple-auth-code-" + Date.now();
+  try {
+    const parsed = new URL(redirectUri);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return c.json({ error: "redirect_uri must use http or https" }, 400);
+    }
+  } catch {
+    return c.json({ error: "redirect_uri is not a valid URL" }, 400);
+  }
+  const code = randomUUID();
   const separator = redirectUri.includes("?") ? "&" : "?";
   return c.redirect(`${redirectUri}${separator}code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
 });
@@ -6948,14 +6956,14 @@ server.app.post("/gpt/oauth/token", async (c) => {
     } catch (_e) { /* ignore */ }
   }
 
-  if (clientId && clientId !== GPT_OAUTH_CLIENT_ID) {
+  if (!clientId || clientId !== GPT_OAUTH_CLIENT_ID) {
     return c.json({ error: "invalid_client" }, 401);
   }
-  if (clientSecret && clientSecret !== GPT_OAUTH_CLIENT_SECRET) {
+  if (!clientSecret || clientSecret !== GPT_OAUTH_CLIENT_SECRET) {
     return c.json({ error: "invalid_client" }, 401);
   }
 
-  const accessToken = configuredApiKeys[0] || "maple-access-token";
+  const accessToken = configuredApiKeys[0] || randomUUID();
   return c.json({
     access_token: accessToken,
     token_type: "bearer",
@@ -7061,6 +7069,9 @@ server.get("/gpt/openapi.json", async (c) => {
 });
 
 server.app.post("/gpt/tools/:toolName", async (c) => {
+  const unauthorized = requireApiKeyResponse(c);
+  if (unauthorized) return unauthorized;
+
   const toolName = c.req.param("toolName");
   if (!toolName) {
     return c.json({ ok: false, error: "Tool name is required." }, 400);
