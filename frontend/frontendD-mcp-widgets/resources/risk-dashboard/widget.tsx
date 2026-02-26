@@ -53,7 +53,7 @@ const RiskDashboardWidget: React.FC = () => {
         <div className="cc-gauge-track">
           <div
             className={`cc-gauge-value ${severityClass(props.severity)}`}
-            style={{ width: `${props.overallRiskScore}%` }}
+            style={{ width: `${Math.max(0, Math.min(100, props.overallRiskScore))}%` }}
           />
         </div>
         <div className="cc-gauge-label">overall risk score: {props.overallRiskScore}</div>
@@ -72,12 +72,15 @@ const RiskDashboardWidget: React.FC = () => {
           <p>No risk flags detected.</p>
         ) : (
           <ul className="cc-flags">
-            {props.flags.map((flag, idx) => (
+            {props.flags.slice(0, 20).map((flag, idx) => (
               <li key={flag?.id ?? `flag-${idx}`}>
                 step {flag.stepIndex} • [{flag.severity}] {flag.message}
                 {flag.evidence ? ` (${flag.evidence})` : ""}
               </li>
             ))}
+            {props.flags.length > 20 ? (
+              <li className="cc-meta">…and {props.flags.length - 20} more flags</li>
+            ) : null}
           </ul>
         )}
       </section>

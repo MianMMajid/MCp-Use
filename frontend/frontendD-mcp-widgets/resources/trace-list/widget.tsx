@@ -49,7 +49,7 @@ const TraceListWidget: React.FC = () => {
         </div>
       ) : (
         <div className="cc-timeline" role="list">
-          {traces.map((trace, i) => {
+          {traces.slice(0, 50).map((trace, i) => {
             const sev = trace.severity ?? "low";
             return (
               <article key={trace.traceId ?? `trace-${i}`} className="cc-timeline-item" role="listitem">
@@ -84,6 +84,11 @@ const TraceListWidget: React.FC = () => {
               </article>
             );
           })}
+          {traces.length > 50 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {traces.length - 50} more traces
+            </p>
+          ) : null}
         </div>
       )}
     </section>

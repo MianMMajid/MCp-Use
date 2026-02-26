@@ -1230,6 +1230,9 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
       if (content) {
         appendFirewallChatMessage("assistant", content);
         chatHistory.push({ role: "assistant", content });
+        if (chatHistory.length > MAX_CHAT_HISTORY) {
+          chatHistory = chatHistory.slice(-CHAT_HISTORY_TRIM_TO);
+        }
       } else {
         appendFirewallChatMessage("assistant", "Chat error: no response from fallback.", { error: true });
       }
@@ -3286,25 +3289,27 @@ async function refreshMarketplaceTools() {
       renderMarketplaceConnected();
     }
 
+    const results = await Promise.allSettled(
+      apps
+        .filter((app) => app?.appId ?? app?.id)
+        .map((app) => {
+          const appId = app.appId ?? app.id;
+          return fetchJson(
+            `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
+          ).then((data) => ({
+            appId,
+            tools: Array.isArray(data?.tools) ? data.tools : [],
+          }));
+        })
+    );
     const collected = [];
-    for (const app of apps) {
-      const appId = app?.appId ?? app?.id;
-      if (!appId) {
-        continue;
-      }
-      try {
-        const data = await fetchJson(
-          `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
-        );
-        const tools = Array.isArray(data?.tools) ? data.tools : [];
-        for (const tool of tools) {
-          collected.push({
-            ...tool,
-            appId: tool?.appId ?? appId,
-          });
-        }
-      } catch {
-        // Keep rendering other apps if one tools/list call fails.
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      for (const tool of result.value.tools) {
+        collected.push({
+          ...tool,
+          appId: tool?.appId ?? result.value.appId,
+        });
       }
     }
 

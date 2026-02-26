@@ -66,7 +66,7 @@ const TraceTimelineWidget: React.FC = () => {
       </header>
 
       <div className="cc-timeline" role="list">
-        {props.steps.map((step) => (
+        {props.steps.slice(0, 50).map((step) => (
           <article key={step.index} className="cc-timeline-item" role="listitem">
             <div className={`cc-marker ${riskTone(step.riskScore)}`} aria-hidden />
             <div className="cc-step-main">
@@ -90,6 +90,11 @@ const TraceTimelineWidget: React.FC = () => {
             </div>
           </article>
         ))}
+        {props.steps.length > 50 ? (
+          <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+            …and {props.steps.length - 50} more steps
+          </p>
+        ) : null}
       </div>
     </section>
   );
