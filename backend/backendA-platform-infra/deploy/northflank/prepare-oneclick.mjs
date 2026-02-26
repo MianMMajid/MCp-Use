@@ -10,7 +10,7 @@ const __dirname = dirname(__filename);
 const repoRoot = resolve(__dirname, "../../../..");
 const templatePath = resolve(__dirname, "template.backend-mesh.json");
 const argsPath = resolve(__dirname, "northflank.arguments.json");
-const oneClickPath = resolve(__dirname, "template.backend-mesh.one-click.json");
+const oneClickPath = resolve(__dirname, "template.backend-mesh.one-click.local.json");
 const certPath = resolve(__dirname, "certs", "tls.crt");
 const keyPath = resolve(__dirname, "certs", "tls.key");
 const caPath = resolve(__dirname, "certs", "ca.crt");
@@ -48,5 +48,5 @@ template.arguments = {
 
 writeFileSync(oneClickPath, `${JSON.stringify(template, null, 2)}\n`, "utf8");
 
-console.log(`[northflank] Wrote one-click template: ${oneClickPath}`);
+console.log(`[northflank] Wrote one-click local template: ${oneClickPath}`);
 console.log("[northflank] Import this file in Northflank and run.");

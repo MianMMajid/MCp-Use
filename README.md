@@ -119,7 +119,7 @@ Fast path:
 npm run northflank:oneclick
 ```
 
-This generates `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json` ready to import in Northflank.
+This generates `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.local.json` ready to import in Northflank.
 
 Frontend surface helpers:
 

@@ -53,4 +53,4 @@ mcp-firewall-reference/
 # Northflank generated artifacts (can contain secrets)
 /backend/backendA-platform-infra/deploy/northflank/certs/
 /backend/backendA-platform-infra/deploy/northflank/northflank.arguments.json
-/backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json
+/backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.local.json

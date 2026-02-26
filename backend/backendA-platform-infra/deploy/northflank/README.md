@@ -39,9 +39,13 @@ npm run northflank:oneclick
 
 This writes:
 
-- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json`
+- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.local.json`
 
 Import that file in Northflank and run.
+
+Safe committed template (no local secrets injected):
+
+- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json`
 
 ### Manual
 
@@ -83,7 +87,6 @@ node backend/backendA-platform-infra/deploy/northflank/generate-args.mjs \
 
 ## Important Notes
 
-- `databaseUrl` must be set to a real PostgreSQL DSN.
 - `DATABASE_URL`/`MAPLE_DATABASE_URL` are sourced from the created Northflank Postgres addon
   via `addonDependencies` (`POSTGRES_URI` -> aliases).
 - `generate-args.mjs` auto-loads `.env` and `.env.northflank`, auto-detects `repoUrl` from git origin,
