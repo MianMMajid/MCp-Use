@@ -1,0 +1,65 @@
+name: frontend-tests
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "tests/frontend/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/frontend-tests.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "frontend/**"
+      - "tests/frontend/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/frontend-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Frontend test flow
+        run: npm run test:frontend:flow:ci
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: tests/frontend/coverage
+          if-no-files-found: ignore
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-playwright-artifacts
+          path: tests/frontend/artifacts/playwright
+          if-no-files-found: ignore

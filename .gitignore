@@ -43,3 +43,9 @@ mcp-firewall-reference/
 # Local TLS materials generated for K8s/compose local stack
 /backend/backendA-platform-infra/certs/*
 !/backend/backendA-platform-infra/certs/.gitkeep
+
+# Frontend test artifacts
+/tests/frontend/coverage/
+/tests/frontend/artifacts/
+/tests/frontend/tests/frontend/artifacts/
+/playwright-report/
