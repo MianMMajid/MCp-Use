@@ -4,6 +4,7 @@
     "projectName": "maple-mesh",
     "projectDescription": "Maple full stack on Northflank",
     "projectColor": "#0f172a",
+    "projectRegion": "us-east",
     "repoUrl": "https://github.com/your-org/your-repo",
     "repoProvider": "github",
     "repoBranch": "main",
@@ -58,7 +59,8 @@
           "spec": {
             "name": "${args.projectName}",
             "description": "${args.projectDescription}",
-            "color": "${args.projectColor}"
+            "color": "${args.projectColor}",
+            "region": "${args.projectRegion}"
           }
         },
         {
@@ -243,18 +245,7 @@
                 "name": "p01",
                 "internalPort": 8443,
                 "public": true,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 20,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -284,18 +275,7 @@
                 "name": "p01",
                 "internalPort": 9550,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 20,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -325,18 +305,7 @@
                 "name": "p01",
                 "internalPort": 9443,
                 "public": true,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 20,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -366,18 +335,7 @@
                 "name": "p01",
                 "internalPort": 9000,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP/2"
               }
             ]
           }
@@ -407,18 +365,7 @@
                 "name": "p01",
                 "internalPort": 9100,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP/2"
               }
             ]
           }
@@ -448,18 +395,7 @@
                 "name": "p01",
                 "internalPort": 9200,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP/2"
               }
             ]
           }
@@ -489,18 +425,7 @@
                 "name": "p01",
                 "internalPort": 8080,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP/2"
               }
             ]
           }
@@ -530,18 +455,7 @@
                 "name": "p01",
                 "internalPort": 9250,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP/2"
               }
             ]
           }
@@ -571,18 +485,7 @@
                 "name": "p01",
                 "internalPort": 9300,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP/2"
               }
             ]
           }
@@ -612,24 +515,13 @@
                 "name": "p01",
                 "internalPort": 9400,
                 "public": false,
-                "protocol": "TCP"
+                "protocol": "HTTP/2"
               },
               {
                 "name": "p02",
                 "internalPort": 9401,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -657,18 +549,7 @@
                 "name": "p01",
                 "internalPort": 19001,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "TCP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -698,19 +579,7 @@
                 "name": "p01",
                 "internalPort": 8787,
                 "public": false,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "HTTP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "path": "/health",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -740,19 +609,7 @@
                 "name": "p01",
                 "internalPort": 8080,
                 "public": true,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "HTTP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "path": "/health",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -782,19 +639,7 @@
                 "name": "p01",
                 "internalPort": 8080,
                 "public": true,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "HTTP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "path": "/health",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -824,19 +669,7 @@
                 "name": "p01",
                 "internalPort": 8080,
                 "public": true,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "HTTP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "path": "/health",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }
@@ -866,19 +699,7 @@
                 "name": "p01",
                 "internalPort": 8080,
                 "public": true,
-                "protocol": "TCP"
-              }
-            ],
-            "healthChecks": [
-              {
-                "protocol": "HTTP",
-                "type": "readinessProbe",
-                "port": "p01",
-                "path": "/health",
-                "initialDelaySeconds": 10,
-                "periodSeconds": 15,
-                "timeoutSeconds": 5,
-                "failureThreshold": 6
+                "protocol": "HTTP"
               }
             ]
           }

@@ -12,6 +12,7 @@ const argumentsDefaults = {
   projectName: "maple-mesh",
   projectDescription: "Maple full stack on Northflank",
   projectColor: "#0f172a",
+  projectRegion: "us-east",
   repoUrl: "https://github.com/your-org/your-repo",
   repoProvider: "github",
   repoBranch: "main",
@@ -137,32 +138,16 @@ const runtimeVariables = {
   MAPLE_RECOVERY_DELIVERY_REQUIRED: "${args.recoveryDeliveryRequired}"
 };
 
-function healthTcp(portName, initialDelaySeconds = 10) {
-  return {
-    protocol: "TCP",
-    type: "readinessProbe",
-    port: portName,
-    initialDelaySeconds,
-    periodSeconds: 15,
-    timeoutSeconds: 5,
-    failureThreshold: 6
-  };
-}
-
-function healthHttp(portName, path = "/health", initialDelaySeconds = 10) {
-  return {
-    protocol: "HTTP",
-    type: "readinessProbe",
-    port: portName,
-    path,
-    initialDelaySeconds,
-    periodSeconds: 15,
-    timeoutSeconds: 5,
-    failureThreshold: 6
-  };
-}
-
-function deploymentFromInternal({ name, command, ports, healthChecks = [], publicPortNames = [] }) {
+function deploymentFromInternal({ name, command, ports, publicPortNames = [] }) {
+  const normalizedPorts = ports.map((port) => {
+    if (typeof port === "number") {
+      return { number: port, protocol: "HTTP" };
+    }
+    return {
+      number: Number(port.number),
+      protocol: String(port.protocol || "HTTP"),
+    };
+  });
   return {
     kind: "DeploymentService",
     spec: {
@@ -183,18 +168,26 @@ function deploymentFromInternal({ name, command, ports, healthChecks = [], publi
           customCommand: command
         }
       },
-      ports: ports.map((port, index) => ({
+      ports: normalizedPorts.map((port, index) => ({
         name: `p${String(index + 1).padStart(2, "0")}`,
-        internalPort: port,
-        public: publicPortNames.includes(port),
-        protocol: "TCP"
-      })),
-      healthChecks
+        internalPort: port.number,
+        public: publicPortNames.includes(port.number),
+        protocol: port.protocol
+      }))
     }
   };
 }
 
-function deploymentFromExternal({ name, imagePath, command, ports, healthChecks = [], publicPortNames = [] }) {
+function deploymentFromExternal({ name, imagePath, command, ports, publicPortNames = [] }) {
+  const normalizedPorts = ports.map((port) => {
+    if (typeof port === "number") {
+      return { number: port, protocol: "HTTP" };
+    }
+    return {
+      number: Number(port.number),
+      protocol: String(port.protocol || "HTTP"),
+    };
+  });
   return {
     kind: "DeploymentService",
     spec: {
@@ -213,13 +206,12 @@ function deploymentFromExternal({ name, imagePath, command, ports, healthChecks 
           customCommand: command
         }
       },
-      ports: ports.map((port, index) => ({
+      ports: normalizedPorts.map((port, index) => ({
         name: `p${String(index + 1).padStart(2, "0")}`,
-        internalPort: port,
-        public: publicPortNames.includes(port),
-        protocol: "TCP"
-      })),
-      healthChecks
+        internalPort: port.number,
+        public: publicPortNames.includes(port.number),
+        protocol: port.protocol
+      }))
     }
   };
 }
@@ -262,7 +254,8 @@ const template = {
           spec: {
             name: "${args.projectName}",
             description: "${args.projectDescription}",
-            color: "${args.projectColor}"
+            color: "${args.projectColor}",
+            region: "${args.projectRegion}"
           }
         },
         {
@@ -357,77 +350,68 @@ const template = {
         deploymentFromInternal({
           name: "gateway-api",
           command: "node backend/backendB-core-services/gateway-api/service/dist/main.js",
-          ports: [8443],
-          publicPortNames: [8443],
-          healthChecks: [healthTcp("p01", 20)]
+          ports: [{ number: 8443, protocol: "HTTP" }],
+          publicPortNames: [8443]
         }),
         deploymentFromInternal({
           name: "business-api",
           command: "node backend/backendC-saas-services/business-api/service/dist/main.js",
-          ports: [9550],
-          healthChecks: [healthTcp("p01", 20)]
+          ports: [{ number: 9550, protocol: "HTTP" }]
         }),
         deploymentFromInternal({
           name: "admin-console-api",
           command: "node backend/backendB-core-services/admin-console-api/service/dist/main.js",
-          ports: [9443],
-          publicPortNames: [9443],
-          healthChecks: [healthTcp("p01", 20)]
+          ports: [{ number: 9443, protocol: "HTTP" }],
+          publicPortNames: [9443]
         }),
         deploymentFromInternal({
           name: "context-wall",
           command: "node backend/backendB-core-services/context-wall/service/dist/main.js",
-          ports: [9000],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 9000, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "model-router",
           command: "node backend/backendB-core-services/model-router/service/dist/main.js",
-          ports: [9100],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 9100, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "mcp-proxy",
           command: "node backend/backendB-core-services/mcp-proxy/service/dist/main.js",
-          ports: [9200],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 9200, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "cyber-proxy",
           command: "node backend/backendB-core-services/cyber-proxy/service/dist/main.js",
-          ports: [8080],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 8080, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "tool-runner",
           command: "node backend/backendB-core-services/tool-runner/service/dist/main.js",
-          ports: [9250],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 9250, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "secrets-broker",
           command: "node backend/backendB-core-services/secrets-broker/service/dist/main.js",
-          ports: [9300],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 9300, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "audit-writer",
           command: "node backend/backendB-core-services/audit-writer/service/dist/main.js",
-          ports: [9400, 9401],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [
+            { number: 9400, protocol: "HTTP/2" },
+            { number: 9401, protocol: "HTTP" },
+          ]
         }),
         deploymentFromExternal({
           name: "openclaw-gateway",
           imagePath: "ghcr.io/openclaw/openclaw:latest",
           command: "node openclaw.mjs --dev gateway run --port 19001 --bind lan --allow-unconfigured --verbose",
-          ports: [19001],
-          healthChecks: [healthTcp("p01", 10)]
+          ports: [{ number: 19001, protocol: "HTTP" }]
         }),
         deploymentFromInternal({
           name: "openclaw-bridge",
           command: "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
-          ports: [8787],
-          healthChecks: [healthHttp("p01", "/health", 10)]
+          ports: [{ number: 8787, protocol: "HTTP" }]
         }),
         deploymentFromInternal({
           name: "frontend-a-it-console",
@@ -435,9 +419,8 @@ const template = {
             root: "/app/frontend/frontendA-it-console/public",
             index: "judges.html",
           }),
-          ports: [8080],
-          publicPortNames: [8080],
-          healthChecks: [healthHttp("p01", "/health", 10)]
+          ports: [{ number: 8080, protocol: "HTTP" }],
+          publicPortNames: [8080]
         }),
         deploymentFromInternal({
           name: "frontend-b-desktop-app",
@@ -445,9 +428,8 @@ const template = {
             root: "/app/frontend/frontendB-desktop-app/app",
             index: "index.html",
           }),
-          ports: [8080],
-          publicPortNames: [8080],
-          healthChecks: [healthHttp("p01", "/health", 10)]
+          ports: [{ number: 8080, protocol: "HTTP" }],
+          publicPortNames: [8080]
         }),
         deploymentFromInternal({
           name: "frontend-c-marketing-site",
@@ -455,9 +437,8 @@ const template = {
             root: "/app/frontend/frontendC-marketing-download-site/public",
             index: "landing.html",
           }),
-          ports: [8080],
-          publicPortNames: [8080],
-          healthChecks: [healthHttp("p01", "/health", 10)]
+          ports: [{ number: 8080, protocol: "HTTP" }],
+          publicPortNames: [8080]
         }),
         deploymentFromInternal({
           name: "frontend-d-mcp-widgets",
@@ -465,9 +446,8 @@ const template = {
             root: "/app/frontend/frontendD-mcp-widgets/resources",
             index: "index.html",
           }),
-          ports: [8080],
-          publicPortNames: [8080],
-          healthChecks: [healthHttp("p01", "/health", 10)]
+          ports: [{ number: 8080, protocol: "HTTP" }],
+          publicPortNames: [8080]
         })
       ]
     }
