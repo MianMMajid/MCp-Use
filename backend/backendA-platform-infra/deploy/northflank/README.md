@@ -31,6 +31,20 @@ This folder contains a Northflank template and helper scripts to deploy the Mapl
 
 ## Quick Start
 
+### One-click (recommended)
+
+```bash
+npm run northflank:oneclick
+```
+
+This writes:
+
+- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json`
+
+Import that file in Northflank and run.
+
+### Manual
+
 1. Regenerate the template (optional, already committed):
 
 ```bash
@@ -55,7 +69,6 @@ set -a; source .env.northflank; set +a
 node backend/backendA-platform-infra/deploy/northflank/generate-args.mjs \
   --repo-url https://github.com/<org>/<repo> \
   --repo-branch main \
-  --database-url postgresql://<user>:<pass>@<host>:5432/<db> \
   --tls-cert backend/backendA-platform-infra/deploy/northflank/certs/tls.crt \
   --tls-key backend/backendA-platform-infra/deploy/northflank/certs/tls.key \
   --tls-ca backend/backendA-platform-infra/deploy/northflank/certs/ca.crt \
@@ -71,7 +84,10 @@ node backend/backendA-platform-infra/deploy/northflank/generate-args.mjs \
 ## Important Notes
 
 - `databaseUrl` must be set to a real PostgreSQL DSN.
-  The template creates `maple-postgres`, but `databaseUrl` is still explicit so you can choose addon/external DB.
+- `DATABASE_URL`/`MAPLE_DATABASE_URL` are sourced from the created Northflank Postgres addon
+  via `addonDependencies` (`POSTGRES_URI` -> aliases).
+- `generate-args.mjs` auto-loads `.env` and `.env.northflank`, auto-detects `repoUrl` from git origin,
+  and auto-uses generated certs from `deploy/northflank/certs`.
 - Runtime strict dependency gates are defaulted to relaxed bootstrap mode:
   - `runtimeStrictDependencies=0`
   - `enforceStartupDependencies=0`

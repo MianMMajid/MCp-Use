@@ -49,3 +49,8 @@ mcp-firewall-reference/
 /tests/frontend/artifacts/
 /tests/frontend/tests/frontend/artifacts/
 /playwright-report/
+
+# Northflank generated artifacts (can contain secrets)
+/backend/backendA-platform-infra/deploy/northflank/certs/
+/backend/backendA-platform-infra/deploy/northflank/northflank.arguments.json
+/backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json

@@ -113,6 +113,14 @@ Northflank template + setup helpers live at:
 
 This includes a full stack template (backend mesh + OpenClaw + static frontend surfaces), plus scripts to generate TLS and argument payloads.
 
+Fast path:
+
+```bash
+npm run northflank:oneclick
+```
+
+This generates `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.json` ready to import in Northflank.
+
 Frontend surface helpers:
 
 ```bash

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
+import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 function parseArgs(argv) {
   const out = {};
@@ -31,29 +33,123 @@ function getenv(name, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const repoRoot = resolve(__dirname, "../../../..");
+
+function parseDotEnvFile(pathname) {
+  const out = {};
+  let text = "";
+  try {
+    text = readFileSync(pathname, "utf8");
+  } catch {
+    return out;
+  }
+  const lines = text.split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const eq = line.indexOf("=");
+    if (eq <= 0) {
+      continue;
+    }
+    const key = line.slice(0, eq).trim();
+    if (!key) {
+      continue;
+    }
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function hydrateProcessEnvFromFile(pathname) {
+  const parsed = parseDotEnvFile(pathname);
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof process.env[key] === "undefined") {
+      process.env[key] = value;
+    }
+  }
+}
+
+function normalizeRepoUrl(raw) {
+  const value = String(raw ?? "").trim();
+  if (!value) {
+    return "";
+  }
+  if (value.startsWith("git@github.com:")) {
+    return value.replace("git@github.com:", "https://github.com/").replace(/\.git$/, "");
+  }
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    try {
+      const parsed = new URL(value);
+      parsed.username = "";
+      parsed.password = "";
+      return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\.git$/, "");
+    } catch {
+      return value.replace(/\.git$/, "");
+    }
+  }
+  return value.replace(/\.git$/, "");
+}
+
+function inferRepoUrl() {
+  try {
+    const raw = execSync("git remote get-url origin", {
+      cwd: repoRoot,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    });
+    return normalizeRepoUrl(raw);
+  } catch {
+    return "";
+  }
+}
+
+function resolveDefaultTlsPath(filename) {
+  return resolve(__dirname, "certs", filename);
+}
+
+hydrateProcessEnvFromFile(resolve(repoRoot, ".env"));
+hydrateProcessEnvFromFile(resolve(repoRoot, ".env.northflank"));
+
 const args = parseArgs(process.argv);
 
-if (!args["repo-url"] || !args["database-url"] || !args["tls-cert"] || !args["tls-key"] || !args["tls-ca"]) {
+const repoUrl = args["repo-url"] || getenv("MAPLE_NF_REPO_URL") || inferRepoUrl();
+const repoBranch = args["repo-branch"] || getenv("MAPLE_NF_REPO_BRANCH", "main");
+const tlsCertPath = args["tls-cert"] || getenv("MAPLE_NF_TLS_CERT", resolveDefaultTlsPath("tls.crt"));
+const tlsKeyPath = args["tls-key"] || getenv("MAPLE_NF_TLS_KEY", resolveDefaultTlsPath("tls.key"));
+const tlsCaPath = args["tls-ca"] || getenv("MAPLE_NF_TLS_CA", resolveDefaultTlsPath("ca.crt"));
+
+if (!repoUrl || !tlsCertPath || !tlsKeyPath || !tlsCaPath) {
   console.error("Usage: node generate-args.mjs \\");
   console.error("  --repo-url <https://github.com/org/repo> \\");
   console.error("  --repo-branch <branch> \\");
-  console.error("  --database-url <postgres-url> \\");
   console.error("  --tls-cert <path/to/tls.crt> \\");
   console.error("  --tls-key <path/to/tls.key> \\");
   console.error("  --tls-ca <path/to/ca.crt> [--output northflank.arguments.json]");
   process.exit(1);
 }
 
-const outputPath = resolve(args.output || "northflank.arguments.json");
+const outputPath = resolve(
+  args.output || "backend/backendA-platform-infra/deploy/northflank/northflank.arguments.json"
+);
 
 const payload = {
   arguments: {
-    repoUrl: args["repo-url"],
-    repoBranch: args["repo-branch"] || "main",
-    databaseUrl: args["database-url"],
-    tlsCertBase64: readBase64(args["tls-cert"]),
-    tlsKeyBase64: readBase64(args["tls-key"]),
-    tlsCaBase64: readBase64(args["tls-ca"]),
+    repoUrl,
+    repoBranch,
+    tlsCertBase64: readBase64(tlsCertPath),
+    tlsKeyBase64: readBase64(tlsKeyPath),
+    tlsCaBase64: readBase64(tlsCaPath),
 
     mapleApiKey: getenv("MAPLE_API_KEY"),
     mapleApiKeys: getenv("MAPLE_API_KEYS"),

@@ -70,6 +70,7 @@
     "northflank:template": "node backend/backendA-platform-infra/deploy/northflank/render-template.mjs",
     "northflank:tls": "bash backend/backendA-platform-infra/deploy/northflank/generate-northflank-tls.sh",
     "northflank:args": "node backend/backendA-platform-infra/deploy/northflank/generate-args.mjs",
+    "northflank:oneclick": "node backend/backendA-platform-infra/deploy/northflank/prepare-oneclick.mjs",
     "demo:install-openclaw": "bash backend/backendA-platform-infra/scripts/install-openclaw.sh",
     "demo:bridge": "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
     "demo:up": "bash backend/backendA-platform-infra/scripts/demo-up.sh",

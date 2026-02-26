@@ -20,7 +20,6 @@ const argumentsDefaults = {
   postgresDeploymentPlan: "nf-compute-20",
   postgresStorageMb: 10240,
   postgresReplicas: 1,
-  databaseUrl: "postgresql://username:password@host:5432/maple",
   runtimeStrictDependencies: "0",
   enforceStartupDependencies: "0",
   corsOrigin: "*",
@@ -88,9 +87,6 @@ const runtimeVariables = {
   MAPLE_BUSINESS_API_CA: "/etc/maple/tls/ca.crt",
   MAPLE_BUSINESS_API_CERT: "/etc/maple/tls/tls.crt",
   MAPLE_BUSINESS_API_KEY: "/etc/maple/tls/tls.key",
-
-  DATABASE_URL: "${args.databaseUrl}",
-  MAPLE_DATABASE_URL: "${args.databaseUrl}",
 
   CONTEXT_WALL_ADDRESS: "context-wall:9000",
   MODEL_ROUTER_ADDRESS: "model-router:9100",
@@ -295,7 +291,18 @@ const template = {
             priority: 50,
             secrets: {
               variables: runtimeVariables
-            }
+            },
+            addonDependencies: [
+              {
+                addonId: "${refs.postgres.id}",
+                keys: [
+                  {
+                    keyName: "POSTGRES_URI",
+                    aliases: ["DATABASE_URL", "MAPLE_DATABASE_URL"]
+                  }
+                ]
+              }
+            ]
           }
         },
         {
