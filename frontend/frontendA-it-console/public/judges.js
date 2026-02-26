@@ -1841,7 +1841,10 @@ function buildActionTreeGraphData(trace, forkContext) {
 /* ── Graph init functions ── */
 
 function initActionTreeGraph() {
-  if (actionTreeGraph) return;
+  if (actionTreeGraph) {
+    try { actionTreeGraph.destroy(); } catch { /* ignore */ }
+    actionTreeGraph = null;
+  }
   if (!actionTreeCanvasEl || actionTreeCanvasEl.clientWidth === 0 || actionTreeCanvasEl.clientHeight === 0) return;
   if (typeof cytoscape === "undefined") {
     actionTreeCanvasEl.innerHTML = '<div class="action-tree-empty"><p>Graph library failed to load.</p></div>';
@@ -2252,7 +2255,10 @@ function buildTopologyGraphData(trace, forkContext) {
 }
 
 function initTopologyGraph() {
-  if (topologyGraph) return;
+  if (topologyGraph) {
+    try { topologyGraph.destroy(); } catch { /* ignore */ }
+    topologyGraph = null;
+  }
   if (!topologyMapEl || topologyMapEl.clientWidth === 0 || topologyMapEl.clientHeight === 0) return;
   if (typeof cytoscape === "undefined") {
     topologyMapEl.innerHTML = '<div class="action-tree-empty"><p>Graph library failed to load.</p></div>';

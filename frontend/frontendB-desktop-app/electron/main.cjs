@@ -179,6 +179,7 @@ app.whenReady().then(() => {
     try {
       const downloadResult = await autoUpdater.downloadUpdate();
       if (!downloadResult || (Array.isArray(downloadResult) && downloadResult.length === 0)) {
+        updateInstalling = false;
         return { ok: false, error: "Download returned no files. Update may have failed." };
       }
       setImmediate(() => {

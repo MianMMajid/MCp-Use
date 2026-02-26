@@ -21,7 +21,7 @@ const severityColor: Record<string, string> = {
 };
 
 function formatScore(value: number | undefined): string {
-  if (value == null) return "--";
+  if (value == null || !Number.isFinite(value)) return "--";
   return (value * 100).toFixed(1) + "%";
 }
 
