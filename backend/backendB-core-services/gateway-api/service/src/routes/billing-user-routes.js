@@ -69,7 +69,7 @@ export function registerBillingUserRoutes(app) {
         }
         return localProfileResponse(c);
     });
-    app.post("/api/user/change-password", async (c) => {
+    async function handleChangePassword(c) {
         const body = await readJsonBody(c);
         const proxied = await proxyBusinessApiRequest(c, "/api/business/user/change-password", {
             method: "POST",
@@ -82,6 +82,9 @@ export function registerBillingUserRoutes(app) {
             return businessApiUnavailableResponse(c, proxied, "user.change_password");
         }
         return localChangePasswordResponse(c, body);
-    });
+    }
+    app.post("/api/user/change-password", handleChangePassword);
+    // Backward-compatible alias used by frontendA settings panel.
+    app.post("/api/auth/change-password", handleChangePassword);
 }
 //# sourceMappingURL=billing-user-routes.js.map

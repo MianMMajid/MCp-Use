@@ -23,6 +23,11 @@ export function registerAuthRecoveryRoutes(app) {
     proxyAuthRecoveryRequest(c, "auth.forgot_password", "/api/business/auth/forgot-password")
   );
 
+  // Backward-compatible alias used by landing forgot-password flow.
+  app.post("/api/auth/password-reset", async (c) =>
+    proxyAuthRecoveryRequest(c, "auth.password_reset_request", "/api/business/auth/forgot-password")
+  );
+
   app.post("/api/auth/reset-password", async (c) =>
     proxyAuthRecoveryRequest(c, "auth.reset_password", "/api/business/auth/reset-password")
   );

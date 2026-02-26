@@ -336,6 +336,19 @@ test("gateway auth/user/billing routes proxy to business-api endpoints", async (
     );
     assert.equal(forgotPassword.status, 200);
 
+    const forgotPasswordAlias = await app.request(
+      "http://localhost/api/auth/password-reset",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "maple@example.com",
+          redirectUrl: "https://app.example.com/reset",
+        }),
+      }
+    );
+    assert.equal(forgotPasswordAlias.status, 200);
+
     const resetPassword = await app.request("http://localhost/api/auth/reset-password", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -379,6 +392,19 @@ test("gateway auth/user/billing routes proxy to business-api endpoints", async (
       }),
     });
     assert.equal(changePassword.status, 200);
+
+    const changePasswordAlias = await app.request("http://localhost/api/auth/change-password", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: "maple_session=s1",
+      },
+      body: JSON.stringify({
+        currentPassword: "old",
+        newPassword: "new-password-123",
+      }),
+    });
+    assert.equal(changePasswordAlias.status, 200);
 
     const subscription = await app.request("http://localhost/api/billing/subscription", {
       headers: { cookie: "maple_session=s1" },
