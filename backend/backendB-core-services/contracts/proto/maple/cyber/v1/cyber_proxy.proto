@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package maple.cyber.v1;
+
+import "../../common/v1/common.proto";
+
+message CheckUrlRequest {
+  maple.common.v1.RequestContext context = 1;
+  string url = 2;
+  string tool_name = 3;
+  string app_id = 4;
+}
+
+message CheckUrlResponse {
+  bool allowed = 1;
+  string reason = 2;
+  bool is_private_ip = 3;
+  string resolved_ip = 4;
+  string normalized_url = 5;
+}
+
+message ScanContentRequest {
+  maple.common.v1.RequestContext context = 1;
+  bytes content = 2;
+  string content_type = 3;
+  string source_url = 4;
+}
+
+message ScanContentResponse {
+  bool safe = 1;
+  repeated string threats_found = 2;
+  bytes sanitized_content = 3;
+  string scan_summary = 4;
+  bool quarantined = 5;
+}
+
+message GetReputationRequest {
+  string url = 1;
+}
+
+message GetReputationResponse {
+  double reputation_score = 1;
+  string category = 2;
+  bool known_malicious = 3;
+  string last_checked = 4;
+}
+
+message ProxyHttpRequestRequest {
+  maple.common.v1.RequestContext context = 1;
+  string method = 2;
+  string url = 3;
+  map<string, string> headers = 4;
+}
+
+message ProxyHttpRequestResponse {
+  int32 status_code = 1;
+  map<string, string> headers = 2;
+}
+
+message ProxyHttpRequestStreamRequest {
+  maple.common.v1.RequestContext context = 1;
+  string method = 2;
+  string url = 3;
+  map<string, string> headers = 4;
+}
+
+message ProxyHttpRequestStreamResponse {
+  bytes data = 1;
+  bool is_final = 2;
+  int32 status_code = 3;
+  map<string, string> headers = 4;
+}
+
+service CyberProxyService {
+  rpc CheckUrl (CheckUrlRequest) returns (CheckUrlResponse);
+  rpc ScanContent (ScanContentRequest) returns (ScanContentResponse);
+  rpc GetReputation (GetReputationRequest) returns (GetReputationResponse);
+  rpc ProxyHttpRequest (ProxyHttpRequestRequest) returns (ProxyHttpRequestResponse);
+  rpc ProxyHttpRequestStream (ProxyHttpRequestStreamRequest) returns (stream ProxyHttpRequestStreamResponse);
+}

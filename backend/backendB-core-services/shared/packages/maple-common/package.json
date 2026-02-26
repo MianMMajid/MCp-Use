@@ -1,0 +1,17 @@
+{
+  "name": "@maple/common",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "source": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.1",
+    "@grpc/proto-loader": "^0.8.0"
+  }
+}

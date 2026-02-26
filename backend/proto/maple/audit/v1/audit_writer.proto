@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package maple.audit.v1;
+
+import "../../common/v1/common.proto";
+
+enum AuditEventType {
+  AUDIT_EVENT_TYPE_UNSPECIFIED = 0;
+  AUDIT_EVENT_TYPE_POLICY_EVALUATED = 1;
+  AUDIT_EVENT_TYPE_POLICY_DENIED = 2;
+  AUDIT_EVENT_TYPE_POLICY_ALLOWED = 3;
+  AUDIT_EVENT_TYPE_POLICY_LOG_ONLY = 4;
+  AUDIT_EVENT_TYPE_SECRET_REDACTED = 5;
+  AUDIT_EVENT_TYPE_HITL_REQUESTED = 6;
+  AUDIT_EVENT_TYPE_HITL_APPROVED = 7;
+  AUDIT_EVENT_TYPE_HITL_REJECTED = 8;
+  AUDIT_EVENT_TYPE_HITL_TIMEOUT = 9;
+  AUDIT_EVENT_TYPE_TOOL_DISPATCHED = 10;
+  AUDIT_EVENT_TYPE_TOOL_COMPLETED = 11;
+  AUDIT_EVENT_TYPE_TOOL_FAILED = 12;
+  AUDIT_EVENT_TYPE_TOOL_CHAIN_STARTED = 13;
+  AUDIT_EVENT_TYPE_TOOL_CHAIN_COMPLETED = 14;
+  AUDIT_EVENT_TYPE_CREDENTIAL_MINTED = 15;
+  AUDIT_EVENT_TYPE_CREDENTIAL_REVOKED = 16;
+  AUDIT_EVENT_TYPE_CREDENTIAL_EXPIRED = 17;
+  AUDIT_EVENT_TYPE_URL_CHECKED = 18;
+  AUDIT_EVENT_TYPE_URL_BLOCKED = 19;
+  AUDIT_EVENT_TYPE_CONTENT_SCANNED = 20;
+  AUDIT_EVENT_TYPE_PROXY_REQUEST = 21;
+  AUDIT_EVENT_TYPE_MODEL_GENERATE = 22;
+  AUDIT_EVENT_TYPE_MODEL_STREAM = 23;
+  AUDIT_EVENT_TYPE_TRACE_CREATED = 24;
+  AUDIT_EVENT_TYPE_TRACE_UPDATED = 25;
+  AUDIT_EVENT_TYPE_TRACE_FORKED = 26;
+  AUDIT_EVENT_TYPE_TRACE_QUARANTINED = 27;
+  AUDIT_EVENT_TYPE_SERVICE_STARTED = 28;
+}
+
+message AuditEvent {
+  string event_id = 1;
+  maple.audit.v1.AuditEventType event_type = 2;
+  string timestamp = 3;
+  string source_service = 4;
+  maple.common.v1.RequestContext context = 5;
+  bytes payload_json = 6;
+  maple.common.v1.RiskSeverity severity = 7;
+  string summary = 8;
+}
+
+message AppendEventRequest {
+  maple.audit.v1.AuditEvent event = 1;
+}
+
+message AppendEventResponse {
+  string event_id = 1;
+  string persisted_at = 2;
+}
+
+message AppendEventBatchRequest {
+  repeated maple.audit.v1.AuditEvent events = 1;
+}
+
+message AppendEventBatchResponse {
+  int32 persisted_count = 1;
+  repeated string event_ids = 2;
+  string persisted_at = 3;
+}
+
+message StreamEventsRequest {
+  maple.audit.v1.AuditEvent event = 1;
+}
+
+message StreamEventsResponse {
+  string event_id = 1;
+  bool accepted = 2;
+}
+
+message QueryEventsRequest {
+  string trace_id = 1;
+  string session_id = 2;
+  string source_service = 3;
+  repeated maple.audit.v1.AuditEventType event_types = 4;
+  string since = 5;
+  string until = 6;
+  maple.common.v1.RiskSeverity min_severity = 7;
+  int32 limit = 8;
+  string cursor = 9;
+}
+
+message QueryEventsResponse {
+  repeated maple.audit.v1.AuditEvent events = 1;
+  string next_cursor = 2;
+  int32 total_count = 3;
+}
+
+message QueryEventsStreamRequest {
+  string trace_id = 1;
+  string session_id = 2;
+  string source_service = 3;
+  repeated maple.audit.v1.AuditEventType event_types = 4;
+  string since = 5;
+  string until = 6;
+  maple.common.v1.RiskSeverity min_severity = 7;
+  int32 limit = 8;
+  string cursor = 9;
+}
+
+message QueryEventsStreamResponse {
+  maple.audit.v1.AuditEvent event = 1;
+}
+
+service AuditWriterService {
+  rpc AppendEvent (AppendEventRequest) returns (AppendEventResponse);
+  rpc AppendEventBatch (AppendEventBatchRequest) returns (AppendEventBatchResponse);
+  rpc StreamEvents (stream StreamEventsRequest) returns (stream StreamEventsResponse);
+  rpc QueryEvents (QueryEventsRequest) returns (QueryEventsResponse);
+  rpc QueryEventsStream (QueryEventsStreamRequest) returns (stream QueryEventsStreamResponse);
+}

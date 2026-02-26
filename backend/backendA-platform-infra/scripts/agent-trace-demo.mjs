@@ -76,17 +76,17 @@ async function run() {
     async () =>
       logger.logWebGet({
         actor: "agent",
-        url: "https://docs.mcp.so/providers",
-        prompt: "Look up MCP marketplace providers and auth requirements.",
-        output: "Found provider endpoints and connection prerequisites.",
+        url: "https://github.com/openclaw/openclaw",
+        prompt: "Look up OpenClaw runtime integration references.",
+        output: "Collected OpenClaw runtime integration notes.",
       }),
     async () =>
-      logger.logMarketplaceSearch({
+      logger.logAction({
         actor: "agent",
-        query: "web search mcp",
-        provider: "mcpso",
-        resultCount: 5,
-        output: "Resolved multiple connectable MCP app candidates.",
+        type: "tool_call",
+        toolName: "list_downstream_tools",
+        prompt: "Inspect available downstream tools exposed through OpenClaw runtime.",
+        output: "Loaded downstream tool list from the configured toolhub.",
       }),
     async () => {
       const riskyAction = {
@@ -106,13 +106,14 @@ async function run() {
       });
     },
     async () =>
-      logger.logMarketplaceToolCall({
+      logger.logAction({
         actor: "agent",
+        type: "tool_call",
         toolName: "dispatch_downstream_tool",
         prompt: "Call downstream MCP tool for web fetch through Maple.",
         toolInput: {
-          appId: "web-research",
-          toolName: "web_get",
+          appId: "toolhub",
+          toolName: "web_fetch",
           arguments: {
             url: "https://example.com/hackathon",
           },

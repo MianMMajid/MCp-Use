@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package maple.common.v1;
+
+enum TraceStatus {
+  TRACE_STATUS_UNSPECIFIED = 0;
+  TRACE_STATUS_ACTIVE = 1;
+  TRACE_STATUS_COMPLETED = 2;
+  TRACE_STATUS_QUARANTINED = 3;
+}
+
+enum StepActor {
+  STEP_ACTOR_UNSPECIFIED = 0;
+  STEP_ACTOR_AGENT = 1;
+  STEP_ACTOR_TOOL = 2;
+  STEP_ACTOR_SYSTEM = 3;
+  STEP_ACTOR_USER = 4;
+}
+
+enum StepType {
+  STEP_TYPE_UNSPECIFIED = 0;
+  STEP_TYPE_PROMPT = 1;
+  STEP_TYPE_TOOL_CALL = 2;
+  STEP_TYPE_SHELL = 3;
+  STEP_TYPE_BROWSER = 4;
+  STEP_TYPE_NETWORK = 5;
+  STEP_TYPE_EMAIL = 6;
+  STEP_TYPE_SYSTEM = 7;
+}
+
+enum RiskSeverity {
+  RISK_SEVERITY_UNSPECIFIED = 0;
+  RISK_SEVERITY_LOW = 1;
+  RISK_SEVERITY_MEDIUM = 2;
+  RISK_SEVERITY_HIGH = 3;
+  RISK_SEVERITY_CRITICAL = 4;
+}
+
+enum GuardAction {
+  GUARD_ACTION_UNSPECIFIED = 0;
+  GUARD_ACTION_ALLOW = 1;
+  GUARD_ACTION_BLOCK = 2;
+  GUARD_ACTION_PENDING = 3;
+}
+
+enum FirewallAction {
+  FIREWALL_ACTION_UNSPECIFIED = 0;
+  FIREWALL_ACTION_ALLOW = 1;
+  FIREWALL_ACTION_DENY = 2;
+  FIREWALL_ACTION_LOG_ONLY = 3;
+}
+
+message RiskFlag {
+  string id = 1;
+  string type = 2;
+  maple.common.v1.RiskSeverity severity = 3;
+  int32 step_index = 4;
+  string message = 5;
+  string recommendation = 6;
+  string evidence = 7;
+}
+
+message ToolCall {
+  string name = 1;
+  bytes input_json = 2;
+  bytes output_json = 3;
+}
+
+message TraceStep {
+  int32 index = 1;
+  string timestamp = 2;
+  maple.common.v1.StepActor actor = 3;
+  maple.common.v1.StepType type = 4;
+  string prompt = 5;
+  maple.common.v1.ToolCall tool_call = 6;
+  string output = 7;
+  string command = 8;
+  string external_url = 9;
+  bytes metadata_json = 10;
+  double risk_score = 11;
+  repeated maple.common.v1.RiskFlag risk_flags = 12;
+  maple.common.v1.GuardAction guard_status = 13;
+}
+
+message Trace {
+  string id = 1;
+  string owner_key_fingerprint = 2;
+  string session_id = 3;
+  string source = 4;
+  maple.common.v1.TraceStatus status = 5;
+  string started_at = 6;
+  string updated_at = 7;
+  string parent_trace_id = 8;
+  int32 forked_from_step = 9;
+  repeated string tags = 10;
+  bytes metadata_json = 11;
+  repeated maple.common.v1.TraceStep steps = 12;
+}
+
+message AuditBreakdown {
+  int32 critical = 1;
+  int32 high = 2;
+  int32 medium = 3;
+  int32 low = 4;
+}
+
+message StepRiskResult {
+  int32 step_index = 1;
+  double risk_score = 2;
+  repeated maple.common.v1.RiskFlag flags = 3;
+}
+
+message AuditReport {
+  double overall_risk_score = 1;
+  maple.common.v1.RiskSeverity severity = 2;
+  string summary = 3;
+  repeated string recommendations = 4;
+  repeated maple.common.v1.RiskFlag flags = 5;
+  repeated maple.common.v1.StepRiskResult step_results = 6;
+  maple.common.v1.AuditBreakdown breakdown = 7;
+}
+
+message PolicyDecision {
+  maple.common.v1.FirewallAction action = 1;
+  string rule_name = 2;
+  string secret_pattern = 3;
+  maple.common.v1.RiskSeverity severity = 4;
+  string message = 5;
+  string recommendation = 6;
+  repeated string redacted_patterns = 7;
+  string evaluated_at = 8;
+}
+
+message EnforcementSummary {
+  bool enabled = 1;
+  int32 blocked_steps = 2;
+  int32 redacted_steps = 3;
+  map<string, int32> rule_hits = 4;
+}
+
+message ToolInfo {
+  string name = 1;
+  string description = 2;
+  bytes input_schema_json = 3;
+  string app_id = 4;
+}
+
+message RequestContext {
+  string request_id = 1;
+  string session_id = 2;
+  string trace_id = 3;
+  string user_id = 4;
+  string key_fingerprint = 5;
+  string source_service = 6;
+  string tenant_id = 7;
+  string device_id = 8;
+}
+
+message ErrorDetail {
+  int32 code = 1;
+  string message = 2;
+  bytes metadata_json = 3;
+}

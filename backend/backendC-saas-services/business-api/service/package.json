@@ -1,0 +1,10 @@
+{
+  "name": "@maple/business-api-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../../../../backend/backendA-platform-infra/scripts/build-service.mjs backend/backendC-saas-services/business-api/service",
+    "typecheck": "npx tsc --noEmit --project tsconfig.json",
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}
