@@ -337,6 +337,9 @@
           credentials: "same-origin",
           body: JSON.stringify({ email }),
         });
+        // Consume response body to prevent memory leak, but ignore content
+        // to avoid leaking email existence info
+        try { await res.text(); } catch { /* ignore */ }
         // Always show same message regardless of result to prevent email enumeration
         if (forgotError) {
           forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
