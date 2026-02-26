@@ -1040,7 +1040,7 @@ function appendFirewallChatMessage(role, text, options = {}) {
   bubble.innerHTML = body;
   firewallChatLogEl.appendChild(bubble);
 
-  while (firewallChatLogEl.children.length > MAX_CHAT_BUBBLES) {
+  while (firewallChatLogEl.children.length > MAX_CHAT_BUBBLES && firewallChatLogEl.firstElementChild) {
     firewallChatLogEl.removeChild(firewallChatLogEl.firstElementChild);
   }
 
@@ -1224,6 +1224,9 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
       chatHistory = chatHistory.slice(-CHAT_HISTORY_TRIM_TO);
     }
   } catch (error) {
+    if (typeof reader !== "undefined" && reader) {
+      try { reader.cancel(); } catch { /* ignore */ }
+    }
     if (streamingEl && streamingEl.parentNode) streamingEl.parentNode.removeChild(streamingEl);
     streamingEl = null;
 
@@ -1243,6 +1246,9 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
       if (content) {
         appendFirewallChatMessage("assistant", content);
         chatHistory.push({ role: "assistant", content });
+        if (chatHistory.length > MAX_CHAT_HISTORY) {
+          chatHistory = chatHistory.slice(-CHAT_HISTORY_TRIM_TO);
+        }
       } else {
         appendFirewallChatMessage("assistant", "Chat error: no response from fallback.", { error: true });
       }
@@ -1736,6 +1742,7 @@ function rowClasses(step) {
 }
 
 function renderTimeline(trace) {
+  if (!timelineBodyEl) return;
   if (!trace || !Array.isArray(trace.steps) || !trace.steps.length) {
     timelineBodyEl.innerHTML = '<tr><td colspan="6" class="empty-row">No events yet.</td></tr>';
     return;
@@ -1850,7 +1857,10 @@ function buildActionTreeGraphData(trace, forkContext) {
 /* ── Graph init functions ── */
 
 function initActionTreeGraph() {
-  if (actionTreeGraph) return;
+  if (actionTreeGraph) {
+    try { actionTreeGraph.destroy(); } catch { /* ignore */ }
+    actionTreeGraph = null;
+  }
   if (!actionTreeCanvasEl || actionTreeCanvasEl.clientWidth === 0 || actionTreeCanvasEl.clientHeight === 0) return;
   if (typeof cytoscape === "undefined") {
     actionTreeCanvasEl.innerHTML = '<div class="action-tree-empty"><p>Graph library failed to load.</p></div>';
@@ -2261,7 +2271,10 @@ function buildTopologyGraphData(trace, forkContext) {
 }
 
 function initTopologyGraph() {
-  if (topologyGraph) return;
+  if (topologyGraph) {
+    try { topologyGraph.destroy(); } catch { /* ignore */ }
+    topologyGraph = null;
+  }
   if (!topologyMapEl || topologyMapEl.clientWidth === 0 || topologyMapEl.clientHeight === 0) return;
   if (typeof cytoscape === "undefined") {
     topologyMapEl.innerHTML = '<div class="action-tree-empty"><p>Graph library failed to load.</p></div>';
@@ -2402,7 +2415,7 @@ function renderForkEmpty(message) {
   if (forkOriginalIdEl) forkOriginalIdEl.textContent = "-";
   if (forkForkedIdEl) forkForkedIdEl.textContent = "-";
   if (forkStepIndexEl) forkStepIndexEl.textContent = "-";
-  forkDiffBodyEl.innerHTML = '<tr><td colspan="3" class="empty-row">No fork diff available yet.</td></tr>';
+  if (forkDiffBodyEl) forkDiffBodyEl.innerHTML = '<tr><td colspan="3" class="empty-row">No fork diff available yet.</td></tr>';
 }
 
 async function resolveForkContext(primaryTrace) {
@@ -2470,10 +2483,10 @@ async function renderForkDiff(primaryTrace, preloadedContext = null) {
     return;
   }
 
-  forkMetaEl.textContent = `Comparing forked trace ${forkTrace.id} against parent ${parentTrace.id} at step ${stepIndex}.`;
-  forkOriginalIdEl.textContent = parentTrace.id;
-  forkForkedIdEl.textContent = forkTrace.id;
-  forkStepIndexEl.textContent = String(stepIndex);
+  if (forkMetaEl) forkMetaEl.textContent = `Comparing forked trace ${forkTrace.id} against parent ${parentTrace.id} at step ${stepIndex}.`;
+  if (forkOriginalIdEl) forkOriginalIdEl.textContent = parentTrace.id;
+  if (forkForkedIdEl) forkForkedIdEl.textContent = forkTrace.id;
+  if (forkStepIndexEl) forkStepIndexEl.textContent = String(stepIndex);
 
   const fields = [
     { label: "prompt", before: originalStep.prompt, after: forkedStep.prompt },
@@ -2482,6 +2495,7 @@ async function renderForkDiff(primaryTrace, preloadedContext = null) {
     { label: "tool output", before: toolOutput(originalStep), after: toolOutput(forkedStep) },
   ];
 
+  if (!forkDiffBodyEl) return;
   forkDiffBodyEl.innerHTML = fields
     .map((field) => {
       const before = normalizeComparable(field.before);
@@ -2519,6 +2533,7 @@ function renderExplorerMeta(trace) {
 }
 
 function renderExplorerSteps(trace) {
+  if (!explorerStepListEl) return;
   if (!trace || !Array.isArray(trace.steps) || !trace.steps.length) {
     explorerStepListEl.innerHTML = '<p class="empty-row">No steps available.</p>';
     return;
@@ -2539,6 +2554,7 @@ function renderExplorerSteps(trace) {
 }
 
 function renderStepInspector(trace, stepIndex) {
+  if (!stepInspectorTitleEl || !stepInspectorSummaryEl || !stepInspectorJsonEl) return;
   if (!trace || !Array.isArray(trace.steps)) {
     stepInspectorTitleEl.textContent = "Step Inspector";
     stepInspectorSummaryEl.textContent = "No step selected";
@@ -2760,8 +2776,9 @@ function showToast(title, message, type = "info") {
     </div>
     <button class="toast-close" type="button" aria-label="Dismiss">&times;</button>
   `;
-  toast.querySelector(".toast-close").addEventListener("click", () => dismissToast(toast));
-  toastContainerEl.appendChild(toast);
+  const closeBtn = toast.querySelector(".toast-close");
+  if (closeBtn) closeBtn.addEventListener("click", () => dismissToast(toast));
+  if (toastContainerEl) toastContainerEl.appendChild(toast);
   setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
 }
 
@@ -2900,7 +2917,14 @@ async function refreshMetrics({ silent = false } = {}) {
   metricsRefreshInFlight = true;
 
   try {
-    await Promise.all([loadCommunityStats(), loadCommunityTraces(), loadYcBrief()]);
+    const results = await Promise.allSettled([loadCommunityStats(), loadCommunityTraces(), loadYcBrief()]);
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length === results.length) {
+      throw failed[0].reason ?? new Error("All metrics endpoints failed");
+    }
+    if (failed.length > 0 && !silent) {
+      handleRefreshError("refresh metrics (partial)", failed[0].reason, true);
+    }
   } catch (error) {
     handleRefreshError("refresh metrics", error, silent);
     throw error;
@@ -3249,12 +3273,18 @@ function renderMarketplaceConnected() {
   `).join("");
 
   marketplaceConnectedBody.querySelectorAll("[data-disconnect-app]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const appId = btn.getAttribute("data-disconnect-app");
       if (!appId) return;
+      if (btn.disabled) return;
       const appName = btn.closest("tr")?.children[1]?.textContent ?? appId;
       if (!window.confirm("Disconnect downstream app \"" + String(appName).slice(0, 60) + "\"? This will remove its tools from the firewall.")) return;
-      disconnectMarketplaceApp(appId);
+      btn.disabled = true;
+      try {
+        await disconnectMarketplaceApp(appId);
+      } finally {
+        btn.disabled = false;
+      }
     });
   });
 }
@@ -3288,25 +3318,27 @@ async function refreshMarketplaceTools() {
       renderMarketplaceConnected();
     }
 
+    const results = await Promise.allSettled(
+      apps
+        .filter((app) => app?.appId ?? app?.id)
+        .map((app) => {
+          const appId = app.appId ?? app.id;
+          return fetchJson(
+            `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
+          ).then((data) => ({
+            appId,
+            tools: Array.isArray(data?.tools) ? data.tools : [],
+          }));
+        })
+    );
     const collected = [];
-    for (const app of apps) {
-      const appId = app?.appId ?? app?.id;
-      if (!appId) {
-        continue;
-      }
-      try {
-        const data = await fetchJson(
-          `/api/downstream/tools?appId=${encodeURIComponent(String(appId))}`
-        );
-        const tools = Array.isArray(data?.tools) ? data.tools : [];
-        for (const tool of tools) {
-          collected.push({
-            ...tool,
-            appId: tool?.appId ?? appId,
-          });
-        }
-      } catch {
-        // Keep rendering other apps if one tools/list call fails.
+    for (const result of results) {
+      if (result.status !== "fulfilled") continue;
+      for (const tool of result.value.tools) {
+        collected.push({
+          ...tool,
+          appId: tool?.appId ?? result.value.appId,
+        });
       }
     }
 
@@ -4039,7 +4071,6 @@ async function runInjectEvent() {
 
   const event = { actor, type };
   if (command) event.command = command;
-  if (command) event.prompt = command;
   if (output) event.output = output;
   if (toolName) event.toolName = toolName;
   if (url) event.url = url;

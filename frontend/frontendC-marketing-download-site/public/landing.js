@@ -9,6 +9,12 @@
       const isOpen = navLinks.classList.toggle("open");
       navHamburger.setAttribute("aria-expanded", String(isOpen));
     });
+    navLinks.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        navLinks.classList.remove("open");
+        navHamburger.setAttribute("aria-expanded", "false");
+      });
+    });
   }
 
   const form = document.getElementById("signinForm");
@@ -42,15 +48,17 @@
   // --- Tab switching ---
   function switchTab(tab) {
     if (tab === "signin") {
-      tabSignIn.classList.add("active");
-      tabSignUp.classList.remove("active");
-      signinPane.classList.remove("hidden");
-      signupPane.classList.add("hidden");
+      if (tabSignIn) tabSignIn.classList.add("active");
+      if (tabSignUp) tabSignUp.classList.remove("active");
+      if (signinPane) signinPane.classList.remove("hidden");
+      if (signupPane) signupPane.classList.add("hidden");
+      if (signupError) signupError.textContent = "";
     } else {
-      tabSignUp.classList.add("active");
-      tabSignIn.classList.remove("active");
-      signupPane.classList.remove("hidden");
-      signinPane.classList.add("hidden");
+      if (tabSignUp) tabSignUp.classList.add("active");
+      if (tabSignIn) tabSignIn.classList.remove("active");
+      if (signupPane) signupPane.classList.remove("hidden");
+      if (signinPane) signinPane.classList.add("hidden");
+      if (errorEl) errorEl.textContent = "";
     }
   }
 
@@ -160,8 +168,7 @@
   }
 
   function initGoogleSignIn() {
-    // Best-effort — no timeout wrapper for client-id fetch
-    fetch("/api/auth/google/client-id")
+    fetchWithTimeout("/api/auth/google/client-id", {}, 5000)
       .then(res => { if (!res.ok) throw new Error(); return res.json(); })
       .then(function (data) {
         if (!data.clientId) return;
@@ -326,7 +333,7 @@
         if (!res.ok || !data.ok) {
           let msg = data.error || "Registration failed.";
           if (res.status === 403) msg = "Account registration is currently disabled.";
-          if (res.status === 409) msg = "Username is already taken.";
+          if (res.status === 409) msg = "That username is not available. Please try another.";
           if (res.status === 400) msg = data.error || "Invalid input. Check your fields.";
           if (signupError) signupError.textContent = msg;
           if (signupSubmitBtn) {
@@ -389,15 +396,30 @@
         return;
       }
       const btn = forgotForm.querySelector("button[type=submit]");
-      if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
-      // Placeholder: backend does not have a reset endpoint yet
-      setTimeout(() => {
+      if (btn && btn.disabled) return;
+      if (btn) { btn.disabled = true; btn.textContent = "Sending\u2026"; }
+      try {
+        const res = await fetchWithTimeout("/api/auth/password-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ email }),
+        });
+        // Consume response body to prevent memory leak, but ignore content
+        // to avoid leaking email existence info
+        try { await res.text(); } catch { /* ignore */ }
+        // Always show same message regardless of result to prevent email enumeration
         if (forgotError) {
-          forgotError.style.color = "#e8740c";
           forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
         }
+      } catch {
+        // Show same message on network error to avoid leaking info
+        if (forgotError) {
+          forgotError.textContent = "If an account exists with that email, a reset link has been sent.";
+        }
+      } finally {
         if (btn) { btn.disabled = false; btn.textContent = "Send Reset Link"; }
-      }, 1500);
+      }
     });
   }
 })();

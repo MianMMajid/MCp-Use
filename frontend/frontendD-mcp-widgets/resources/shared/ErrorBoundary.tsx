@@ -18,6 +18,10 @@ export class WidgetErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[WidgetErrorBoundary]", error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       return (

@@ -75,7 +75,7 @@ const ReplayReviewWidget: React.FC = () => {
       <div className="cc-split-grid">
         <section className="cc-pane">
           <h3>Original</h3>
-          {props.originalSteps.map((step) => (
+          {props.originalSteps.slice(0, 30).map((step) => (
             <article key={`orig-${step.index}`} className="cc-step-mini">
               <div className="cc-step-row">
                 <strong>Step {step.index}</strong>
@@ -84,11 +84,16 @@ const ReplayReviewWidget: React.FC = () => {
               <p>{step.summary}</p>
             </article>
           ))}
+          {props.originalSteps.length > 30 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.3rem" }}>
+              …and {props.originalSteps.length - 30} more
+            </p>
+          ) : null}
         </section>
 
         <section className="cc-pane">
           <h3>Forked</h3>
-          {(props.forkedSteps ?? []).map((step) => (
+          {(props.forkedSteps ?? []).slice(0, 30).map((step) => (
             <article
               key={`fork-${step.index}`}
               className={`cc-step-mini ${(props.changedSteps ?? []).includes(step.index) ? "cc-step-changed" : ""}`}
@@ -100,6 +105,11 @@ const ReplayReviewWidget: React.FC = () => {
               <p>{step.summary}</p>
             </article>
           ))}
+          {(props.forkedSteps ?? []).length > 30 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.3rem" }}>
+              …and {(props.forkedSteps ?? []).length - 30} more
+            </p>
+          ) : null}
         </section>
       </div>
 

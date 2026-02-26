@@ -44,7 +44,7 @@ const SearchResultsWidget: React.FC = () => {
         </div>
       ) : (
         <div className="cc-timeline" role="list">
-          {props.results.map((item, i) => (
+          {props.results.slice(0, 50).map((item, i) => (
             <article key={item.url ?? `result-${i}`} className="cc-timeline-item" role="listitem">
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
@@ -54,15 +54,20 @@ const SearchResultsWidget: React.FC = () => {
                     <span className="cc-chip cc-chip-muted">{item.source}</span>
                   ) : null}
                 </div>
-                {item.url && /^https?:\/\//i.test(item.url) ? (
-                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="cc-link">
-                    {item.url}
+                {item.url && /^https?:\/\//i.test(String(item.url).trim()) ? (
+                  <a href={String(item.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {String(item.url).trim()}
                   </a>
                 ) : null}
                 {item.snippet ? <p>{item.snippet}</p> : null}
               </div>
             </article>
           ))}
+          {props.results.length > 50 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {props.results.length - 50} more results
+            </p>
+          ) : null}
         </div>
       )}
     </section>

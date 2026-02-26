@@ -44,7 +44,7 @@ const BookResultsWidget: React.FC = () => {
         </div>
       ) : (
         <div className="cc-timeline" role="list">
-          {props.results.map((book, i) => (
+          {props.results.slice(0, 50).map((book, i) => (
             <article key={book.isbn ?? book.url ?? `book-${i}`} className="cc-timeline-item" role="listitem">
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
@@ -67,14 +67,19 @@ const BookResultsWidget: React.FC = () => {
                     <span className="cc-chip cc-chip-muted">ISBN {book.isbn}</span>
                   ) : null}
                 </div>
-                {book.url && /^https?:\/\//i.test(book.url) ? (
-                  <a href={book.url} target="_blank" rel="noopener noreferrer" className="cc-link">
-                    {book.url}
+                {book.url && /^https?:\/\//i.test(String(book.url).trim()) ? (
+                  <a href={String(book.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {String(book.url).trim()}
                   </a>
                 ) : null}
               </div>
             </article>
           ))}
+          {props.results.length > 50 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {props.results.length - 50} more books
+            </p>
+          ) : null}
         </div>
       )}
     </section>

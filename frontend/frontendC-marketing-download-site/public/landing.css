@@ -509,6 +509,36 @@ button:focus-visible, input:focus-visible {
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
+.forgot-link-wrap {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.forgot-link {
+  color: var(--accent);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
+.forgot-back-link {
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.forgot-back-link:hover {
+  text-decoration: underline;
+}
+
+.label-hint {
+  color: var(--muted);
+  font-weight: normal;
+}
+
 .hidden {
   display: none !important;
 }

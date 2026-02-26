@@ -21,7 +21,7 @@ const severityColor: Record<string, string> = {
 };
 
 function formatScore(value: number | undefined): string {
-  if (value == null) return "--";
+  if (value == null || !Number.isFinite(value)) return "--";
   return (value * 100).toFixed(1) + "%";
 }
 
@@ -82,7 +82,7 @@ const AnomalyReportWidget: React.FC = () => {
 
       {anomalies.length > 0 ? (
         <div className="cc-timeline" role="list">
-          {anomalies.map((anomaly: AnomalyFlag, i: number) => (
+          {anomalies.slice(0, 30).map((anomaly: AnomalyFlag, i: number) => (
             <article key={`${anomaly.metric}-${i}`} className="cc-timeline-item" role="listitem">
               <div
                 className="cc-marker"
@@ -107,6 +107,11 @@ const AnomalyReportWidget: React.FC = () => {
               </div>
             </article>
           ))}
+          {anomalies.length > 30 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {anomalies.length - 30} more anomalies
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="cc-pane">
