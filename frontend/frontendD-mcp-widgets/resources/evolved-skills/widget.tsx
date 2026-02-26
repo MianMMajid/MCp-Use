@@ -50,7 +50,7 @@ const EvolvedSkillsWidget: React.FC = () => {
         </div>
       ) : (
         <div className="cc-timeline" role="list">
-          {skills.map((skill, i) => (
+          {skills.slice(0, 50).map((skill, i) => (
             <article key={`${skill.label}-${i}`} className="cc-timeline-item" role="listitem">
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
@@ -69,6 +69,11 @@ const EvolvedSkillsWidget: React.FC = () => {
               </div>
             </article>
           ))}
+          {skills.length > 50 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {skills.length - 50} more skills
+            </p>
+          ) : null}
         </div>
       )}
     </section>

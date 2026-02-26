@@ -44,7 +44,7 @@ const ArxivResultsWidget: React.FC = () => {
         </div>
       ) : (
         <div className="cc-timeline" role="list">
-          {props.results.map((paper, i) => (
+          {props.results.slice(0, 50).map((paper, i) => (
             <article key={paper.url ?? `paper-${i}`} className="cc-timeline-item" role="listitem">
               <div className="cc-marker cc-risk-low" aria-hidden />
               <div className="cc-step-main">
@@ -83,6 +83,11 @@ const ArxivResultsWidget: React.FC = () => {
               </div>
             </article>
           ))}
+          {props.results.length > 50 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {props.results.length - 50} more papers
+            </p>
+          ) : null}
         </div>
       )}
     </section>

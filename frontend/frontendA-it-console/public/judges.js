@@ -1211,6 +1211,9 @@ async function askFirewallChat(message, { echoUser = true } = {}) {
       chatHistory = chatHistory.slice(-CHAT_HISTORY_TRIM_TO);
     }
   } catch (error) {
+    if (typeof reader !== "undefined" && reader) {
+      try { reader.cancel(); } catch { /* ignore */ }
+    }
     if (streamingEl && streamingEl.parentNode) streamingEl.parentNode.removeChild(streamingEl);
     streamingEl = null;
 
@@ -2901,7 +2904,14 @@ async function refreshMetrics({ silent = false } = {}) {
   metricsRefreshInFlight = true;
 
   try {
-    await Promise.all([loadCommunityStats(), loadCommunityTraces(), loadYcBrief()]);
+    const results = await Promise.allSettled([loadCommunityStats(), loadCommunityTraces(), loadYcBrief()]);
+    const failed = results.filter((r) => r.status === "rejected");
+    if (failed.length === results.length) {
+      throw failed[0].reason ?? new Error("All metrics endpoints failed");
+    }
+    if (failed.length > 0 && !silent) {
+      handleRefreshError("refresh metrics (partial)", failed[0].reason, true);
+    }
   } catch (error) {
     handleRefreshError("refresh metrics", error, silent);
     throw error;
