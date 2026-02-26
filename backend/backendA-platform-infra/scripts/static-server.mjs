@@ -1,15 +1,26 @@
 #!/usr/bin/env node
 
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 
 function parseArgs(argv) {
+  const envProxyPrefixes = String(process.env.STATIC_PROXY_PREFIXES ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const envProxyInsecure =
+    String(process.env.STATIC_PROXY_INSECURE ?? "0").trim().toLowerCase() === "1" ||
+    String(process.env.STATIC_PROXY_INSECURE ?? "0").trim().toLowerCase() === "true";
   const args = {
     root: process.cwd(),
     port: Number.parseInt(process.env.PORT ?? "8080", 10),
     index: process.env.STATIC_INDEX ?? "",
+    proxyTarget: process.env.STATIC_PROXY_TARGET ?? "",
+    proxyPrefixes: envProxyPrefixes,
+    proxyInsecure: envProxyInsecure,
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -31,12 +42,29 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (current === "--proxy-target" && next) {
+      args.proxyTarget = next;
+      i += 1;
+      continue;
+    }
+    if (current === "--proxy-prefix" && next) {
+      args.proxyPrefixes.push(next);
+      i += 1;
+      continue;
+    }
+    if (current === "--proxy-insecure") {
+      args.proxyInsecure = true;
+      continue;
+    }
   }
 
   return {
     root: resolve(args.root),
     port: Number.isFinite(args.port) ? args.port : 8080,
     index: args.index,
+    proxyTarget: String(args.proxyTarget ?? "").trim(),
+    proxyPrefixes: [...new Set(args.proxyPrefixes.map((entry) => entry.trim()).filter((entry) => entry.length > 0))],
+    proxyInsecure: args.proxyInsecure,
   };
 }
 
@@ -98,6 +126,81 @@ function streamFile(res, absolutePath) {
   createReadStream(absolutePath).pipe(res);
 }
 
+function pathMatchesProxyPrefix(pathname, proxyPrefixes) {
+  for (const prefix of proxyPrefixes) {
+    const normalized = prefix.startsWith("/") ? prefix : `/${prefix}`;
+    if (pathname === normalized || pathname.startsWith(`${normalized}/`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function proxyRequest(req, res, sourceUrl, config) {
+  if (!config.proxyTarget) {
+    sendJson(res, 502, { ok: false, error: "Proxy target is not configured." });
+    return;
+  }
+  const targetUrl = new URL(`${sourceUrl.pathname}${sourceUrl.search}`, config.proxyTarget);
+  const method = String(req.method ?? "GET").toUpperCase();
+  const headers = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (typeof value === "undefined") {
+      continue;
+    }
+    const lower = key.toLowerCase();
+    if (lower === "host" || lower === "connection") {
+      continue;
+    }
+    headers[key] = value;
+  }
+  headers["x-forwarded-host"] = String(req.headers.host ?? "");
+  headers["x-forwarded-proto"] = "http";
+  headers["x-forwarded-for"] = String(req.socket.remoteAddress ?? "");
+  const isHttps = targetUrl.protocol === "https:";
+  const requestFn = isHttps ? httpsRequest : httpRequest;
+  try {
+    const upstream = requestFn({
+      protocol: targetUrl.protocol,
+      hostname: targetUrl.hostname,
+      port: targetUrl.port || (isHttps ? 443 : 80),
+      method,
+      path: `${targetUrl.pathname}${targetUrl.search}`,
+      headers,
+      ...(isHttps ? { rejectUnauthorized: !config.proxyInsecure } : {}),
+    }, (upstreamRes) => {
+      res.statusCode = upstreamRes.statusCode ?? 502;
+      for (const [headerName, headerValue] of Object.entries(upstreamRes.headers)) {
+        if (headerName.toLowerCase() === "transfer-encoding") {
+          continue;
+        }
+        if (typeof headerValue !== "undefined") {
+          res.setHeader(headerName, headerValue);
+        }
+      }
+      upstreamRes.pipe(res);
+    });
+    upstream.on("error", (error) => {
+      sendJson(res, 502, {
+        ok: false,
+        error: "Proxy request failed",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    });
+    if (method === "GET" || method === "HEAD") {
+      upstream.end();
+      return;
+    }
+    req.pipe(upstream);
+  } catch (error) {
+    sendJson(res, 502, {
+      ok: false,
+      error: "Proxy request failed",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 const config = parseArgs(process.argv);
 const root = config.root;
 const indexFile = config.index;
@@ -111,7 +214,20 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
   if (url.pathname === "/health") {
-    sendJson(res, 200, { ok: true, root, index: indexFile || null, timestamp: new Date().toISOString() });
+    sendJson(res, 200, {
+      ok: true,
+      root,
+      index: indexFile || null,
+      proxyTarget: config.proxyTarget || null,
+      proxyPrefixes: config.proxyPrefixes,
+      proxyInsecure: config.proxyInsecure,
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (config.proxyTarget && pathMatchesProxyPrefix(url.pathname, config.proxyPrefixes)) {
+    await proxyRequest(req, res, url, config);
     return;
   }
 
@@ -155,4 +271,9 @@ server.listen(config.port, "0.0.0.0", () => {
   console.log(`Static server listening on 0.0.0.0:${config.port}`);
   console.log(`Root: ${root}`);
   console.log(`Index: ${indexFile || "(none)"}`);
+  console.log(`Proxy target: ${config.proxyTarget || "(disabled)"}`);
+  console.log(
+    `Proxy prefixes: ${config.proxyPrefixes.length > 0 ? config.proxyPrefixes.join(", ") : "(none)"}`
+  );
+  console.log(`Proxy insecure TLS: ${config.proxyInsecure ? "enabled" : "disabled"}`);
 });

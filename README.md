@@ -104,6 +104,15 @@ Primary endpoints after `npm run dev`:
 
 Note: local K8s uses a generated self-signed cert (`npm run k8s:certs`), so browser/curl trust prompts are expected.
 
+## Northflank Deployment
+
+Northflank template + setup helpers live at:
+
+- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.json`
+- `backend/backendA-platform-infra/deploy/northflank/README.md`
+
+This includes a full stack template (backend mesh + OpenClaw + static frontend surfaces), plus scripts to generate TLS and argument payloads.
+
 Frontend surface helpers:
 
 ```bash
