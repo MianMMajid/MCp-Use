@@ -438,7 +438,7 @@ Required environment variables:
 ```bash
 NODE_ENV=production
 HOST=0.0.0.0
-MCP_URL=https://<your-railway-domain>
+MCP_URL=https://mayple.cloud
 MAPLE_API_KEY=<long-random-key>
 MAPLE_LOCK_BRIDGE_TARGET=true
 OPENCLAW_BRIDGE_URL=<bridge-url-reachable-from-railway>
