@@ -3,7 +3,6 @@
   const modeValue = document.getElementById("modeValue");
   const gatewayValue = document.getElementById("gatewayValue");
   const healthValue = document.getElementById("healthValue");
-  const capabilityValue = document.getElementById("capabilityValue");
   const pidValue = document.getElementById("pidValue");
   const runtimeLogs = document.getElementById("runtimeLogs");
   const fallbackBox = document.getElementById("fallbackBox");
@@ -87,48 +86,6 @@
     setBadge("External mode", "");
   }
 
-  function runtimeBaseFromGatewayUrl(gatewayUrl) {
-    try {
-      return new URL(gatewayUrl).origin;
-    } catch {
-      return "";
-    }
-  }
-
-  async function fetchCapabilities(config) {
-    const baseUrl = runtimeBaseFromGatewayUrl(config?.gatewayUrl ?? "");
-    if (!baseUrl) {
-      return null;
-    }
-    try {
-      const response = await fetch(`${baseUrl}/api/runtime/feature-capabilities`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        return null;
-      }
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-
-  function renderCapabilities(capabilities) {
-    if (!capabilityValue) {
-      return;
-    }
-    if (!capabilities || typeof capabilities !== "object") {
-      capabilityValue.textContent = "Unavailable";
-      return;
-    }
-    const features = capabilities.features ?? {};
-    const enabledCount = Object.values(features).filter(
-      (entry) => entry && entry.enabled === true
-    ).length;
-    const total = Object.keys(features).length;
-    capabilityValue.textContent = `${enabledCount}/${total} enabled`;
-  }
-
   async function refreshLogs() {
     if (!api?.getLogs) {
       runtimeLogs.textContent = "Log stream unavailable in browser shell mode.";
@@ -139,24 +96,29 @@
     runtimeLogs.scrollTop = runtimeLogs.scrollHeight;
   }
 
+  let refreshInFlight = false;
   async function refreshAll() {
-    const config = api?.getConfig ? await api.getConfig() : defaultConfig;
-    renderConfig(config);
-    const capabilities = await fetchCapabilities(config);
-    renderCapabilities(capabilities);
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    try {
+      const config = api?.getConfig ? await api.getConfig() : defaultConfig;
+      renderConfig(config);
 
-    if (api?.getStatus) {
-      const status = await api.getStatus();
-      renderStatus(status);
-    } else {
-      renderStatus({ mode: config.mode, running: false, healthy: false, pid: null });
-      fallbackBox.style.display = "block";
-      startBtn.disabled = true;
-      stopBtn.disabled = true;
-      if (restartBtn) restartBtn.disabled = true;
+      if (api?.getStatus) {
+        const status = await api.getStatus();
+        renderStatus(status);
+      } else {
+        renderStatus({ mode: config.mode, running: false, healthy: false, pid: null });
+        fallbackBox.style.display = "block";
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+        if (restartBtn) restartBtn.disabled = true;
+      }
+
+      await refreshLogs();
+    } finally {
+      refreshInFlight = false;
     }
-
-    await refreshLogs();
   }
 
   refreshBtn.addEventListener("click", () => {
@@ -271,10 +233,13 @@
   const updateBtn = document.getElementById("updateBtn");
 
   if (api?.onUpdateAvailable) {
-    api.onUpdateAvailable((info) => {
+    const cleanupUpdateListener = api.onUpdateAvailable((info) => {
       if (updateBanner) updateBanner.style.display = "block";
       if (updateVersion) updateVersion.textContent = `Version ${info?.version ?? "unknown"} is ready.`;
     });
+    if (typeof cleanupUpdateListener === "function") {
+      window.addEventListener("beforeunload", cleanupUpdateListener);
+    }
   }
 
   if (updateBtn && api?.downloadUpdate) {
