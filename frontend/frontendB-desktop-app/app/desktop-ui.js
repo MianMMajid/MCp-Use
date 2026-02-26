@@ -3,6 +3,7 @@
   const modeValue = document.getElementById("modeValue");
   const gatewayValue = document.getElementById("gatewayValue");
   const healthValue = document.getElementById("healthValue");
+  const capabilityValue = document.getElementById("capabilityValue");
   const pidValue = document.getElementById("pidValue");
   const runtimeLogs = document.getElementById("runtimeLogs");
   const fallbackBox = document.getElementById("fallbackBox");
@@ -86,6 +87,48 @@
     setBadge("External mode", "");
   }
 
+  function runtimeBaseFromGatewayUrl(gatewayUrl) {
+    try {
+      return new URL(gatewayUrl).origin;
+    } catch {
+      return "";
+    }
+  }
+
+  async function fetchCapabilities(config) {
+    const baseUrl = runtimeBaseFromGatewayUrl(config?.gatewayUrl ?? "");
+    if (!baseUrl) {
+      return null;
+    }
+    try {
+      const response = await fetch(`${baseUrl}/api/runtime/feature-capabilities`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
+  function renderCapabilities(capabilities) {
+    if (!capabilityValue) {
+      return;
+    }
+    if (!capabilities || typeof capabilities !== "object") {
+      capabilityValue.textContent = "Unavailable";
+      return;
+    }
+    const features = capabilities.features ?? {};
+    const enabledCount = Object.values(features).filter(
+      (entry) => entry && entry.enabled === true
+    ).length;
+    const total = Object.keys(features).length;
+    capabilityValue.textContent = `${enabledCount}/${total} enabled`;
+  }
+
   async function refreshLogs() {
     if (!api?.getLogs) {
       runtimeLogs.textContent = "Log stream unavailable in browser shell mode.";
@@ -103,6 +146,8 @@
     try {
       const config = api?.getConfig ? await api.getConfig() : defaultConfig;
       renderConfig(config);
+      const capabilities = await fetchCapabilities(config);
+      renderCapabilities(capabilities);
 
       if (api?.getStatus) {
         const status = await api.getStatus();
