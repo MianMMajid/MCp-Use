@@ -52,6 +52,7 @@
     "test:mesh-services": "NODE_ENV=test DATABASE_URL=postgresql://maple:maple@127.0.0.1:5432/maple_test MAPLE_LOG_LEVEL=error MAPLE_LOG_REQUESTS=0 node --test backend/backendB-core-services/*/service/tests/*.test.mjs",
     "test:saas-services": "NODE_ENV=test DATABASE_URL=postgresql://maple:maple@127.0.0.1:5432/maple_test MAPLE_LOG_LEVEL=error MAPLE_LOG_REQUESTS=0 node --test backend/backendC-saas-services/*/service/tests/*.test.mjs",
     "test:infra-scripts": "NODE_ENV=test DATABASE_URL=postgresql://maple:maple@127.0.0.1:5432/maple_test MAPLE_LOG_LEVEL=error MAPLE_LOG_REQUESTS=0 node --test backend/backendA-platform-infra/tests/*.test.mjs",
+    "test:providers-live": "NODE_ENV=test MAPLE_LIVE_PROVIDER_E2E=1 node --test backend/backendA-platform-infra/tests/live-provider-e2e.test.mjs",
     "typecheck": "npm run typecheck:mesh && npm run typecheck:saas",
     "typecheck:mesh": "node backend/backendA-platform-infra/scripts/check-service-sources.mjs && node backend/backendA-platform-infra/scripts/check-proto-sync.mjs",
     "typecheck:saas": "npx tsc --noEmit --project backend/backendC-saas-services/business-api/service/tsconfig.json",

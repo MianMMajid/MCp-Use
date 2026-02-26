@@ -14,6 +14,7 @@ import {
 import { createApp } from "./app.js";
 import { createAuditEmitter } from "./audit-emitter.js";
 import { enforceBusinessStartupDependencies } from "./runtime-dependencies.js";
+import { createRecoveryNotificationPublisher } from "./recovery-notifier.js";
 
 async function main() {
   mapleLog("info", "business_api.starting", {
@@ -25,6 +26,7 @@ async function main() {
 
   const { app, shutdown } = await createApp({
     auditEmitter: createAuditEmitter(),
+    onAuthRecoveryTokenIssued: createRecoveryNotificationPublisher(),
     skipDatabaseInit: businessApiSkipDatabaseInit,
   });
 

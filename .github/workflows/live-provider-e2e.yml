@@ -1,0 +1,62 @@
+name: Live Provider E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  live-provider-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      MAPLE_LIVE_GOOGLE_TEST_ID_TOKEN: ${{ secrets.MAPLE_LIVE_GOOGLE_TEST_ID_TOKEN }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PRICE_PRO: ${{ secrets.STRIPE_PRICE_PRO }}
+      STRIPE_PRICE_TEAM: ${{ secrets.STRIPE_PRICE_TEAM }}
+      STRIPE_PRICE_ENTERPRISE: ${{ secrets.STRIPE_PRICE_ENTERPRISE }}
+      OPENCLAW_BRIDGE_URL: ${{ secrets.OPENCLAW_BRIDGE_URL }}
+      OPENCLAW_BRIDGE_TOKEN: ${{ secrets.OPENCLAW_BRIDGE_TOKEN }}
+      MAPLE_LIVE_PROVIDER_INSECURE_TLS: ${{ secrets.MAPLE_LIVE_PROVIDER_INSECURE_TLS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Validate live-provider secrets
+        run: |
+          set -euo pipefail
+          required=(
+            GOOGLE_CLIENT_ID
+            MAPLE_LIVE_GOOGLE_TEST_ID_TOKEN
+            STRIPE_SECRET_KEY
+            STRIPE_PRICE_PRO
+            STRIPE_PRICE_TEAM
+            STRIPE_PRICE_ENTERPRISE
+            OPENCLAW_BRIDGE_URL
+            OPENCLAW_BRIDGE_TOKEN
+          )
+          missing=0
+          for key in "${required[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required secret/env: ${key}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Live provider e2e tests
+        run: npm run test:providers-live

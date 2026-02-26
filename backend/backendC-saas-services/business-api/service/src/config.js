@@ -101,3 +101,65 @@ export const auditWriterAddress = getEnvOrDefault(
   "AUDIT_WRITER_ADDRESS",
   "audit-writer.maple.svc.cluster.local:9400"
 );
+
+function normalizeProvider(rawValue, fallback, allowedValues) {
+  const normalized = String(rawValue ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+  if (allowedValues.includes(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+export const recoveryDeliveryRequired =
+  String(process.env.MAPLE_RECOVERY_DELIVERY_REQUIRED ?? "0")
+    .trim()
+    .toLowerCase() === "1" ||
+  String(process.env.MAPLE_RECOVERY_DELIVERY_REQUIRED ?? "0")
+    .trim()
+    .toLowerCase() === "true";
+
+export const recoveryEmailProvider = normalizeProvider(
+  process.env.MAPLE_RECOVERY_EMAIL_PROVIDER,
+  "none",
+  ["none", "sendgrid", "resend"]
+);
+export const recoveryEmailFrom =
+  asString(process.env.MAPLE_RECOVERY_EMAIL_FROM) ?? null;
+export const recoveryEmailReplyTo =
+  asString(process.env.MAPLE_RECOVERY_EMAIL_REPLY_TO) ?? null;
+export const recoveryEmailSubjectPrefix =
+  asString(process.env.MAPLE_RECOVERY_EMAIL_SUBJECT_PREFIX) ?? "[Maple]";
+export const recoveryResetBaseUrl =
+  asString(process.env.MAPLE_RECOVERY_RESET_BASE_URL) ?? null;
+export const recoveryVerifyBaseUrl =
+  asString(process.env.MAPLE_RECOVERY_VERIFY_BASE_URL) ?? null;
+export const recoverySendgridApiKey =
+  asString(process.env.SENDGRID_API_KEY) ??
+  asString(process.env.MAPLE_RECOVERY_SENDGRID_API_KEY) ??
+  null;
+export const recoveryResendApiKey =
+  asString(process.env.RESEND_API_KEY) ??
+  asString(process.env.MAPLE_RECOVERY_RESEND_API_KEY) ??
+  null;
+
+export const recoverySmsProvider = normalizeProvider(
+  process.env.MAPLE_RECOVERY_SMS_PROVIDER,
+  "none",
+  ["none", "twilio"]
+);
+export const recoverySmsTo = asString(process.env.MAPLE_RECOVERY_SMS_TO) ?? null;
+export const recoverySmsFrom =
+  asString(process.env.MAPLE_RECOVERY_SMS_FROM) ?? null;
+export const twilioAccountSid =
+  asString(process.env.TWILIO_ACCOUNT_SID) ??
+  asString(process.env.MAPLE_RECOVERY_TWILIO_ACCOUNT_SID) ??
+  null;
+export const twilioAuthToken =
+  asString(process.env.TWILIO_AUTH_TOKEN) ??
+  asString(process.env.MAPLE_RECOVERY_TWILIO_AUTH_TOKEN) ??
+  null;

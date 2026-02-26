@@ -140,6 +140,10 @@ async function run() {
     parseBoolean(process.env.MAPLE_PREFLIGHT_CHECK_REACHABILITY, strict && args.mode === "deploy");
   const requireGoogle = parseBoolean(process.env.MAPLE_DEP_REQUIRE_GOOGLE_AUTH, strict);
   const requireStripe = parseBoolean(process.env.MAPLE_DEP_REQUIRE_STRIPE, strict);
+  const requireRecoveryDelivery = parseBoolean(
+    process.env.MAPLE_DEP_REQUIRE_RECOVERY_DELIVERY,
+    strict
+  );
   const requireOpenclaw = parseBoolean(process.env.MAPLE_DEP_REQUIRE_OPENCLAW, strict);
   const requireDatabase = parseBoolean(process.env.MAPLE_DEP_REQUIRE_DATABASE, strict);
   const checkContractSync = parseBoolean(process.env.MAPLE_PREFLIGHT_CHECK_CONTRACT_SYNC, true);
@@ -244,6 +248,103 @@ async function run() {
       result: process.env.STRIPE_WEBHOOK_SECRET
         ? { ok: true }
         : { ok: false, reason: "STRIPE_WEBHOOK_SECRET missing" },
+    })
+  );
+  const recoveryEmailProvider = String(process.env.MAPLE_RECOVERY_EMAIL_PROVIDER || "none")
+    .trim()
+    .toLowerCase();
+  const recoverySmsProvider = String(process.env.MAPLE_RECOVERY_SMS_PROVIDER || "none")
+    .trim()
+    .toLowerCase();
+  checks.push(
+    createCheck({
+      id: "auth.recovery.provider",
+      label: "Recovery delivery provider",
+      required: requireRecoveryDelivery,
+      expected: "MAPLE_RECOVERY_EMAIL_PROVIDER or MAPLE_RECOVERY_SMS_PROVIDER configured",
+      result:
+        recoveryEmailProvider !== "none" || recoverySmsProvider !== "none"
+          ? { ok: true }
+          : { ok: false, reason: "No recovery delivery provider configured" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.email_from",
+      label: "Recovery email from",
+      required: requireRecoveryDelivery && recoveryEmailProvider !== "none",
+      expected: "MAPLE_RECOVERY_EMAIL_FROM must be set",
+      result: process.env.MAPLE_RECOVERY_EMAIL_FROM
+        ? { ok: true }
+        : { ok: false, reason: "MAPLE_RECOVERY_EMAIL_FROM missing" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.sendgrid_key",
+      label: "Recovery SendGrid key",
+      required: requireRecoveryDelivery && recoveryEmailProvider === "sendgrid",
+      expected: "SENDGRID_API_KEY or MAPLE_RECOVERY_SENDGRID_API_KEY must be set",
+      result: process.env.SENDGRID_API_KEY || process.env.MAPLE_RECOVERY_SENDGRID_API_KEY
+        ? { ok: true }
+        : { ok: false, reason: "SENDGRID_API_KEY missing" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.resend_key",
+      label: "Recovery Resend key",
+      required: requireRecoveryDelivery && recoveryEmailProvider === "resend",
+      expected: "RESEND_API_KEY or MAPLE_RECOVERY_RESEND_API_KEY must be set",
+      result: process.env.RESEND_API_KEY || process.env.MAPLE_RECOVERY_RESEND_API_KEY
+        ? { ok: true }
+        : { ok: false, reason: "RESEND_API_KEY missing" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.sms_from",
+      label: "Recovery SMS sender",
+      required: requireRecoveryDelivery && recoverySmsProvider === "twilio",
+      expected: "MAPLE_RECOVERY_SMS_FROM must be set",
+      result: process.env.MAPLE_RECOVERY_SMS_FROM
+        ? { ok: true }
+        : { ok: false, reason: "MAPLE_RECOVERY_SMS_FROM missing" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.sms_to",
+      label: "Recovery SMS target",
+      required: requireRecoveryDelivery && recoverySmsProvider === "twilio",
+      expected: "MAPLE_RECOVERY_SMS_TO must be set",
+      result: process.env.MAPLE_RECOVERY_SMS_TO
+        ? { ok: true }
+        : { ok: false, reason: "MAPLE_RECOVERY_SMS_TO missing" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.twilio_sid",
+      label: "Recovery Twilio SID",
+      required: requireRecoveryDelivery && recoverySmsProvider === "twilio",
+      expected: "TWILIO_ACCOUNT_SID or MAPLE_RECOVERY_TWILIO_ACCOUNT_SID must be set",
+      result:
+        process.env.TWILIO_ACCOUNT_SID || process.env.MAPLE_RECOVERY_TWILIO_ACCOUNT_SID
+          ? { ok: true }
+          : { ok: false, reason: "TWILIO_ACCOUNT_SID missing" },
+    })
+  );
+  checks.push(
+    createCheck({
+      id: "auth.recovery.twilio_token",
+      label: "Recovery Twilio token",
+      required: requireRecoveryDelivery && recoverySmsProvider === "twilio",
+      expected: "TWILIO_AUTH_TOKEN or MAPLE_RECOVERY_TWILIO_AUTH_TOKEN must be set",
+      result:
+        process.env.TWILIO_AUTH_TOKEN || process.env.MAPLE_RECOVERY_TWILIO_AUTH_TOKEN
+          ? { ok: true }
+          : { ok: false, reason: "TWILIO_AUTH_TOKEN missing" },
     })
   );
 

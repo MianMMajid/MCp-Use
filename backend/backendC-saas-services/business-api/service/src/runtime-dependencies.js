@@ -6,8 +6,18 @@ import {
   businessApiTlsKeyPath,
   databaseUrl,
   googleClientId,
+  recoveryDeliveryRequired,
+  recoveryEmailFrom,
+  recoveryEmailProvider,
+  recoveryResendApiKey,
+  recoverySendgridApiKey,
+  recoverySmsFrom,
+  recoverySmsProvider,
+  recoverySmsTo,
   stripeSecretKey,
   stripeWebhookSecret,
+  twilioAccountSid,
+  twilioAuthToken,
 } from "./config.js";
 
 const CACHE_TTL_MS = 2_000;
@@ -71,6 +81,62 @@ function checkStripeConfig() {
       ok: false,
       reason: `Missing Stripe price IDs for plans: ${missingPriceIds.join(", ")}`,
     };
+  }
+  return { ok: true };
+}
+
+function checkRecoveryDeliveryConfig() {
+  const emailEnabled = recoveryEmailProvider !== "none";
+  const smsEnabled = recoverySmsProvider !== "none";
+  if (!emailEnabled && !smsEnabled) {
+    return {
+      ok: false,
+      reason: "No recovery delivery provider configured.",
+    };
+  }
+  if (emailEnabled && !recoveryEmailFrom) {
+    return {
+      ok: false,
+      reason: "MAPLE_RECOVERY_EMAIL_FROM is missing.",
+    };
+  }
+  if (recoveryEmailProvider === "sendgrid" && !recoverySendgridApiKey) {
+    return {
+      ok: false,
+      reason: "SENDGRID_API_KEY (or MAPLE_RECOVERY_SENDGRID_API_KEY) is missing.",
+    };
+  }
+  if (recoveryEmailProvider === "resend" && !recoveryResendApiKey) {
+    return {
+      ok: false,
+      reason: "RESEND_API_KEY (or MAPLE_RECOVERY_RESEND_API_KEY) is missing.",
+    };
+  }
+  if (smsEnabled && recoverySmsProvider === "twilio") {
+    if (!twilioAccountSid) {
+      return {
+        ok: false,
+        reason: "TWILIO_ACCOUNT_SID is missing.",
+      };
+    }
+    if (!twilioAuthToken) {
+      return {
+        ok: false,
+        reason: "TWILIO_AUTH_TOKEN is missing.",
+      };
+    }
+    if (!recoverySmsFrom) {
+      return {
+        ok: false,
+        reason: "MAPLE_RECOVERY_SMS_FROM is missing.",
+      };
+    }
+    if (!recoverySmsTo) {
+      return {
+        ok: false,
+        reason: "MAPLE_RECOVERY_SMS_TO is missing.",
+      };
+    }
   }
   return { ok: true };
 }
@@ -163,6 +229,19 @@ export async function evaluateBusinessRuntimeDependencies(options = {}) {
       "Stripe credentials configured",
       requireStripe,
       checkStripeConfig()
+    )
+  );
+
+  const requireRecoveryDelivery = parseBooleanEnv(
+    process.env.MAPLE_DEP_REQUIRE_RECOVERY_DELIVERY,
+    strict || recoveryDeliveryRequired
+  );
+  checks.push(
+    buildCheckRecord(
+      "config.recovery_delivery",
+      "Recovery email/SMS delivery configuration",
+      requireRecoveryDelivery,
+      checkRecoveryDeliveryConfig()
     )
   );
 

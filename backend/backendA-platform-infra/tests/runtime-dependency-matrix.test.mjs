@@ -155,3 +155,40 @@ test("business dependency matrix passes when Google auth requirement is met", ()
   assert.equal(report.ready, true);
   assert.equal(hasFailure(report, "config.google_client_id"), false);
 });
+
+test("business dependency matrix fails closed when recovery delivery is required and provider is missing", () => {
+  const report = runDependencyReport({
+    modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
+    exportName: "evaluateBusinessRuntimeDependencies",
+    env: {
+      ...businessBaseEnv,
+      MAPLE_DEP_REQUIRE_RECOVERY_DELIVERY: "1",
+      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "0",
+      MAPLE_DEP_REQUIRE_STRIPE: "0",
+      MAPLE_RECOVERY_EMAIL_PROVIDER: "none",
+      MAPLE_RECOVERY_SMS_PROVIDER: "none",
+    },
+  });
+
+  assert.equal(report.ready, false);
+  assert.equal(hasFailure(report, "config.recovery_delivery"), true);
+});
+
+test("business dependency matrix passes when recovery delivery requirement is met", () => {
+  const report = runDependencyReport({
+    modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
+    exportName: "evaluateBusinessRuntimeDependencies",
+    env: {
+      ...businessBaseEnv,
+      MAPLE_DEP_REQUIRE_RECOVERY_DELIVERY: "1",
+      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "0",
+      MAPLE_DEP_REQUIRE_STRIPE: "0",
+      MAPLE_RECOVERY_EMAIL_PROVIDER: "sendgrid",
+      MAPLE_RECOVERY_EMAIL_FROM: "no-reply@maple.test",
+      SENDGRID_API_KEY: "sg_test_key",
+    },
+  });
+
+  assert.equal(report.ready, true);
+  assert.equal(hasFailure(report, "config.recovery_delivery"), false);
+});
