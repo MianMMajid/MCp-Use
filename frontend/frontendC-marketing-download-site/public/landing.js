@@ -23,6 +23,56 @@
   const errorEl = document.getElementById("signinError");
   const submitBtn = form ? form.querySelector("button[type=submit]") : null;
   const googleSection = document.getElementById("googleSection");
+  const journeySessionStatus = document.getElementById("journeySessionStatus");
+  const journeyCapabilityStatus = document.getElementById("journeyCapabilityStatus");
+  const journeySessionOut = document.getElementById("journeySessionOut");
+  const journeyIntegrationOut = document.getElementById("journeyIntegrationOut");
+  const journeyAgentOut = document.getElementById("journeyAgentOut");
+  const journeyHitlOut = document.getElementById("journeyHitlOut");
+  const journeyBillingOut = document.getElementById("journeyBillingOut");
+  const journeyAllOut = document.getElementById("journeyAllOut");
+  const journeyProvider = document.getElementById("journeyProvider");
+  const journeyCredential = document.getElementById("journeyCredential");
+  const journeyScopes = document.getElementById("journeyScopes");
+  const journeyPrompt = document.getElementById("journeyPrompt");
+  const journeyHitlApprovalId = document.getElementById("journeyHitlApprovalId");
+  const journeyHitlDecision = document.getElementById("journeyHitlDecision");
+  const journeyHitlReason = document.getElementById("journeyHitlReason");
+  const journeyBillingPlan = document.getElementById("journeyBillingPlan");
+  const journeyRefreshSessionBtn = document.getElementById("journeyRefreshSessionBtn");
+  const journeyRefreshCapabilitiesBtn = document.getElementById("journeyRefreshCapabilitiesBtn");
+  const journeyLoadIntegrationsBtn = document.getElementById("journeyLoadIntegrationsBtn");
+  const journeyConnectBtn = document.getElementById("journeyConnectBtn");
+  const journeyDisconnectBtn = document.getElementById("journeyDisconnectBtn");
+  const journeyOauthBtn = document.getElementById("journeyOauthBtn");
+  const journeyRunTurnBtn = document.getElementById("journeyRunTurnBtn");
+  const journeyRunLongformBtn = document.getElementById("journeyRunLongformBtn");
+  const journeyAgentStatusBtn = document.getElementById("journeyAgentStatusBtn");
+  const journeyHitlListBtn = document.getElementById("journeyHitlListBtn");
+  const journeyHitlSubmitBtn = document.getElementById("journeyHitlSubmitBtn");
+  const journeyBillingStatusBtn = document.getElementById("journeyBillingStatusBtn");
+  const journeyCheckoutBtn = document.getElementById("journeyCheckoutBtn");
+  const journeyPortalBtn = document.getElementById("journeyPortalBtn");
+  const journeyRunAllBtn = document.getElementById("journeyRunAllBtn");
+  const JOURNEY_ENDPOINT_TEMPLATES = [
+    "/api/runtime/feature-capabilities",
+    "/api/auth/me",
+    "/api/auth/login",
+    "/api/auth/google",
+    "/api/integrations/catalog",
+    "/api/integrations",
+    "/api/integrations/:provider/connect",
+    "/api/integrations/:provider/disconnect",
+    "/api/integrations/:provider/oauth/start",
+    "/api/openclaw/agent/status",
+    "/api/openclaw/agent/turn",
+    "/api/openclaw/agent/longform",
+    "/api/hitl/approvals",
+    "/api/hitl/approvals/decision",
+    "/api/billing/subscription",
+    "/api/billing/create-checkout-session",
+    "/api/billing/portal-session",
+  ];
 
   const signupForm = document.getElementById("signupForm");
   const signupUsername = document.getElementById("signupUsername");
@@ -77,6 +127,58 @@
         if (err.name === "AbortError") throw new Error("Request timed out.");
         throw err;
       });
+  }
+
+  function parseJsonSafe(rawText) {
+    if (!rawText) return null;
+    try {
+      return JSON.parse(rawText);
+    } catch {
+      return null;
+    }
+  }
+
+  function setJourneyOutput(target, payload) {
+    if (!(target instanceof HTMLElement)) return;
+    if (typeof payload === "string") {
+      target.textContent = payload;
+      return;
+    }
+    target.textContent = JSON.stringify(payload, null, 2);
+  }
+
+  function setChip(target, text) {
+    if (!(target instanceof HTMLElement)) return;
+    target.textContent = text;
+  }
+
+  function setDisabled(button, disabled, reason) {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.disabled = Boolean(disabled);
+    button.title = disabled && reason ? reason : "";
+  }
+
+  async function apiJson(path, options) {
+    const response = await fetchWithTimeout(path, {
+      method: options?.method || "GET",
+      headers: {
+        "content-type": "application/json",
+        ...(options?.headers || {}),
+      },
+      credentials: "same-origin",
+      body:
+        options && Object.prototype.hasOwnProperty.call(options, "body")
+          ? JSON.stringify(options.body || {})
+          : undefined,
+    });
+    const text = await response.text();
+    const payload = parseJsonSafe(text);
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: payload || {},
+      raw: text,
+    };
   }
 
   const savedUsername = localStorage.getItem("maple_judge_username");
@@ -139,6 +241,36 @@
         errorEl.textContent = reason || "Sign-in is temporarily unavailable.";
       }
     }
+    const integrationsEnabled = capabilityEnabled("integrations", true);
+    const openclawEnabled = capabilityEnabled("openclawAgent", true);
+    const hitlEnabled = capabilityEnabled("hitlApprovals", true);
+    const billingEnabled = capabilityEnabled("billing", true);
+
+    setDisabled(journeyConnectBtn, !integrationsEnabled, capabilityReason("integrations"));
+    setDisabled(journeyDisconnectBtn, !integrationsEnabled, capabilityReason("integrations"));
+    setDisabled(journeyOauthBtn, !integrationsEnabled, capabilityReason("integrations"));
+    setDisabled(journeyLoadIntegrationsBtn, !integrationsEnabled, capabilityReason("integrations"));
+    setDisabled(journeyRunTurnBtn, !openclawEnabled, capabilityReason("openclawAgent"));
+    setDisabled(journeyRunLongformBtn, !openclawEnabled, capabilityReason("openclawAgent"));
+    setDisabled(journeyAgentStatusBtn, !openclawEnabled, capabilityReason("openclawAgent"));
+    setDisabled(journeyHitlListBtn, !hitlEnabled, capabilityReason("hitlApprovals"));
+    setDisabled(journeyHitlSubmitBtn, !hitlEnabled, capabilityReason("hitlApprovals"));
+    setDisabled(journeyBillingStatusBtn, !billingEnabled, capabilityReason("billing"));
+    setDisabled(journeyCheckoutBtn, !billingEnabled, capabilityReason("billing"));
+    setDisabled(journeyPortalBtn, !billingEnabled, capabilityReason("billing"));
+    setDisabled(
+      journeyRunAllBtn,
+      !sessionEnabled || !openclawEnabled || !integrationsEnabled,
+      "One or more required capabilities are unavailable."
+    );
+
+    setChip(
+      journeyCapabilityStatus,
+      capabilities
+        ? `Capabilities: ${capabilities.ready ? "ready" : "degraded"}`
+        : "Capabilities: unknown"
+    );
+
     return {
       sessionEnabled,
       googleEnabled: capabilityEnabled("googleAuth", true),
@@ -206,6 +338,7 @@
 
   loadCapabilities().finally(() => {
     const gates = applyCapabilityGates();
+    bootstrapJourney();
     if (gates.googleEnabled) {
       initGoogleSignIn();
     } else if (googleSection) {
@@ -421,5 +554,399 @@
         if (btn) { btn.disabled = false; btn.textContent = "Send Reset Link"; }
       }
     });
+  }
+
+  async function refreshJourneySession() {
+    const response = await apiJson("/api/auth/me");
+    setJourneyOutput(journeySessionOut, response.data);
+    const authenticated = Boolean(response.data?.authenticated);
+    setChip(
+      journeySessionStatus,
+      `Session: ${authenticated ? "authenticated" : "anonymous"}`
+    );
+    return response;
+  }
+
+  async function refreshJourneyCapabilities() {
+    await loadCapabilities();
+    applyCapabilityGates();
+    const response = await apiJson("/api/runtime/feature-capabilities");
+    setJourneyOutput(journeySessionOut, response.data);
+    return response;
+  }
+
+  async function loadIntegrationsCatalog() {
+    const response = await apiJson("/api/integrations/catalog");
+    if (journeyProvider instanceof HTMLSelectElement) {
+      const providers = Array.isArray(response.data?.providers)
+        ? response.data.providers
+        : [];
+      journeyProvider.innerHTML = "";
+      for (const provider of providers) {
+        const option = document.createElement("option");
+        const id = String(provider?.provider || provider?.id || "").trim();
+        if (!id) continue;
+        option.value = id;
+        option.textContent = String(provider?.displayName || id);
+        journeyProvider.append(option);
+      }
+      if (!journeyProvider.value && providers.length > 0) {
+        journeyProvider.value = String(providers[0].provider || providers[0].id || "");
+      }
+    }
+    return response;
+  }
+
+  async function listIntegrations() {
+    const response = await apiJson("/api/integrations");
+    setJourneyOutput(journeyIntegrationOut, response.data);
+    return response;
+  }
+
+  function selectedProvider() {
+    return journeyProvider instanceof HTMLSelectElement
+      ? String(journeyProvider.value || "").trim()
+      : "";
+  }
+
+  async function connectIntegration() {
+    const provider = selectedProvider();
+    if (!provider) {
+      setJourneyOutput(journeyIntegrationOut, "Select a provider first.");
+      return;
+    }
+    const scopes = journeyScopes instanceof HTMLInputElement
+      ? journeyScopes.value
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0)
+      : [];
+    const credential =
+      journeyCredential instanceof HTMLInputElement
+        ? String(journeyCredential.value || "").trim()
+        : "";
+    if (!credential) {
+      setJourneyOutput(journeyIntegrationOut, "Credential is required for direct connect.");
+      return;
+    }
+    const response = await apiJson(
+      `/api/integrations/${encodeURIComponent(provider)}/connect`,
+      {
+        method: "POST",
+        body: { credential, scopes, connectedVia: "frontendC-journey" },
+      }
+    );
+    setJourneyOutput(journeyIntegrationOut, response.data);
+  }
+
+  async function disconnectIntegration() {
+    const provider = selectedProvider();
+    if (!provider) {
+      setJourneyOutput(journeyIntegrationOut, "Select a provider first.");
+      return;
+    }
+    const response = await apiJson(
+      `/api/integrations/${encodeURIComponent(provider)}/disconnect`,
+      { method: "POST", body: {} }
+    );
+    setJourneyOutput(journeyIntegrationOut, response.data);
+  }
+
+  function startOAuthIntegration() {
+    const provider = selectedProvider();
+    if (!provider) {
+      setJourneyOutput(journeyIntegrationOut, "Select a provider first.");
+      return;
+    }
+    const returnTo = encodeURIComponent("/#journey");
+    window.location.assign(
+      `/api/integrations/${encodeURIComponent(
+        provider
+      )}/oauth/start?redirect=1&returnTo=${returnTo}`
+    );
+  }
+
+  function journeyPromptValue() {
+    if (!(journeyPrompt instanceof HTMLTextAreaElement)) {
+      return "Summarize current alert posture and recommended actions.";
+    }
+    return (
+      String(journeyPrompt.value || "").trim() ||
+      "Summarize current alert posture and recommended actions."
+    );
+  }
+
+  async function runAgentTurn() {
+    const response = await apiJson("/api/openclaw/agent/turn", {
+      method: "POST",
+      body: {
+        message: journeyPromptValue(),
+        timeoutSeconds: 120,
+        deliver: false,
+      },
+    });
+    setJourneyOutput(journeyAgentOut, response.data);
+    return response;
+  }
+
+  async function runAgentLongform() {
+    const response = await apiJson("/api/openclaw/agent/longform", {
+      method: "POST",
+      body: {
+        objective: journeyPromptValue(),
+        maxTurns: 4,
+        timeoutSeconds: 180,
+        deliver: false,
+      },
+    });
+    setJourneyOutput(journeyAgentOut, response.data);
+    return response;
+  }
+
+  async function loadAgentStatus() {
+    const response = await apiJson("/api/openclaw/agent/status");
+    setJourneyOutput(journeyAgentOut, response.data);
+    return response;
+  }
+
+  async function listHitlApprovals() {
+    const response = await apiJson("/api/hitl/approvals");
+    setJourneyOutput(journeyHitlOut, response.data);
+    return response;
+  }
+
+  async function submitHitlDecision() {
+    const approvalId =
+      journeyHitlApprovalId instanceof HTMLInputElement
+        ? String(journeyHitlApprovalId.value || "").trim()
+        : "";
+    const decision =
+      journeyHitlDecision instanceof HTMLSelectElement
+        ? String(journeyHitlDecision.value || "allow")
+        : "allow";
+    const reason =
+      journeyHitlReason instanceof HTMLInputElement
+        ? String(journeyHitlReason.value || "").trim()
+        : "";
+    if (!approvalId) {
+      setJourneyOutput(journeyHitlOut, "Approval ID is required.");
+      return;
+    }
+    const response = await apiJson("/api/hitl/approvals/decision", {
+      method: "POST",
+      body: {
+        approvalId,
+        decision,
+        reason,
+      },
+    });
+    setJourneyOutput(journeyHitlOut, response.data);
+  }
+
+  async function loadBillingSubscription() {
+    const response = await apiJson("/api/billing/subscription");
+    setJourneyOutput(journeyBillingOut, response.data);
+    return response;
+  }
+
+  async function startCheckout() {
+    const plan =
+      journeyBillingPlan instanceof HTMLSelectElement
+        ? String(journeyBillingPlan.value || "pro")
+        : "pro";
+    const response = await apiJson("/api/billing/create-checkout-session", {
+      method: "POST",
+      body: {
+        plan,
+        returnUrl: `${window.location.origin}/#journey`,
+      },
+    });
+    setJourneyOutput(journeyBillingOut, response.data);
+    if (response.ok && typeof response.data?.url === "string" && response.data.url) {
+      window.open(response.data.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  async function openBillingPortal() {
+    const response = await apiJson("/api/billing/portal-session", {
+      method: "POST",
+      body: {
+        returnUrl: `${window.location.origin}/#journey`,
+      },
+    });
+    setJourneyOutput(journeyBillingOut, response.data);
+    if (response.ok && typeof response.data?.url === "string" && response.data.url) {
+      window.open(response.data.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  async function runFullJourney() {
+    setJourneyOutput(journeyAllOut, "Running...");
+    const sequence = [];
+    try {
+      sequence.push(await refreshJourneySession());
+      sequence.push(await listIntegrations());
+      sequence.push(await runAgentTurn());
+      sequence.push(await listHitlApprovals());
+      sequence.push(await loadBillingSubscription());
+      setJourneyOutput(journeyAllOut, {
+        ok: true,
+        completed: sequence.length,
+        statuses: sequence.map((entry) => entry.status),
+      });
+    } catch (error) {
+      setJourneyOutput(journeyAllOut, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  function bindJourneyEvents() {
+    journeyRefreshSessionBtn?.addEventListener("click", () => {
+      refreshJourneySession().catch((error) =>
+        setJourneyOutput(
+          journeySessionOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyRefreshCapabilitiesBtn?.addEventListener("click", () => {
+      refreshJourneyCapabilities().catch((error) =>
+        setJourneyOutput(
+          journeySessionOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyLoadIntegrationsBtn?.addEventListener("click", () => {
+      listIntegrations().catch((error) =>
+        setJourneyOutput(
+          journeyIntegrationOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyConnectBtn?.addEventListener("click", () => {
+      connectIntegration().catch((error) =>
+        setJourneyOutput(
+          journeyIntegrationOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyDisconnectBtn?.addEventListener("click", () => {
+      disconnectIntegration().catch((error) =>
+        setJourneyOutput(
+          journeyIntegrationOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyOauthBtn?.addEventListener("click", () => startOAuthIntegration());
+    journeyRunTurnBtn?.addEventListener("click", () => {
+      runAgentTurn().catch((error) =>
+        setJourneyOutput(
+          journeyAgentOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyRunLongformBtn?.addEventListener("click", () => {
+      runAgentLongform().catch((error) =>
+        setJourneyOutput(
+          journeyAgentOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyAgentStatusBtn?.addEventListener("click", () => {
+      loadAgentStatus().catch((error) =>
+        setJourneyOutput(
+          journeyAgentOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyHitlListBtn?.addEventListener("click", () => {
+      listHitlApprovals().catch((error) =>
+        setJourneyOutput(
+          journeyHitlOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyHitlSubmitBtn?.addEventListener("click", () => {
+      submitHitlDecision().catch((error) =>
+        setJourneyOutput(
+          journeyHitlOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyBillingStatusBtn?.addEventListener("click", () => {
+      loadBillingSubscription().catch((error) =>
+        setJourneyOutput(
+          journeyBillingOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyCheckoutBtn?.addEventListener("click", () => {
+      startCheckout().catch((error) =>
+        setJourneyOutput(
+          journeyBillingOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyPortalBtn?.addEventListener("click", () => {
+      openBillingPortal().catch((error) =>
+        setJourneyOutput(
+          journeyBillingOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+    journeyRunAllBtn?.addEventListener("click", () => {
+      runFullJourney().catch((error) =>
+        setJourneyOutput(
+          journeyAllOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    });
+  }
+
+  let journeyBootstrapped = false;
+  function bootstrapJourney() {
+    if (journeyBootstrapped) return;
+    journeyBootstrapped = true;
+    bindJourneyEvents();
+    loadIntegrationsCatalog()
+      .then(() => listIntegrations())
+      .catch((error) =>
+        setJourneyOutput(
+          journeyIntegrationOut,
+          error instanceof Error ? error.message : String(error)
+        )
+      );
+    refreshJourneySession().catch((error) =>
+      setJourneyOutput(
+        journeySessionOut,
+        error instanceof Error ? error.message : String(error)
+      )
+    );
+    const callbackParams = new URLSearchParams(window.location.search);
+    const oauthStatus = String(callbackParams.get("oauth") || "").trim();
+    const oauthProvider = String(callbackParams.get("provider") || "").trim();
+    const oauthReason = String(callbackParams.get("reason") || "").trim();
+    if (oauthStatus) {
+      setJourneyOutput(journeyIntegrationOut, {
+        oauth: oauthStatus,
+        provider: oauthProvider,
+        reason: oauthReason,
+      });
+    }
   }
 })();

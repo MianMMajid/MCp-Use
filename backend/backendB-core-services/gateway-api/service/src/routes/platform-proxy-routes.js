@@ -21,6 +21,10 @@ async function proxyGet(c, businessPath, operation) {
   return businessApiUnavailableResponse(c, proxied, operation);
 }
 
+async function proxyGetPayload(c, businessPath) {
+  return proxyBusinessApiRequest(c, businessPath);
+}
+
 async function proxyPost(c, businessPath, operation) {
   const body = await readJsonBody(c);
   const proxied = await proxyBusinessApiRequest(c, businessPath, {
@@ -56,6 +60,78 @@ async function proxyDelete(c, businessPath, operation) {
 }
 
 export function registerPlatformProxyRoutes(app) {
+  app.get("/api/integrations/catalog", async (c) =>
+    proxyGet(c, "/api/business/integrations/catalog", "integrations.catalog")
+  );
+  app.get("/api/integrations", async (c) =>
+    proxyGet(c, "/api/business/integrations", "integrations.list")
+  );
+  app.post("/api/integrations/:provider/connect", async (c) =>
+    proxyPost(
+      c,
+      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/connect`,
+      "integrations.connect"
+    )
+  );
+  app.post("/api/integrations/:provider/disconnect", async (c) =>
+    proxyPost(
+      c,
+      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/disconnect`,
+      "integrations.disconnect"
+    )
+  );
+  app.get("/api/integrations/:provider/oauth/start", async (c) => {
+    const path = buildPathWithQuery(
+      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/start`,
+      c
+    );
+    const proxied = await proxyGetPayload(c, path);
+    if (!proxied.proxied) {
+      return businessApiUnavailableResponse(c, proxied, "integrations.oauth.start");
+    }
+    const shouldRedirect = ["1", "true", "yes"].includes(
+      String(c.req.query("redirect") ?? "")
+        .trim()
+        .toLowerCase()
+    );
+    const authorizationUrl = proxied.payload?.authorizationUrl;
+    if (shouldRedirect && typeof authorizationUrl === "string" && authorizationUrl) {
+      return c.redirect(authorizationUrl, 302);
+    }
+    return c.json(proxied.payload, proxied.status);
+  });
+  app.get("/api/integrations/:provider/oauth/callback", async (c) => {
+    const requestUrl = new URL(c.req.url);
+    requestUrl.searchParams.set("format", "json");
+    const path = `${`/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/callback`}?${requestUrl.searchParams.toString()}`;
+    const proxied = await proxyGetPayload(c, path);
+    if (!proxied.proxied) {
+      return businessApiUnavailableResponse(c, proxied, "integrations.oauth.callback");
+    }
+    const wantsJson = String(c.req.query("format") ?? "")
+      .trim()
+      .toLowerCase() === "json";
+    const redirectUrl = proxied.payload?.redirectUrl;
+    if (!wantsJson && typeof redirectUrl === "string" && redirectUrl) {
+      return c.redirect(redirectUrl, 302);
+    }
+    return c.json(proxied.payload, proxied.status);
+  });
+  app.post("/api/integrations/:provider/oauth/refresh", async (c) =>
+    proxyPost(
+      c,
+      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/refresh`,
+      "integrations.oauth.refresh"
+    )
+  );
+  app.post("/api/integrations/:provider/oauth/revoke", async (c) =>
+    proxyPost(
+      c,
+      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/revoke`,
+      "integrations.oauth.revoke"
+    )
+  );
+
   app.get("/api/org", async (c) =>
     proxyGet(c, "/api/business/org", "org.list")
   );

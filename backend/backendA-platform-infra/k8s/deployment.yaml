@@ -953,7 +953,18 @@ spec:
               "--port",
               "8080",
               "--index",
-              "judges.html"
+              "judges.html",
+              "--proxy-target",
+              "https://gateway-api.maple.svc.cluster.local:3000",
+              "--proxy-prefix",
+              "/api",
+              "--proxy-prefix",
+              "/sse",
+              "--proxy-prefix",
+              "/mcp",
+              "--proxy-prefix",
+              "/admin/api",
+              "--proxy-insecure"
             ]
           ports:
             - name: http
@@ -1005,7 +1016,18 @@ spec:
               "--port",
               "8080",
               "--index",
-              "index.html"
+              "index.html",
+              "--proxy-target",
+              "https://gateway-api.maple.svc.cluster.local:3000",
+              "--proxy-prefix",
+              "/api",
+              "--proxy-prefix",
+              "/sse",
+              "--proxy-prefix",
+              "/mcp",
+              "--proxy-prefix",
+              "/admin/api",
+              "--proxy-insecure"
             ]
           ports:
             - name: http
@@ -1057,7 +1079,18 @@ spec:
               "--port",
               "8080",
               "--index",
-              "landing.html"
+              "landing.html",
+              "--proxy-target",
+              "https://gateway-api.maple.svc.cluster.local:3000",
+              "--proxy-prefix",
+              "/api",
+              "--proxy-prefix",
+              "/sse",
+              "--proxy-prefix",
+              "/mcp",
+              "--proxy-prefix",
+              "/admin/api",
+              "--proxy-insecure"
             ]
           ports:
             - name: http
@@ -1109,7 +1142,18 @@ spec:
               "--port",
               "8080",
               "--index",
-              "index.html"
+              "index.html",
+              "--proxy-target",
+              "https://gateway-api.maple.svc.cluster.local:3000",
+              "--proxy-prefix",
+              "/api",
+              "--proxy-prefix",
+              "/sse",
+              "--proxy-prefix",
+              "/mcp",
+              "--proxy-prefix",
+              "/admin/api",
+              "--proxy-insecure"
             ]
           ports:
             - name: http

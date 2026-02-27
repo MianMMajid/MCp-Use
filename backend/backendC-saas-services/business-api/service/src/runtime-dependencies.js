@@ -19,6 +19,7 @@ import {
   twilioAccountSid,
   twilioAuthToken,
 } from "./config.js";
+import { resolveIntegrationOAuthAvailability } from "./integration-oauth.js";
 
 const CACHE_TTL_MS = 2_000;
 let cachedReport;
@@ -141,6 +142,50 @@ function checkRecoveryDeliveryConfig() {
   return { ok: true };
 }
 
+function parseCsvEnv(rawValue) {
+  return String(rawValue ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+}
+
+function checkIntegrationOAuthConfig(requiredProviders) {
+  const providers = requiredProviders.length > 0
+    ? requiredProviders
+    : [
+        "google-workspace",
+        "slack",
+        "notion",
+        "github",
+        "jira",
+        "linear",
+        "salesforce",
+        "hubspot",
+      ];
+  const statuses = providers.map((provider) => ({
+    provider,
+    availability: resolveIntegrationOAuthAvailability(provider),
+  }));
+  const configured = statuses.filter(
+    (entry) => entry.availability.configured
+  );
+  if (configured.length === providers.length) {
+    return { ok: true };
+  }
+  if (requiredProviders.length === 0 && configured.length > 0) {
+    return { ok: true };
+  }
+  const missingSummary = statuses
+    .filter((entry) => !entry.availability.configured)
+    .map((entry) => `${entry.provider}[${entry.availability.missing.join("|")}]`);
+  return {
+    ok: false,
+    reason: `OAuth provider configuration incomplete: ${missingSummary.join(
+      ", "
+    )}`,
+  };
+}
+
 function buildCheckRecord(id, label, required, result) {
   return {
     id,
@@ -242,6 +287,22 @@ export async function evaluateBusinessRuntimeDependencies(options = {}) {
       "Recovery email/SMS delivery configuration",
       requireRecoveryDelivery,
       checkRecoveryDeliveryConfig()
+    )
+  );
+
+  const requiredOauthProviders = parseCsvEnv(
+    process.env.MAPLE_DEP_REQUIRE_INTEGRATION_OAUTH_PROVIDERS
+  );
+  const requireIntegrationOauth = parseBooleanEnv(
+    process.env.MAPLE_DEP_REQUIRE_INTEGRATION_OAUTH,
+    false
+  );
+  checks.push(
+    buildCheckRecord(
+      "config.integration_oauth",
+      "Integration OAuth provider configuration",
+      requireIntegrationOauth,
+      checkIntegrationOAuthConfig(requiredOauthProviders)
     )
   );
 

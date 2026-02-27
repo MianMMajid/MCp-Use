@@ -37,11 +37,33 @@ const REQUIRED_SURFACE_ENDPOINTS = {
     "/api/traces",
     "/api/tools/registry",
   ],
-  frontendB: ["/api/runtime/feature-capabilities"],
-  frontendC: [
+  frontendB: [
     "/api/runtime/feature-capabilities",
     "/api/auth/login",
+    "/api/integrations",
+    "/api/integrations/:provider/connect",
+    "/api/openclaw/agent/turn",
+    "/api/hitl/approvals",
+    "/api/billing/create-checkout-session",
+  ],
+  frontendC: [
+    "/api/runtime/feature-capabilities",
+    "/api/auth/me",
+    "/api/auth/login",
     "/api/auth/google",
+    "/api/integrations/catalog",
+    "/api/integrations",
+    "/api/integrations/:provider/connect",
+    "/api/integrations/:provider/disconnect",
+    "/api/integrations/:provider/oauth/start",
+    "/api/openclaw/agent/status",
+    "/api/openclaw/agent/turn",
+    "/api/openclaw/agent/longform",
+    "/api/hitl/approvals",
+    "/api/hitl/approvals/decision",
+    "/api/billing/subscription",
+    "/api/billing/create-checkout-session",
+    "/api/billing/portal-session",
   ],
   frontendD: ["/api/runtime/feature-capabilities"],
 };
@@ -50,8 +72,12 @@ const JOURNEY_ENDPOINTS = [
   "GET /api/openclaw/agent/status",
   "POST /api/openclaw/agent/turn",
   "POST /api/openclaw/agent/longform",
+  "GET /api/integrations",
+  "POST /api/integrations/:provider/connect",
   "GET /api/hitl/approvals",
   "GET /api/billing/subscription",
+  "POST /api/billing/create-checkout-session",
+  "POST /api/auth/login",
   "GET /api/org",
   "GET /api/runtime/logs",
   "GET /api/traces",
@@ -128,4 +154,3 @@ test("required frontend journeys resolve to real gateway/business API handlers",
     assert.equal(matched, true, `Missing backend handler for ${endpoint}`);
   }
 });
-

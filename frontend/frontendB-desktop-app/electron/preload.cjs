@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld("mapleDesktop", {
   startRuntime: () => ipcRenderer.invoke("desktop:start-runtime"),
   stopRuntime: () => ipcRenderer.invoke("desktop:stop-runtime"),
   getLogs: (limit = 120) => ipcRenderer.invoke("desktop:get-runtime-logs", typeof limit === "number" && limit > 0 ? limit : 120),
+  getApiKey: () => ipcRenderer.invoke("desktop:get-api-key"),
+  setApiKey: (value) => ipcRenderer.invoke("desktop:set-api-key", value),
+  clearApiKey: () => ipcRenderer.invoke("desktop:clear-api-key"),
   openExternal: (url) => {
     if (typeof url !== "string") throw new Error("URL must be a string");
     return ipcRenderer.invoke("desktop:open-external", url);

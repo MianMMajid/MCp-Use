@@ -32,6 +32,23 @@ function toSubscriptionRecord(row) {
         updatedAt: row.updated_at,
     };
 }
+function toIntegrationRecord(row) {
+    return {
+        id: row.id,
+        userId: row.user_id,
+        provider: row.provider,
+        displayName: row.display_name,
+        status: row.status,
+        authType: row.auth_type,
+        externalAccountId: row.external_account_id,
+        scopes: parsePayload(row.scopes_json) ?? [],
+        metadata: parsePayload(row.metadata_json) ?? {},
+        connectedAt: row.connected_at,
+        disconnectedAt: row.disconnected_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
 function normalizeUsername(value) {
     return value.trim().toLowerCase();
 }
@@ -126,6 +143,31 @@ export class MaplePostgresDatabase {
           updated_at TEXT NOT NULL,
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS user_integrations (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'disconnected',
+          auth_type TEXT NOT NULL DEFAULT 'none',
+          external_account_id TEXT,
+          scopes_json TEXT NOT NULL DEFAULT '[]',
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          connected_at TEXT,
+          disconnected_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (user_id, provider),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_integrations_user
+          ON user_integrations(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_integrations_status
+          ON user_integrations(status);
+        CREATE INDEX IF NOT EXISTS idx_user_integrations_provider
+          ON user_integrations(provider);
 
         CREATE TABLE IF NOT EXISTS audit_events (
           event_id TEXT PRIMARY KEY,
@@ -310,6 +352,75 @@ export class MaplePostgresDatabase {
         if (existing)
             return existing;
         return this.upsertSubscription({ userId, plan: "free", status: "active" });
+    }
+    async listUserIntegrations(userId) {
+        const result = await this.pool.query(`SELECT * FROM user_integrations WHERE user_id = $1 ORDER BY provider ASC`, [userId]);
+        return result.rows.map((row) => toIntegrationRecord(row));
+    }
+    async findUserIntegration(userId, provider) {
+        const result = await this.pool.query(`SELECT * FROM user_integrations WHERE user_id = $1 AND provider = $2 LIMIT 1`, [userId, provider]);
+        const row = result.rows[0];
+        if (!row)
+            return undefined;
+        return toIntegrationRecord(row);
+    }
+    async upsertUserIntegration(input) {
+        const now = new Date().toISOString();
+        const id = randomUUID();
+        const result = await this.pool.query(`INSERT INTO user_integrations (
+          id,
+          user_id,
+          provider,
+          display_name,
+          status,
+          auth_type,
+          external_account_id,
+          scopes_json,
+          metadata_json,
+          connected_at,
+          disconnected_at,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+        ON CONFLICT (user_id, provider) DO UPDATE SET
+          display_name = EXCLUDED.display_name,
+          status = EXCLUDED.status,
+          auth_type = EXCLUDED.auth_type,
+          external_account_id = EXCLUDED.external_account_id,
+          scopes_json = EXCLUDED.scopes_json,
+          metadata_json = EXCLUDED.metadata_json,
+          connected_at = EXCLUDED.connected_at,
+          disconnected_at = EXCLUDED.disconnected_at,
+          updated_at = EXCLUDED.updated_at
+        RETURNING *`, [
+            id,
+            input.userId,
+            input.provider,
+            input.displayName,
+            input.status,
+            input.authType,
+            input.externalAccountId ?? null,
+            JSON.stringify(Array.isArray(input.scopes) ? input.scopes : []),
+            JSON.stringify(input.metadata ?? {}),
+            input.connectedAt ?? null,
+            input.disconnectedAt ?? null,
+            now,
+        ]);
+        return toIntegrationRecord(result.rows[0]);
+    }
+    async disconnectUserIntegration(userId, provider) {
+        const now = new Date().toISOString();
+        const result = await this.pool.query(`UPDATE user_integrations
+       SET status = 'disconnected',
+           disconnected_at = $3,
+           updated_at = $3
+       WHERE user_id = $1 AND provider = $2
+       RETURNING *`, [userId, provider, now]);
+        const row = result.rows[0];
+        if (!row)
+            return undefined;
+        return toIntegrationRecord(row);
     }
     async updatePasswordByUserId(userId, newPasswordHash) {
         await this.pool.query(`UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3`, [newPasswordHash, new Date().toISOString(), userId]);

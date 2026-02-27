@@ -12,6 +12,7 @@ import { registerAuthGoogleRoutes } from "./routes/auth-google-routes.js";
 import { AuthRecoveryStore } from "./auth-recovery-store.js";
 import { registerAuthRecoveryRoutes } from "./routes/auth-recovery-routes.js";
 import { registerPlatformRoutes } from "./routes/platform-routes.js";
+import { registerIntegrationRoutes } from "./routes/integration-routes.js";
 import { apiErrorPayload } from "./api-error.js";
 
 function hasPool(database) {
@@ -102,6 +103,7 @@ export async function createApp(options = {}) {
     auditEmitter,
     onRecoveryTokenIssued: options.onAuthRecoveryTokenIssued,
   });
+  registerIntegrationRoutes(app, { database, auditEmitter });
   registerPlatformRoutes(app, { database });
 
   app.notFound((c) => c.json({ error: "Not Found", path: c.req.path }, 404));

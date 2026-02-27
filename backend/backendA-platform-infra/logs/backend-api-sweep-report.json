@@ -1,0 +1,1643 @@
+{
+  "summary": {
+    "generatedAt": "2026-02-25T23:06:26.037Z",
+    "gateway": {
+      "groupName": "gateway",
+      "total": 90,
+      "reachable": 90,
+      "missing": 0,
+      "errors": 0,
+      "statusHistogram": [
+        [
+          200,
+          35
+        ],
+        [
+          201,
+          1
+        ],
+        [
+          302,
+          1
+        ],
+        [
+          400,
+          11
+        ],
+        [
+          401,
+          28
+        ],
+        [
+          404,
+          10
+        ],
+        [
+          500,
+          1
+        ],
+        [
+          503,
+          3
+        ]
+      ]
+    },
+    "business": {
+      "groupName": "business",
+      "total": 38,
+      "reachable": 38,
+      "missing": 0,
+      "errors": 0,
+      "statusHistogram": [
+        [
+          200,
+          4
+        ],
+        [
+          400,
+          3
+        ],
+        [
+          401,
+          28
+        ],
+        [
+          403,
+          1
+        ],
+        [
+          503,
+          2
+        ]
+      ]
+    },
+    "admin": {
+      "groupName": "admin",
+      "total": 12,
+      "reachable": 12,
+      "missing": 0,
+      "errors": 0,
+      "statusHistogram": [
+        [
+          200,
+          11
+        ],
+        [
+          404,
+          1
+        ]
+      ]
+    }
+  },
+  "failures": [],
+  "missingRoutes": [],
+  "transportErrors": [],
+  "allResults": {
+    "gateway": [
+      {
+        "endpoint": "GET /api/openclaw/agent/status",
+        "method": "GET",
+        "path": "/api/openclaw/agent/status",
+        "url": "https://localhost:28443/api/openclaw/agent/status",
+        "status": 503,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"enabled\":false,\"mode\":\"gateway\",\"bootstrapped\":true,\"cliAvailable\":false,\"ready\":false,\"gatewayAutoStarted\":false,\"lastError\":\"OpenClaw agent runtime disabled by MAPLE_OPENCLAW_AGENT_ENABLED.\",\"lastCheckAt\":\"2026-02-25T23:06:25.672Z\"}"
+      },
+      {
+        "endpoint": "POST /api/openclaw/agent/turn",
+        "method": "POST",
+        "path": "/api/openclaw/agent/turn",
+        "url": "https://localhost:28443/api/openclaw/agent/turn",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Missing message.\"}"
+      },
+      {
+        "endpoint": "POST /api/openclaw/agent/longform",
+        "method": "POST",
+        "path": "/api/openclaw/agent/longform",
+        "url": "https://localhost:28443/api/openclaw/agent/longform",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Missing objective.\"}"
+      },
+      {
+        "endpoint": "GET /api/openclaw/agent/sessions",
+        "method": "GET",
+        "path": "/api/openclaw/agent/sessions",
+        "url": "https://localhost:28443/api/openclaw/agent/sessions",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[],\"nextCursor\":\"\"}"
+      },
+      {
+        "endpoint": "GET /api/openclaw/agent/sessions/:sessionId",
+        "method": "GET",
+        "path": "/api/openclaw/agent/sessions/session-1",
+        "url": "https://localhost:28443/api/openclaw/agent/sessions/session-1",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Session not found.\"}"
+      },
+      {
+        "endpoint": "POST /api/openclaw/agent/sessions/:sessionId/cancel",
+        "method": "POST",
+        "path": "/api/openclaw/agent/sessions/session-1/cancel",
+        "url": "https://localhost:28443/api/openclaw/agent/sessions/session-1/cancel",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Session not found.\"}"
+      },
+      {
+        "endpoint": "GET /api/openclaw/agent/sessions/:sessionId/stream",
+        "method": "GET",
+        "path": "/api/openclaw/agent/sessions/session-1/stream",
+        "url": "https://localhost:28443/api/openclaw/agent/sessions/session-1/stream",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Session not found.\"}"
+      },
+      {
+        "endpoint": "GET /api/openclaw/agent/runs/:runId/artifacts",
+        "method": "GET",
+        "path": "/api/openclaw/agent/runs/run-1/artifacts",
+        "url": "https://localhost:28443/api/openclaw/agent/runs/run-1/artifacts",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Run not found.\"}"
+      },
+      {
+        "endpoint": "GET /api/openclaw/cli/tools",
+        "method": "GET",
+        "path": "/api/openclaw/cli/tools",
+        "url": "https://localhost:28443/api/openclaw/cli/tools",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"count\":44,\"tools\":[{\"tool\":\"setup\",\"docsPath\":\"/cli/setup\",\"docsUrl\":\"https://docs.openclaw.ai/cli/setup\"},{\"tool\":\"onboard\",\"docsPath\":\"/cli/onboard\",\"docsUrl\":\"https://docs.openclaw.ai/cli/onboard\"},{\"tool\":\"configure\",\"docsPath\":\"/cli/configure\""
+      },
+      {
+        "endpoint": "GET /api/openclaw/cli/catalog",
+        "method": "GET",
+        "path": "/api/openclaw/cli/catalog",
+        "url": "https://localhost:28443/api/openclaw/cli/catalog",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"generatedAt\":\"2026-02-25T23:06:25.699Z\",\"tools\":[{\"tool\":\"setup\",\"docsPath\":\"/cli/setup\",\"docsUrl\":\"https://docs.openclaw.ai/cli/setup\",\"api\":{\"help\":\"/api/openclaw/cli/setup/help\",\"exec\":\"/api/openclaw/cli/setup/exec\"},\"sampleCommand\":\"openclaw se"
+      },
+      {
+        "endpoint": "POST /api/openclaw/cli/exec",
+        "method": "POST",
+        "path": "/api/openclaw/cli/exec",
+        "url": "https://localhost:28443/api/openclaw/cli/exec",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"tool is required.\"}"
+      },
+      {
+        "endpoint": "GET /api/openclaw/cli/:tool/help",
+        "method": "GET",
+        "path": "/api/openclaw/cli/trace/help",
+        "url": "https://localhost:28443/api/openclaw/cli/trace/help",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Unsupported OpenClaw CLI tool 'trace'.\"}"
+      },
+      {
+        "endpoint": "POST /api/openclaw/cli/:tool/exec",
+        "method": "POST",
+        "path": "/api/openclaw/cli/trace/exec",
+        "url": "https://localhost:28443/api/openclaw/cli/trace/exec",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"Unsupported OpenClaw CLI tool 'trace'.\"}"
+      },
+      {
+        "endpoint": "GET /api/firewall/state",
+        "method": "GET",
+        "path": "/api/firewall/state",
+        "url": "https://localhost:28443/api/firewall/state",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"traceFound\":false,\"context\":{\"generatedAt\":\"2026-02-25T23:06:25.709Z\",\"trace\":null,\"firewall\":null,\"activity\":null,\"highlights\":[\"No active trace available yet.\"],\"recommendations\":[\"Start or ingest a trace first so Maple can evaluate firewall stat"
+      },
+      {
+        "endpoint": "POST /api/firewall/decision",
+        "method": "POST",
+        "path": "/api/firewall/decision",
+        "url": "https://localhost:28443/api/firewall/decision",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"action\":\"firewall_decision\",\"mode\":\"enforce\",\"traceId\":\"e0fbe64e-ebfd-48d9-8f32-b7e2a129e8f4\",\"sessionId\":\"preflight-1772060785720\",\"stepIndex\":0,\"decision\":\"deny\",\"executeAllowed\":false,\"shouldBlock\":true,\"severity\":\"high\",\"rule\":\"block-missing-re"
+      },
+      {
+        "endpoint": "POST /api/firewall/chat",
+        "method": "POST",
+        "path": "/api/firewall/chat",
+        "url": "https://localhost:28443/api/firewall/chat",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"message\":\"hello\",\"reply\":\"Trace e0fbe64e-ebfd-48d9-8f32-b7e2a129e8f4 (manual) is quarantined.\\nRisk 45 (medium), 1 blocked step(s).\\nReview blocked steps and keep deny decisions unless explicitly approved.\\nAsk: 'status update', 'why blocked', 'ris"
+      },
+      {
+        "endpoint": "GET /api/chat/capabilities",
+        "method": "GET",
+        "path": "/api/chat/capabilities",
+        "url": "https://localhost:28443/api/chat/capabilities",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"aiEnabled\":true,\"mode\":\"model-router\",\"primaryProvider\":\"openai\",\"contextWallAvailable\":true,\"modelRouterAvailable\":true,\"openclawAgent\":{\"enabled\":false,\"reason\":\"OpenClaw runtime is not ready. Check bridge/token/runtime process.\",\"requiredDeps\":[\"openclaw."
+      },
+      {
+        "endpoint": "POST /api/firewall/preview",
+        "method": "POST",
+        "path": "/api/firewall/preview",
+        "url": "https://localhost:28443/api/firewall/preview",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"mode\":\"preview\",\"decision\":\"deny\",\"executeAllowed\":false,\"shouldBlock\":true,\"severity\":\"high\",\"rule\":\"block-missing-request-context\",\"message\":\"Blocked: missing request context fields (tenant_id, user_id).\",\"recommendation\":\"Propagate tenant_id, us"
+      },
+      {
+        "endpoint": "GET /api/firewall/rules/effective",
+        "method": "GET",
+        "path": "/api/firewall/rules/effective",
+        "url": "https://localhost:28443/api/firewall/rules/effective",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"source\":\"context-wall\",\"ruleCount\":0,\"rules\":[]}"
+      },
+      {
+        "endpoint": "GET /api/hitl/approvals",
+        "method": "GET",
+        "path": "/api/hitl/approvals",
+        "url": "https://localhost:28443/api/hitl/approvals",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"approvals\":[{\"traceId\":\"trace-sweep\",\"stepIndex\":0,\"requestedAt\":\"2026-02-25T23:06:25.730Z\",\"step\":{\"riskFlags\":[],\"index\":0,\"timestamp\":\"2026-02-25T23:06:25.728Z\",\"actor\":\"STEP_ACTOR_AGENT\",\"type\":\"STEP_TYPE_TOOL_CALL\",\"prompt\":\"preview\",\"toolCall\":null,\"ou"
+      },
+      {
+        "endpoint": "POST /api/hitl/approvals/decision",
+        "method": "POST",
+        "path": "/api/hitl/approvals/decision",
+        "url": "https://localhost:28443/api/hitl/approvals/decision",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"traceId and stepIndex are required\"}"
+      },
+      {
+        "endpoint": "POST /api/auth/login",
+        "method": "POST",
+        "path": "/api/auth/login",
+        "url": "https://localhost:28443/api/auth/login",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Invalid username or password.\"}"
+      },
+      {
+        "endpoint": "POST /api/auth/register",
+        "method": "POST",
+        "path": "/api/auth/register",
+        "url": "https://localhost:28443/api/auth/register",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"authenticated\":true,\"method\":\"session\",\"user\":{\"id\":\"fb8d11e1-4028-404b-9f66-fd565d2c7f8d\",\"username\":\"newuser\",\"email\":\"newuser@example.com\"},\"session\":{\"id\":\"42bc9275-b8e9-4838-80e4-c54340ad3892\",\"expiresAt\":\"2026-03-04T23:06:25.785Z\"}}"
+      },
+      {
+        "endpoint": "POST /api/auth/logout",
+        "method": "POST",
+        "path": "/api/auth/logout",
+        "url": "https://localhost:28443/api/auth/logout",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true}"
+      },
+      {
+        "endpoint": "GET /api/auth/me",
+        "method": "GET",
+        "path": "/api/auth/me",
+        "url": "https://localhost:28443/api/auth/me",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"authenticated\":false,\"method\":null,\"user\":null,\"ownerScopes\":[]}"
+      },
+      {
+        "endpoint": "GET /api/auth/google/client-id",
+        "method": "GET",
+        "path": "/api/auth/google/client-id",
+        "url": "https://localhost:28443/api/auth/google/client-id",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"clientId\":null,\"configured\":false}"
+      },
+      {
+        "endpoint": "POST /api/auth/google",
+        "method": "POST",
+        "path": "/api/auth/google",
+        "url": "https://localhost:28443/api/auth/google",
+        "status": 503,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"code\":\"GOOGLE_AUTH_UNAVAILABLE\",\"error\":\"Google sign-in is unavailable.\"}"
+      },
+      {
+        "endpoint": "POST /api/auth/forgot-password",
+        "method": "POST",
+        "path": "/api/auth/forgot-password",
+        "url": "https://localhost:28443/api/auth/forgot-password",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"redirectUrl is required and must be a valid https URL.\"}"
+      },
+      {
+        "endpoint": "POST /api/auth/reset-password",
+        "method": "POST",
+        "path": "/api/auth/reset-password",
+        "url": "https://localhost:28443/api/auth/reset-password",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"token is required and must be at least 16 chars.\"}"
+      },
+      {
+        "endpoint": "POST /api/auth/verify-email/request",
+        "method": "POST",
+        "path": "/api/auth/verify-email/request",
+        "url": "https://localhost:28443/api/auth/verify-email/request",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true}"
+      },
+      {
+        "endpoint": "POST /api/auth/verify-email/confirm",
+        "method": "POST",
+        "path": "/api/auth/verify-email/confirm",
+        "url": "https://localhost:28443/api/auth/verify-email/confirm",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"token is required and must be at least 16 chars.\"}"
+      },
+      {
+        "endpoint": "GET /api/billing/subscription",
+        "method": "GET",
+        "path": "/api/billing/subscription",
+        "url": "https://localhost:28443/api/billing/subscription",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/billing/create-checkout-session",
+        "method": "POST",
+        "path": "/api/billing/create-checkout-session",
+        "url": "https://localhost:28443/api/billing/create-checkout-session",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/billing/portal-session",
+        "method": "POST",
+        "path": "/api/billing/portal-session",
+        "url": "https://localhost:28443/api/billing/portal-session",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/billing/webhook",
+        "method": "POST",
+        "path": "/api/billing/webhook",
+        "url": "https://localhost:28443/api/billing/webhook",
+        "status": 503,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Webhook provider unavailable.\"}"
+      },
+      {
+        "endpoint": "GET /api/billing/invoices",
+        "method": "GET",
+        "path": "/api/billing/invoices",
+        "url": "https://localhost:28443/api/billing/invoices",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/billing/subscription/cancel",
+        "method": "POST",
+        "path": "/api/billing/subscription/cancel",
+        "url": "https://localhost:28443/api/billing/subscription/cancel",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/billing/subscription/resume",
+        "method": "POST",
+        "path": "/api/billing/subscription/resume",
+        "url": "https://localhost:28443/api/billing/subscription/resume",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/org",
+        "method": "GET",
+        "path": "/api/org",
+        "url": "https://localhost:28443/api/org",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/org",
+        "method": "POST",
+        "path": "/api/org",
+        "url": "https://localhost:28443/api/org",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "PATCH /api/org/:orgId",
+        "method": "PATCH",
+        "path": "/api/org/org-1",
+        "url": "https://localhost:28443/api/org/org-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/org/:orgId/members",
+        "method": "GET",
+        "path": "/api/org/org-1/members",
+        "url": "https://localhost:28443/api/org/org-1/members",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/org/:orgId/invites",
+        "method": "POST",
+        "path": "/api/org/org-1/invites",
+        "url": "https://localhost:28443/api/org/org-1/invites",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/org/invites/:inviteId/accept",
+        "method": "POST",
+        "path": "/api/org/invites/invite-1/accept",
+        "url": "https://localhost:28443/api/org/invites/invite-1/accept",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "DELETE /api/org/:orgId/members/:userId",
+        "method": "DELETE",
+        "path": "/api/org/org-1/members/user-1",
+        "url": "https://localhost:28443/api/org/org-1/members/user-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/org/:orgId/roles",
+        "method": "GET",
+        "path": "/api/org/org-1/roles",
+        "url": "https://localhost:28443/api/org/org-1/roles",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/org/:orgId/roles/:roleId/assign",
+        "method": "POST",
+        "path": "/api/org/org-1/roles/member/assign",
+        "url": "https://localhost:28443/api/org/org-1/roles/member/assign",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/user/api-keys",
+        "method": "GET",
+        "path": "/api/user/api-keys",
+        "url": "https://localhost:28443/api/user/api-keys",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/user/api-keys",
+        "method": "POST",
+        "path": "/api/user/api-keys",
+        "url": "https://localhost:28443/api/user/api-keys",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "DELETE /api/user/api-keys/:keyId",
+        "method": "DELETE",
+        "path": "/api/user/api-keys/key-1",
+        "url": "https://localhost:28443/api/user/api-keys/key-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/org/:orgId/service-accounts",
+        "method": "GET",
+        "path": "/api/org/org-1/service-accounts",
+        "url": "https://localhost:28443/api/org/org-1/service-accounts",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/org/:orgId/service-accounts",
+        "method": "POST",
+        "path": "/api/org/org-1/service-accounts",
+        "url": "https://localhost:28443/api/org/org-1/service-accounts",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/org/:orgId/service-accounts/:id/keys",
+        "method": "POST",
+        "path": "/api/org/org-1/service-accounts/svc-1/keys",
+        "url": "https://localhost:28443/api/org/org-1/service-accounts/svc-1/keys",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "DELETE /api/org/:orgId/service-accounts/:id/keys/:keyId",
+        "method": "DELETE",
+        "path": "/api/org/org-1/service-accounts/svc-1/keys/key-1",
+        "url": "https://localhost:28443/api/org/org-1/service-accounts/svc-1/keys/key-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/entitlements",
+        "method": "GET",
+        "path": "/api/entitlements",
+        "url": "https://localhost:28443/api/entitlements",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/usage/summary",
+        "method": "GET",
+        "path": "/api/usage/summary",
+        "url": "https://localhost:28443/api/usage/summary",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/usage/timeseries",
+        "method": "GET",
+        "path": "/api/usage/timeseries?days=7",
+        "url": "https://localhost:28443/api/usage/timeseries?days=7",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/limits",
+        "method": "GET",
+        "path": "/api/limits",
+        "url": "https://localhost:28443/api/limits",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/limits/override",
+        "method": "POST",
+        "path": "/api/limits/override",
+        "url": "https://localhost:28443/api/limits/override",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/traces",
+        "method": "GET",
+        "path": "/api/traces",
+        "url": "https://localhost:28443/api/traces",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"traces\":[{\"traceId\":\"e0fbe64e-ebfd-48d9-8f32-b7e2a129e8f4\",\"sessionId\":\"preflight-1772060785720\",\"source\":\"manual\",\"status\":\"quarantined\",\"startedAt\":\"2026-02-25T23:06:25.720Z\",\"updatedAt\":\"2026-02-25T23:06:25.722Z\",\"stepCount\":1,\"overallRiskScore\":45,\"riskS"
+      },
+      {
+        "endpoint": "GET /api/traces/:traceId",
+        "method": "GET",
+        "path": "/api/traces/trace-1",
+        "url": "https://localhost:28443/api/traces/trace-1",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Trace not found\"}"
+      },
+      {
+        "endpoint": "GET /api/traces/search",
+        "method": "GET",
+        "path": "/api/traces/search?q=test",
+        "url": "https://localhost:28443/api/traces/search?q=test",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[],\"nextCursor\":\"\",\"totalCount\":0}"
+      },
+      {
+        "endpoint": "POST /api/traces/export",
+        "method": "POST",
+        "path": "/api/traces/export",
+        "url": "https://localhost:28443/api/traces/export",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[],\"count\":0}"
+      },
+      {
+        "endpoint": "GET /api/runs",
+        "method": "GET",
+        "path": "/api/runs",
+        "url": "https://localhost:28443/api/runs",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[],\"nextCursor\":\"\"}"
+      },
+      {
+        "endpoint": "GET /api/runs/:runId",
+        "method": "GET",
+        "path": "/api/runs/run-1",
+        "url": "https://localhost:28443/api/runs/run-1",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Run not found.\"}"
+      },
+      {
+        "endpoint": "GET /api/runs/:runId/timeline",
+        "method": "GET",
+        "path": "/api/runs/run-1/timeline",
+        "url": "https://localhost:28443/api/runs/run-1/timeline",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Run not found.\"}"
+      },
+      {
+        "endpoint": "GET /health",
+        "method": "GET",
+        "path": "/health",
+        "url": "https://localhost:28443/health",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"status\":\"ok\",\"service\":\"gateway-api\",\"timestamp\":\"2026-02-25T23:06:25.892Z\"}"
+      },
+      {
+        "endpoint": "GET /ready",
+        "method": "GET",
+        "path": "/ready",
+        "url": "https://localhost:28443/ready",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ready\":true,\"service\":\"gateway-api\",\"strict\":false,\"generatedAt\":\"2026-02-25T23:06:25.896Z\",\"failingDependencies\":[]}"
+      },
+      {
+        "endpoint": "GET /api/runtime/status",
+        "method": "GET",
+        "path": "/api/runtime/status",
+        "url": "https://localhost:28443/api/runtime/status",
+        "status": 500,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Internal Server Error\"}"
+      },
+      {
+        "endpoint": "GET /api/runtime/dependencies",
+        "method": "GET",
+        "path": "/api/runtime/dependencies",
+        "url": "https://localhost:28443/api/runtime/dependencies",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"strict\":false,\"generatedAt\":\"2026-02-25T23:06:25.902Z\",\"ready\":true,\"dependencies\":{\"tls.gateway_cert\":true,\"tls.gateway_key\":true,\"tls.gateway_ca\":true,\"tls.grpc_material\":true,\"openclaw.runtime\":false,\"grpc.context_wall\":true,\"grpc.mcp_proxy\":tru"
+      },
+      {
+        "endpoint": "GET /api/runtime/feature-capabilities",
+        "method": "GET",
+        "path": "/api/runtime/feature-capabilities",
+        "url": "https://localhost:28443/api/runtime/feature-capabilities",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"service\":\"gateway-api\",\"generatedAt\":\"2026-02-25T23:06:25.907Z\",\"strict\":false,\"ready\":true,\"features\":{\"openclawAgent\":{\"enabled\":false,\"reason\":\"OpenClaw agent runtime disabled by MAPLE_OPENCLAW_AGENT_ENABLED.\",\"requiredDeps\":[\"openclaw.runtime\"]"
+      },
+      {
+        "endpoint": "GET /api/runtime/diag",
+        "method": "GET",
+        "path": "/api/runtime/diag",
+        "url": "https://localhost:28443/api/runtime/diag",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"diag\":{\"uptimeSeconds\":1,\"nodeVersion\":\"v25.6.0\",\"memoryUsage\":{\"rss\":219906048,\"heapTotal\":115851264,\"heapUsed\":69749584,\"external\":7470648,\"arrayBuffers\":751636},\"runtimeStatus\":{\"strict\":true,\"routeLock\":false,\"routeMode\":\"none\",\"routeSummary\":\""
+      },
+      {
+        "endpoint": "GET /api/runtime/logs",
+        "method": "GET",
+        "path": "/api/runtime/logs?limit=20",
+        "url": "https://localhost:28443/api/runtime/logs?limit=20",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"logs\":[],\"source\":\"\"}"
+      },
+      {
+        "endpoint": "GET /api/tools/registry",
+        "method": "GET",
+        "path": "/api/tools/registry",
+        "url": "https://localhost:28443/api/tools/registry",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[]}"
+      },
+      {
+        "endpoint": "GET /api/tools/registry/:toolId",
+        "method": "GET",
+        "path": "/api/tools/registry/traceId",
+        "url": "https://localhost:28443/api/tools/registry/traceId",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Tool not found.\"}"
+      },
+      {
+        "endpoint": "POST /api/tools/registry",
+        "method": "POST",
+        "path": "/api/tools/registry",
+        "url": "https://localhost:28443/api/tools/registry",
+        "status": 201,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"tool\":{\"toolId\":\"Tool One\",\"name\":\"Tool One\",\"description\":\"test tool\",\"schema\":{\"type\":\"object\"},\"source\":\"manual\",\"createdAt\":\"2026-02-25T23:06:25.922Z\",\"updatedAt\":\"2026-02-25T23:06:25.922Z\"}}"
+      },
+      {
+        "endpoint": "PATCH /api/tools/registry/:toolId",
+        "method": "PATCH",
+        "path": "/api/tools/registry/traceId",
+        "url": "https://localhost:28443/api/tools/registry/traceId",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Tool not found.\"}"
+      },
+      {
+        "endpoint": "GET /api/tools/policies",
+        "method": "GET",
+        "path": "/api/tools/policies",
+        "url": "https://localhost:28443/api/tools/policies",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[{\"policyId\":\"default-tool-policy\",\"mode\":\"allowlist\",\"description\":\"Default gateway tool governance policy.\",\"rules\":[],\"createdAt\":\"2026-02-25T23:06:25.917Z\",\"updatedAt\":\"2026-02-25T23:06:25.917Z\"}]}"
+      },
+      {
+        "endpoint": "POST /api/tools/policies/validate",
+        "method": "POST",
+        "path": "/api/tools/policies/validate",
+        "url": "https://localhost:28443/api/tools/policies/validate",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"valid\":false,\"errors\":[\"policyId is required.\"],\"warnings\":[\"No rules supplied.\"],\"persisted\":false}"
+      },
+      {
+        "endpoint": "GET /api/tools/executions",
+        "method": "GET",
+        "path": "/api/tools/executions",
+        "url": "https://localhost:28443/api/tools/executions",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"items\":[],\"nextCursor\":\"\",\"totalCount\":0}"
+      },
+      {
+        "endpoint": "GET /api/tools/executions/:executionId",
+        "method": "GET",
+        "path": "/api/tools/executions/exec-1",
+        "url": "https://localhost:28443/api/tools/executions/exec-1",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Execution not found.\"}"
+      },
+      {
+        "endpoint": "GET /.well-known/oauth-authorization-server",
+        "method": "GET",
+        "path": "/.well-known/oauth-authorization-server",
+        "url": "https://localhost:28443/.well-known/oauth-authorization-server",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"issuer\":\"http://localhost:3000\",\"authorization_endpoint\":\"http://localhost:3000/gpt/oauth/authorize\",\"token_endpoint\":\"http://localhost:3000/gpt/oauth/token\",\"response_types_supported\":[\"code\"],\"grant_types_supported\":[\"authorization_code\"],\"token_endpoint_a"
+      },
+      {
+        "endpoint": "GET /.well-known/oauth-protected-resource",
+        "method": "GET",
+        "path": "/.well-known/oauth-protected-resource",
+        "url": "https://localhost:28443/.well-known/oauth-protected-resource",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"resource\":\"http://localhost:3000/mcp\",\"authorization_servers\":[\"http://localhost:3000\"],\"bearer_methods_supported\":[\"header\"]}"
+      },
+      {
+        "endpoint": "GET /.well-known/ai-plugin.json",
+        "method": "GET",
+        "path": "/.well-known/ai-plugin.json",
+        "url": "https://localhost:28443/.well-known/ai-plugin.json",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"schema_version\":\"v1\",\"name_for_human\":\"Maple MCP Tools\",\"name_for_model\":\"maple_mcp_tools\",\"description_for_human\":\"Access curated web, research, and utility tools through Maple's MCP firewall gateway.\",\"description_for_model\":\"Maple MCP gateway providing we"
+      },
+      {
+        "endpoint": "GET /gpt/openapi.json",
+        "method": "GET",
+        "path": "/gpt/openapi.json",
+        "url": "https://localhost:28443/gpt/openapi.json",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"openapi\":\"3.1.0\",\"info\":{\"title\":\"Maple MCP Tools\",\"description\":\"REST adapter for Maple MCP gateway tools. Each endpoint dispatches a tool call through Maple's firewall and tracing layer.\",\"version\":\"1.0.0\"},\"servers\":[{\"url\":\"http://localhost:3000\"}],\"path"
+      },
+      {
+        "endpoint": "GET /gpt/oauth/authorize",
+        "method": "GET",
+        "path": "/gpt/oauth/authorize?client_id=maple-gpt-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&response_type=code&state=test-state",
+        "url": "https://localhost:28443/gpt/oauth/authorize?client_id=maple-gpt-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&response_type=code&state=test-state",
+        "status": 302,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "text/plain; charset=UTF-8",
+        "bodyPreview": ""
+      },
+      {
+        "endpoint": "POST /gpt/oauth/token",
+        "method": "POST",
+        "path": "/gpt/oauth/token",
+        "url": "https://localhost:28443/gpt/oauth/token",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"access_token\":\"maple-access-token\",\"token_type\":\"bearer\",\"expires_in\":86400}"
+      },
+      {
+        "endpoint": "POST /gpt/tools/:toolName",
+        "method": "POST",
+        "path": "/gpt/tools/traceName",
+        "url": "https://localhost:28443/gpt/tools/traceName",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"error\":\"No downstream app resolved. Provide appId, chainAppIds, set MAPLE_MCP_EXECUTION_ORDER, or set MAPLE_MCP_PROXY_DEFAULT_TARGET_URL.\"}"
+      },
+      {
+        "endpoint": "POST /api/chat/stream",
+        "method": "POST",
+        "path": "/api/chat/stream",
+        "url": "https://localhost:28443/api/chat/stream",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "text/event-stream",
+        "bodyPreview": "[stream]"
+      },
+      {
+        "endpoint": "GET /api/hitl/approvals/watch",
+        "method": "GET",
+        "path": "/api/hitl/approvals/watch",
+        "url": "https://localhost:28443/api/hitl/approvals/watch",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "text/event-stream",
+        "bodyPreview": "[stream]"
+      }
+    ],
+    "business": [
+      {
+        "endpoint": "POST /api/business/auth/login",
+        "method": "POST",
+        "path": "/api/business/auth/login",
+        "url": "https://localhost:29550/api/business/auth/login",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Invalid username or password.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/register",
+        "method": "POST",
+        "path": "/api/business/auth/register",
+        "url": "https://localhost:29550/api/business/auth/register",
+        "status": 403,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Self-signup is disabled.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/logout",
+        "method": "POST",
+        "path": "/api/business/auth/logout",
+        "url": "https://localhost:29550/api/business/auth/logout",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true}"
+      },
+      {
+        "endpoint": "GET /api/business/auth/me",
+        "method": "GET",
+        "path": "/api/business/auth/me",
+        "url": "https://localhost:29550/api/business/auth/me",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"authenticated\":true,\"method\":\"api_key\",\"user\":null,\"ownerScopes\":[]}"
+      },
+      {
+        "endpoint": "GET /api/business/auth/google/client-id",
+        "method": "GET",
+        "path": "/api/business/auth/google/client-id",
+        "url": "https://localhost:29550/api/business/auth/google/client-id",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"clientId\":null,\"configured\":false}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/google",
+        "method": "POST",
+        "path": "/api/business/auth/google",
+        "url": "https://localhost:29550/api/business/auth/google",
+        "status": 503,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"code\":\"GOOGLE_AUTH_UNAVAILABLE\",\"error\":\"Google sign-in is unavailable.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/forgot-password",
+        "method": "POST",
+        "path": "/api/business/auth/forgot-password",
+        "url": "https://localhost:29550/api/business/auth/forgot-password",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"redirectUrl is required and must be a valid https URL.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/reset-password",
+        "method": "POST",
+        "path": "/api/business/auth/reset-password",
+        "url": "https://localhost:29550/api/business/auth/reset-password",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"token is required and must be at least 16 chars.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/verify-email/request",
+        "method": "POST",
+        "path": "/api/business/auth/verify-email/request",
+        "url": "https://localhost:29550/api/business/auth/verify-email/request",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true}"
+      },
+      {
+        "endpoint": "POST /api/business/auth/verify-email/confirm",
+        "method": "POST",
+        "path": "/api/business/auth/verify-email/confirm",
+        "url": "https://localhost:29550/api/business/auth/verify-email/confirm",
+        "status": 400,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"token is required and must be at least 16 chars.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/billing/subscription",
+        "method": "GET",
+        "path": "/api/business/billing/subscription",
+        "url": "https://localhost:29550/api/business/billing/subscription",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/billing/create-checkout-session",
+        "method": "POST",
+        "path": "/api/business/billing/create-checkout-session",
+        "url": "https://localhost:29550/api/business/billing/create-checkout-session",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/billing/portal-session",
+        "method": "POST",
+        "path": "/api/business/billing/portal-session",
+        "url": "https://localhost:29550/api/business/billing/portal-session",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/billing/webhook",
+        "method": "POST",
+        "path": "/api/business/billing/webhook",
+        "url": "https://localhost:29550/api/business/billing/webhook",
+        "status": 503,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Webhook provider unavailable.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/billing/invoices",
+        "method": "GET",
+        "path": "/api/business/billing/invoices",
+        "url": "https://localhost:29550/api/business/billing/invoices",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/billing/subscription/cancel",
+        "method": "POST",
+        "path": "/api/business/billing/subscription/cancel",
+        "url": "https://localhost:29550/api/business/billing/subscription/cancel",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/billing/subscription/resume",
+        "method": "POST",
+        "path": "/api/business/billing/subscription/resume",
+        "url": "https://localhost:29550/api/business/billing/subscription/resume",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/org",
+        "method": "GET",
+        "path": "/api/business/org",
+        "url": "https://localhost:29550/api/business/org",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/org",
+        "method": "POST",
+        "path": "/api/business/org",
+        "url": "https://localhost:29550/api/business/org",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "PATCH /api/business/org/:orgId",
+        "method": "PATCH",
+        "path": "/api/business/org/org-1",
+        "url": "https://localhost:29550/api/business/org/org-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/org/:orgId/members",
+        "method": "GET",
+        "path": "/api/business/org/org-1/members",
+        "url": "https://localhost:29550/api/business/org/org-1/members",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/org/:orgId/invites",
+        "method": "POST",
+        "path": "/api/business/org/org-1/invites",
+        "url": "https://localhost:29550/api/business/org/org-1/invites",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/org/invites/:inviteId/accept",
+        "method": "POST",
+        "path": "/api/business/org/invites/invite-1/accept",
+        "url": "https://localhost:29550/api/business/org/invites/invite-1/accept",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "DELETE /api/business/org/:orgId/members/:userId",
+        "method": "DELETE",
+        "path": "/api/business/org/org-1/members/user-1",
+        "url": "https://localhost:29550/api/business/org/org-1/members/user-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/org/:orgId/roles",
+        "method": "GET",
+        "path": "/api/business/org/org-1/roles",
+        "url": "https://localhost:29550/api/business/org/org-1/roles",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/org/:orgId/roles/:roleId/assign",
+        "method": "POST",
+        "path": "/api/business/org/org-1/roles/member/assign",
+        "url": "https://localhost:29550/api/business/org/org-1/roles/member/assign",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/user/api-keys",
+        "method": "GET",
+        "path": "/api/business/user/api-keys",
+        "url": "https://localhost:29550/api/business/user/api-keys",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/user/api-keys",
+        "method": "POST",
+        "path": "/api/business/user/api-keys",
+        "url": "https://localhost:29550/api/business/user/api-keys",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "DELETE /api/business/user/api-keys/:keyId",
+        "method": "DELETE",
+        "path": "/api/business/user/api-keys/key-1",
+        "url": "https://localhost:29550/api/business/user/api-keys/key-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/org/:orgId/service-accounts",
+        "method": "GET",
+        "path": "/api/business/org/org-1/service-accounts",
+        "url": "https://localhost:29550/api/business/org/org-1/service-accounts",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/org/:orgId/service-accounts",
+        "method": "POST",
+        "path": "/api/business/org/org-1/service-accounts",
+        "url": "https://localhost:29550/api/business/org/org-1/service-accounts",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/org/:orgId/service-accounts/:id/keys",
+        "method": "POST",
+        "path": "/api/business/org/org-1/service-accounts/svc-1/keys",
+        "url": "https://localhost:29550/api/business/org/org-1/service-accounts/svc-1/keys",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "DELETE /api/business/org/:orgId/service-accounts/:id/keys/:keyId",
+        "method": "DELETE",
+        "path": "/api/business/org/org-1/service-accounts/svc-1/keys/key-1",
+        "url": "https://localhost:29550/api/business/org/org-1/service-accounts/svc-1/keys/key-1",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/entitlements",
+        "method": "GET",
+        "path": "/api/business/entitlements",
+        "url": "https://localhost:29550/api/business/entitlements",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/usage/summary",
+        "method": "GET",
+        "path": "/api/business/usage/summary",
+        "url": "https://localhost:29550/api/business/usage/summary",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/usage/timeseries",
+        "method": "GET",
+        "path": "/api/business/usage/timeseries?days=7",
+        "url": "https://localhost:29550/api/business/usage/timeseries?days=7",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "GET /api/business/limits",
+        "method": "GET",
+        "path": "/api/business/limits",
+        "url": "https://localhost:29550/api/business/limits",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      },
+      {
+        "endpoint": "POST /api/business/limits/override",
+        "method": "POST",
+        "path": "/api/business/limits/override",
+        "url": "https://localhost:29550/api/business/limits/override",
+        "status": 401,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"error\":\"Authentication required.\"}"
+      }
+    ],
+    "admin": [
+      {
+        "endpoint": "GET /admin/api/policies",
+        "method": "GET",
+        "path": "/admin/api/policies",
+        "url": "https://localhost:29443/admin/api/policies",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"rules\":[],\"ruleCount\":0,\"policies\":[]}"
+      },
+      {
+        "endpoint": "POST /admin/api/policies/reload",
+        "method": "POST",
+        "path": "/admin/api/policies/reload",
+        "url": "https://localhost:29443/admin/api/policies/reload",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"success\":true,\"ruleCount\":0,\"errorMessage\":\"No MAPLE_POLICY_FILE configured\"}"
+      },
+      {
+        "endpoint": "GET /admin/api/policies/versions",
+        "method": "GET",
+        "path": "/admin/api/policies/versions",
+        "url": "https://localhost:29443/admin/api/policies/versions",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"activeVersionId\":\"rules-4f53cda18c2b\",\"items\":[{\"versionId\":\"rules-4f53cda18c2b\",\"createdAt\":\"2026-02-25T23:06:26.011Z\",\"createdBy\":\"system\",\"summary\":\"Snapshot from context-wall policy rules\",\"ruleCount\":0,\"active\":true}]}"
+      },
+      {
+        "endpoint": "POST /admin/api/policies/versions/:versionId/activate",
+        "method": "POST",
+        "path": "/admin/api/policies/versions/version-1/activate",
+        "url": "https://localhost:29443/admin/api/policies/versions/version-1/activate",
+        "status": 404,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":false,\"code\":\"NOT_FOUND\",\"error\":\"Policy version not found.\"}"
+      },
+      {
+        "endpoint": "POST /admin/api/policies/validate",
+        "method": "POST",
+        "path": "/admin/api/policies/validate",
+        "url": "https://localhost:29443/admin/api/policies/validate",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"valid\":true,\"errors\":[],\"warnings\":[\"No policy rules supplied; validation ran with empty set.\"]}"
+      },
+      {
+        "endpoint": "GET /admin/api/approvals",
+        "method": "GET",
+        "path": "/admin/api/approvals",
+        "url": "https://localhost:29443/admin/api/approvals",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"approvals\":[{\"traceId\":\"trace-sweep\",\"stepIndex\":0,\"requestedAt\":\"2026-02-25T23:06:25.730Z\",\"step\":{\"riskFlags\":[],\"index\":0,\"timestamp\":\"2026-02-25T23:06:25.728Z\",\"actor\":\"STEP_ACTOR_AGENT\",\"type\":\"STEP_TYPE_TOOL_CALL\",\"prompt\":\"preview\",\"toolCall\":null,\"ou"
+      },
+      {
+        "endpoint": "POST /admin/api/approvals/decision",
+        "method": "POST",
+        "path": "/admin/api/approvals/decision",
+        "url": "https://localhost:29443/admin/api/approvals/decision",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"accepted\":false,\"traceId\":\"trace-1\",\"stepIndex\":0,\"resultingAction\":\"allow\"}"
+      },
+      {
+        "endpoint": "GET /admin/api/audit",
+        "method": "GET",
+        "path": "/admin/api/audit?limit=20",
+        "url": "https://localhost:29443/admin/api/audit?limit=20",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"events\":[{\"eventId\":\"f0b3e856-919f-4322-955b-65ee3993ee1f\",\"eventType\":\"AUDIT_EVENT_TYPE_HITL_APPROVED\",\"timestamp\":\"2026-02-25T23:06:26.021Z\",\"sourceService\":\"admin-console\",\"context\":null,\"payloadJson\":{\"type\":\"Buffer\",\"data\":[]},\"severity\":\"RISK_SEVERITY_"
+      },
+      {
+        "endpoint": "POST /admin/api/audit/export",
+        "method": "POST",
+        "path": "/admin/api/audit/export",
+        "url": "https://localhost:29443/admin/api/audit/export",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"format\":\"json\",\"count\":10,\"events\":[{\"eventId\":\"d04628e5-9c84-452d-9496-f88d69c1ef89\",\"eventType\":\"AUDIT_EVENT_TYPE_POLICY_EVALUATED\",\"timestamp\":\"2026-02-25T23:06:26.028Z\",\"sourceService\":\"admin-console\",\"context\":null,\"payloadJson\":{\"type\":\"Buffe"
+      },
+      {
+        "endpoint": "GET /admin/api/audit/schemas",
+        "method": "GET",
+        "path": "/admin/api/audit/schemas",
+        "url": "https://localhost:29443/admin/api/audit/schemas",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"schemas\":[{\"id\":\"audit_event_v1\",\"fields\":[\"eventId\",\"eventType\",\"timestamp\",\"sourceService\",\"severity\",\"summary\",\"context.traceId\",\"context.sessionId\",\"payloadJson\"]}]}"
+      },
+      {
+        "endpoint": "GET /admin/api/compliance/reports",
+        "method": "GET",
+        "path": "/admin/api/compliance/reports",
+        "url": "https://localhost:29443/admin/api/compliance/reports",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "application/json",
+        "bodyPreview": "{\"ok\":true,\"reports\":[{\"id\":\"compliance-baseline\",\"generatedAt\":\"2026-02-25T23:06:26.035Z\",\"status\":\"pass\",\"controlsEvaluated\":12,\"findings\":0,\"evidenceWindowStart\":\"2026-01-26T23:06:26.032Z\",\"eventCount\":170}]}"
+      },
+      {
+        "endpoint": "GET /admin/api/approvals/watch",
+        "method": "GET",
+        "path": "/admin/api/approvals/watch",
+        "url": "https://localhost:29443/admin/api/approvals/watch",
+        "status": 200,
+        "ok": true,
+        "missingRoute": false,
+        "contentType": "text/event-stream",
+        "bodyPreview": "[stream]"
+      }
+    ]
+  }
+}

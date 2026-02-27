@@ -1,5 +1,5 @@
 import { server, database } from "../state.js";
-import { firewallChatPrimaryProvider } from "../config.js";
+import { firewallChatPrimaryProvider, firewallChatStrictMode } from "../config.js";
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, } from "../trace-helpers.js";
@@ -77,6 +77,7 @@ export function registerFirewallChatRoutes() {
                     ? "model-router"
                     : "unavailable",
             primaryProvider: firewallChatPrimaryProvider,
+            strictChatMode: firewallChatStrictMode,
             contextWallAvailable: report.checks.find((check) => check.id === "grpc.context_wall")?.ok === true,
             modelRouterAvailable: report.checks.find((check) => check.id === "grpc.model_router")?.ok === true,
             openclawAgent: openclaw,

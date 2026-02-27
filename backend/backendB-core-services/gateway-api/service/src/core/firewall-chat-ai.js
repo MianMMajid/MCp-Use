@@ -1,5 +1,5 @@
 import { asString, errorMessage, } from "../helpers.js";
-import { firewallChatAiEnabled, firewallChatPreferOpenClaw } from "../config.js";
+import { firewallChatAiEnabled, firewallChatPreferOpenClaw, firewallChatStrictMode, } from "../config.js";
 import { mapleLog } from "../logging.js";
 import { getGrpcClients } from "../state.js";
 import { generateViaGrpc } from "./firewall-grpc.js";
@@ -99,13 +99,19 @@ export async function generateFirewallChatReply(options) {
                 thinking: "medium",
                 timeoutSeconds: 120,
             });
-            attempts.push({ provider: "openclaw", ok: true });
-            return {
-                reply: agentResult.reply || fallbackReply,
-                mode: "openclaw-agent",
-                provider: "openclaw",
-                attempts,
-            };
+            const reply = asString(agentResult.reply) ?? "";
+            if (!reply && firewallChatStrictMode) {
+                attempts.push({ provider: "openclaw", ok: false, reason: "empty_reply" });
+            }
+            else {
+                attempts.push({ provider: "openclaw", ok: true });
+                return {
+                    reply: reply || fallbackReply,
+                    mode: "openclaw-agent",
+                    provider: "openclaw",
+                    attempts,
+                };
+            }
         }
         catch (err) {
             attempts.push({ provider: "openclaw", ok: false });
@@ -116,6 +122,14 @@ export async function generateFirewallChatReply(options) {
         }
     }
     if (!firewallChatAiEnabled) {
+        if (firewallChatStrictMode) {
+            return {
+                reply: "Chat strict mode is enabled and no AI provider is currently available.",
+                mode: "unavailable",
+                provider: null,
+                attempts,
+            };
+        }
         return {
             reply: fallbackReply,
             mode: "rules",

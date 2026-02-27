@@ -15,6 +15,18 @@ import { registerPlatformProxyRoutes } from "../src/routes/platform-proxy-routes
 
 function startBusinessApiStub() {
   const received = [];
+  const integrationState = {
+    github: {
+      id: "integration-1",
+      provider: "github",
+      displayName: "GitHub",
+      status: "disconnected",
+      connected: false,
+      authType: "oauth2",
+      scopes: [],
+      metadata: {},
+    },
+  };
 
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -57,6 +69,123 @@ function startBusinessApiStub() {
       }
       if (req.method === "GET" && req.url === "/api/business/auth/me") {
         ok({ ok: true, authenticated: true, method: "api_key", via: "business-api" });
+        return;
+      }
+      if (req.method === "GET" && req.url === "/api/business/integrations/catalog") {
+        ok({
+          ok: true,
+          providers: [
+            { provider: "github", displayName: "GitHub", defaultAuthType: "oauth2" },
+            { provider: "slack", displayName: "Slack", defaultAuthType: "oauth2" },
+          ],
+          via: "business-api",
+        });
+        return;
+      }
+      if (req.method === "GET" && req.url === "/api/business/integrations") {
+        ok({
+          ok: true,
+          items: Object.values(integrationState),
+          via: "business-api",
+        });
+        return;
+      }
+      if (req.method === "POST" && req.url === "/api/business/integrations/github/connect") {
+        integrationState.github = {
+          ...integrationState.github,
+          status: "connected",
+          connected: true,
+          scopes: ["repo:read"],
+          metadata: { connectedVia: "test" },
+        };
+        ok({ ok: true, integration: integrationState.github, via: "business-api" }, 201);
+        return;
+      }
+      if (req.method === "POST" && req.url === "/api/business/integrations/github/disconnect") {
+        integrationState.github = {
+          ...integrationState.github,
+          status: "disconnected",
+          connected: false,
+        };
+        ok({ ok: true, integration: integrationState.github, via: "business-api" });
+        return;
+      }
+      if (
+        req.method === "GET" &&
+        req.url?.startsWith("/api/business/integrations/github/oauth/start")
+      ) {
+        ok({
+          ok: true,
+          provider: "github",
+          authorizationUrl:
+            "https://github.com/login/oauth/authorize?client_id=gh-client&state=state-123",
+          state: "state-123",
+          redirectUri: "https://mayple.cloud/api/integrations/github/oauth/callback",
+          via: "business-api",
+        });
+        return;
+      }
+      if (
+        req.method === "GET" &&
+        req.url?.startsWith("/api/business/integrations/github/oauth/callback")
+      ) {
+        ok({
+          ok: true,
+          provider: "github",
+          redirectUrl: "https://mayple.cloud/journey?oauth=success&provider=github",
+          integration: {
+            ...integrationState.github,
+            status: "connected",
+            connected: true,
+            metadata: {
+              oauth: {
+                provider: "github",
+                hasRefreshToken: true,
+              },
+            },
+          },
+          via: "business-api",
+        });
+        return;
+      }
+      if (req.method === "POST" && req.url === "/api/business/integrations/github/oauth/refresh") {
+        ok({
+          ok: true,
+          integration: {
+            ...integrationState.github,
+            status: "connected",
+            connected: true,
+            metadata: {
+              oauth: {
+                provider: "github",
+                hasRefreshToken: true,
+                lastRefreshAt: new Date().toISOString(),
+              },
+            },
+          },
+          via: "business-api",
+        });
+        return;
+      }
+      if (req.method === "POST" && req.url === "/api/business/integrations/github/oauth/revoke") {
+        integrationState.github = {
+          ...integrationState.github,
+          status: "disconnected",
+          connected: false,
+        };
+        ok({
+          ok: true,
+          integration: {
+            ...integrationState.github,
+            metadata: {
+              oauth: {
+                provider: "github",
+                revokedAt: new Date().toISOString(),
+              },
+            },
+          },
+          via: "business-api",
+        });
         return;
       }
       if (req.method === "POST" && req.url === "/api/business/auth/logout") {
@@ -322,6 +451,88 @@ test("gateway auth/user/billing routes proxy to business-api endpoints", async (
       body: JSON.stringify({ credential: "token" }),
     });
     assert.equal(googleLogin.status, 200);
+
+    const integrationCatalog = await app.request(
+      "http://localhost/api/integrations/catalog"
+    );
+    assert.equal(integrationCatalog.status, 200);
+
+    const integrationList = await app.request("http://localhost/api/integrations", {
+      headers: { cookie: "maple_session=s1" },
+    });
+    assert.equal(integrationList.status, 200);
+
+    const integrationConnect = await app.request(
+      "http://localhost/api/integrations/github/connect",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: "maple_session=s1",
+        },
+        body: JSON.stringify({ credential: "ghp_demo_123", scopes: ["repo:read"] }),
+      }
+    );
+    assert.equal(integrationConnect.status, 201);
+
+    const integrationDisconnect = await app.request(
+      "http://localhost/api/integrations/github/disconnect",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: "maple_session=s1",
+        },
+        body: JSON.stringify({}),
+      }
+    );
+    assert.equal(integrationDisconnect.status, 200);
+
+    const integrationOauthStart = await app.request(
+      "http://localhost/api/integrations/github/oauth/start?returnTo=%2Fjourney"
+    );
+    assert.equal(integrationOauthStart.status, 200);
+    const integrationOauthStartPayload = await integrationOauthStart.json();
+    assert.equal(integrationOauthStartPayload.ok, true);
+    assert.equal(
+      integrationOauthStartPayload.authorizationUrl.includes("github.com/login/oauth/authorize"),
+      true
+    );
+
+    const integrationOauthCallback = await app.request(
+      "http://localhost/api/integrations/github/oauth/callback?code=abc&state=state-123"
+    );
+    assert.equal(integrationOauthCallback.status, 302);
+    assert.equal(
+      integrationOauthCallback.headers.get("location"),
+      "https://mayple.cloud/journey?oauth=success&provider=github"
+    );
+
+    const integrationOauthRefresh = await app.request(
+      "http://localhost/api/integrations/github/oauth/refresh",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: "maple_session=s1",
+        },
+        body: JSON.stringify({}),
+      }
+    );
+    assert.equal(integrationOauthRefresh.status, 200);
+
+    const integrationOauthRevoke = await app.request(
+      "http://localhost/api/integrations/github/oauth/revoke",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: "maple_session=s1",
+        },
+        body: JSON.stringify({}),
+      }
+    );
+    assert.equal(integrationOauthRevoke.status, 200);
 
     const forgotPassword = await app.request(
       "http://localhost/api/auth/forgot-password",
@@ -668,6 +879,12 @@ test("gateway auth/user/billing routes proxy to business-api endpoints", async (
     );
     assert.equal(Boolean(proxiedForgotPassword), true);
     assert.equal(proxiedForgotPassword.method, "POST");
+
+    const proxiedIntegrationConnect = received.find(
+      (entry) => entry.path === "/api/business/integrations/github/connect"
+    );
+    assert.equal(Boolean(proxiedIntegrationConnect), true);
+    assert.equal(proxiedIntegrationConnect.method, "POST");
 
     const proxiedOrgList = received.find((entry) => entry.path === "/api/business/org");
     assert.equal(Boolean(proxiedOrgList), true);

@@ -1,7 +1,8 @@
 "use strict";
 
 const path = require("node:path");
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, shell } = require("electron");
+const fs = require("node:fs/promises");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, shell, safeStorage } = require("electron");
 let createRuntimeController;
 let bridgeAvailable = true;
 let bridgeError = "";
@@ -31,8 +32,63 @@ let trayPollTimer = null;
 
 const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
 const runtimeController = createRuntimeController();
+const secureStoreFilename = "maple-desktop-secure-store.json";
 
 let mainWindow = null;
+
+function secureStorePath() {
+  return path.join(app.getPath("userData"), secureStoreFilename);
+}
+
+async function readSecureStore() {
+  try {
+    const raw = await fs.readFile(secureStorePath(), "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeSecureStore(payload) {
+  const normalized = payload && typeof payload === "object" ? payload : {};
+  await fs.mkdir(path.dirname(secureStorePath()), { recursive: true });
+  await fs.writeFile(secureStorePath(), JSON.stringify(normalized, null, 2), "utf8");
+}
+
+function encryptSecureValue(value) {
+  const text = typeof value === "string" ? value : "";
+  if (!text) {
+    return "";
+  }
+  if (safeStorage?.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(text);
+    return `enc:${encrypted.toString("base64")}`;
+  }
+  return `plain:${text}`;
+}
+
+function decryptSecureValue(value) {
+  const raw = typeof value === "string" ? value : "";
+  if (!raw) {
+    return "";
+  }
+  if (raw.startsWith("enc:")) {
+    if (!safeStorage?.isEncryptionAvailable()) {
+      return "";
+    }
+    const encoded = raw.slice(4);
+    try {
+      return safeStorage.decryptString(Buffer.from(encoded, "base64"));
+    } catch {
+      return "";
+    }
+  }
+  if (raw.startsWith("plain:")) {
+    return raw.slice(6);
+  }
+  return raw;
+}
 
 function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -102,6 +158,22 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:get-runtime-logs", async (_event, limit) => {
     const safeLimit = typeof limit === "number" && limit > 0 ? Math.min(limit, 5000) : 120;
     return runtimeController.getLogs(safeLimit);
+  });
+  ipcMain.handle("desktop:get-api-key", async () => {
+    const store = await readSecureStore();
+    return { ok: true, value: decryptSecureValue(store.apiKey) };
+  });
+  ipcMain.handle("desktop:set-api-key", async (_event, value) => {
+    const store = await readSecureStore();
+    store.apiKey = encryptSecureValue(typeof value === "string" ? value.trim() : "");
+    await writeSecureStore(store);
+    return { ok: true };
+  });
+  ipcMain.handle("desktop:clear-api-key", async () => {
+    const store = await readSecureStore();
+    delete store.apiKey;
+    await writeSecureStore(store);
+    return { ok: true };
   });
   ipcMain.handle("desktop:open-external", async (_event, url) => {
     if (!isAllowedExternalUrl(url)) {

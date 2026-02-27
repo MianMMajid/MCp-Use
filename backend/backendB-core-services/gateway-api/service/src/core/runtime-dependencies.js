@@ -349,6 +349,13 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
         : businessApiCheck?.reason ?? "Business API unavailable.",
       requiredDeps: ["http.business_api"],
     },
+    integrations: {
+      enabled: businessApiReady,
+      reason: businessApiReady
+        ? "ok"
+        : businessApiCheck?.reason ?? "Business API unavailable.",
+      requiredDeps: ["http.business_api"],
+    },
     googleAuth: resolveGoogleAuthCapability(checkMap),
   };
   return {

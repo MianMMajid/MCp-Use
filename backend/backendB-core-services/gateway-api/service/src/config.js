@@ -62,6 +62,10 @@ export const openclawAgentDefaultTimeoutSeconds = Number.isFinite(openclawAgentD
     : 120;
 const firewallChatPreferOpenClawRaw = String(process.env.MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW ?? "1").trim().toLowerCase();
 export const firewallChatPreferOpenClaw = firewallChatPreferOpenClawRaw !== "0" && firewallChatPreferOpenClawRaw !== "false";
+const firewallChatStrictModeRaw = String(process.env.MAPLE_FIREWALL_CHAT_STRICT_MODE ?? (isProductionRuntime ? "1" : "0"))
+    .trim()
+    .toLowerCase();
+export const firewallChatStrictMode = firewallChatStrictModeRaw === "1" || firewallChatStrictModeRaw === "true";
 export const sessionPollEnabled = String(process.env.MAPLE_SESSION_POLL ?? "1") !== "0";
 export const sessionPollIntervalMs = (() => {
     const raw = process.env.MAPLE_SESSION_POLL_MS;

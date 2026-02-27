@@ -3,104 +3,156 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Maple Desktop native runtime control panel." />
-  <title>Maple Desktop</title>
+  <meta name="description" content="Maple Desktop Agent Studio" />
+  <title>Maple Desktop Agent Studio</title>
   <style>
     :root {
-      --bg: #0c1320;
-      --panel: #172238;
-      --panel-soft: #1d2a45;
-      --text: #e8eefc;
-      --muted: #9db2d6;
-      --ok: #4ade80;
-      --warn: #fbbf24;
-      --danger: #fb7185;
-      --accent: #5eead4;
+      --bg: #ffffff;
+      --bg-2: #faf7f2;
+      --panel: #ffffff;
+      --panel-soft: #faf7f2;
+      --panel-ghost: #f5f1ec;
+      --text: #1f1a16;
+      --muted: #7d6f63;
+      --line: rgba(196, 184, 168, 0.5);
+      --ok: #39a36f;
+      --warn: #e09f55;
+      --danger: #cf5e5e;
+      --accent: #e8740c;
+      --accent-2: #ff8f2e;
+      --radius: 14px;
+      --shadow: 0 16px 36px rgba(40, 22, 3, 0.12);
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html,
     body {
       margin: 0;
-      font-family: "SF Pro Text", "Segoe UI", -apple-system, system-ui, sans-serif;
+      padding: 0;
+      min-height: 100%;
       color: var(--text);
-      background: radial-gradient(circle at top right, #1a3050 0%, var(--bg) 55%);
-      min-height: 100vh;
+      background:
+        radial-gradient(circle at 4% 2%, rgba(232, 116, 12, 0.12), transparent 34%),
+        radial-gradient(circle at 98% 0%, rgba(255, 143, 46, 0.1), transparent 32%),
+        linear-gradient(180deg, var(--bg-2), var(--bg));
+      font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
     }
 
-    .layout {
+    .app {
       display: grid;
-      gap: 16px;
-      grid-template-columns: 360px minmax(640px, 1fr);
-      padding: 16px;
-      height: 100vh;
-    }
-
-    .panel {
-      background: linear-gradient(180deg, var(--panel-soft), var(--panel));
-      border: 1px solid rgba(157, 178, 214, 0.18);
-      border-radius: 12px;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100vh;
+      gap: 14px;
       padding: 14px;
+      animation: fade-in 220ms ease-out;
     }
 
-    h1 {
-      margin: 0 0 4px;
-      font-size: 1.4rem;
-      letter-spacing: 0.01em;
+    .topbar {
+      border: 1px solid var(--line);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(250, 247, 242, 0.96));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) minmax(320px, 1fr) minmax(300px, 1fr);
+      gap: 12px;
+      align-items: center;
     }
 
-    .sub {
+    .brand h1 {
+      margin: 0;
+      font-size: 1.08rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
       color: var(--muted);
-      margin: 0 0 12px;
-      font-size: 0.92rem;
+      font-size: 0.83rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      gap: 6px 12px;
+      font-size: 0.82rem;
+    }
+
+    .stats .k {
+      color: var(--muted);
+    }
+
+    .stats code {
+      display: block;
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.73rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .top-actions {
+      display: grid;
+      gap: 8px;
     }
 
     .row {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      margin-top: 8px;
+    }
+
+    .row.stretch > * {
+      flex: 1 1 120px;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.84rem;
+      padding: 8px 10px;
     }
 
     button {
       border: 0;
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-weight: 600;
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      color: #ffffff;
+      font-weight: 700;
       cursor: pointer;
-      color: #081325;
-      background: var(--accent);
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.02);
     }
 
     button.secondary {
-      background: #9db2d6;
+      background: linear-gradient(180deg, #ffffff, #f5f1ec);
+      color: #3b3128;
+      border: 1px solid rgba(196, 184, 168, 0.75);
     }
 
     button.warn {
-      background: #fca5a5;
+      background: linear-gradient(180deg, #f6cbc0, #d88074);
+      color: #4c1209;
     }
 
     button:disabled {
-      opacity: 0.5;
+      opacity: 0.6;
       cursor: not-allowed;
-    }
-
-    code, .mono {
-      font-family: "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.8rem;
-    }
-
-    code {
-      display: block;
-      margin-top: 4px;
-      padding: 7px 8px;
-      background: rgba(9, 14, 24, 0.55);
-      border: 1px solid rgba(157, 178, 214, 0.2);
-      border-radius: 7px;
-      overflow-x: auto;
-      white-space: nowrap;
+      transform: none;
     }
 
     .badge {
@@ -108,131 +160,1340 @@
       align-items: center;
       gap: 6px;
       border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 0.82rem;
+      padding: 6px 11px;
+      font-size: 0.8rem;
       font-weight: 700;
-      background: rgba(157, 178, 214, 0.18);
+      background: #f5f1ec;
       color: var(--muted);
     }
 
     .badge.ok {
-      color: #03130a;
       background: var(--ok);
+      color: #032112;
     }
 
     .badge.warn {
-      color: #231300;
       background: var(--warn);
+      color: #312200;
     }
 
     .badge.danger {
-      color: #2d030d;
       background: var(--danger);
+      color: #300815;
     }
 
-    .kv {
+    .mission-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
       margin-top: 8px;
-      display: grid;
-      grid-template-columns: 120px 1fr;
-      gap: 6px 10px;
-      font-size: 0.9rem;
     }
 
-    .kv dt {
-      color: var(--muted);
-    }
-
-    .logs {
-      margin-top: 10px;
-      background: rgba(6, 10, 16, 0.66);
-      border: 1px solid rgba(157, 178, 214, 0.15);
-      border-radius: 8px;
-      padding: 8px;
-      max-height: 320px;
-      overflow: auto;
-      font-family: "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.74rem;
-      line-height: 1.4;
-      white-space: pre-wrap;
-      color: #d2def5;
+    .mission-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid rgba(232, 116, 12, 0.35);
+      background: rgba(232, 116, 12, 0.1);
+      color: #7c3a02;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 9px;
+      letter-spacing: 0.01em;
     }
 
     .workspace {
-      height: calc(100vh - 32px);
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid rgba(157, 178, 214, 0.18);
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(600px, 2fr) minmax(340px, 1fr);
+      gap: 12px;
     }
 
-    .workspace iframe {
-      width: 100%;
-      height: 100%;
-      border: 0;
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(170deg, var(--panel-soft), var(--panel));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .panel-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(232, 116, 12, 0.08), transparent);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .panel-head h2,
+    .panel-head h3 {
+      margin: 0;
+      font-size: 0.98rem;
+      letter-spacing: 0.01em;
+    }
+
+    .panel-body {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      min-height: 0;
+    }
+
+    .chat-shell {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 0;
+    }
+
+    .chat-timeline {
+      min-height: 280px;
+      max-height: 52vh;
+      overflow: auto;
+      display: grid;
+      gap: 9px;
+      padding-right: 2px;
+    }
+
+    .chat-item {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      padding: 9px 11px;
+      line-height: 1.45;
+      font-size: 0.86rem;
+      animation: rise-in 180ms ease-out;
+    }
+
+    .chat-item.user {
+      border-color: rgba(232, 116, 12, 0.35);
+      background: linear-gradient(140deg, #ff8f2e, #e8740c);
+      color: #ffffff;
+      justify-self: end;
+      max-width: 88%;
+    }
+
+    .chat-item.assistant {
+      border-color: rgba(196, 184, 168, 0.65);
+      background: #f5f1ec;
+      max-width: 92%;
+    }
+
+    .chat-item.system {
+      border-style: dashed;
+      color: var(--muted);
+      font-size: 0.81rem;
+    }
+
+    .chat-role {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.68rem;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .chat-item.user .chat-role {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 86px;
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+      line-height: 1.35;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.79rem;
+      margin: 0;
+    }
+
+    .grid2,
+    .grid3 {
+      display: grid;
+      gap: 8px;
+    }
+
+    .grid2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.74rem;
+      margin-bottom: 4px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    select[size] {
+      min-height: 144px;
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.77rem;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+      overflow: auto;
+      min-height: 0;
+      padding: 1px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-ghost);
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.74rem;
+      line-height: 1.42;
+      white-space: pre-wrap;
+      overflow: auto;
+      max-height: 260px;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      overflow: hidden;
+    }
+
+    details > summary {
+      cursor: pointer;
+      list-style: none;
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.01em;
+      padding: 10px 12px;
+      border-bottom: 1px solid transparent;
+      user-select: none;
+    }
+
+    details[open] > summary {
+      border-bottom-color: var(--line);
+      background: rgba(232, 116, 12, 0.07);
+    }
+
+    .details-body {
+      padding: 11px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .notice {
+      border-radius: 10px;
+      border: 1px solid rgba(224, 159, 85, 0.55);
+      background: rgba(224, 159, 85, 0.14);
+      color: #73440f;
+      padding: 8px 10px;
+      font-size: 0.81rem;
+    }
+
+    .advanced-wrap {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      max-height: 55vh;
+      overflow: auto;
+      background: linear-gradient(180deg, rgba(232, 116, 12, 0.05), rgba(250, 247, 242, 0.8));
+    }
+
+    .advanced-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .advanced-grid .full {
+      grid-column: 1 / -1;
+    }
+
+    .workspace-frame {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 300px;
       background: #fff;
     }
 
-    .fallback {
-      margin-top: 10px;
-      padding: 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(251, 191, 36, 0.45);
-      color: #ffde9a;
-      background: rgba(60, 43, 0, 0.35);
-      font-size: 0.86rem;
+    .integration-shell {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
     }
 
-    a {
-      color: #8fe7ff;
+    .integration-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      max-height: 190px;
+      overflow: auto;
+    }
+
+    .integration-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(196, 184, 168, 0.75);
+      border-radius: 10px;
+      padding: 7px 8px;
+      background: #faf7f2;
+      font-size: 0.8rem;
+    }
+
+    .integration-item input {
+      accent-color: var(--accent);
+      width: auto;
+      margin: 0;
+      padding: 0;
+    }
+
+    .journey-shell {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .journey-steps {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .journey-step {
+      border: 1px solid rgba(196, 184, 168, 0.75);
+      border-radius: 10px;
+      padding: 8px;
+      background: #faf7f2;
+      font-size: 0.77rem;
+      display: grid;
+      gap: 3px;
+      min-height: 56px;
+      align-content: start;
+    }
+
+    .journey-step strong {
+      color: #4d3c2d;
+    }
+
+    .journey-step .state {
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+
+    .journey-step.done {
+      border-color: rgba(57, 163, 111, 0.45);
+      background: rgba(57, 163, 111, 0.1);
+    }
+
+    .journey-step.active {
+      border-color: rgba(232, 116, 12, 0.55);
+      background: rgba(232, 116, 12, 0.1);
+    }
+
+    .journey-step.blocked {
+      border-color: rgba(207, 94, 94, 0.55);
+      background: rgba(207, 94, 94, 0.12);
+    }
+
+    .workflow-kicker {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .workflow-stage {
+      border: 1px solid rgba(196, 184, 168, 0.75);
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px;
+      display: grid;
+      gap: 4px;
+      min-height: 62px;
+    }
+
+    .workflow-stage strong {
+      font-size: 0.76rem;
+      color: #5a4330;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+    }
+
+    .workflow-stage span {
+      color: var(--muted);
+      font-size: 0.73rem;
+      line-height: 1.3;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 28px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid rgba(232, 116, 12, 0.4);
+      background: rgba(232, 116, 12, 0.11);
+      color: #703504;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 4px 9px;
+    }
+
+    .tree-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      max-height: 320px;
+      overflow: auto;
+    }
+
+    .tree-root,
+    .tree-root ul {
+      list-style: none;
+      margin: 0;
+      padding-left: 13px;
+    }
+
+    .tree-root {
+      padding-left: 0;
+    }
+
+    .tree-node {
+      margin: 4px 0;
+      position: relative;
+    }
+
+    .tree-node::before {
+      content: "";
+      position: absolute;
+      left: -9px;
+      top: 11px;
+      width: 7px;
+      border-top: 1px solid rgba(196, 184, 168, 0.75);
+    }
+
+    .tree-node > .tree-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid rgba(196, 184, 168, 0.75);
+      border-radius: 9px;
+      background: #faf7f2;
+      padding: 5px 8px;
+      font-size: 0.78rem;
+      line-height: 1.2;
+    }
+
+    .tree-node.kind-event > .tree-label {
+      border-color: rgba(232, 116, 12, 0.35);
+      background: rgba(232, 116, 12, 0.08);
+    }
+
+    .tree-node.kind-agent > .tree-label {
+      border-color: rgba(57, 163, 111, 0.35);
+      background: rgba(57, 163, 111, 0.08);
+    }
+
+    .tree-node.kind-run > .tree-label {
+      border-color: rgba(224, 159, 85, 0.45);
+      background: rgba(224, 159, 85, 0.1);
+    }
+
+    .tree-node.kind-session > .tree-label {
+      border-color: rgba(255, 143, 46, 0.45);
+      background: rgba(255, 143, 46, 0.1);
+    }
+
+    .workspace-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes rise-in {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1320px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-timeline {
+        max-height: 48vh;
+      }
+
+      .journey-steps {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .workflow-kicker {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 860px) {
+      .grid2,
+      .grid3,
+      .advanced-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .integration-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .journey-steps {
+        grid-template-columns: 1fr;
+      }
+
+      .workflow-kicker {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-item.user,
+      .chat-item.assistant {
+        max-width: 100%;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="layout">
-    <section class="panel" aria-label="Runtime Control Panel">
-      <h1>Maple Desktop Control</h1>
-      <p class="sub">Native app runtime and packaging surface for <span class="mono">.exe/.dmg</span>.</p>
+  <main class="app">
+    <header class="topbar">
+      <section class="brand">
+        <h1>Mayple Desktop Workforce Studio</h1>
+        <p>Deploy and supervise digital employees with OpenClaw orchestration, HITL approvals, and business controls.</p>
+        <div class="mission-strip">
+          <span class="mission-pill">Plan</span>
+          <span class="mission-pill">Assign</span>
+          <span class="mission-pill">Approve</span>
+          <span class="mission-pill">Scale</span>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <span id="statusBadge" class="badge">Checking...</span>
+          <span id="modeValue" class="badge">mode</span>
+          <span id="capabilityValue" class="badge">capabilities</span>
+        </div>
+      </section>
 
-      <div>
-        <span id="statusBadge" class="badge">Checking...</span>
-      </div>
+      <section class="stats" aria-label="Runtime metadata">
+        <div>
+          <span class="k">Gateway</span>
+          <code id="gatewayValue">-</code>
+        </div>
+        <div>
+          <span class="k">Health</span>
+          <code id="healthValue">-</code>
+        </div>
+        <div>
+          <span class="k">PID</span>
+          <code id="pidValue">-</code>
+        </div>
+        <div>
+          <span class="k">Desktop Bridge</span>
+          <code id="bridgeMeta">Auto-detect</code>
+        </div>
+      </section>
 
-      <dl class="kv">
-        <dt>Mode</dt><dd id="modeValue">-</dd>
-        <dt>Gateway URL</dt><dd><code id="gatewayValue">-</code></dd>
-        <dt>Health URL</dt><dd><code id="healthValue">-</code></dd>
-        <dt>Capabilities</dt><dd id="capabilityValue">-</dd>
-        <dt>PID</dt><dd id="pidValue">-</dd>
-      </dl>
+      <section class="top-actions">
+        <div class="row stretch">
+          <button type="button" id="refreshBtn" class="secondary">Refresh</button>
+          <button type="button" id="startBtn">Start Runtime</button>
+          <button type="button" id="restartBtn" class="secondary">Restart</button>
+          <button type="button" id="stopBtn" class="warn">Stop</button>
+          <button type="button" id="openGatewayBtn" class="secondary">Open Gateway</button>
+        </div>
+        <div class="row stretch">
+          <input id="apiKeyInput" type="password" placeholder="x-api-key" autocomplete="off" />
+          <button type="button" id="saveApiKeyBtn">Save</button>
+          <button type="button" id="clearApiKeyBtn" class="secondary">Clear</button>
+          <button type="button" id="refreshCapabilitiesBtn" class="secondary">Features</button>
+        </div>
+      </section>
+    </header>
 
-      <div class="row">
-        <button type="button" id="refreshBtn" class="secondary">Refresh</button>
-        <button type="button" id="startBtn">Start Runtime</button>
-        <button type="button" id="restartBtn" class="secondary">Restart Runtime</button>
-        <button type="button" id="stopBtn" class="warn">Stop Runtime</button>
-        <button type="button" id="openGatewayBtn" class="secondary">Open Gateway</button>
-      </div>
+    <section class="workspace">
+      <section class="panel chat-shell" aria-label="Agent chat orchestrator">
+        <header class="panel-head">
+          <h2>Workforce Command Chat</h2>
+          <div class="row">
+            <button type="button" id="chatCapabilitiesBtn" class="secondary">Capabilities</button>
+            <button type="button" id="agentStatusBtn" class="secondary">OpenClaw Status</button>
+          </div>
+        </header>
 
-      <div id="bridgeWarning" class="fallback" style="display: none;">
-        <strong>Runtime bridge not installed.</strong> Run <code>npm run sync:bridge</code> to enable native runtime control.
-      </div>
+        <div class="panel-body" style="min-height: 0;">
+          <div class="workflow-kicker" aria-label="Workforce execution lifecycle">
+            <article class="workflow-stage">
+              <strong>1. Brief</strong>
+              <span>Define mission goals, constraints, and expected outputs.</span>
+            </article>
+            <article class="workflow-stage">
+              <strong>2. Route</strong>
+              <span>Attach work apps and select orchestration mode.</span>
+            </article>
+            <article class="workflow-stage">
+              <strong>3. Execute</strong>
+              <span>Run OpenClaw turns or longform workflows per employee.</span>
+            </article>
+            <article class="workflow-stage">
+              <strong>4. Govern</strong>
+              <span>Review HITL decisions, audit traces, and billing impact.</span>
+            </article>
+          </div>
 
-      <div id="updateBanner" class="fallback" style="display: none; border-color: rgba(94, 234, 212, 0.45); color: var(--accent); background: rgba(0, 50, 40, 0.35);">
-        <strong>Update available!</strong> <span id="updateVersion"></span>
-        <button type="button" id="updateBtn" style="margin-left: 8px; padding: 4px 10px; font-size: 0.8rem;">Install &amp; Restart</button>
-      </div>
+          <div id="chatTimeline" class="chat-timeline">
+            <article class="chat-item system">
+              <div class="chat-role">System</div>
+              Mayple is ready. Describe a business objective to orchestrate your digital employees.
+            </article>
+          </div>
 
-      <div id="fallbackBox" class="fallback" style="display: none;">
-        Electron bridge is not available in browser shell mode. Use
-        <code>npm run desktop:dev</code> for full native behavior.
-      </div>
+          <div class="grid2">
+            <div>
+              <label for="chatMode">Chat Transport</label>
+              <select id="chatMode">
+                <option value="stream" selected>stream</option>
+                <option value="sync">sync</option>
+              </select>
+            </div>
+            <div>
+              <label for="turnDeliver">Deliver Output</label>
+              <select id="turnDeliver">
+                <option value="false" selected>false</option>
+                <option value="true">true</option>
+              </select>
+            </div>
+          </div>
 
-      <h3 style="margin: 14px 0 6px;">Runtime Logs</h3>
-      <div id="runtimeLogs" class="logs">No logs yet.</div>
+          <div class="grid2">
+            <div>
+              <label for="orchestrationMode">Orchestration Mode</label>
+              <select id="orchestrationMode">
+                <option value="chat" selected>chat</option>
+                <option value="turn">turn</option>
+                <option value="longform">longform</option>
+              </select>
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <button type="button" id="orchestrateBtn">Execute</button>
+            </div>
+          </div>
+
+          <label for="chatPrompt">Mission Brief / Task</label>
+          <textarea id="chatPrompt" placeholder="Example: Draft an incident response brief and assign follow-up actions by function."></textarea>
+
+          <section class="integration-shell" aria-label="App integrations">
+            <label for="integrationSearch">Connected Work Apps</label>
+            <input id="integrationSearch" type="text" placeholder="Filter integrations..." autocomplete="off" />
+            <div id="integrationList" class="integration-grid"></div>
+            <div class="row">
+              <button type="button" id="integrationApplyBtn" class="secondary">Apply Context</button>
+              <button type="button" id="integrationClearBtn" class="secondary">Clear</button>
+            </div>
+            <div id="integrationSelected" class="chip-row" aria-live="polite"></div>
+            <p id="orchestrationStatus" class="muted">No work-app context applied yet.</p>
+          </section>
+
+          <section class="journey-shell" aria-label="Guided user journey">
+            <div class="row" style="justify-content: space-between; align-items: center;">
+              <label for="journeyProvider" style="margin: 0;">Business Rollout Journey</label>
+              <span id="journeyStatus" class="muted">Ready to begin.</span>
+            </div>
+            <div class="journey-steps" id="journeySteps">
+              <article id="journeyStepSignin" class="journey-step">
+                <strong>1. Access</strong>
+                <span class="state">pending</span>
+              </article>
+              <article id="journeyStepIntegrations" class="journey-step">
+                <strong>2. Connect</strong>
+                <span class="state">pending</span>
+              </article>
+              <article id="journeyStepRun" class="journey-step">
+                <strong>3. Execute</strong>
+                <span class="state">pending</span>
+              </article>
+              <article id="journeyStepHitl" class="journey-step">
+                <strong>4. Approve</strong>
+                <span class="state">pending</span>
+              </article>
+              <article id="journeyStepBilling" class="journey-step">
+                <strong>5. Scale</strong>
+                <span class="state">pending</span>
+              </article>
+            </div>
+            <div class="grid2">
+              <div>
+                <label for="journeyProvider">Integration Provider</label>
+                <select id="journeyProvider"></select>
+              </div>
+              <div>
+                <label for="journeyIntegrationCredential">Integration Credential</label>
+                <input id="journeyIntegrationCredential" type="password" autocomplete="off" placeholder="token / oauth code" />
+              </div>
+            </div>
+            <div class="row stretch">
+              <button type="button" id="journeySignInBtn" class="secondary">1: Access</button>
+              <button type="button" id="journeyConnectBtn" class="secondary">2: Connect</button>
+              <button type="button" id="journeyRunBtn">3: Execute</button>
+              <button type="button" id="journeyHitlBtn" class="secondary">4: Approve</button>
+              <button type="button" id="journeyBillingBtn">5: Scale</button>
+              <button type="button" id="journeyRunAllBtn">Run Lifecycle</button>
+            </div>
+            <pre id="journeyOut">{}</pre>
+          </section>
+
+          <div class="grid3">
+            <div>
+              <label for="turnSessionId">Session ID</label>
+              <input id="turnSessionId" type="text" autocomplete="off" />
+            </div>
+            <div>
+              <label for="turnAgentId">Agent ID</label>
+              <input id="turnAgentId" type="text" autocomplete="off" />
+            </div>
+            <div>
+              <label for="turnTo">To</label>
+              <input id="turnTo" type="text" autocomplete="off" />
+            </div>
+            <div>
+              <label for="turnThinking">Thinking Mode</label>
+              <input id="turnThinking" type="text" autocomplete="off" />
+            </div>
+            <div>
+              <label for="turnTimeout">Turn Timeout (s)</label>
+              <input id="turnTimeout" type="number" min="15" max="1200" value="120" />
+            </div>
+            <div>
+              <label for="longTurns">Longform Max Turns</label>
+              <input id="longTurns" type="number" min="1" max="8" value="4" />
+            </div>
+          </div>
+
+          <div class="row stretch">
+            <button type="button" id="chatSendBtn">Chat</button>
+            <button type="button" id="turnRunBtn">Agent Turn</button>
+            <button type="button" id="longRunBtn">Longform</button>
+            <button type="button" id="sessionStopStreamBtn" class="secondary">Stop Session Stream</button>
+          </div>
+          <p id="chatStatus" class="muted">Chat, turn, and longform run through the same governed orchestration chain.</p>
+
+          <details>
+            <summary>Raw Orchestration Outputs</summary>
+            <div class="details-body">
+              <pre id="chatOut">[]</pre>
+              <pre id="turnOut">{}</pre>
+              <pre id="longOut">{}</pre>
+            </div>
+          </details>
+
+          <details>
+            <summary>Turn / Longform Explicit Inputs</summary>
+            <div class="details-body">
+              <label for="turnMessage">Turn Message</label>
+              <textarea id="turnMessage" placeholder="Optional explicit turn message (defaults to prompt)."></textarea>
+              <div class="grid3">
+                <div>
+                  <label for="longSessionId">Longform Session ID</label>
+                  <input id="longSessionId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="longAgentId">Longform Agent ID</label>
+                  <input id="longAgentId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="longTo">Longform To</label>
+                  <input id="longTo" type="text" autocomplete="off" />
+                </div>
+              </div>
+              <div class="grid2">
+                <div>
+                  <label for="longThinking">Longform Thinking</label>
+                  <input id="longThinking" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="longTimeout">Longform Timeout (s)</label>
+                  <input id="longTimeout" type="number" min="15" max="1200" value="180" />
+                </div>
+              </div>
+              <label for="longDeliver">Longform Deliver</label>
+              <select id="longDeliver">
+                <option value="false" selected>false</option>
+                <option value="true">true</option>
+              </select>
+              <label for="longObjective">Longform Objective</label>
+              <textarea id="longObjective" placeholder="Optional explicit objective (defaults to prompt)."></textarea>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <aside class="stack" aria-label="Agent controls rail">
+        <section class="panel">
+          <header class="panel-head">
+            <h3>Runtime Readiness</h3>
+          </header>
+          <div class="panel-body">
+            <div id="bridgeWarning" class="notice" style="display:none;">
+              Runtime bridge unavailable. Run <code>npm run sync:bridge</code> for desktop-native runtime control.
+            </div>
+            <div id="updateBanner" class="notice" style="display:none; border-color: rgba(232, 116, 12, 0.55); color: #8f4508; background: rgba(232, 116, 12, 0.14);">
+              <strong>Update available.</strong>
+              <span id="updateVersion">Version update ready.</span>
+              <div class="row" style="margin-top: 8px;">
+                <button type="button" id="updateBtn">Install &amp; Restart</button>
+              </div>
+            </div>
+            <pre id="capabilitiesJson">{}</pre>
+            <pre id="agentStatusOut">{}</pre>
+            <pre id="runtimeLogs">No runtime logs yet.</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3>Execution Tree</h3>
+            <div class="row">
+              <button type="button" id="activityRebuildBtn" class="secondary">Rebuild</button>
+              <button type="button" id="activityClearBtn" class="secondary">Clear</button>
+            </div>
+          </header>
+          <div class="panel-body">
+            <div class="tree-wrap">
+              <ul id="activityTree" class="tree-root"></ul>
+            </div>
+            <pre id="activitySummaryOut">{}</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3>Digital Employees</h3>
+            <div class="row">
+              <button type="button" id="workforceRunQueueBtn">Run Queue</button>
+              <button type="button" id="workforceClearQueueBtn" class="secondary">Clear Queue</button>
+            </div>
+          </header>
+          <div class="panel-body">
+            <div class="grid2">
+              <div>
+                <label for="workforceEmployeeName">Employee Name</label>
+                <input id="workforceEmployeeName" type="text" autocomplete="off" placeholder="Avery" />
+              </div>
+              <div>
+                <label for="workforceEmployeeRole">Role</label>
+                <input id="workforceEmployeeRole" type="text" autocomplete="off" placeholder="Security analyst" />
+              </div>
+            </div>
+            <div class="grid2">
+              <div>
+                <label for="workforceEmployeeAgentId">Agent ID (optional)</label>
+                <input id="workforceEmployeeAgentId" type="text" autocomplete="off" placeholder="agent_research_01" />
+              </div>
+              <div>
+                <label for="workforceExecutionMode">Execution Mode</label>
+                <select id="workforceExecutionMode">
+                  <option value="auto" selected>auto (OpenClaw -> Chat)</option>
+                  <option value="openclaw">openclaw only</option>
+                  <option value="chat">chat fallback</option>
+                </select>
+              </div>
+            </div>
+            <div class="row stretch">
+              <button type="button" id="workforceAddEmployeeBtn" class="secondary">Add Employee</button>
+              <button type="button" id="workforceRemoveEmployeeBtn" class="warn">Remove Employee</button>
+            </div>
+            <label for="workforceEmployeeSelect">Employees</label>
+            <select id="workforceEmployeeSelect" size="5"></select>
+            <label for="workforceTaskInput">Assigned Task</label>
+            <textarea id="workforceTaskInput" placeholder="Example: Triage overnight alerts and draft a one-page summary for IT leadership."></textarea>
+            <div class="row stretch">
+              <button type="button" id="workforceAssignTaskBtn">Assign Task</button>
+              <button type="button" id="workforceRunTaskBtn" class="secondary">Run Selected Task</button>
+            </div>
+            <label for="workforceTaskSelect">Task Queue</label>
+            <select id="workforceTaskSelect" size="6"></select>
+            <pre id="workforceOut">{}</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3>Active Sessions</h3>
+            <button type="button" id="refreshSessionsBtn" class="secondary">Refresh</button>
+          </header>
+          <div class="panel-body">
+            <div class="grid2">
+              <div>
+                <label for="sessionsLimit">Limit</label>
+                <input id="sessionsLimit" type="number" min="1" max="100" value="20" />
+              </div>
+              <div>
+                <label for="sessionsCursor">Cursor</label>
+                <input id="sessionsCursor" type="text" autocomplete="off" />
+              </div>
+            </div>
+            <select id="sessionSelect" size="6"></select>
+            <div class="row stretch">
+              <button type="button" id="sessionLoadBtn" class="secondary">Load</button>
+              <button type="button" id="sessionCancelBtn" class="warn">Cancel</button>
+              <button type="button" id="sessionStreamBtn">Watch</button>
+            </div>
+            <pre id="sessionDetailOut">{}</pre>
+            <pre id="sessionEventsOut">[session stream]</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3>Artifacts</h3>
+          </header>
+          <div class="panel-body">
+            <label for="artifactRunId">Run ID</label>
+            <input id="artifactRunId" type="text" autocomplete="off" />
+            <button type="button" id="artifactLoadBtn" class="secondary">Load Artifacts</button>
+            <pre id="artifactOut">{}</pre>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header class="panel-head">
+            <h3>OpenClaw Command Center</h3>
+            <div class="row">
+              <button type="button" id="cliRefreshBtn" class="secondary">Tools</button>
+              <button type="button" id="cliCatalogBtn" class="secondary">Catalog</button>
+            </div>
+          </header>
+          <div class="panel-body">
+            <label for="cliToolSelect">Tool</label>
+            <select id="cliToolSelect"></select>
+            <div class="grid2">
+              <div>
+                <label for="cliProfile">Profile</label>
+                <input id="cliProfile" type="text" autocomplete="off" />
+              </div>
+              <div>
+                <label for="cliTimeout">Timeout (s)</label>
+                <input id="cliTimeout" type="number" min="5" max="300" value="60" />
+              </div>
+            </div>
+            <label for="cliArgs">Args</label>
+            <textarea id="cliArgs" placeholder='["--help"]'></textarea>
+            <div class="grid3">
+              <div>
+                <label for="cliDev">Dev</label>
+                <select id="cliDev">
+                  <option value="false" selected>false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+              <div>
+                <label for="cliNoColor">No Color</label>
+                <select id="cliNoColor">
+                  <option value="false" selected>false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+              <div>
+                <label for="cliJson">JSON</label>
+                <select id="cliJson">
+                  <option value="false" selected>false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+              <div>
+                <label for="cliParseJson">Parse JSON</label>
+                <select id="cliParseJson">
+                  <option value="false" selected>false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+              <div>
+                <label for="cliPlain">Plain</label>
+                <select id="cliPlain">
+                  <option value="false" selected>false</option>
+                  <option value="true">true</option>
+                </select>
+              </div>
+            </div>
+            <div class="row stretch">
+              <button type="button" id="cliHelpBtn" class="secondary">Help</button>
+              <button type="button" id="cliExecBtn">Exec</button>
+              <button type="button" id="cliGenericExecBtn" class="secondary">Generic Exec</button>
+            </div>
+            <pre id="cliOut">{}</pre>
+            <pre id="cliCatalogOut">{}</pre>
+          </div>
+        </section>
+      </aside>
     </section>
 
-    <section class="workspace" aria-label="Gateway Workspace">
-      <iframe id="gatewayFrame" title="Maple Gateway" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
-    </section>
+    <details>
+      <summary>Business + Platform Controls (Identity, Billing, HITL, Governance, Admin, API Lab)</summary>
+      <section class="advanced-wrap">
+        <div class="advanced-grid">
+          <section class="panel full">
+            <header class="panel-head">
+              <h3>Identity + SaaS</h3>
+            </header>
+            <div class="panel-body">
+              <div class="grid3">
+                <div>
+                  <label for="identityUsername">Username</label>
+                  <input id="identityUsername" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="identityEmail">Email</label>
+                  <input id="identityEmail" type="email" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="identityPassword">Password / Current</label>
+                  <input id="identityPassword" type="password" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="identityNewPassword">New Password</label>
+                  <input id="identityNewPassword" type="password" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="identityCredential">Google Credential</label>
+                  <input id="identityCredential" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="identityResetToken">Reset/Verify Token</label>
+                  <input id="identityResetToken" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="identityVerificationCode">Verification Code</label>
+                  <input id="identityVerificationCode" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="billingPlan">Billing Plan</label>
+                  <select id="billingPlan">
+                    <option value="free">free</option>
+                    <option value="pro">pro</option>
+                    <option value="team">team</option>
+                    <option value="enterprise">enterprise</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="billingInvoiceLimit">Invoice Limit</label>
+                  <input id="billingInvoiceLimit" type="number" min="1" max="100" value="20" />
+                </div>
+              </div>
+              <label for="billingReturnUrl">Return URL</label>
+              <input id="billingReturnUrl" type="text" autocomplete="off" placeholder="https://mayple.cloud/account" />
+              <div class="row stretch">
+                <button type="button" id="authLoginBtn">Login</button>
+                <button type="button" id="authRegisterBtn">Register</button>
+                <button type="button" id="authLogoutBtn" class="secondary">Logout</button>
+                <button type="button" id="authMeBtn" class="secondary">Auth Me</button>
+                <button type="button" id="authGoogleClientBtn" class="secondary">Google Client</button>
+                <button type="button" id="authGoogleSigninBtn">Google Sign-in</button>
+              </div>
+              <div class="row stretch">
+                <button type="button" id="authForgotBtn" class="secondary">Forgot Password</button>
+                <button type="button" id="authResetBtn">Reset Password</button>
+                <button type="button" id="authVerifyReqBtn" class="secondary">Verify Request</button>
+                <button type="button" id="authVerifyConfirmBtn">Verify Confirm</button>
+                <button type="button" id="authChangePasswordBtn">Change Password</button>
+              </div>
+              <div class="row stretch">
+                <button type="button" id="userProfileBtn" class="secondary">Profile</button>
+                <button type="button" id="billingSubscriptionBtn" class="secondary">Subscription</button>
+                <button type="button" id="billingCheckoutBtn">Checkout Session</button>
+                <button type="button" id="billingPortalBtn" class="secondary">Portal Session</button>
+                <button type="button" id="billingInvoicesBtn" class="secondary">Invoices</button>
+                <button type="button" id="billingCancelBtn" class="warn">Cancel</button>
+                <button type="button" id="billingResumeBtn">Resume</button>
+              </div>
+              <pre id="identityOut">{}</pre>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel-head">
+              <h3>HITL Approvals</h3>
+            </header>
+            <div class="panel-body">
+              <div class="grid2">
+                <div>
+                  <label for="hitlSessionId">Session ID</label>
+                  <input id="hitlSessionId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="hitlTraceId">Trace ID</label>
+                  <input id="hitlTraceId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="hitlStepIndex">Step Index</label>
+                  <input id="hitlStepIndex" type="number" min="0" value="0" />
+                </div>
+                <div>
+                  <label for="hitlAction">Decision</label>
+                  <select id="hitlAction">
+                    <option value="allow">allow</option>
+                    <option value="block">block</option>
+                  </select>
+                </div>
+              </div>
+              <label for="hitlReason">Reason</label>
+              <textarea id="hitlReason" placeholder="Approval decision reason"></textarea>
+              <div class="row stretch">
+                <button type="button" id="hitlListBtn" class="secondary">List</button>
+                <button type="button" id="hitlWatchBtn">Watch</button>
+                <button type="button" id="hitlStopWatchBtn" class="secondary">Stop</button>
+                <button type="button" id="hitlDecisionBtn">Submit</button>
+              </div>
+              <pre id="hitlOut">{}</pre>
+              <pre id="hitlStreamOut">[hitl stream]</pre>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel-head">
+              <h3>Ops + Governance</h3>
+            </header>
+            <div class="panel-body">
+              <div class="grid2">
+                <div>
+                  <label for="opsLimit">Limit</label>
+                  <input id="opsLimit" type="number" min="1" max="500" value="20" />
+                </div>
+                <div>
+                  <label for="opsCursor">Cursor/Offset</label>
+                  <input id="opsCursor" type="text" autocomplete="off" value="0" />
+                </div>
+                <div>
+                  <label for="opsQuery">Search</label>
+                  <input id="opsQuery" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="opsRunId">Run ID</label>
+                  <input id="opsRunId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="opsToolId">Tool ID</label>
+                  <input id="opsToolId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="opsExecutionId">Execution ID</label>
+                  <input id="opsExecutionId" type="text" autocomplete="off" />
+                </div>
+              </div>
+              <label for="opsTraceIds">Trace IDs (comma-separated)</label>
+              <input id="opsTraceIds" type="text" autocomplete="off" />
+              <label for="opsToolPolicy">Tool Policy JSON</label>
+              <textarea id="opsToolPolicy" placeholder='{"policyId":"desktop-policy","mode":"allowlist","rules":[]}'></textarea>
+              <div class="row stretch">
+                <button type="button" id="opsRuntimeDepsBtn" class="secondary">Runtime Deps</button>
+                <button type="button" id="opsRuntimeDiagBtn" class="secondary">Runtime Diag</button>
+                <button type="button" id="opsRuntimeLogsBtn" class="secondary">Runtime Logs</button>
+                <button type="button" id="opsTracesSearchBtn">Traces Search</button>
+                <button type="button" id="opsTracesExportBtn">Trace Export</button>
+                <button type="button" id="opsRunsListBtn">Runs</button>
+                <button type="button" id="opsRunDetailBtn" class="secondary">Run Detail</button>
+                <button type="button" id="opsRunTimelineBtn" class="secondary">Run Timeline</button>
+              </div>
+              <div class="row stretch">
+                <button type="button" id="opsToolsRegistryBtn" class="secondary">Tool Registry</button>
+                <button type="button" id="opsToolDetailBtn" class="secondary">Tool Detail</button>
+                <button type="button" id="opsToolsPoliciesBtn" class="secondary">Policies</button>
+                <button type="button" id="opsToolsValidateBtn">Validate Policy</button>
+                <button type="button" id="opsToolsExecutionsBtn" class="secondary">Executions</button>
+                <button type="button" id="opsExecutionDetailBtn" class="secondary">Execution Detail</button>
+              </div>
+              <pre id="opsOut">{}</pre>
+            </div>
+          </section>
+
+          <section class="panel full">
+            <header class="panel-head">
+              <h3>Admin Plane</h3>
+            </header>
+            <div class="panel-body">
+              <div class="grid3">
+                <div>
+                  <label for="adminVersionId">Policy Version ID</label>
+                  <input id="adminVersionId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="adminLimit">Limit</label>
+                  <input id="adminLimit" type="number" min="1" max="500" value="50" />
+                </div>
+                <div>
+                  <label for="adminCursor">Cursor</label>
+                  <input id="adminCursor" type="text" autocomplete="off" value="0" />
+                </div>
+                <div>
+                  <label for="adminTraceId">Trace ID</label>
+                  <input id="adminTraceId" type="text" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="adminStepIndex">Step Index</label>
+                  <input id="adminStepIndex" type="number" min="0" value="0" />
+                </div>
+                <div>
+                  <label for="adminDecision">Decision</label>
+                  <select id="adminDecision">
+                    <option value="allow">allow</option>
+                    <option value="block">block</option>
+                  </select>
+                </div>
+              </div>
+              <label for="adminReason">Reason</label>
+              <textarea id="adminReason" placeholder="Approval reason"></textarea>
+              <label for="adminPolicyJson">Policy JSON</label>
+              <textarea id="adminPolicyJson" placeholder='{"rules":[]}'></textarea>
+              <div class="row stretch">
+                <button type="button" id="adminPoliciesBtn" class="secondary">Policies</button>
+                <button type="button" id="adminPolicyVersionsBtn" class="secondary">Policy Versions</button>
+                <button type="button" id="adminPolicyActivateBtn">Activate Version</button>
+                <button type="button" id="adminPolicyValidateBtn">Validate</button>
+                <button type="button" id="adminPolicyReloadBtn" class="secondary">Reload</button>
+                <button type="button" id="adminAuditBtn" class="secondary">Audit</button>
+                <button type="button" id="adminAuditExportBtn" class="secondary">Audit Export</button>
+                <button type="button" id="adminAuditSchemasBtn" class="secondary">Schemas</button>
+                <button type="button" id="adminComplianceBtn" class="secondary">Compliance</button>
+                <button type="button" id="adminApprovalsBtn" class="secondary">Approvals</button>
+                <button type="button" id="adminWatchBtn">Watch</button>
+                <button type="button" id="adminStopWatchBtn" class="secondary">Stop Watch</button>
+                <button type="button" id="adminDecisionBtn">Submit Decision</button>
+              </div>
+              <div class="grid2">
+                <pre id="adminOut">{}</pre>
+                <pre id="adminStreamOut">[admin stream]</pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel-head">
+              <h3>API Lab</h3>
+            </header>
+            <div class="panel-body">
+              <label for="apiMethod">Method</label>
+              <select id="apiMethod">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+              </select>
+              <label for="apiPath">Path</label>
+              <input id="apiPath" type="text" value="/api/runtime/feature-capabilities" autocomplete="off" />
+              <label for="apiBody">JSON Body</label>
+              <textarea id="apiBody" placeholder="{}"></textarea>
+              <button type="button" id="apiSendBtn">Send Request</button>
+              <pre id="apiOut">{}</pre>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel-head">
+              <h3>Endpoint Catalog + Audit</h3>
+            </header>
+            <div class="panel-body">
+              <label for="endpointCategory">Category</label>
+              <select id="endpointCategory"></select>
+              <label for="endpointAction">Endpoint</label>
+              <select id="endpointAction"></select>
+              <div class="grid2">
+                <div>
+                  <label for="endpointPathParams">Path Params JSON</label>
+                  <textarea id="endpointPathParams" placeholder='{"orgId":"org_123"}'></textarea>
+                </div>
+                <div>
+                  <label for="endpointQueryJson">Query JSON</label>
+                  <textarea id="endpointQueryJson" placeholder='{"limit":20}'></textarea>
+                </div>
+              </div>
+              <label for="endpointBodyJson">Body JSON</label>
+              <textarea id="endpointBodyJson" placeholder='{"example":"payload"}'></textarea>
+              <div class="row stretch">
+                <button type="button" id="endpointLoadTemplateBtn" class="secondary">Load Template</button>
+                <button type="button" id="endpointRunBtn">Run Endpoint</button>
+                <button type="button" id="endpointStopStreamBtn" class="secondary">Stop Stream</button>
+                <button type="button" id="endpointToApiLabBtn" class="secondary">To API Lab</button>
+                <button type="button" id="endpointAuditBtn" class="secondary">Run Audit</button>
+              </div>
+              <pre id="endpointOut">{}</pre>
+              <pre id="endpointAuditOut">{}</pre>
+            </div>
+          </section>
+
+          <section class="panel">
+            <header class="panel-head">
+              <h3>Embedded Gateway</h3>
+            </header>
+            <div class="panel-body" style="min-height: 320px;">
+              <div class="workspace-frame">
+                <iframe id="gatewayFrame" title="Maple Gateway" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </details>
   </main>
 
   <script src="./desktop-ui.js"></script>
