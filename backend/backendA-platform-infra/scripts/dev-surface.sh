@@ -12,20 +12,25 @@ fi
 
 case "${SURFACE}" in
   frontendA)
-    echo "Starting dev for Frontend A (IT / Console)"
-    echo "Source: frontend/frontendA-it-console"
+    echo "Starting template runtime for Frontend A (IT / Console) on :4101"
+    cd "${ROOT_DIR}"
+    exec npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101
     ;;
   frontendB)
-    echo "Starting dev for Frontend B (Desktop App UI shell)"
-    echo "Source: frontend/frontendB-desktop-app"
+    echo "Starting template runtime for Frontend B (Desktop App) on :4102"
+    cd "${ROOT_DIR}"
+    exec npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102
     ;;
   frontendC)
-    echo "Starting dev for Frontend C (Marketing / Download Site)"
-    echo "Source: frontend/frontendC-marketing-download-site"
+    echo "Starting template runtime for Frontend C (Marketing / Download Site) on :4103"
+    cd "${ROOT_DIR}"
+    exec npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103
     ;;
   frontendD)
     echo "Starting dev for Frontend D (MCP Widgets)"
     echo "Source: frontend/frontendD-mcp-widgets"
+    cd "${ROOT_DIR}"
+    exec npm run dev
     ;;
   *)
     echo "Unknown surface: ${SURFACE}"
@@ -33,7 +38,3 @@ case "${SURFACE}" in
     exit 1
     ;;
 esac
-
-cd "${ROOT_DIR}"
-export MAPLE_ACTIVE_SURFACE="${SURFACE}"
-exec npm run dev

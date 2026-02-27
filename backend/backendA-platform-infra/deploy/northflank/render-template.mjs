@@ -240,6 +240,21 @@ function staticSurfaceCommand({ root, index }) {
   ].join(" ");
 }
 
+function nextSurfaceCommand(templatePrefix) {
+  return [
+    "npm",
+    "--prefix",
+    templatePrefix,
+    "run",
+    "dev",
+    "--",
+    "--hostname",
+    "0.0.0.0",
+    "--port",
+    "8080",
+  ].join(" ");
+}
+
 const template = {
   apiVersion: "v1.2",
   arguments: argumentsDefaults,
@@ -415,28 +430,19 @@ const template = {
         }),
         deploymentFromInternal({
           name: "frontend-a-it-console",
-          command: staticSurfaceCommand({
-            root: "/app/frontend/frontendA-it-console/public",
-            index: "judges.html",
-          }),
+          command: nextSurfaceCommand("frontend/frontendA-it-console/template-runtime"),
           ports: [{ number: 8080, protocol: "HTTP" }],
           publicPortNames: [8080]
         }),
         deploymentFromInternal({
           name: "frontend-b-desktop-app",
-          command: staticSurfaceCommand({
-            root: "/app/frontend/frontendB-desktop-app/app",
-            index: "index.html",
-          }),
+          command: nextSurfaceCommand("frontend/frontendB-desktop-app/template-runtime"),
           ports: [{ number: 8080, protocol: "HTTP" }],
           publicPortNames: [8080]
         }),
         deploymentFromInternal({
           name: "frontend-c-marketing-site",
-          command: staticSurfaceCommand({
-            root: "/app/frontend/frontendC-marketing-download-site/public",
-            index: "landing.html",
-          }),
+          command: nextSurfaceCommand("frontend/frontendC-marketing-download-site/template-runtime"),
           ports: [{ number: 8080, protocol: "HTTP" }],
           publicPortNames: [8080]
         }),

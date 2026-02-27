@@ -6,64 +6,31 @@ import test from "node:test";
 const REPO_ROOT = process.cwd();
 
 const FRONTEND_SURFACES = {
-  frontendA: resolve(
-    REPO_ROOT,
-    "frontend/frontendA-it-console/public/judges.js"
-  ),
-  frontendB: resolve(
-    REPO_ROOT,
-    "frontend/frontendB-desktop-app/app/desktop-ui.js"
-  ),
-  frontendC: resolve(
-    REPO_ROOT,
-    "frontend/frontendC-marketing-download-site/public/landing.js"
-  ),
-  frontendD: resolve(
-    REPO_ROOT,
-    "frontend/frontendD-mcp-widgets/resources/index.html"
-  ),
+  frontendA: [resolve(REPO_ROOT, "frontend/frontendA-it-console/template-runtime/src")],
+  frontendB: [resolve(REPO_ROOT, "frontend/frontendB-desktop-app/template-runtime/src")],
+  frontendC: [
+    resolve(REPO_ROOT, "frontend/frontendC-marketing-download-site/template-runtime/src"),
+    resolve(REPO_ROOT, "frontend/frontendC-marketing-download-site/template-runtime/next.config.js"),
+  ],
+  frontendD: [resolve(REPO_ROOT, "frontend/frontendD-mcp-widgets/resources/index.html")],
 };
 
 const REQUIRED_SURFACE_ENDPOINTS = {
   frontendA: [
     "/api/runtime/feature-capabilities",
-    "/api/openclaw/agent/status",
-    "/api/openclaw/agent/turn",
-    "/api/openclaw/agent/longform",
-    "/api/hitl/approvals",
-    "/api/billing/subscription",
-    "/api/org",
-    "/api/runtime/logs",
-    "/api/traces",
-    "/api/tools/registry",
+    "/api/openclaw/agent/*",
+    "/api/firewall/decision",
+    "/admin/api/policies",
+    "/admin/api/audit/events",
   ],
   frontendB: [
     "/api/runtime/feature-capabilities",
-    "/api/auth/login",
-    "/api/integrations",
-    "/api/integrations/:provider/connect",
-    "/api/openclaw/agent/turn",
-    "/api/hitl/approvals",
-    "/api/billing/create-checkout-session",
+    "/api/firewall/status",
+    "/api/hitl/list",
   ],
   frontendC: [
-    "/api/runtime/feature-capabilities",
-    "/api/auth/me",
-    "/api/auth/login",
-    "/api/auth/google",
-    "/api/integrations/catalog",
-    "/api/integrations",
-    "/api/integrations/:provider/connect",
-    "/api/integrations/:provider/disconnect",
-    "/api/integrations/:provider/oauth/start",
-    "/api/openclaw/agent/status",
-    "/api/openclaw/agent/turn",
-    "/api/openclaw/agent/longform",
-    "/api/hitl/approvals",
-    "/api/hitl/approvals/decision",
-    "/api/billing/subscription",
-    "/api/billing/create-checkout-session",
-    "/api/billing/portal-session",
+    "/api/:path*",
+    "/admin/api/:path*",
   ],
   frontendD: ["/api/runtime/feature-capabilities"],
 };
@@ -85,17 +52,17 @@ const JOURNEY_ENDPOINTS = [
   "GET /api/runtime/feature-capabilities",
 ];
 
-function collectJsFiles(dir) {
+function collectTextFiles(dir) {
   const entries = readdirSync(dir);
   const files = [];
   for (const entry of entries) {
     const fullPath = resolve(dir, entry);
     const info = statSync(fullPath);
     if (info.isDirectory()) {
-      files.push(...collectJsFiles(fullPath));
+      files.push(...collectTextFiles(fullPath));
       continue;
     }
-    if (entry.endsWith(".js")) {
+    if (/\.(js|jsx|ts|tsx|mdx|html)$/.test(entry)) {
       files.push(fullPath);
     }
   }
@@ -103,7 +70,7 @@ function collectJsFiles(dir) {
 }
 
 function extractApiPaths(content) {
-  const matches = content.match(/\/api\/[A-Za-z0-9_:/-]+/g) ?? [];
+  const matches = content.match(/\/(?:admin\/api|api)\/[A-Za-z0-9_*:/-]+/g) ?? [];
   return new Set(matches);
 }
 
@@ -112,35 +79,39 @@ function escapeRegex(value) {
 }
 
 function endpointRegex(method, pathTemplate) {
-  const escaped = escapeRegex(pathTemplate).replace(
-    /:([A-Za-z0-9_]+)/g,
-    '[^"\'`/]+'
-  );
-  return new RegExp(
-    `[A-Za-z_][A-Za-z0-9_\\.]*\\.${method}\\(\\s*["'\`]${escaped}`,
-    "m"
-  );
+  const escaped = escapeRegex(pathTemplate).replace(/:([A-Za-z0-9_]+)/g, '[^"\'`/]+');
+  return new RegExp(`[A-Za-z_][A-Za-z0-9_\\.]*\\.${method}\\(\\s*["'\`]${escaped}`, "m");
 }
 
-test("frontend endpoint map covers all required user journeys", () => {
-  for (const [surface, filePath] of Object.entries(FRONTEND_SURFACES)) {
-    const content = readFileSync(filePath, "utf8");
-    const endpoints = extractApiPaths(content);
+test("frontend template surfaces include required API endpoint references", () => {
+  for (const [surface, sourcePath] of Object.entries(FRONTEND_SURFACES)) {
+    let combinedSource = "";
+    for (const entry of sourcePath) {
+      if (statSync(entry).isDirectory()) {
+        combinedSource +=
+          collectTextFiles(entry)
+            .map((filePath) => readFileSync(filePath, "utf8"))
+            .join("\n") + "\n";
+      } else {
+        combinedSource += `${readFileSync(entry, "utf8")}\n`;
+      }
+    }
+    const endpoints = extractApiPaths(combinedSource);
     for (const endpoint of REQUIRED_SURFACE_ENDPOINTS[surface]) {
       assert.equal(
         endpoints.has(endpoint),
         true,
-        `Missing frontend wiring: ${surface} -> ${endpoint}`
+        `Missing template-runtime wiring: ${surface} -> ${endpoint}`
       );
     }
   }
 });
 
-test("required frontend journeys resolve to real gateway/business API handlers", () => {
-  const gatewayRouteFiles = collectJsFiles(
+test("required user journeys resolve to real gateway/business API handlers", () => {
+  const gatewayRouteFiles = collectTextFiles(
     resolve(REPO_ROOT, "backend/backendB-core-services/gateway-api/service/src/routes")
   );
-  const businessRouteFiles = collectJsFiles(
+  const businessRouteFiles = collectTextFiles(
     resolve(REPO_ROOT, "backend/backendC-saas-services/business-api/service/src/routes")
   );
   const sources = [...gatewayRouteFiles, ...businessRouteFiles].map((path) =>

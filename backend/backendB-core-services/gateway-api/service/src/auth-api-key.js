@@ -35,7 +35,7 @@ export async function requireApiKeyResponse(c, database, options = {}) {
     const unauthorizedBody = (reason) => ({
         ...apiErrorPayload("UNAUTHORIZED", "Unauthorized"),
         reason,
-        hint: "Provide x-api-key / Authorization bearer token or sign in via /landing.",
+        hint: "Provide x-api-key / Authorization bearer token or sign in via /login.",
     });
     const apiKeyResult = verifyIncomingApiKey(xApiKey, authorization);
     const apiKeyProvided = isApiKeyPresent(xApiKey, authorization);

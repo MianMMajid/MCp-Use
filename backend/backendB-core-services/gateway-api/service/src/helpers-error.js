@@ -16,7 +16,7 @@ export function unauthorizedBody(reason) {
     return {
         error: "Unauthorized",
         reason,
-        hint: "Provide x-api-key / Authorization bearer token or sign in via /landing.",
+        hint: "Provide x-api-key / Authorization bearer token or sign in via /login.",
     };
 }
 //# sourceMappingURL=helpers-error.js.map

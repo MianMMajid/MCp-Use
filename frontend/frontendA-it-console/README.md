@@ -2,13 +2,10 @@
 
 Owner: Frontend engineer.
 
-Current implementation references:
-- `public/judges.html`
-- `public/judges.js`
-- `public/judges.css`
-- `public/judges-auth.js`
-- `public/judges-http.js`
+Canonical implementation:
+- `template-runtime/` (Protocol template runtime)
+- `template-runtime/src/app/` for route ownership
+- `template-runtime/src/components/` for shared UI blocks
 
-Scaffold folders:
-- `app/`
-- `shared-ui/`
+Run locally:
+- `npm run dev:frontendA`

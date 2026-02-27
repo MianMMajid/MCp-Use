@@ -204,7 +204,6 @@ async function proxyRequest(req, res, sourceUrl, config) {
 const config = parseArgs(process.argv);
 const root = config.root;
 const indexFile = config.index;
-
 if (!existsSync(root)) {
   console.error(`Static root does not exist: ${root}`);
   process.exit(1);

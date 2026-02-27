@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const localPort = Number(process.env.PLAYWRIGHT_TEST_PORT ?? 4173);
+const localPort = Number(process.env.PLAYWRIGHT_TEST_PORT ?? 4103);
 const localBaseURL = `http://127.0.0.1:${localPort}`;
 const externalBaseURL = process.env.FRONTEND_BASE_URL;
 const baseURL = externalBaseURL ?? localBaseURL;
@@ -15,10 +15,10 @@ export default defineConfig({
   webServer: externalBaseURL
     ? undefined
     : {
-        command: "node e2e/test-server.mjs",
-        url: `${localBaseURL}/health`,
+        command: `npm --prefix ../../frontend/frontendC-marketing-download-site/template-runtime run dev -- --port ${localPort}`,
+        url: `${localBaseURL}/login`,
         reuseExistingServer: !process.env.CI,
-        timeout: 30_000,
+        timeout: 120_000,
       },
   use: {
     baseURL,

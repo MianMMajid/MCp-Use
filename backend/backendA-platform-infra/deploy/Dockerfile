@@ -16,6 +16,7 @@ RUN npm ci
 COPY . .
 RUN npm run sync:runtime-assets
 RUN npm run build
+RUN npm run build:frontendA && npm run build:frontendB && npm run build:frontendC
 
 ## ---- Production stage ----
 FROM node:22-slim

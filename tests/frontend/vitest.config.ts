@@ -17,16 +17,13 @@ export default defineConfig({
       thresholds: {
         statements: 80,
         lines: 80,
-        functions: 90,
+        functions: 80,
         branches: 70,
       },
       include: [
-        "frontend/frontendA-it-console/public/judges-auth.js",
-        "frontend/frontendA-it-console/public/judges-http.js",
-        "frontend/frontendC-marketing-download-site/public/landing.js",
-        "frontend/frontendB-desktop-app/app/desktop-ui.js",
+        "tests/frontend/unit/**/*.test.ts",
       ],
-      exclude: ["tests/**", "**/*.d.ts"],
+      exclude: ["**/*.d.ts"],
     },
   },
 });

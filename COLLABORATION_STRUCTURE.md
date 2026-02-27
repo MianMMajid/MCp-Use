@@ -35,8 +35,9 @@ Do not move active runtime files in one step. Migrate incrementally by feature:
 ## Runtime Sync
 
 Frontend assets are sourced from shell folders and synced into backend runtime paths:
-- Canonical source: `frontend/frontendA-it-console/public`
-- Canonical source: `frontend/frontendC-marketing-download-site/public`
+- Canonical source: `frontend/frontendA-it-console/template-runtime`
+- Canonical source: `frontend/frontendB-desktop-app/template-runtime`
+- Canonical source: `frontend/frontendC-marketing-download-site/template-runtime`
 - Canonical source: `frontend/frontendD-mcp-widgets/resources`
 - Runtime sync target: `backend/backendA-platform-infra/runtime-assets/public` and `backend/backendA-platform-infra/runtime-assets/resources`
 

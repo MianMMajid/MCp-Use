@@ -6,7 +6,7 @@ Purpose:
 - Desktop UI and native packaging surface for `.exe/.dmg` distributions.
 
 Folders:
-- `app/`
+- `template-runtime/` (Catalyst template runtime, canonical UI source)
 - `installers/`
 - `electron/`
 - `scripts/`
@@ -26,6 +26,7 @@ Run native desktop app:
 ```bash
 npm run desktop:dev
 ```
+This launches the template runtime UI and Electron together.
 
 Build installers:
 ```bash

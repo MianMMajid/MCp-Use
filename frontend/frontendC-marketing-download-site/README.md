@@ -5,14 +5,10 @@ Owner: Frontend engineer.
 Purpose:
 - Public marketing pages, docs-facing landing content, and download/install flows.
 
-Current implementation references:
-- `public/landing.html`
-- `public/landing.js`
-- `public/landing.css`
-- `public/logo.png`
-- `public/icon.svg`
-- `public/favicon.ico`
+Canonical implementation:
+- `template-runtime/` (Salient template runtime)
+- `template-runtime/src/app/` for landing/auth routes
+- `template-runtime/src/components/` for marketing sections
 
-Scaffold folders:
-- `site/`
-- `assets/`
+Run locally:
+- `npm run dev:frontendC`

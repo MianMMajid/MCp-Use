@@ -601,7 +601,7 @@
               },
               "docker": {
                 "configType": "customCommand",
-                "customCommand": "node backend/backendA-platform-infra/scripts/static-server.mjs --root /app/frontend/frontendA-it-console/public --port 8080 --index judges.html --proxy-target https://gateway-api:8443 --proxy-prefix /api --proxy-prefix /sse --proxy-prefix /mcp --proxy-prefix /admin/api --proxy-insecure"
+                "customCommand": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --hostname 0.0.0.0 --port 8080"
               }
             },
             "ports": [
@@ -631,7 +631,7 @@
               },
               "docker": {
                 "configType": "customCommand",
-                "customCommand": "node backend/backendA-platform-infra/scripts/static-server.mjs --root /app/frontend/frontendB-desktop-app/app --port 8080 --index index.html --proxy-target https://gateway-api:8443 --proxy-prefix /api --proxy-prefix /sse --proxy-prefix /mcp --proxy-prefix /admin/api --proxy-insecure"
+                "customCommand": "npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --hostname 0.0.0.0 --port 8080"
               }
             },
             "ports": [
@@ -661,7 +661,7 @@
               },
               "docker": {
                 "configType": "customCommand",
-                "customCommand": "node backend/backendA-platform-infra/scripts/static-server.mjs --root /app/frontend/frontendC-marketing-download-site/public --port 8080 --index landing.html --proxy-target https://gateway-api:8443 --proxy-prefix /api --proxy-prefix /sse --proxy-prefix /mcp --proxy-prefix /admin/api --proxy-insecure"
+                "customCommand": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --hostname 0.0.0.0 --port 8080"
               }
             },
             "ports": [

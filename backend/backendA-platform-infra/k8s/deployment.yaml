@@ -946,41 +946,33 @@ spec:
           imagePullPolicy: IfNotPresent
           command:
             [
-              "node",
-              "backend/backendA-platform-infra/scripts/static-server.mjs",
-              "--root",
-              "/app/frontend/frontendA-it-console/public",
+              "npm",
+              "--prefix",
+              "frontend/frontendA-it-console/template-runtime",
+              "run",
+              "start",
+              "--",
+              "--hostname",
+              "0.0.0.0",
               "--port",
-              "8080",
-              "--index",
-              "judges.html",
-              "--proxy-target",
-              "https://gateway-api.maple.svc.cluster.local:3000",
-              "--proxy-prefix",
-              "/api",
-              "--proxy-prefix",
-              "/sse",
-              "--proxy-prefix",
-              "/mcp",
-              "--proxy-prefix",
-              "/admin/api",
-              "--proxy-insecure"
+              "8080"
             ]
           ports:
             - name: http
               containerPort: 8080
           readinessProbe:
             httpGet:
-              path: /health
+              path: /
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 20
+            timeoutSeconds: 5
             periodSeconds: 10
           resources:
             requests:
               cpu: 25m
-              memory: 64Mi
-            limits:
               memory: 256Mi
+            limits:
+              memory: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -1009,41 +1001,33 @@ spec:
           imagePullPolicy: IfNotPresent
           command:
             [
-              "node",
-              "backend/backendA-platform-infra/scripts/static-server.mjs",
-              "--root",
-              "/app/frontend/frontendB-desktop-app/app",
+              "npm",
+              "--prefix",
+              "frontend/frontendB-desktop-app/template-runtime",
+              "run",
+              "start",
+              "--",
+              "--hostname",
+              "0.0.0.0",
               "--port",
-              "8080",
-              "--index",
-              "index.html",
-              "--proxy-target",
-              "https://gateway-api.maple.svc.cluster.local:3000",
-              "--proxy-prefix",
-              "/api",
-              "--proxy-prefix",
-              "/sse",
-              "--proxy-prefix",
-              "/mcp",
-              "--proxy-prefix",
-              "/admin/api",
-              "--proxy-insecure"
+              "8080"
             ]
           ports:
             - name: http
               containerPort: 8080
           readinessProbe:
             httpGet:
-              path: /health
+              path: /
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 20
+            timeoutSeconds: 5
             periodSeconds: 10
           resources:
             requests:
               cpu: 25m
-              memory: 64Mi
-            limits:
               memory: 256Mi
+            limits:
+              memory: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -1072,41 +1056,33 @@ spec:
           imagePullPolicy: IfNotPresent
           command:
             [
-              "node",
-              "backend/backendA-platform-infra/scripts/static-server.mjs",
-              "--root",
-              "/app/frontend/frontendC-marketing-download-site/public",
+              "npm",
+              "--prefix",
+              "frontend/frontendC-marketing-download-site/template-runtime",
+              "run",
+              "start",
+              "--",
+              "--hostname",
+              "0.0.0.0",
               "--port",
-              "8080",
-              "--index",
-              "landing.html",
-              "--proxy-target",
-              "https://gateway-api.maple.svc.cluster.local:3000",
-              "--proxy-prefix",
-              "/api",
-              "--proxy-prefix",
-              "/sse",
-              "--proxy-prefix",
-              "/mcp",
-              "--proxy-prefix",
-              "/admin/api",
-              "--proxy-insecure"
+              "8080"
             ]
           ports:
             - name: http
               containerPort: 8080
           readinessProbe:
             httpGet:
-              path: /health
+              path: /
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 20
+            timeoutSeconds: 5
             periodSeconds: 10
           resources:
             requests:
               cpu: 25m
-              memory: 64Mi
-            limits:
               memory: 256Mi
+            limits:
+              memory: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment

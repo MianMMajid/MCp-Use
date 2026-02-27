@@ -31,6 +31,7 @@ let tray = null;
 let trayPollTimer = null;
 
 const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
+const defaultDesktopUiUrl = process.env.MAPLE_DESKTOP_UI_URL ?? "http://127.0.0.1:4102";
 const runtimeController = createRuntimeController();
 const secureStoreFilename = "maple-desktop-secure-store.json";
 
@@ -109,7 +110,11 @@ function createMainWindow() {
     },
   });
 
-  window.loadFile(path.join(__dirname, "..", "app", "index.html"));
+  if (/^https?:\/\//i.test(defaultDesktopUiUrl)) {
+    window.loadURL(defaultDesktopUiUrl);
+  } else {
+    window.loadFile(path.join(__dirname, "..", "app", "index.html"));
+  }
 
   window.webContents.on("will-navigate", (event, url) => { if (!url.startsWith("file://")) event.preventDefault(); });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

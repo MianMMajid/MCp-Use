@@ -103,8 +103,8 @@ export function registerBillingRoutes(app, options) {
       customer: customerId,
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${billingBaseUrl()}/judge?billing=success`,
-      cancel_url: `${billingBaseUrl()}/judge?billing=cancel`,
+      success_url: `${billingBaseUrl()}/?billing=success`,
+      cancel_url: `${billingBaseUrl()}/?billing=cancel`,
       metadata: { mapleUserId: session.user.id, maplePlan: plan },
     });
     return c.json({ ok: true, url: checkoutSession.url });
@@ -127,7 +127,7 @@ export function registerBillingRoutes(app, options) {
 
     const portalSession = await stripeClient.billingPortal.sessions.create({
       customer: sub.stripeCustomerId,
-      return_url: `${billingBaseUrl()}/judge`,
+      return_url: `${billingBaseUrl()}/`,
     });
     return c.json({ ok: true, url: portalSession.url });
   });

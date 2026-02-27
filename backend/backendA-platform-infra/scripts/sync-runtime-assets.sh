@@ -9,8 +9,8 @@ PUBLIC_DST="${RUNTIME_ASSETS_DIR}/public"
 RESOURCES_DST="${RUNTIME_ASSETS_DIR}/resources"
 PROTO_GENERATOR="${ROOT_DIR}/backend/backendA-platform-infra/scripts/generate-contract-protos.mjs"
 
-FRONTEND_A_PUBLIC="${ROOT_DIR}/frontend/frontendA-it-console/public"
-FRONTEND_C_PUBLIC="${ROOT_DIR}/frontend/frontendC-marketing-download-site/public"
+FRONTEND_A_TEMPLATE_PUBLIC="${ROOT_DIR}/frontend/frontendA-it-console/template-runtime/public"
+FRONTEND_C_TEMPLATE_PUBLIC="${ROOT_DIR}/frontend/frontendC-marketing-download-site/template-runtime/public"
 FRONTEND_D_RESOURCES="${ROOT_DIR}/frontend/frontendD-mcp-widgets/resources"
 
 copy_tree() {
@@ -25,8 +25,8 @@ copy_tree() {
 rm -rf "${PUBLIC_DST}" "${RESOURCES_DST}"
 mkdir -p "${PUBLIC_DST}" "${RESOURCES_DST}"
 
-copy_tree "${FRONTEND_A_PUBLIC}" "${PUBLIC_DST}"
-copy_tree "${FRONTEND_C_PUBLIC}" "${PUBLIC_DST}"
+copy_tree "${FRONTEND_A_TEMPLATE_PUBLIC}" "${PUBLIC_DST}"
+copy_tree "${FRONTEND_C_TEMPLATE_PUBLIC}" "${PUBLIC_DST}"
 copy_tree "${FRONTEND_D_RESOURCES}" "${RESOURCES_DST}"
 
 touch "${PUBLIC_DST}/.gitkeep" "${RESOURCES_DST}/.gitkeep"
@@ -36,6 +36,6 @@ if [ -f "${PROTO_GENERATOR}" ]; then
 fi
 
 echo "Synced frontend shells to runtime asset bundle:"
-echo "  ${PUBLIC_DST}    <- frontendA + frontendC public assets"
+echo "  ${PUBLIC_DST}    <- frontendA/frontendC template public assets"
 echo "  ${RESOURCES_DST} <- frontendD widget resources"
 echo "  backend/proto + backend/backendB-core-services/*/proto <- generated from maple-proto-ts stubs"

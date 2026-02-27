@@ -3,8 +3,12 @@ import { afterEach, vi } from "vitest";
 
 afterEach(() => {
   document.body.innerHTML = "";
-  sessionStorage.clear();
-  localStorage.clear();
+  if (typeof sessionStorage?.clear === "function") {
+    sessionStorage.clear();
+  }
+  if (typeof localStorage?.clear === "function") {
+    localStorage.clear();
+  }
   Reflect.deleteProperty(window, "MapleAuth");
   Reflect.deleteProperty(window, "MapleHttp");
   Reflect.deleteProperty(window, "mapleDesktop");

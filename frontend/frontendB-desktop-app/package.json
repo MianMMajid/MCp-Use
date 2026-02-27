@@ -8,8 +8,10 @@
   "scripts": {
     "sync:bridge": "node scripts/sync-bridge.mjs",
     "predev": "npm run sync:bridge",
-    "dev": "electron ./electron/main.cjs",
+    "dev:web": "npm --prefix ./template-runtime run dev -- --port 4102",
+    "dev": "bash ./scripts/dev-with-template.sh",
     "predist": "npm run sync:bridge",
+    "build:web": "npm --prefix ./template-runtime run build",
     "dist": "electron-builder --config electron-builder.yml",
     "dist:mac": "electron-builder --config electron-builder.yml --mac dmg",
     "dist:win": "electron-builder --config electron-builder.yml --win nsis",

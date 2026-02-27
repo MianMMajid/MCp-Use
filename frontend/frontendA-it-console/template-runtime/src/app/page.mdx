@@ -1,0 +1,51 @@
+import { HeroPattern } from '@/components/HeroPattern'
+
+export const metadata = {
+  title: 'Operations Overview',
+  description:
+    'Operate Mayple policy, HITL approvals, audit, and backend runtime from a single IT console.',
+}
+
+export const sections = [
+  { title: 'Control Plane', id: 'control-plane' },
+  { title: 'Workflow', id: 'workflow' },
+  { title: 'Live Endpoints', id: 'live-endpoints' },
+]
+
+<HeroPattern />
+
+# Mayple IT Console
+
+This template-native console is the operations surface for firewall policy, HITL approvals, and runtime dependency status. {{ className: 'lead' }}
+
+<div className="not-prose mt-6 mb-16 flex gap-3">
+  <Button href="/maple/policies" arrow="right">
+    <>Open Policy Center</>
+  </Button>
+  <Button href="/maple/hitl" variant="outline">
+    <>Review HITL Queue</>
+  </Button>
+</div>
+
+## Control Plane
+
+The console is wired to your gateway and admin APIs through Next.js rewrites (`/api/*` and `/admin/api/*`). Use this surface to verify policy authority, auth posture, and runtime dependencies before team rollout.
+
+## Workflow
+
+1. Check runtime prerequisites in `/maple/runtime`.
+2. Validate policy decisions and queues in `/maple/policies` and `/maple/hitl`.
+3. Review traces and audit payload shape in `/maple/audit`.
+
+## Live Endpoints
+
+- `GET /api/runtime/feature-capabilities`
+- `GET /api/firewall/status`
+- `GET /admin/api/policies`
+- `GET /api/hitl/list`
+
+<div className="not-prose">
+  <Button href="/maple/gateway" variant="text" arrow="right">
+    <>Inspect Gateway APIs</>
+  </Button>
+</div>
