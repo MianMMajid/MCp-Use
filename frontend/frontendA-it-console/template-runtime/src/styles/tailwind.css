@@ -33,6 +33,8 @@
   --text-9xl: 8rem;
   --text-9xl--line-height: 1;
 
+  --font-sans: var(--font-inter);
+
   --shadow-glow: 0 0 4px rgb(0 0 0 / 0.1);
 
   --container-lg: 33rem;
@@ -44,17 +46,22 @@
 @layer base {
   :root {
     --shiki-color-text: var(--color-white);
-    --shiki-token-constant: var(--color-emerald-300);
-    --shiki-token-string: var(--color-emerald-300);
+    --shiki-token-constant: var(--color-orange-300);
+    --shiki-token-string: var(--color-orange-300);
     --shiki-token-comment: var(--color-zinc-500);
     --shiki-token-keyword: var(--color-sky-300);
     --shiki-token-parameter: var(--color-pink-300);
     --shiki-token-function: var(--color-violet-300);
-    --shiki-token-string-expression: var(--color-emerald-300);
+    --shiki-token-string-expression: var(--color-orange-300);
     --shiki-token-punctuation: var(--color-zinc-200);
   }
 
   [inert] ::-webkit-scrollbar {
     display: none;
+  }
+
+  ::selection {
+    background-color: var(--color-orange-200);
+    color: var(--color-zinc-900);
   }
 }

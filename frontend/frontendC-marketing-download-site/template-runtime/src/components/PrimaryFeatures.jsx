@@ -61,10 +61,10 @@ export function PrimaryFeatures() {
     <section
       id="features"
       aria-label="Features for operating agentic teams"
-      className="relative overflow-hidden bg-blue-600 pt-20 pb-28 sm:py-32"
+      className="relative overflow-hidden bg-orange-600 pt-20 pb-28 sm:py-32"
     >
       <Image
-        className="absolute top-1/2 left-1/2 max-w-none translate-x-[-44%] translate-y-[-42%]"
+        className="absolute top-1/2 left-1/2 max-w-none tranzinc-x-[-44%] tranzinc-y-[-42%]"
         src={backgroundImage}
         alt=""
         width={2245}
@@ -76,7 +76,7 @@ export function PrimaryFeatures() {
           <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">
             Everything you need to run agent workers safely.
           </h2>
-          <p className="mt-6 text-lg tracking-tight text-blue-100">
+          <p className="mt-6 text-lg tracking-tight text-orange-100">
             Deploy autonomous task execution without giving up control,
             approval gates, or auditability.
           </p>
@@ -104,8 +104,8 @@ export function PrimaryFeatures() {
                           className={clsx(
                             'font-display text-lg data-selected:not-data-focus:outline-hidden',
                             selectedIndex === featureIndex
-                              ? 'text-blue-600 lg:text-white'
-                              : 'text-blue-100 hover:text-white lg:text-white',
+                              ? 'text-orange-600 lg:text-white'
+                              : 'text-orange-100 hover:text-white lg:text-white',
                           )}
                         >
                           <span className="absolute inset-0 rounded-full lg:rounded-l-xl lg:rounded-r-none" />
@@ -117,7 +117,7 @@ export function PrimaryFeatures() {
                           'mt-2 hidden text-sm lg:block',
                           selectedIndex === featureIndex
                             ? 'text-white'
-                            : 'text-blue-100 group-hover:text-white',
+                            : 'text-orange-100 group-hover:text-white',
                         )}
                       >
                         {feature.description}
@@ -135,7 +135,7 @@ export function PrimaryFeatures() {
                         {feature.description}
                       </p>
                     </div>
-                    <div className="mt-10 w-180 overflow-hidden rounded-xl bg-slate-50 shadow-xl shadow-blue-900/20 sm:w-auto lg:mt-0 lg:w-271.25">
+                    <div className="mt-10 w-180 overflow-hidden rounded-xl bg-zinc-50 shadow-xl shadow-orange-900/20 sm:w-auto lg:mt-0 lg:w-271.25">
                       <Image
                         className="w-full"
                         src={feature.image}

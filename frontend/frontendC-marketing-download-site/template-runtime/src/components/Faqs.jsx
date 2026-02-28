@@ -6,53 +6,53 @@ import backgroundImage from '@/images/background-faqs.jpg'
 const faqs = [
   [
     {
-      question: 'Does TaxPal handle VAT?',
+      question: 'What is Maple?',
       answer:
-        'Well no, but if you move your company offshore you can probably ignore it.',
+        'Maple is an agent governance platform that provides policy controls, human-in-the-loop approvals, and trace auditing for AI agents. It works as a transparent proxy between your agents and the tools they use.',
     },
     {
-      question: 'Can I pay for my subscription via purchase order?',
-      answer: 'Absolutely, we are happy to take your money in all forms.',
+      question: 'How does HITL approval work?',
+      answer:
+        'When an agent action matches a policy rule requiring approval, the agent pauses execution. A human reviewer sees the full context and can approve or deny the action. The agent then resumes or aborts based on the decision.',
     },
     {
-      question: 'How do I apply for a job at TaxPal?',
+      question: 'What agents does Maple support?',
       answer:
-        'We only hire our customers, so subscribe for a minimum of 6 months and then let’s talk.',
+        'Maple works with any MCP-compatible agent. It also includes built-in support for OpenClaw agents. Since Maple operates as a proxy layer, it\'s agent-framework agnostic.',
     },
   ],
   [
     {
-      question: 'What was that testimonial about tax fraud all about?',
+      question: 'Is my data secure?',
       answer:
-        'TaxPal is just a software application, ultimately your books are your responsibility.',
+        'Yes. Maple supports on-premise deployment, uses encrypted storage for all sensitive data, and maintains complete audit trails. All inter-service communication uses mTLS encryption.',
     },
     {
-      question:
-        'TaxPal sounds horrible but why do I still feel compelled to purchase?',
+      question: 'Do I need to modify my agents?',
       answer:
-        'This is the power of excellent visual design. You just can’t resist it, no matter how poorly it actually functions.',
+        'No. Maple works as a transparent proxy, so your existing agents connect through Maple without any code changes. Policies and guard actions are configured separately.',
     },
     {
-      question:
-        'I found other companies called TaxPal, are you sure you can use this name?',
+      question: 'What\'s the pricing?',
       answer:
-        'Honestly not sure at all. We haven’t actually incorporated or anything, we just thought it sounded cool and made this website.',
+        'Maple offers a free tier for individual developers, Pro for small teams, Team for growing organizations, and Enterprise for custom deployments. See our pricing section for details.',
     },
   ],
   [
     {
-      question: 'How do you generate reports?',
+      question: 'Can I self-host Maple?',
       answer:
-        'You just tell us what data you need a report for, and we get our kids to create beautiful charts for you using only the finest crayons.',
+        'Yes. Maple provides Kubernetes deployment manifests and Docker images for self-hosted installations. We also offer managed cloud hosting if you prefer.',
     },
     {
-      question: 'Can we expect more inventory features?',
-      answer: 'In life it’s really better to never expect anything at all.',
+      question: 'How do I get started?',
+      answer:
+        'Download the Maple Desktop app for local development, or deploy to your cloud infrastructure using our K8s manifests. The setup wizard guides you through connecting your first agent.',
     },
     {
-      question: 'I lost my password, how do I get into my account?',
+      question: 'What\'s the difference between policies and guard actions?',
       answer:
-        'Send us an email and we will send you a copy of our latest password spreadsheet so you can find your information.',
+        'Policies are declarative rules that define what agents can and cannot do. Guard actions are runtime decisions — they evaluate policies against live agent actions and enforce allow, block, or require-approval outcomes.',
     },
   ],
 ]
@@ -62,10 +62,10 @@ export function Faqs() {
     <section
       id="faq"
       aria-labelledby="faq-title"
-      className="relative overflow-hidden bg-slate-50 py-20 sm:py-32"
+      className="relative overflow-hidden bg-zinc-50 py-20 sm:py-32"
     >
       <Image
-        className="absolute top-0 left-1/2 max-w-none translate-x-[-30%] -translate-y-1/4"
+        className="absolute top-0 left-1/2 max-w-none tranzinc-x-[-30%] -tranzinc-y-1/4"
         src={backgroundImage}
         alt=""
         width={1558}
@@ -76,13 +76,13 @@ export function Faqs() {
         <div className="mx-auto max-w-2xl lg:mx-0">
           <h2
             id="faq-title"
-            className="font-display text-3xl tracking-tight text-slate-900 sm:text-4xl"
+            className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl"
           >
             Frequently asked questions
           </h2>
-          <p className="mt-4 text-lg tracking-tight text-slate-700">
-            If you can’t find what you’re looking for, email our support team
-            and if you’re lucky someone will get back to you.
+          <p className="mt-4 text-lg tracking-tight text-zinc-700">
+            If you can&apos;t find what you&apos;re looking for, email our
+            support team at support@maple.dev.
           </p>
         </div>
         <ul
@@ -94,10 +94,10 @@ export function Faqs() {
               <ul role="list" className="flex flex-col gap-y-8">
                 {column.map((faq, faqIndex) => (
                   <li key={faqIndex}>
-                    <h3 className="font-display text-lg/7 text-slate-900">
+                    <h3 className="font-display text-lg/7 text-zinc-900">
                       {faq.question}
                     </h3>
-                    <p className="mt-4 text-sm text-slate-700">{faq.answer}</p>
+                    <p className="mt-4 text-sm text-zinc-700">{faq.answer}</p>
                   </li>
                 ))}
               </ul>

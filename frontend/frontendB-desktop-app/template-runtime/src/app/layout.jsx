@@ -1,3 +1,5 @@
+import { Inter } from 'next/font/google'
+
 import '@/styles/tailwind.css'
 
 export const metadata = {
@@ -8,16 +10,18 @@ export const metadata = {
   description: 'Template-native desktop orchestration UI for Mayple agent operations.',
 }
 
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
+
 export default async function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className="text-zinc-950 antialiased lg:bg-zinc-100 dark:bg-zinc-900 dark:text-white dark:lg:bg-zinc-950"
+      className={`text-zinc-950 antialiased lg:bg-zinc-100 dark:bg-zinc-900 dark:text-white dark:lg:bg-zinc-950 ${inter.variable}`}
     >
-      <head>
-        <link rel="preconnect" href="https://rsms.me/" />
-        <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
-      </head>
       <body>{children}</body>
     </html>
   )

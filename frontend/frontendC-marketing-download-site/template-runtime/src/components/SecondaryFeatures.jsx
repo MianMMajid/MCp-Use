@@ -1,22 +1,17 @@
 'use client'
 
 import { useId } from 'react'
-import Image from 'next/image'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
 
 import { Container } from '@/components/Container'
-import screenshotContacts from '@/images/screenshots/contacts.png'
-import screenshotInventory from '@/images/screenshots/inventory.png'
-import screenshotProfitLoss from '@/images/screenshots/profit-loss.png'
 
 const features = [
   {
-    name: 'Reporting',
-    summary: 'Stay on top of things with always up-to-date reporting features.',
+    name: 'Trace Auditing',
+    summary: 'Every agent action recorded with full context.',
     description:
-      'We talked about reporting in the section above but we needed three items here, so mentioning it one more time for posterity.',
-    image: screenshotProfitLoss,
+      'Search, filter, and replay any trace. Full audit trails give you complete visibility into what your agents did, when, and why.',
     icon: function ReportingIcon() {
       let id = useId()
       return (
@@ -31,7 +26,7 @@ const features = [
               gradientUnits="userSpaceOnUse"
             >
               <stop offset=".194" stopColor="#fff" />
-              <stop offset={1} stopColor="#6692F1" />
+              <stop offset={1} stopColor="#F97316" />
             </linearGradient>
           </defs>
           <path
@@ -46,12 +41,10 @@ const features = [
     },
   },
   {
-    name: 'Inventory',
-    summary:
-      'Never lose track of what’s in stock with accurate inventory tracking.',
+    name: 'Risk Scoring',
+    summary: 'ML-powered anomaly detection for agent behavior.',
     description:
-      'We don’t offer this as part of our software but that statement is inarguably true. Accurate inventory tracking would help you for sure.',
-    image: screenshotInventory,
+      'Automatic risk scoring flags unusual patterns before they cause damage. Set severity thresholds and get alerted to critical anomalies in real-time.',
     icon: function InventoryIcon() {
       return (
         <>
@@ -74,12 +67,10 @@ const features = [
     },
   },
   {
-    name: 'Contacts',
-    summary:
-      'Organize all of your contacts, service providers, and invoices in one place.',
+    name: 'Policy Management',
+    summary: 'Define and enforce rules for agent actions in real-time.',
     description:
-      'This also isn’t actually a feature, it’s just some friendly advice. We definitely recommend that you do this, you’ll feel really organized and professional.',
-    image: screenshotContacts,
+      'Create allow, block, and require-approval rules for any agent action. Policies evaluate against live requests and enforce decisions instantly.',
     icon: function ContactsIcon() {
       return (
         <>
@@ -107,7 +98,7 @@ function Feature({ feature, isActive, className, ...props }) {
       <div
         className={clsx(
           'w-9 rounded-lg',
-          isActive ? 'bg-blue-600' : 'bg-slate-500',
+          isActive ? 'bg-orange-600' : 'bg-zinc-500',
         )}
       >
         <svg aria-hidden="true" className="h-9 w-9" fill="none">
@@ -117,15 +108,15 @@ function Feature({ feature, isActive, className, ...props }) {
       <h3
         className={clsx(
           'mt-6 text-sm font-medium',
-          isActive ? 'text-blue-600' : 'text-slate-600',
+          isActive ? 'text-orange-600' : 'text-zinc-600',
         )}
       >
         {feature.name}
       </h3>
-      <p className="mt-2 font-display text-xl text-slate-900">
+      <p className="mt-2 font-display text-xl text-zinc-900">
         {feature.summary}
       </p>
-      <p className="mt-4 text-sm text-slate-600">{feature.description}</p>
+      <p className="mt-4 text-sm text-zinc-600">{feature.description}</p>
     </div>
   )
 }
@@ -137,14 +128,13 @@ function FeaturesMobile() {
         <div key={feature.summary}>
           <Feature feature={feature} className="mx-auto max-w-2xl" isActive />
           <div className="relative mt-10 pb-10">
-            <div className="absolute -inset-x-4 top-8 bottom-0 bg-slate-200 sm:-inset-x-6" />
-            <div className="relative mx-auto w-211 overflow-hidden rounded-xl bg-white shadow-lg ring-1 shadow-slate-900/5 ring-slate-500/10">
-              <Image
-                className="w-full"
-                src={feature.image}
-                alt=""
-                sizes="52.75rem"
-              />
+            <div className="absolute -inset-x-4 top-8 bottom-0 bg-zinc-200 sm:-inset-x-6" />
+            <div className="relative mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+              <div className="flex items-center justify-center p-8 text-center">
+                <p className="font-display text-lg text-white">
+                  {feature.name}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -176,7 +166,7 @@ function FeaturesDesktop() {
               />
             ))}
           </TabList>
-          <TabPanels className="relative mt-20 overflow-hidden rounded-4xl bg-slate-200 px-14 py-16 xl:px-16">
+          <TabPanels className="relative mt-20 overflow-hidden rounded-4xl bg-zinc-200 px-14 py-16 xl:px-16">
             <div className="-mx-5 flex">
               {features.map((feature, featureIndex) => (
                 <TabPanel
@@ -186,21 +176,23 @@ function FeaturesDesktop() {
                     'px-5 transition duration-500 ease-in-out data-selected:not-data-focus:outline-hidden',
                     featureIndex !== selectedIndex && 'opacity-60',
                   )}
-                  style={{ transform: `translateX(-${selectedIndex * 100}%)` }}
+                  style={{ transform: `tranzincX(-${selectedIndex * 100}%)` }}
                   aria-hidden={featureIndex !== selectedIndex}
                 >
-                  <div className="w-211 overflow-hidden rounded-xl bg-white shadow-lg ring-1 shadow-slate-900/5 ring-slate-500/10">
-                    <Image
-                      className="w-full"
-                      src={feature.image}
-                      alt=""
-                      sizes="52.75rem"
-                    />
+                  <div className="w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+                    <div className="flex flex-col items-center justify-center p-12 text-center">
+                      <h4 className="font-display text-xl text-white">
+                        {feature.name}
+                      </h4>
+                      <p className="mt-4 max-w-md text-sm text-zinc-300">
+                        {feature.description}
+                      </p>
+                    </div>
                   </div>
                 </TabPanel>
               ))}
             </div>
-            <div className="pointer-events-none absolute inset-0 rounded-4xl ring-1 ring-slate-900/10 ring-inset" />
+            <div className="pointer-events-none absolute inset-0 rounded-4xl ring-1 ring-zinc-900/10 ring-inset" />
           </TabPanels>
         </>
       )}
@@ -212,17 +204,17 @@ export function SecondaryFeatures() {
   return (
     <section
       id="secondary-features"
-      aria-label="Features for simplifying everyday business tasks"
+      aria-label="Features for governing AI agents"
       className="pt-20 pb-14 sm:pt-32 sm:pb-20 lg:pb-32"
     >
       <Container>
         <div className="mx-auto max-w-2xl md:text-center">
-          <h2 className="font-display text-3xl tracking-tight text-slate-900 sm:text-4xl">
-            Simplify everyday business tasks.
+          <h2 className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl">
+            Everything you need to govern AI agents.
           </h2>
-          <p className="mt-4 text-lg tracking-tight text-slate-700">
-            Because you’d probably be a little confused if we suggested you
-            complicate your everyday business tasks instead.
+          <p className="mt-4 text-lg tracking-tight text-zinc-700">
+            Maple provides comprehensive tools for monitoring, controlling, and
+            auditing your AI agent operations.
           </p>
         </div>
         <FeaturesMobile />

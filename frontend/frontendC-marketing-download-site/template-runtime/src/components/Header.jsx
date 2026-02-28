@@ -26,7 +26,7 @@ function MobileNavIcon({ open }) {
   return (
     <svg
       aria-hidden="true"
-      className="h-3.5 w-3.5 overflow-visible stroke-slate-700"
+      className="h-3.5 w-3.5 overflow-visible stroke-zinc-700"
       fill="none"
       strokeWidth={2}
       strokeLinecap="round"
@@ -60,17 +60,17 @@ function MobileNavigation() {
       </PopoverButton>
       <PopoverBackdrop
         transition
-        className="fixed inset-0 bg-slate-300/50 duration-150 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in"
+        className="fixed inset-0 bg-zinc-300/50 duration-150 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in"
       />
       <PopoverPanel
         transition
-        className="absolute inset-x-0 top-full mt-4 flex origin-top flex-col rounded-2xl bg-white p-4 text-lg tracking-tight text-slate-900 shadow-xl ring-1 ring-slate-900/5 data-closed:scale-95 data-closed:opacity-0 data-enter:duration-150 data-enter:ease-out data-leave:duration-100 data-leave:ease-in"
+        className="absolute inset-x-0 top-full mt-4 flex origin-top flex-col rounded-2xl bg-white p-4 text-lg tracking-tight text-zinc-900 shadow-xl ring-1 ring-zinc-900/5 data-closed:scale-95 data-closed:opacity-0 data-enter:duration-150 data-enter:ease-out data-leave:duration-100 data-leave:ease-in"
       >
         <MobileNavLink href="#features">Features</MobileNavLink>
         <MobileNavLink href="#journey">Journey</MobileNavLink>
         <MobileNavLink href="#pricing">Pricing</MobileNavLink>
         <MobileNavLink href="#download">Download</MobileNavLink>
-        <hr className="m-2 border-slate-300/40" />
+        <hr className="m-2 border-zinc-300/40" />
         <MobileNavLink href="/login">Sign in</MobileNavLink>
       </PopoverPanel>
     </Popover>
@@ -83,7 +83,7 @@ export function Header() {
       <Container>
         <nav className="relative z-50 flex justify-between">
           <div className="flex items-center md:gap-x-12">
-            <Link href="#" aria-label="Home">
+            <Link href="/" aria-label="Home">
               <Logo className="h-10 w-auto" />
             </Link>
             <div className="hidden md:flex md:gap-x-6">
@@ -97,7 +97,7 @@ export function Header() {
             <div className="hidden md:block">
               <NavLink href="/login">Sign in</NavLink>
             </div>
-            <Button href="/register" color="blue">
+            <Button href="/register" color="orange">
               <span>
                 Start free <span className="hidden lg:inline">today</span>
               </span>
