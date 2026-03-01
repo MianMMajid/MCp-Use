@@ -22,6 +22,12 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+
+# Recreate dist->src symlinks for workspace packages (.dockerignore strips dist/)
+RUN for pkg in maple-common maple-persistence maple-security; do \
+      ln -sfn src "backend/backendB-core-services/shared/packages/${pkg}/dist"; \
+    done
+
 RUN npm run template:install
 RUN npm run sync:runtime-assets
 RUN npm run build

@@ -1,7 +1,10 @@
 node_modules
 **/node_modules
 **/.next
-dist
+# Exclude top-level and frontend dist, but keep workspace package dist
+dist/
+frontend/*/template-runtime/dist
+!backend/backendB-core-services/shared/packages/*/dist
 .mcp-use
 .git
 .env
