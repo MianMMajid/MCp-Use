@@ -88,12 +88,16 @@ function VisibleSectionHighlight({ group, pathname }) {
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { delay: 0.2 } }}
+      initial={{ opacity: 0, top, height }}
+      animate={{ opacity: 1, top, height }}
       exit={{ opacity: 0 }}
-      className="absolute inset-x-0 top-0 bg-zinc-800/2.5 will-change-transform dark:bg-white/2.5"
-      style={{ borderRadius: 8, height, top }}
+      transition={{
+        top: { type: 'spring', stiffness: 300, damping: 30 },
+        height: { type: 'spring', stiffness: 300, damping: 30 },
+        opacity: { duration: 0.15, delay: 0.2 },
+      }}
+      className="absolute inset-x-0 bg-zinc-800/2.5 will-change-transform dark:bg-white/2.5"
+      style={{ borderRadius: 8 }}
     />
   )
 }
@@ -106,12 +110,14 @@ function ActivePageMarker({ group, pathname }) {
 
   return (
     <motion.div
-      layout
       className="absolute left-2 h-6 w-px bg-orange-500"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { delay: 0.2 } }}
+      initial={{ opacity: 0, top }}
+      animate={{ opacity: 1, top }}
       exit={{ opacity: 0 }}
-      style={{ top }}
+      transition={{
+        top: { type: 'spring', stiffness: 300, damping: 30 },
+        opacity: { duration: 0.15, delay: 0.2 },
+      }}
     />
   )
 }
