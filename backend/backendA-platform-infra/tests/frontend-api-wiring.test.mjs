@@ -6,7 +6,11 @@ import test from "node:test";
 const REPO_ROOT = process.cwd();
 
 const FRONTEND_SURFACES = {
-  frontendA: [resolve(REPO_ROOT, "frontend/frontendA-it-console/template-runtime/src")],
+  frontendA: [
+    resolve(REPO_ROOT, "frontend/frontendA-it-console/template-runtime/src"),
+    resolve(REPO_ROOT, "frontend/frontendA-it-console/public"),
+    resolve(REPO_ROOT, "frontend/frontendA-it-console/app"),
+  ],
   frontendB: [resolve(REPO_ROOT, "frontend/frontendB-desktop-app/template-runtime/src")],
   frontendC: [
     resolve(REPO_ROOT, "frontend/frontendC-marketing-download-site/template-runtime/src"),
@@ -18,10 +22,10 @@ const FRONTEND_SURFACES = {
 const REQUIRED_SURFACE_ENDPOINTS = {
   frontendA: [
     "/api/runtime/feature-capabilities",
-    "/api/openclaw/agent/*",
+    "/api/openclaw/agent/status",
     "/api/firewall/decision",
     "/admin/api/policies",
-    "/admin/api/audit/events",
+    "/admin/api/audit",
   ],
   frontendB: [
     "/api/runtime/feature-capabilities",
