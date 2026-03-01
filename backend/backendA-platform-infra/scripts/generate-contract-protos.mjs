@@ -234,9 +234,17 @@ async function cleanTree(dir) {
 }
 
 async function main() {
-  const files = await walk(path.resolve(stubsRoot, "maple"));
+  const mapleDir = path.resolve(stubsRoot, "maple");
+  try {
+    await fs.access(mapleDir);
+  } catch {
+    console.log(`Stubs directory not found (${mapleDir}), skipping proto generation.`);
+    return;
+  }
+  const files = await walk(mapleDir);
   if (files.length === 0) {
-    throw new Error(`No *_pb.d.ts files found under ${stubsRoot}`);
+    console.log(`No *_pb.d.ts files found under ${stubsRoot}, skipping proto generation.`);
+    return;
   }
 
   await cleanTree(canonicalProtoRoot);
