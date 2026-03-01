@@ -1,4 +1,6 @@
 node_modules
+**/node_modules
+**/.next
 dist
 .mcp-use
 .git
@@ -13,4 +15,5 @@ backend/backendB-core-services/maple-monolith/data/
 .DS_Store
 .vscode
 .idea
+.claude
 mcp-firewall-reference

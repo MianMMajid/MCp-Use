@@ -3,10 +3,18 @@ FROM node:22-slim AS build
 
 WORKDIR /app
 
-# Install build dependencies for native modules (better-sqlite3)
+ARG OPENCLAW_VERSION=2026.2.21-2
+
+# Install build dependencies for native modules (better-sqlite3, @discordjs/opus)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates python3 make g++ git \
     && rm -rf /var/lib/apt/lists/*
+
+# Install OpenClaw CLI in the build stage (needs native build tools)
+RUN git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/" \
+    && git config --global --add url."https://github.com/".insteadOf "git@github.com:" \
+    && npm install -g "openclaw@${OPENCLAW_VERSION}" \
+    && openclaw --version
 
 # Install ALL deps (including devDependencies needed for build)
 COPY package.json package-lock.json ./
@@ -14,6 +22,7 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+RUN npm run template:install
 RUN npm run sync:runtime-assets
 RUN npm run build
 RUN npm run build:frontendA && npm run build:frontendB && npm run build:frontendC
@@ -23,18 +32,14 @@ FROM node:22-slim
 
 WORKDIR /app
 
-ARG OPENCLAW_VERSION=2026.2.21-2
-
 # Only install minimal runtime deps (no build tools in production)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
-# Ensure OpenClaw CLI is always available at runtime for gateway agent routes.
-RUN git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/" \
-    && git config --global --add url."https://github.com/".insteadOf "git@github.com:" \
-    && npm install -g "openclaw@${OPENCLAW_VERSION}" \
-    && openclaw --version
+# Copy pre-built OpenClaw CLI from build stage (avoids needing python3/make/g++)
+COPY --from=build /usr/local/lib/node_modules/openclaw /usr/local/lib/node_modules/openclaw
+COPY --from=build /usr/local/bin/openclaw /usr/local/bin/openclaw
 
 # Copy pre-built native modules from build stage (avoids needing python3/make/g++ at runtime)
 COPY --from=build /app/package.json ./package.json
@@ -45,9 +50,9 @@ COPY --from=build /app/frontend ./frontend
 COPY --from=build /app/.mcp.json ./.mcp.json
 COPY --from=build /app/README.md ./README.md
 
-# Create non-root user
-RUN groupadd -g 1000 maple && useradd -u 1000 -g maple -s /bin/sh -m maple \
-    && chown -R maple:maple /app
+# Create non-root user (GID/UID 1000 may already exist in node:22-slim, so use -f to avoid errors)
+RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>/dev/null || true) \
+    && chown -R 1000:1000 /app
 
 ENV NODE_ENV=production
 ENV MAPLE_ALLOW_NO_AUTH=false
