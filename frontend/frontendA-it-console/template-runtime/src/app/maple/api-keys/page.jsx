@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonList } from '@/components/Skeleton'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export const sections = [
   { title: 'API keys', id: 'api-keys' },
@@ -13,37 +15,6 @@ export const sections = [
 function formatDate(d) {
   if (!d) return '--'
   try { return new Date(d).toLocaleString() } catch { return d }
-}
-
-function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
-        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-          <Button onClick={onConfirm}>Confirm</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export default function ApiKeysPage() {
@@ -76,6 +47,13 @@ export default function ApiKeysPage() {
   }, [])
 
   useEffect(() => { fetchKeys() }, [fetchKeys])
+
+  /* -- Auto-dismiss message after 5s -- */
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(''), 5000)
+    return () => clearTimeout(t)
+  }, [message])
 
   async function createKey() {
     if (!keyName.trim()) return
@@ -175,7 +153,7 @@ export default function ApiKeysPage() {
           {newKeyResult && (newKeyResult.key || newKeyResult.secret || newKeyResult.token) && (
             <div className="mt-4 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 dark:border-orange-800 dark:bg-orange-950/40">
               <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">New key (copy now):</p>
-              <pre className="mt-1 overflow-auto text-xs text-orange-700 dark:text-orange-400">{newKeyResult.key || newKeyResult.secret || newKeyResult.token}</pre>
+              <pre className="mt-1 overflow-auto whitespace-pre-wrap break-words text-xs text-orange-700 dark:text-orange-400">{newKeyResult.key || newKeyResult.secret || newKeyResult.token}</pre>
             </div>
           )}
 
@@ -207,7 +185,7 @@ export default function ApiKeysPage() {
                 })}
               </div>
             ) : (
-              <p className="mt-4 text-sm text-zinc-500">No API keys.</p>
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No API keys.</p>
             )}
           </section>
 
@@ -237,7 +215,7 @@ export default function ApiKeysPage() {
                       return (
                         <div key={saId} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                           <div className="flex items-center justify-between">
-                            <button onClick={() => toggleSAKeys(saId)} className="flex items-center gap-2">
+                            <button type="button" onClick={() => toggleSAKeys(saId)} aria-expanded={expandedSA === saId} className="flex items-center gap-2">
                               <span className="text-sm font-medium text-zinc-950 dark:text-white">{sa.name || saId}</span>
                               <Tag color="zinc" variant="small">{sa.status || 'active'}</Tag>
                             </button>
@@ -255,14 +233,14 @@ export default function ApiKeysPage() {
                                     <Button variant="secondary" disabled={actionLoading === `delete-sa-key-${skid}`} onClick={() => deleteSAKey(saId, skid)}>Delete</Button>
                                   </div>
                                 )
-                              }) : <p className="text-xs text-zinc-500">No keys.</p>}
+                              }) : <p className="text-xs text-zinc-500 dark:text-zinc-400">No keys.</p>}
                             </div>
                           )}
                         </div>
                       )
                     })}
                   </div>
-                ) : <p className="mt-4 text-sm text-zinc-500">No service accounts.</p>}
+                ) : <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No service accounts.</p>}
               </>
             )}
           </section>

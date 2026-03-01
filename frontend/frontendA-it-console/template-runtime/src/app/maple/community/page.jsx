@@ -4,20 +4,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Stats', id: 'stats' },
   { title: 'Shared traces', id: 'shared-traces' },
 ]
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-    </div>
-  )
-}
 
 function riskColor(score) {
   if (score == null) return 'zinc'
@@ -106,7 +98,7 @@ export default function CommunityPage() {
               </div>
             ) : !loading ? (
               <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
-                <p className="text-sm text-zinc-500">No shared traces yet.</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No shared traces yet.</p>
               </div>
             ) : null}
           </section>

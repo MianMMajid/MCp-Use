@@ -4,43 +4,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonList } from '@/components/Skeleton'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export const sections = [
   { title: 'Catalog', id: 'catalog' },
   { title: 'Connected integrations', id: 'connected' },
   { title: 'OAuth actions', id: 'oauth-actions' },
 ]
-
-function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
-        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-          <Button onClick={onConfirm}>Confirm</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default function IntegrationsPage() {
   const [catalog, setCatalog] = useState(null)
@@ -71,6 +42,13 @@ export default function IntegrationsPage() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  /* -- Auto-dismiss message after 5s -- */
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(''), 5000)
+    return () => clearTimeout(t)
+  }, [message])
 
   async function handleConnect(provider) {
     setActionLoading(`connect-${provider}`)
@@ -151,7 +129,7 @@ export default function IntegrationsPage() {
                 })}
               </div>
             ) : !loading ? (
-              <p className="mt-4 text-sm text-zinc-500">No integrations in catalog.</p>
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No integrations in catalog.</p>
             ) : null}
           </section>
 
@@ -177,7 +155,7 @@ export default function IntegrationsPage() {
               </div>
             ) : !loading ? (
               <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
-                <p className="text-sm text-zinc-500">No integrations connected.</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No integrations connected.</p>
               </div>
             ) : null}
           </section>
@@ -203,7 +181,7 @@ export default function IntegrationsPage() {
             </div>
             {oauthResult && (
               <div className="mt-4 rounded-xl border border-zinc-950/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800">
-                <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(oauthResult, null, 2)}</pre>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(oauthResult, null, 2)}</pre>
               </div>
             )}
           </section>

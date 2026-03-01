@@ -4,41 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Agent status', id: 'agent-status' },
   { title: 'Chat', id: 'agent-chat' },
   { title: 'Sessions', id: 'sessions' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function formatDate(d) {
   if (!d) return '--'
@@ -178,10 +150,10 @@ export default function AgentManagementPage() {
                   <span className={`inline-block h-2 w-2 rounded-full ${agentStatus === 'online' || agentStatus === 'ready' || agentStatus === 'active' ? 'bg-orange-500' : 'bg-zinc-400'}`} />
                   <Tag color={agentStatus === 'online' || agentStatus === 'ready' || agentStatus === 'active' ? 'orange' : 'zinc'} variant="medium">{agentStatus.toUpperCase()}</Tag>
                 </div>
-                <pre className="mt-3 overflow-auto text-xs text-zinc-600 dark:text-zinc-400">{JSON.stringify(status, null, 2)}</pre>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-600 dark:text-zinc-400">{JSON.stringify(status, null, 2)}</pre>
               </div>
             ) : (
-              <p className="mt-4 text-sm text-zinc-500">No agent status available.</p>
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No agent status available.</p>
             )}
           </section>
 
@@ -208,7 +180,7 @@ export default function AgentManagementPage() {
               </div>
               {chatReply && (
                 <div className="mt-4 rounded-xl border border-zinc-950/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800">
-                  <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(chatReply, null, 2)}</pre>
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(chatReply, null, 2)}</pre>
                 </div>
               )}
             </div>
@@ -230,7 +202,7 @@ export default function AgentManagementPage() {
                     <div key={sid} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => toggleExpand(sid)} className="font-mono text-sm font-medium text-zinc-950 hover:underline dark:text-white">{shortId}</button>
+                          <button type="button" onClick={() => toggleExpand(sid)} className="font-mono text-sm font-medium text-zinc-950 hover:underline dark:text-white">{shortId}</button>
                           <Tag color={isActive ? 'orange' : st === 'completed' || st === 'success' ? 'orange' : st === 'failed' || st === 'error' ? 'rose' : 'zinc'} variant="medium">{st}</Tag>
                         </div>
                         <div className="flex items-center gap-2">
@@ -245,7 +217,7 @@ export default function AgentManagementPage() {
                       </div>
                       {session.agentName && <p className="mt-1 text-xs text-zinc-500">Agent: {session.agentName || session.agent}</p>}
                       {expanded === sid && detail && (
-                        <pre className="mt-3 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(detail, null, 2)}</pre>
+                        <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(detail, null, 2)}</pre>
                       )}
                     </div>
                   )
@@ -264,7 +236,7 @@ export default function AgentManagementPage() {
             {artifacts && (
               <div className="mt-4 rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">Artifacts</h3>
-                <pre className="mt-2 overflow-auto text-xs text-zinc-600 dark:text-zinc-400">{JSON.stringify(artifacts, null, 2)}</pre>
+                <pre className="mt-2 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-600 dark:text-zinc-400">{JSON.stringify(artifacts, null, 2)}</pre>
               </div>
             )}
           </section>

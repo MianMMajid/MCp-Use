@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson, patchJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonList } from '@/components/Skeleton'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export const sections = [
   { title: 'Organizations', id: 'org-list' },
@@ -12,37 +14,6 @@ export const sections = [
   { title: 'Accept invite', id: 'accept-invite' },
   { title: 'Roles', id: 'roles' },
 ]
-
-function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
-        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-          <Button onClick={onConfirm}>Confirm</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default function OrgPage() {
   const [orgs, setOrgs] = useState(null)
@@ -81,6 +52,13 @@ export default function OrgPage() {
   }, [])
 
   useEffect(() => { fetchOrgs() }, [fetchOrgs])
+
+  /* -- Auto-dismiss message after 5s -- */
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(''), 5000)
+    return () => clearTimeout(t)
+  }, [message])
 
   async function selectOrg(orgId) {
     if (selectedOrg === orgId) { setSelectedOrg(null); setMembers(null); setInvites(null); setRoles(null); return }
@@ -206,7 +184,7 @@ export default function OrgPage() {
                   return (
                     <div key={orgId} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between">
-                        <button onClick={() => selectOrg(orgId)} className="flex items-center gap-2">
+                        <button type="button" onClick={() => selectOrg(orgId)} aria-expanded={selectedOrg === orgId} className="flex items-center gap-2">
                           <span className="text-sm font-medium text-zinc-950 dark:text-white">{org.name || orgId}</span>
                           <Tag color={selectedOrg === orgId ? 'orange' : 'zinc'} variant="medium">{org.plan || org.status || 'active'}</Tag>
                         </button>
@@ -218,7 +196,7 @@ export default function OrgPage() {
               </div>
             ) : (
               <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
-                <p className="text-sm text-zinc-500">No organizations found.</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No organizations found.</p>
               </div>
             )}
           </section>
@@ -253,7 +231,7 @@ export default function OrgPage() {
                       )
                     })}
                   </div>
-                ) : <p className="mt-4 text-sm text-zinc-500">No members.</p>}
+                ) : <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No members.</p>}
               </section>
 
               {/* Invites */}
@@ -274,7 +252,7 @@ export default function OrgPage() {
                       </div>
                     ))}
                   </div>
-                ) : <p className="mt-4 text-sm text-zinc-500">No pending invites.</p>}
+                ) : <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No pending invites.</p>}
               </section>
 
               {/* Accept invite (POST /api/org/invites/:inviteId/accept) */}
@@ -300,7 +278,7 @@ export default function OrgPage() {
                       </div>
                     ))}
                   </div>
-                ) : <p className="mt-4 text-sm text-zinc-500">No roles defined.</p>}
+                ) : <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No roles defined.</p>}
 
                 <div className="mt-4 rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                   <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">Assign role</h3>

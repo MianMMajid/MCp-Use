@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson, patchJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Tools list', id: 'tools-list' },
@@ -11,39 +12,6 @@ export const sections = [
   { title: 'Tool executions', id: 'tool-executions' },
   { title: 'CLI console', id: 'cli-console' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700"
-          >
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -155,6 +123,13 @@ export default function ToolsRegistryPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  /* -- Auto-dismiss toolMsg after 5s -- */
+  useEffect(() => {
+    if (!toolMsg) return
+    const t = setTimeout(() => setToolMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [toolMsg])
 
   /* -- Registry handlers -- */
   async function handleViewTool(toolId) {
@@ -359,9 +334,9 @@ export default function ToolsRegistryPage() {
               </div>
             ) : tools && tools.length > 0 ? (
               <div className="mt-4 overflow-auto rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
-                <table className="w-full text-left text-sm">
+                <table className="min-w-[600px] w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-950/5 dark:border-white/5">
+                    <tr className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-950/5 dark:border-white/5">
                       <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         Name
                       </th>
@@ -378,7 +353,7 @@ export default function ToolsRegistryPage() {
                   </thead>
                   <tbody className="divide-y divide-zinc-950/5 dark:divide-white/5">
                     {tools.map((tool, idx) => (
-                      <tr key={tool.id ?? tool.name ?? idx}>
+                      <tr key={tool.id ?? tool.name ?? idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                         <td className="px-4 py-2 font-medium text-zinc-950 dark:text-white">
                           {tool.name ?? tool.id ?? `Tool ${idx + 1}`}
                         </td>
@@ -434,7 +409,7 @@ export default function ToolsRegistryPage() {
                     {toolDetailLoading ? (
                       <SkeletonCard />
                     ) : toolDetail ? (
-                      <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                         {JSON.stringify(toolDetail, null, 2)}
                       </pre>
                     ) : (
@@ -557,7 +532,7 @@ export default function ToolsRegistryPage() {
                       {validateResult.error}
                     </p>
                   ) : (
-                    <pre className="max-h-32 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {JSON.stringify(validateResult, null, 2)}
                     </pre>
                   )}
@@ -581,6 +556,7 @@ export default function ToolsRegistryPage() {
                 {executions.map((exec, idx) => (
                   <div key={exec.id ?? exec.executionId ?? idx}>
                     <button
+                      type="button"
                       onClick={() =>
                         handleViewExecution(exec.id ?? exec.executionId)
                       }
@@ -624,7 +600,7 @@ export default function ToolsRegistryPage() {
                         {execDetailLoading ? (
                           <SkeletonCard />
                         ) : execDetail ? (
-                          <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                             {JSON.stringify(execDetail, null, 2)}
                           </pre>
                         ) : (
@@ -679,7 +655,7 @@ export default function ToolsRegistryPage() {
                       {genericCliOutput.error}
                     </p>
                   ) : (
-                    <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {JSON.stringify(genericCliOutput, null, 2)}
                     </pre>
                   )}
@@ -702,6 +678,7 @@ export default function ToolsRegistryPage() {
                         : tool.name ?? tool.id ?? `tool-${idx}`
                     return (
                       <button
+                        type="button"
                         key={name}
                         onClick={() => handleSelectCliTool(name)}
                         className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
@@ -722,7 +699,7 @@ export default function ToolsRegistryPage() {
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                       Catalog
                     </span>
-                    <pre className="mt-2 max-h-32 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {JSON.stringify(cliCatalog, null, 2)}
                     </pre>
                   </div>
@@ -734,7 +711,7 @@ export default function ToolsRegistryPage() {
                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                       Help: {selectedCliTool}
                     </span>
-                    <pre className="mt-2 max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {typeof cliHelp === 'string'
                         ? cliHelp
                         : JSON.stringify(cliHelp, null, 2)}
@@ -774,7 +751,7 @@ export default function ToolsRegistryPage() {
                             {cliOutput.error}
                           </p>
                         ) : (
-                          <pre className="mt-2 max-h-64 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                             {typeof cliOutput === 'string'
                               ? cliOutput
                               : JSON.stringify(cliOutput, null, 2)}

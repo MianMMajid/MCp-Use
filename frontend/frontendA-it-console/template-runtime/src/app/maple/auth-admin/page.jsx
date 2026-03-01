@@ -188,7 +188,7 @@ export default function AuthAdminPage() {
                   </div>
                   {session.plan && <p className="text-xs text-zinc-500">Plan: {session.plan}</p>}
                   {session.orgId && <p className="text-xs text-zinc-500">Org: {session.orgId}</p>}
-                  <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{JSON.stringify(session, null, 2)}</pre>
+                  <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{JSON.stringify(session, null, 2)}</pre>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

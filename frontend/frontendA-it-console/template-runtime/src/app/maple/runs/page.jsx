@@ -4,26 +4,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Runs list', id: 'runs-list' },
 ]
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function formatDate(d) {
   if (!d) return '--'
@@ -116,7 +101,7 @@ export default function RunsPage() {
                     <div key={rid} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => toggleExpand(rid)} className="font-mono text-sm font-medium text-zinc-950 hover:underline dark:text-white">{shortId}</button>
+                          <button type="button" onClick={() => toggleExpand(rid)} className="font-mono text-sm font-medium text-zinc-950 hover:underline dark:text-white">{shortId}</button>
                           <Tag color={statusTag(st)} variant="medium">{st}</Tag>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-zinc-500">
@@ -134,7 +119,7 @@ export default function RunsPage() {
                               {detail && (
                                 <div>
                                   <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Detail</h4>
-                                  <pre className="mt-1 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(detail, null, 2)}</pre>
+                                  <pre className="mt-1 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(detail, null, 2)}</pre>
                                 </div>
                               )}
                               {timeline && timeline.length > 0 && (

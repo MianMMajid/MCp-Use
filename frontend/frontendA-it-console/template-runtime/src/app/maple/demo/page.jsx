@@ -43,6 +43,13 @@ export default function DemoPage() {
 
   useEffect(() => { fetchSessions() }, [fetchSessions])
 
+  /* -- Auto-dismiss message after 5s -- */
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(''), 5000)
+    return () => clearTimeout(t)
+  }, [message])
+
   async function quickAction(endpoint, body, label) {
     setActionLoading(label)
     setActionResult(null)
@@ -94,7 +101,7 @@ export default function DemoPage() {
                 ))}
               </div>
             ) : !loading ? (
-              <p className="mt-4 text-sm text-zinc-500">No demo sessions.</p>
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No demo sessions.</p>
             ) : null}
           </section>
 
@@ -178,7 +185,7 @@ export default function DemoPage() {
             <section id="result" className="mt-10">
               <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">Result</h2>
               <div className="mt-4 rounded-xl border border-zinc-950/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800">
-                <pre className="max-h-64 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(actionResult, null, 2)}</pre>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(actionResult, null, 2)}</pre>
               </div>
             </section>
           )}

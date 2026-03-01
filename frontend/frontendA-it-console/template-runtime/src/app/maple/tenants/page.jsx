@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Tenant bindings', id: 'tenant-bindings' },
@@ -11,39 +12,6 @@ export const sections = [
   { title: 'Org tree', id: 'org-tree' },
   { title: 'Org lifecycle', id: 'org-lifecycle' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700"
-          >
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------------ */
 /*  Org tree renderer                                                  */
@@ -54,6 +22,7 @@ function OrgTreeNode({ node, depth = 0, onSelect }) {
   return (
     <div style={{ marginLeft: depth * 16 }}>
       <button
+        type="button"
         onClick={() => onSelect(node.id ?? node.orgId)}
         className="w-full rounded-lg px-3 py-1.5 text-left text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
       >
@@ -139,6 +108,20 @@ export default function TenantOrgPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  /* -- Auto-dismiss bindingMsg after 5s -- */
+  useEffect(() => {
+    if (!bindingMsg) return
+    const t = setTimeout(() => setBindingMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [bindingMsg])
+
+  /* -- Auto-dismiss orgMsg after 5s -- */
+  useEffect(() => {
+    if (!orgMsg) return
+    const t = setTimeout(() => setOrgMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [orgMsg])
 
   async function handleAddBinding() {
     setBindingMsg(null)
@@ -377,7 +360,7 @@ export default function TenantOrgPage() {
                 {!tenantScope.tenantId &&
                   !tenantScope.orgId &&
                   !tenantScope.scope && (
-                    <pre className="text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {JSON.stringify(tenantScope, null, 2)}
                     </pre>
                   )}
@@ -483,7 +466,7 @@ export default function TenantOrgPage() {
                         Deactivate
                       </Button>
                     </div>
-                    <pre className="mt-2 max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {JSON.stringify(orgDetail, null, 2)}
                     </pre>
                   </>

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Entitlements', id: 'entitlements' },
@@ -13,15 +14,6 @@ export const sections = [
   { title: 'Invoices', id: 'invoices' },
   { title: 'Limits override', id: 'limits-override' },
 ]
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-    </div>
-  )
-}
 
 function formatDate(d) {
   if (!d) return '--'
@@ -191,7 +183,7 @@ export default function UsagePage() {
             </div>
             {timeseries && (
               <div className="mt-4 rounded-xl border border-zinc-950/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800">
-                <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(timeseries, null, 2)}</pre>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(timeseries, null, 2)}</pre>
               </div>
             )}
           </section>
@@ -201,9 +193,9 @@ export default function UsagePage() {
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">Limits</h2>
             {!loading && limits ? (
               <div className="mt-4 rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
-                <pre className="overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(limits, null, 2)}</pre>
+                <pre className="overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(limits, null, 2)}</pre>
               </div>
-            ) : !loading ? <p className="mt-4 text-sm text-zinc-500">No limit data.</p> : null}
+            ) : !loading ? <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No limit data.</p> : null}
           </section>
 
           {/* Billing */}
@@ -241,7 +233,7 @@ export default function UsagePage() {
                   )}
                 </div>
               </div>
-            ) : !loading ? <p className="mt-4 text-sm text-zinc-500">No subscription data.</p> : null}
+            ) : !loading ? <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No subscription data.</p> : null}
           </section>
 
           {/* Invoices */}
@@ -263,7 +255,7 @@ export default function UsagePage() {
                   </div>
                 ))}
               </div>
-            ) : !loading ? <p className="mt-4 text-sm text-zinc-500">No invoices.</p> : null}
+            ) : !loading ? <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No invoices.</p> : null}
           </section>
 
           {/* Limits Override (POST /api/limits/override) */}

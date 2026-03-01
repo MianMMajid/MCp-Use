@@ -4,26 +4,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Connected apps', id: 'connected-apps' },
   { title: 'Dispatch', id: 'dispatch' },
 ]
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default function DownstreamPage() {
   const [apps, setApps] = useState(null)
@@ -98,7 +84,7 @@ export default function DownstreamPage() {
                   return (
                     <div key={appId} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between">
-                        <button onClick={() => setExpanded(expanded === appId ? null : appId)} className="flex items-center gap-2">
+                        <button type="button" onClick={() => setExpanded(expanded === appId ? null : appId)} aria-expanded={expanded === appId} className="flex items-center gap-2">
                           <span className="text-sm font-medium text-zinc-950 dark:text-white">{app.name || appId}</span>
                           <Tag color={app.status === 'connected' || app.status === 'active' ? 'orange' : 'zinc'} variant="medium">{app.status || 'active'}</Tag>
                         </button>
@@ -120,7 +106,7 @@ export default function DownstreamPage() {
               </div>
             ) : (
               <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
-                <p className="text-sm text-zinc-500">No downstream apps connected.</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No downstream apps connected.</p>
               </div>
             )}
           </section>
@@ -149,7 +135,7 @@ export default function DownstreamPage() {
             </div>
             {dispatchResult && (
               <div className="mt-4 rounded-xl border border-zinc-950/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800">
-                <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(dispatchResult, null, 2)}</pre>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(dispatchResult, null, 2)}</pre>
               </div>
             )}
           </section>

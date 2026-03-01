@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Audit events', id: 'audit-events' },
@@ -15,39 +16,6 @@ export const sections = [
   { title: 'Retention', id: 'retention' },
   { title: 'Dead letter', id: 'dead-letter' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700"
-          >
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------------ */
 /*  Severity tag helper                                                */
@@ -533,6 +501,7 @@ export default function AuditTracesPage() {
           <div className="mt-6 flex flex-wrap gap-1 rounded-full bg-zinc-100 p-1 dark:bg-zinc-800">
             {TABS.map((tab) => (
               <button
+                type="button"
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition outline-2 outline-offset-2 outline-orange-500 focus-visible:outline ${
@@ -677,6 +646,7 @@ export default function AuditTracesPage() {
                   {traces.map((trace, idx) => (
                     <div key={trace.traceId ?? trace.id ?? idx}>
                       <button
+                        type="button"
                         onClick={() =>
                           fetchTraceDetail(trace.traceId ?? trace.id)
                         }
@@ -724,7 +694,7 @@ export default function AuditTracesPage() {
                           {traceDetailLoading ? (
                             <SkeletonCard />
                           ) : traceDetail ? (
-                            <pre className="max-h-64 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                               {JSON.stringify(traceDetail, null, 2)}
                             </pre>
                           ) : (
@@ -800,9 +770,9 @@ export default function AuditTracesPage() {
                 </div>
               ) : traceSearchResults && traceSearchResults.length > 0 ? (
                 <div className="mt-4 overflow-auto rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
-                  <table className="w-full text-left text-sm">
+                  <table className="min-w-[600px] w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-zinc-950/5 dark:border-white/5">
+                      <tr className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-950/5 dark:border-white/5">
                         <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                           Trace ID
                         </th>
@@ -819,7 +789,7 @@ export default function AuditTracesPage() {
                     </thead>
                     <tbody className="divide-y divide-zinc-950/5 dark:divide-white/5">
                       {traceSearchResults.map((t, idx) => (
-                        <tr key={t.traceId ?? t.id ?? idx}>
+                        <tr key={t.traceId ?? t.id ?? idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                           <td className="px-4 py-2 font-mono text-xs text-zinc-950 dark:text-white">
                             {t.traceId ?? t.id ?? '-'}
                           </td>
@@ -1005,6 +975,7 @@ export default function AuditTracesPage() {
                   {runs.map((run, idx) => (
                     <div key={run.id ?? run.runId ?? idx}>
                       <button
+                        type="button"
                         onClick={() =>
                           fetchRunDetail(run.id ?? run.runId)
                         }
@@ -1050,7 +1021,7 @@ export default function AuditTracesPage() {
                                   <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                                     Run Detail
                                   </span>
-                                  <pre className="mt-2 max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                                     {JSON.stringify(runDetail, null, 2)}
                                   </pre>
                                 </div>
@@ -1153,7 +1124,7 @@ export default function AuditTracesPage() {
                       {verifyResult.error}
                     </p>
                   ) : (
-                    <pre className="mt-2 max-h-32 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                       {JSON.stringify(verifyResult, null, 2)}
                     </pre>
                   )}

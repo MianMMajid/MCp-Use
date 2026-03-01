@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export const sections = [
   { title: 'Active rules', id: 'active-rules' },
@@ -11,64 +13,6 @@ export const sections = [
   { title: 'Actions', id: 'actions' },
   { title: 'Policy operations', id: 'policy-ops' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700"
-          >
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Confirmation dialog                                                */
-/* ------------------------------------------------------------------ */
-
-function ConfirmDialog({ title, message, onConfirm, onCancel }) {
-  return (
-    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-      <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-        {title}
-      </p>
-      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-        {message}
-      </p>
-      <div className="mt-3 flex gap-2">
-        <Button variant="filled" onClick={onConfirm}>
-          Confirm
-        </Button>
-        <Button variant="secondary" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -108,6 +52,24 @@ export default function PolicyCenterPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  /* -- Escape key closes inline confirm dialog -- */
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        setConfirmAction(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  /* -- Auto-dismiss actionMsg after 5s -- */
+  useEffect(() => {
+    if (!actionMsg) return
+    const t = setTimeout(() => setActionMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [actionMsg])
 
   async function handleReload() {
     setActionMsg(null)
@@ -458,7 +420,7 @@ export default function PolicyCenterPage() {
                     {opResult.error}
                   </p>
                 ) : (
-                  <pre className="mt-2 max-h-64 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                     {JSON.stringify(opResult.data, null, 2)}
                   </pre>
                 )}

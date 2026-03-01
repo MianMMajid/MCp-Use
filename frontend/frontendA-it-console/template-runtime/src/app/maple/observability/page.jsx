@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export const sections = [
   { title: 'Summary', id: 'obs-summary' },
@@ -12,55 +14,6 @@ export const sections = [
   { title: 'SIEM export', id: 'siem' },
   { title: 'Alert webhooks', id: 'alert-webhooks' },
 ]
-
-function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
-        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-          <Button onClick={onConfirm}>Confirm</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700"
-          >
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
@@ -150,6 +103,20 @@ export default function ObservabilityPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  /* -- Auto-dismiss siemMsg after 5s -- */
+  useEffect(() => {
+    if (!siemMsg) return
+    const t = setTimeout(() => setSiemMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [siemMsg])
+
+  /* -- Auto-dismiss webhookMsg after 5s -- */
+  useEffect(() => {
+    if (!webhookMsg) return
+    const t = setTimeout(() => setWebhookMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [webhookMsg])
 
   /* -- Audit log pagination -- */
   async function loadMoreAuditLog() {
@@ -352,7 +319,7 @@ export default function ObservabilityPage() {
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Org RBAC Introspection
                 </span>
-                <pre className="mt-2 max-h-32 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">
                   {JSON.stringify(orgRbac, null, 2)}
                 </pre>
               </div>
@@ -434,9 +401,9 @@ export default function ObservabilityPage() {
             ) : auditLog && auditLog.length > 0 ? (
               <>
                 <div className="mt-4 overflow-auto rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
-                  <table className="w-full text-left text-sm">
+                  <table className="min-w-[600px] w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-zinc-950/5 dark:border-white/5">
+                      <tr className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-950/5 dark:border-white/5">
                         <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                           Event
                         </th>
@@ -450,7 +417,7 @@ export default function ObservabilityPage() {
                     </thead>
                     <tbody className="divide-y divide-zinc-950/5 dark:divide-white/5">
                       {auditLog.map((entry, idx) => (
-                        <tr key={entry.id ?? idx}>
+                        <tr key={entry.id ?? idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                           <td className="px-4 py-2 font-medium text-zinc-950 dark:text-white">
                             {entry.event ??
                               entry.type ??

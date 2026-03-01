@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Capabilities', id: 'capabilities' },
@@ -11,31 +12,6 @@ export const sections = [
   { title: 'Connection', id: 'connection' },
   { title: 'Execute', id: 'execute' },
 ]
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function formatDate(d) {
   if (!d) return '--'
@@ -243,7 +219,7 @@ export default function ModifierApprovalsPage() {
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">Capabilities</h2>
             {loading ? <div className="mt-4"><SkeletonCard /></div> : capabilities ? (
               <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-                <pre className="overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(capabilities, null, 2)}</pre>
+                <pre className="overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(capabilities, null, 2)}</pre>
               </div>
             ) : null}
           </section>
@@ -274,7 +250,7 @@ export default function ModifierApprovalsPage() {
                     <div key={aid} className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <button onClick={() => toggleDetail(aid)} className="text-sm font-medium text-zinc-950 hover:underline dark:text-white">
+                          <button type="button" onClick={() => toggleDetail(aid)} className="text-sm font-medium text-zinc-950 hover:underline dark:text-white">
                             {item.toolName || item.action || item.type || 'Approval Request'}
                           </button>
                           {item.risk && <Tag className="ml-2" color={item.risk === 'high' || item.risk === 'critical' ? 'rose' : item.risk === 'medium' ? 'amber' : 'orange'} variant="medium">{item.risk}</Tag>}
@@ -286,7 +262,7 @@ export default function ModifierApprovalsPage() {
                       {(item.description || item.context) && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{item.description || (typeof item.context === 'string' ? item.context : JSON.stringify(item.context))}</p>}
 
                       {expandedId === aid && detail && (
-                        <pre className="mt-3 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(detail, null, 2)}</pre>
+                        <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(detail, null, 2)}</pre>
                       )}
 
                       <div className="mt-4 flex gap-2">
@@ -324,7 +300,7 @@ export default function ModifierApprovalsPage() {
             </div>
             {execResult && (
               <div className="mt-4 rounded-xl border border-zinc-950/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800">
-                <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(execResult, null, 2)}</pre>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(execResult, null, 2)}</pre>
               </div>
             )}
           </section>

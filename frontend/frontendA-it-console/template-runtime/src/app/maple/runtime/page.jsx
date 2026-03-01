@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
   { title: 'Health', id: 'health' },
@@ -15,43 +16,6 @@ export const sections = [
   { title: 'Rate limits', id: 'rate-limits' },
   { title: 'User profile', id: 'user-profile' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Skeletons                                                          */
-/* ------------------------------------------------------------------ */
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700"
-          >
-            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
 
 export default function RuntimeDependenciesPage() {
   const [health, setHealth] = useState(null)
@@ -125,6 +89,20 @@ export default function RuntimeDependenciesPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  /* -- Auto-dismiss passwordMsg after 5s -- */
+  useEffect(() => {
+    if (!passwordMsg) return
+    const t = setTimeout(() => setPasswordMsg(''), 5000)
+    return () => clearTimeout(t)
+  }, [passwordMsg])
+
+  /* -- Auto-dismiss quotaMsg after 5s -- */
+  useEffect(() => {
+    if (!quotaMsg) return
+    const t = setTimeout(() => setQuotaMsg(null), 5000)
+    return () => clearTimeout(t)
+  }, [quotaMsg])
 
   async function handleChangePassword() {
     if (!currentPassword || !newPassword) return
@@ -602,9 +580,9 @@ export default function RuntimeDependenciesPage() {
               </div>
             ) : deps && deps.length > 0 ? (
               <div className="mt-4 overflow-auto rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
-                <table className="w-full text-left text-sm">
+                <table className="min-w-[600px] w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-zinc-950/5 dark:border-white/5">
+                    <tr className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-950/5 dark:border-white/5">
                       <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         Name
                       </th>
@@ -618,7 +596,7 @@ export default function RuntimeDependenciesPage() {
                   </thead>
                   <tbody className="divide-y divide-zinc-950/5 dark:divide-white/5">
                     {deps.map((dep, idx) => (
-                      <tr key={dep.name ?? idx}>
+                      <tr key={dep.name ?? idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                         <td className="px-4 py-2 font-medium text-zinc-950 dark:text-white">
                           {dep.name ?? dep.package ?? `Dependency ${idx + 1}`}
                         </td>
@@ -807,7 +785,7 @@ export default function RuntimeDependenciesPage() {
                 </div>
               </div>
             ) : !loading ? (
-              <p className="mt-4 text-sm text-zinc-500">User profile not available.</p>
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">User profile not available.</p>
             ) : null}
           </section>
         </div>
