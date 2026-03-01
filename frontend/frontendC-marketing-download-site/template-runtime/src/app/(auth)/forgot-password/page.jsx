@@ -17,7 +17,7 @@ export default function ForgotPassword() {
     setLoading(true)
 
     try {
-      await fetch('/api/business/auth/forgot-password', {
+      await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',

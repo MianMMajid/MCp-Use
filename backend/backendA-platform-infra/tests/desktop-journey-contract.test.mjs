@@ -52,8 +52,8 @@ test("desktop template workspace includes core journey views and endpoints", () 
   const requiredStrings = [
     "Agent Orchestration Workspace",
     "/api/runtime/feature-capabilities",
-    "/api/firewall/status",
-    "/api/hitl/list",
+    "/api/firewall/state",
+    "/api/hitl/approvals",
     "Open agent catalog",
     "Review approvals",
   ];

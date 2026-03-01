@@ -25,8 +25,8 @@ const REQUIRED_SURFACE_ENDPOINTS = {
   ],
   frontendB: [
     "/api/runtime/feature-capabilities",
-    "/api/firewall/status",
-    "/api/hitl/list",
+    "/api/firewall/state",
+    "/api/hitl/approvals",
   ],
   frontendC: [
     "/api/:path*",
