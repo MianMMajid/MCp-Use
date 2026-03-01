@@ -29,46 +29,55 @@ import {
   ChevronUpIcon,
   Cog8ToothIcon,
   LightBulbIcon,
+  PlusIcon,
+  ShieldCheckIcon,
   UserCircleIcon,
 } from '@heroicons/react/16/solid'
 import {
   Cog6ToothIcon,
+  CreditCardIcon,
   HomeIcon,
+  KeyIcon,
+  LinkIcon,
   QuestionMarkCircleIcon,
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
+  UserGroupIcon,
 } from '@heroicons/react/20/solid'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 
 function AccountDropdownMenu({ anchor }) {
-  const router = useRouter()
-
-  async function handleSignOut() {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-      })
-    } catch {
-      // Proceed to login even if the request fails
-    }
-    router.push('/login')
-  }
-
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
-      <DropdownItem href="/settings">
+      <DropdownItem href="#">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem href="mailto:support@maple.dev">
+      <DropdownItem href="#">
+        <ShieldCheckIcon />
+        <DropdownLabel>Privacy policy</DropdownLabel>
+      </DropdownItem>
+      <DropdownItem href="#">
         <LightBulbIcon />
         <DropdownLabel>Share feedback</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem onClick={handleSignOut}>
+      <DropdownItem href="/profile">
+        <UserCircleIcon />
+        <DropdownLabel>Profile</DropdownLabel>
+      </DropdownItem>
+      <DropdownItem href="/billing">
+        <CreditCardIcon />
+        <DropdownLabel>Billing</DropdownLabel>
+      </DropdownItem>
+      <DropdownItem href="/api-keys">
+        <KeyIcon />
+        <DropdownLabel>API Keys</DropdownLabel>
+      </DropdownItem>
+      <DropdownDivider />
+      <DropdownItem href="/login">
         <ArrowRightStartOnRectangleIcon />
         <DropdownLabel>Sign out</DropdownLabel>
       </DropdownItem>
@@ -87,7 +96,7 @@ export function ApplicationLayout({ events, children }) {
           <NavbarSection>
             <Dropdown>
               <DropdownButton as={NavbarItem}>
-                <Avatar initials="U" className="bg-zinc-600 text-white" square />
+                <Avatar src="/users/erica.jpg" square />
               </DropdownButton>
               <AccountDropdownMenu anchor="bottom end" />
             </Dropdown>
@@ -99,8 +108,8 @@ export function ApplicationLayout({ events, children }) {
           <SidebarHeader>
             <Dropdown>
               <DropdownButton as={SidebarItem}>
-                <Avatar initials="M" className="bg-zinc-900 text-white" />
-                <SidebarLabel>Maple Desktop</SidebarLabel>
+                <Avatar src="/teams/catalyst.svg" />
+                <SidebarLabel>Mayple Desktop</SidebarLabel>
                 <ChevronDownIcon />
               </DropdownButton>
               <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
@@ -109,9 +118,18 @@ export function ApplicationLayout({ events, children }) {
                   <DropdownLabel>Settings</DropdownLabel>
                 </DropdownItem>
                 <DropdownDivider />
-                <DropdownItem href="/">
-                  <Avatar slot="icon" initials="M" className="bg-zinc-900 text-white" />
-                  <DropdownLabel>Maple Desktop</DropdownLabel>
+                <DropdownItem href="#">
+                  <Avatar slot="icon" src="/teams/catalyst.svg" />
+                  <DropdownLabel>Mayple Desktop</DropdownLabel>
+                </DropdownItem>
+                <DropdownItem href="#">
+                  <Avatar slot="icon" initials="BE" className="bg-purple-500 text-white" />
+                  <DropdownLabel>Big Events</DropdownLabel>
+                </DropdownItem>
+                <DropdownDivider />
+                <DropdownItem href="#">
+                  <PlusIcon />
+                  <DropdownLabel>New team&hellip;</DropdownLabel>
                 </DropdownItem>
               </DropdownMenu>
             </Dropdown>
@@ -135,6 +153,22 @@ export function ApplicationLayout({ events, children }) {
                 <Cog6ToothIcon />
                 <SidebarLabel>Account</SidebarLabel>
               </SidebarItem>
+              <SidebarItem href="/billing" current={pathname.startsWith('/billing')}>
+                <CreditCardIcon />
+                <SidebarLabel>Billing</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/integrations" current={pathname.startsWith('/integrations')}>
+                <LinkIcon />
+                <SidebarLabel>Integrations</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/organization" current={pathname.startsWith('/organization')}>
+                <UserGroupIcon />
+                <SidebarLabel>Organization</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/api-keys" current={pathname.startsWith('/api-keys')}>
+                <KeyIcon />
+                <SidebarLabel>API Keys</SidebarLabel>
+              </SidebarItem>
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
@@ -149,11 +183,11 @@ export function ApplicationLayout({ events, children }) {
             <SidebarSpacer />
 
             <SidebarSection>
-              <SidebarItem href="mailto:support@maple.dev">
+              <SidebarItem href="#">
                 <QuestionMarkCircleIcon />
                 <SidebarLabel>Support</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="https://github.com/omar2001ramadan/Mayple/releases">
+              <SidebarItem href="#">
                 <SparklesIcon />
                 <SidebarLabel>Release Notes</SidebarLabel>
               </SidebarItem>
@@ -164,9 +198,12 @@ export function ApplicationLayout({ events, children }) {
             <Dropdown>
               <DropdownButton as={SidebarItem}>
                 <span className="flex min-w-0 items-center gap-3">
-                  <Avatar initials="U" className="size-10 bg-zinc-600 text-white" square alt="" />
+                  <Avatar src="/users/erica.jpg" className="size-10" square alt="" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">User</span>
+                    <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">Erica</span>
+                    <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
+                      erica@example.com
+                    </span>
                   </span>
                 </span>
                 <ChevronUpIcon />

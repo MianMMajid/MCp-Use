@@ -202,13 +202,13 @@ export const navigation = [
       { title: 'Policy Center', href: '/maple/policies' },
       { title: 'HITL Queue', href: '/maple/hitl' },
       { title: 'Audit + Traces', href: '/maple/audit' },
-      { title: 'Runtime Dependencies', href: '/maple/runtime' },
+      { title: 'Firewall Dashboard', href: '/maple/gateway' },
+      { title: 'Runtime', href: '/maple/runtime' },
     ],
   },
   {
     title: 'References',
     links: [
-      { title: 'Gateway API', href: '/maple/gateway' },
       { title: 'Admin API', href: '/maple/admin' },
       { title: 'Desktop Studio', href: '/maple/desktop' },
     ],
