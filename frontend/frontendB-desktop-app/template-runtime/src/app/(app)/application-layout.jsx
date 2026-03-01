@@ -39,6 +39,7 @@ import {
   HomeIcon,
   KeyIcon,
   LinkIcon,
+  ChartBarIcon,
   QuestionMarkCircleIcon,
   SparklesIcon,
   Square2StackIcon,
@@ -157,6 +158,10 @@ export function ApplicationLayout({ events, children }) {
                 <CreditCardIcon />
                 <SidebarLabel>Billing</SidebarLabel>
               </SidebarItem>
+              <SidebarItem href="/usage" current={pathname.startsWith('/usage')}>
+                <ChartBarIcon />
+                <SidebarLabel>Usage</SidebarLabel>
+              </SidebarItem>
               <SidebarItem href="/integrations" current={pathname.startsWith('/integrations')}>
                 <LinkIcon />
                 <SidebarLabel>Integrations</SidebarLabel>
@@ -168,6 +173,10 @@ export function ApplicationLayout({ events, children }) {
               <SidebarItem href="/api-keys" current={pathname.startsWith('/api-keys')}>
                 <KeyIcon />
                 <SidebarLabel>API Keys</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/service-accounts" current={pathname.startsWith('/service-accounts')}>
+                <KeyIcon />
+                <SidebarLabel>Service Accounts</SidebarLabel>
               </SidebarItem>
             </SidebarSection>
 

@@ -7,6 +7,11 @@ import { Tag } from '@/components/Tag'
 export const sections = [
   { title: 'Health', id: 'health' },
   { title: 'Feature capabilities', id: 'feature-capabilities' },
+  { title: 'Runtime status', id: 'runtime-status' },
+  { title: 'Diagnostics', id: 'diagnostics' },
+  { title: 'Logs', id: 'logs' },
+  { title: 'Dependencies', id: 'dependencies' },
+  { title: 'Rate limits', id: 'rate-limits' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -17,6 +22,17 @@ async function loadJson(path) {
   const res = await fetch(path, {
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
+  })
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+  return res.json()
+}
+
+async function postJson(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
   return res.json()
@@ -62,16 +78,29 @@ function SkeletonList() {
 export default function RuntimeDependenciesPage() {
   const [health, setHealth] = useState(null)
   const [capabilities, setCapabilities] = useState(null)
+  const [runtimeStatus, setRuntimeStatus] = useState(null)
+  const [logs, setLogs] = useState(null)
+  const [diag, setDiag] = useState(null)
+  const [deps, setDeps] = useState(null)
+  const [rateLimits, setRateLimits] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [quotaMsg, setQuotaMsg] = useState(null)
+  const [quotaInput, setQuotaInput] = useState('')
+  const [showQuotaForm, setShowQuotaForm] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [h, c] = await Promise.allSettled([
+      const [h, c, rs, lg, dg, dp, rl] = await Promise.allSettled([
         loadJson('/health'),
         loadJson('/api/runtime/feature-capabilities'),
+        loadJson('/api/runtime/status'),
+        loadJson('/api/runtime/logs'),
+        loadJson('/api/runtime/diag'),
+        loadJson('/api/runtime/dependencies'),
+        loadJson('/api/openclaw/modifier/ops/rate-limit'),
       ])
 
       if (h.status === 'fulfilled') setHealth(h.value)
@@ -83,10 +112,22 @@ export default function RuntimeDependenciesPage() {
             : data.capabilities ?? data.features ?? [],
         )
       }
-
-      if (h.status === 'rejected' && c.status === 'rejected') {
-        throw new Error('All endpoints failed')
+      if (rs.status === 'fulfilled') setRuntimeStatus(rs.value)
+      if (lg.status === 'fulfilled') {
+        const data = lg.value
+        setLogs(Array.isArray(data) ? data : data.logs ?? data.entries ?? [])
       }
+      if (dg.status === 'fulfilled') setDiag(dg.value)
+      if (dp.status === 'fulfilled') {
+        const data = dp.value
+        setDeps(Array.isArray(data) ? data : data.dependencies ?? data.tree ?? [])
+      }
+      if (rl.status === 'fulfilled') setRateLimits(rl.value)
+
+      const allFailed = [h, c, rs, lg, dg, dp, rl].every(
+        (r) => r.status === 'rejected',
+      )
+      if (allFailed) throw new Error('All endpoints failed')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -97,6 +138,25 @@ export default function RuntimeDependenciesPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  async function handleConfigureQuotas() {
+    setQuotaMsg(null)
+    try {
+      const body = quotaInput.trim() ? JSON.parse(quotaInput) : {}
+      const result = await postJson(
+        '/api/openclaw/modifier/ops/rate-limit/config',
+        body,
+      )
+      setQuotaMsg(
+        result.message ?? result.status ?? 'Quota configuration updated.',
+      )
+      setShowQuotaForm(false)
+      setQuotaInput('')
+      fetchData()
+    } catch (err) {
+      setQuotaMsg(`Failed: ${err.message}`)
+    }
+  }
 
   /* -- Derive health status -- */
   const healthStatus = health
@@ -325,6 +385,381 @@ export default function RuntimeDependenciesPage() {
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   No feature capabilities reported.
                 </p>
+              </div>
+            )}
+          </section>
+
+          {/* ---- Runtime Status ---- */}
+          <section id="runtime-status" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Runtime Status
+            </h2>
+
+            {loading && !runtimeStatus ? (
+              <div className="mt-4">
+                <SkeletonCard />
+              </div>
+            ) : runtimeStatus ? (
+              <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {runtimeStatus.uptime != null && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Uptime
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {typeof runtimeStatus.uptime === 'number'
+                          ? `${Math.floor(runtimeStatus.uptime / 3600)}h ${Math.floor((runtimeStatus.uptime % 3600) / 60)}m`
+                          : runtimeStatus.uptime}
+                      </p>
+                    </div>
+                  )}
+                  {runtimeStatus.version && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Version
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {runtimeStatus.version}
+                      </p>
+                    </div>
+                  )}
+                  {runtimeStatus.pid != null && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        PID
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {runtimeStatus.pid}
+                      </p>
+                    </div>
+                  )}
+                  {runtimeStatus.nodeVersion && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Node Version
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {runtimeStatus.nodeVersion}
+                      </p>
+                    </div>
+                  )}
+                  {runtimeStatus.platform && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Platform
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {runtimeStatus.platform}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Runtime status not available.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ---- Diagnostics ---- */}
+          <section id="diagnostics" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Diagnostics
+            </h2>
+
+            {loading && !diag ? (
+              <div className="mt-4">
+                <SkeletonCard />
+              </div>
+            ) : diag ? (
+              <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {diag.memory && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Memory
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {typeof diag.memory === 'object'
+                          ? `RSS: ${Math.round((diag.memory.rss ?? 0) / 1048576)}MB / Heap: ${Math.round((diag.memory.heapUsed ?? 0) / 1048576)}MB`
+                          : diag.memory}
+                      </p>
+                    </div>
+                  )}
+                  {diag.cpu != null && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        CPU
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {typeof diag.cpu === 'object'
+                          ? JSON.stringify(diag.cpu)
+                          : diag.cpu}
+                      </p>
+                    </div>
+                  )}
+                  {diag.uptime != null && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Process Uptime
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {typeof diag.uptime === 'number'
+                          ? `${Math.floor(diag.uptime / 3600)}h ${Math.floor((diag.uptime % 3600) / 60)}m`
+                          : diag.uptime}
+                      </p>
+                    </div>
+                  )}
+                  {diag.eventLoopLag != null && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Event Loop Lag
+                      </span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">
+                        {diag.eventLoopLag}ms
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Diagnostics not available.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ---- Recent Logs ---- */}
+          <section id="logs" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Recent Logs
+            </h2>
+
+            {loading && !logs ? (
+              <div className="mt-4">
+                <SkeletonList />
+              </div>
+            ) : logs && logs.length > 0 ? (
+              <div className="mt-4 max-h-80 overflow-auto rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
+                <div className="divide-y divide-zinc-950/5 dark:divide-white/5">
+                  {logs.map((entry, idx) => (
+                    <div key={idx} className="px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        {entry.level && (
+                          <Tag
+                            color={
+                              entry.level === 'error'
+                                ? 'rose'
+                                : entry.level === 'warn'
+                                  ? 'amber'
+                                  : 'zinc'
+                            }
+                            variant="small"
+                          >
+                            {entry.level.toUpperCase()}
+                          </Tag>
+                        )}
+                        {entry.timestamp && (
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                            {new Date(entry.timestamp).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 font-mono text-xs text-zinc-700 dark:text-zinc-300">
+                        {entry.message ?? entry.msg ?? JSON.stringify(entry)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  No recent logs available.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ---- Dependency Tree ---- */}
+          <section id="dependencies" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Dependency Tree
+            </h2>
+
+            {loading && !deps ? (
+              <div className="mt-4">
+                <SkeletonList />
+              </div>
+            ) : deps && deps.length > 0 ? (
+              <div className="mt-4 overflow-auto rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-950/5 dark:border-white/5">
+                      <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Name
+                      </th>
+                      <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Version
+                      </th>
+                      <th className="px-4 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-950/5 dark:divide-white/5">
+                    {deps.map((dep, idx) => (
+                      <tr key={dep.name ?? idx}>
+                        <td className="px-4 py-2 font-medium text-zinc-950 dark:text-white">
+                          {dep.name ?? dep.package ?? `Dependency ${idx + 1}`}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">
+                          {dep.version ?? '-'}
+                        </td>
+                        <td className="px-4 py-2">
+                          {dep.status && (
+                            <Tag
+                              color={
+                                dep.status === 'ok' || dep.status === 'installed'
+                                  ? 'orange'
+                                  : 'amber'
+                              }
+                              variant="small"
+                            >
+                              {dep.status.toUpperCase()}
+                            </Tag>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  No dependency information available.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* ---- Rate Limits & Quotas ---- */}
+          <section id="rate-limits" className="mt-10">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+                Rate Limits & Quotas
+              </h2>
+              <Button
+                variant="secondary"
+                onClick={() => setShowQuotaForm(!showQuotaForm)}
+              >
+                Configure Quotas
+              </Button>
+            </div>
+
+            {loading && !rateLimits ? (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+            ) : rateLimits ? (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {rateLimits.requestsPerMinute != null && (
+                  <div className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      Requests / min
+                    </span>
+                    <p className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-white">
+                      {rateLimits.requestsPerMinute}
+                    </p>
+                  </div>
+                )}
+                {rateLimits.tokensPerMinute != null && (
+                  <div className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      Tokens / min
+                    </span>
+                    <p className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-white">
+                      {rateLimits.tokensPerMinute}
+                    </p>
+                  </div>
+                )}
+                {rateLimits.concurrentRequests != null && (
+                  <div className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+                    <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                      Concurrent Requests
+                    </span>
+                    <p className="mt-2 text-2xl font-semibold text-zinc-950 dark:text-white">
+                      {rateLimits.concurrentRequests}
+                    </p>
+                  </div>
+                )}
+                {/* Fallback: render all keys as cards */}
+                {!rateLimits.requestsPerMinute &&
+                  !rateLimits.tokensPerMinute &&
+                  !rateLimits.concurrentRequests &&
+                  Object.entries(rateLimits).map(([key, val]) => (
+                    <div
+                      key={key}
+                      className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900"
+                    >
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        {key}
+                      </span>
+                      <p className="mt-2 text-lg font-semibold text-zinc-950 dark:text-white">
+                        {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Rate limit data not available.
+                </p>
+              </div>
+            )}
+
+            {/* Quota config form */}
+            {showQuotaForm && (
+              <div className="mt-4 rounded-xl border border-zinc-950/10 bg-zinc-50 p-4 dark:border-white/10 dark:bg-zinc-800">
+                <label className="block text-sm font-medium text-zinc-950 dark:text-white">
+                  Quota Configuration (JSON)
+                </label>
+                <textarea
+                  className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-2 text-sm text-zinc-950 outline-2 outline-offset-2 outline-orange-500 focus:outline dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+                  rows={4}
+                  value={quotaInput}
+                  onChange={(e) => setQuotaInput(e.target.value)}
+                  placeholder='{"requestsPerMinute": 100, "tokensPerMinute": 10000}'
+                />
+                <div className="mt-3 flex gap-2">
+                  <Button variant="filled" onClick={handleConfigureQuotas}>
+                    Apply Configuration
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowQuotaForm(false)
+                      setQuotaInput('')
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {quotaMsg && (
+                  <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    {quotaMsg}
+                  </p>
+                )}
               </div>
             )}
           </section>

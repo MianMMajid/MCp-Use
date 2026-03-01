@@ -8,6 +8,7 @@ export const sections = [
   { title: 'Active rules', id: 'active-rules' },
   { title: 'Version history', id: 'version-history' },
   { title: 'Actions', id: 'actions' },
+  { title: 'Policy operations', id: 'policy-ops' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -68,6 +69,31 @@ function SkeletonList() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Confirmation dialog                                                */
+/* ------------------------------------------------------------------ */
+
+function ConfirmDialog({ title, message, onConfirm, onCancel }) {
+  return (
+    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+      <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+        {title}
+      </p>
+      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+        {message}
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Button variant="filled" onClick={onConfirm}>
+          Confirm
+        </Button>
+        <Button variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -78,6 +104,12 @@ export default function PolicyCenterPage() {
   const [error, setError] = useState(null)
   const [actionMsg, setActionMsg] = useState(null)
   const [activating, setActivating] = useState(null)
+
+  // Policy operations state
+  const [opInput, setOpInput] = useState('')
+  const [opResult, setOpResult] = useState(null)
+  const [opLoading, setOpLoading] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -135,6 +167,46 @@ export default function PolicyCenterPage() {
       setActionMsg(`Activation failed: ${err.message}`)
     } finally {
       setActivating(null)
+    }
+  }
+
+  /* -- Policy operation handlers -- */
+  async function runPolicyOp(op) {
+    setOpLoading(op)
+    setOpResult(null)
+    try {
+      const body = opInput.trim() ? JSON.parse(opInput) : {}
+      const result = await postJson(
+        `/api/openclaw/modifier/ops/policy/${op}`,
+        body,
+      )
+      setOpResult({ op, data: result })
+    } catch (err) {
+      setOpResult({ op, error: err.message })
+    } finally {
+      setOpLoading(null)
+      setConfirmAction(null)
+    }
+  }
+
+  function handleDangerousOp(op) {
+    setConfirmAction(op)
+  }
+
+  async function handleDiffBeforeApply() {
+    setOpLoading('diff-before-apply')
+    setOpResult(null)
+    try {
+      const body = opInput.trim() ? JSON.parse(opInput) : {}
+      const result = await postJson(
+        '/api/openclaw/modifier/ops/policy/diff-before-apply',
+        body,
+      )
+      setOpResult({ op: 'diff-before-apply', data: result })
+    } catch (err) {
+      setOpResult({ op: 'diff-before-apply', error: err.message })
+    } finally {
+      setOpLoading(null)
     }
   }
 
@@ -298,6 +370,121 @@ export default function PolicyCenterPage() {
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   No policy versions found.
                 </p>
+              </div>
+            )}
+          </section>
+
+          {/* ---- Policy Operations ---- */}
+          <section id="policy-ops" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Policy Operations
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Simulate, diff, dry-run, apply, or rollback policy changes.
+            </p>
+
+            {/* JSON input */}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-zinc-950 dark:text-white">
+                Policy Input (JSON)
+              </label>
+              <textarea
+                className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-2 font-mono text-sm text-zinc-950 outline-2 outline-offset-2 outline-orange-500 focus:outline dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+                rows={5}
+                value={opInput}
+                onChange={(e) => setOpInput(e.target.value)}
+                placeholder='{"rules": [...], "version": "v2"}'
+              />
+            </div>
+
+            {/* Safe operations */}
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => runPolicyOp('simulate')}
+                disabled={opLoading != null}
+              >
+                {opLoading === 'simulate' ? 'Simulating...' : 'Simulate'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => runPolicyOp('diff')}
+                disabled={opLoading != null}
+              >
+                {opLoading === 'diff' ? 'Diffing...' : 'Diff Versions'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => runPolicyOp('dry-run')}
+                disabled={opLoading != null}
+              >
+                {opLoading === 'dry-run' ? 'Running...' : 'Dry Run'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleDiffBeforeApply}
+                disabled={opLoading != null}
+              >
+                {opLoading === 'diff-before-apply'
+                  ? 'Loading...'
+                  : 'Preview Apply Diff'}
+              </Button>
+            </div>
+
+            {/* Dangerous operations */}
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Button
+                variant="filled"
+                onClick={() => handleDangerousOp('apply')}
+                disabled={opLoading != null}
+              >
+                {opLoading === 'apply' ? 'Applying...' : 'Apply'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleDangerousOp('rollback')}
+                disabled={opLoading != null}
+              >
+                {opLoading === 'rollback' ? 'Rolling back...' : 'Rollback'}
+              </Button>
+            </div>
+
+            {/* Confirmation dialog */}
+            {confirmAction && (
+              <ConfirmDialog
+                title={`Confirm ${confirmAction}`}
+                message={`Are you sure you want to ${confirmAction} this policy? This action may affect production.`}
+                onConfirm={() => runPolicyOp(confirmAction)}
+                onCancel={() => setConfirmAction(null)}
+              />
+            )}
+
+            {/* Result display */}
+            {opResult && (
+              <div className="mt-4 rounded-xl border border-zinc-950/10 bg-zinc-50 p-4 dark:border-white/10 dark:bg-zinc-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-950 dark:text-white">
+                    Result: {opResult.op}
+                  </span>
+                  {opResult.error ? (
+                    <Tag color="rose" variant="small">
+                      ERROR
+                    </Tag>
+                  ) : (
+                    <Tag color="orange" variant="small">
+                      OK
+                    </Tag>
+                  )}
+                </div>
+                {opResult.error ? (
+                  <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+                    {opResult.error}
+                  </p>
+                ) : (
+                  <pre className="mt-2 max-h-64 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                    {JSON.stringify(opResult.data, null, 2)}
+                  </pre>
+                )}
               </div>
             )}
           </section>

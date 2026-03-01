@@ -213,6 +213,15 @@ export const navigation = [
     ],
   },
   {
+    title: 'Platform',
+    links: [
+      { title: 'Tenant & Org', href: '/maple/tenants' },
+      { title: 'Escalation', href: '/maple/escalation' },
+      { title: 'Tools Registry', href: '/maple/tools' },
+      { title: 'Observability', href: '/maple/observability' },
+    ],
+  },
+  {
     title: 'References',
     links: [
       { title: 'Admin API', href: '/maple/admin' },
