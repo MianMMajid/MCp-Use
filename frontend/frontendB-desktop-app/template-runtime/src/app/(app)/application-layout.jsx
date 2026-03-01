@@ -75,16 +75,16 @@ async function handleSignOut(router) {
 function AccountDropdownMenu({ anchor, router }) {
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
-      <DropdownItem href="#">
+      <DropdownItem href="/profile">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem href="#">
+      <DropdownItem href="/settings">
         <ShieldCheckIcon />
         <DropdownLabel>Privacy policy</DropdownLabel>
       </DropdownItem>
-      <DropdownItem href="#">
+      <DropdownItem href="/community">
         <LightBulbIcon />
         <DropdownLabel>Share feedback</DropdownLabel>
       </DropdownItem>
@@ -151,16 +151,16 @@ export function ApplicationLayout({ events, children }) {
                   <DropdownLabel>Settings</DropdownLabel>
                 </DropdownItem>
                 <DropdownDivider />
-                <DropdownItem href="#">
+                <DropdownItem href="/">
                   <Avatar slot="icon" src="/teams/catalyst.svg" />
                   <DropdownLabel>Mayple Desktop</DropdownLabel>
                 </DropdownItem>
-                <DropdownItem href="#">
+                <DropdownItem href="/organization">
                   <Avatar slot="icon" initials="BE" className="bg-purple-500 text-white" />
                   <DropdownLabel>Big Events</DropdownLabel>
                 </DropdownItem>
                 <DropdownDivider />
-                <DropdownItem href="#">
+                <DropdownItem href="/organization">
                   <PlusIcon />
                   <DropdownLabel>New team&hellip;</DropdownLabel>
                 </DropdownItem>
@@ -307,11 +307,11 @@ export function ApplicationLayout({ events, children }) {
             <SidebarSpacer />
 
             <SidebarSection>
-              <SidebarItem href="#">
+              <SidebarItem href="/diagnostics" current={pathname.startsWith('/diagnostics')}>
                 <QuestionMarkCircleIcon />
                 <SidebarLabel>Support</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="#">
+              <SidebarItem href="/community" current={pathname.startsWith('/community')}>
                 <SparklesIcon />
                 <SidebarLabel>Release Notes</SidebarLabel>
               </SidebarItem>

@@ -71,6 +71,11 @@ export default function ModifierApprovalsPage() {
   const [decisionReason, setDecisionReason] = useState('')
   const [decisionLoading, setDecisionLoading] = useState(false)
 
+  // Step-up decide dialog state
+  const [showStepUpDialog, setShowStepUpDialog] = useState(false)
+  const [stepUpPayload, setStepUpPayload] = useState('')
+  const [stepUpLoading, setStepUpLoading] = useState(false)
+
   // Exec dialog state
   const [showExecDialog, setShowExecDialog] = useState(false)
   const [execPayload, setExecPayload] = useState('')
@@ -148,6 +153,33 @@ export default function ModifierApprovalsPage() {
     }
   }
 
+  async function handleStepUpDecide() {
+    setStepUpLoading(true)
+    try {
+      let body = {}
+      if (stepUpPayload.trim()) {
+        try { body = JSON.parse(stepUpPayload) } catch { body = { raw: stepUpPayload } }
+      }
+      const res = await postJson('/api/openclaw/modifier/approvals/step-up-decide', body)
+      if (res.ok) {
+        setMessage('Step-up decision submitted.')
+        setMessageType('success')
+        setShowStepUpDialog(false)
+        setStepUpPayload('')
+        await fetchData()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setMessage(data.error || 'Step-up decision failed.')
+        setMessageType('error')
+      }
+    } catch {
+      setMessage('Step-up decision failed.')
+      setMessageType('error')
+    } finally {
+      setStepUpLoading(false)
+    }
+  }
+
   async function handleExec() {
     setExecLoading(true)
     try {
@@ -180,6 +212,9 @@ export default function ModifierApprovalsPage() {
       <div className="flex items-end justify-between gap-4">
         <Heading>Modifier Approvals</Heading>
         <div className="flex gap-2">
+          <Button color="orange" onClick={() => { setShowStepUpDialog(true); setStepUpPayload('') }}>
+            Step-Up Decide
+          </Button>
           <Button onClick={() => { setShowExecDialog(true); setExecPayload('') }}>
             Execute
           </Button>
@@ -351,6 +386,36 @@ export default function ModifierApprovalsPage() {
             onClick={handleDecision}
           >
             {decisionLoading ? 'Submitting...' : decisionAction === 'approve' ? 'Approve' : 'Deny'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Step-Up Decide Dialog */}
+      <Dialog open={showStepUpDialog} onClose={() => setShowStepUpDialog(false)} size="sm">
+        <DialogTitle>Step-Up Decide</DialogTitle>
+        <DialogDescription>
+          Submit an escalated step-up approval decision. Provide the approval context as JSON.
+        </DialogDescription>
+        <DialogBody>
+          <Field>
+            <Label>Payload (JSON)</Label>
+            <Input
+              value={stepUpPayload}
+              onChange={(e) => setStepUpPayload(e.target.value)}
+              placeholder='{"approvalId": "...", "action": "approve", "reason": "..."}'
+            />
+          </Field>
+        </DialogBody>
+        <DialogActions>
+          <Button plain onClick={() => setShowStepUpDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            color="orange"
+            disabled={stepUpLoading}
+            onClick={handleStepUpDecide}
+          >
+            {stepUpLoading ? 'Submitting...' : 'Submit Step-Up Decision'}
           </Button>
         </DialogActions>
       </Dialog>

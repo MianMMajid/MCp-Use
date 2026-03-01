@@ -30,6 +30,7 @@ export default function DiagnosticsPage() {
   const [logs, setLogs] = useState(null)
   const [health, setHealth] = useState(null)
   const [featureCaps, setFeatureCaps] = useState(null)
+  const [auditEvents, setAuditEvents] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [logLimit, setLogLimit] = useState('50')
@@ -40,13 +41,14 @@ export default function DiagnosticsPage() {
     setError('')
     ;(async () => {
       try {
-        const [diagData, statusData, depsData, logsData, healthData, featureData] = await Promise.all([
+        const [diagData, statusData, depsData, logsData, healthData, featureData, auditData] = await Promise.all([
           loadJson('/api/runtime/diag').catch(() => null),
           loadJson('/api/runtime/status').catch(() => null),
           loadJson('/api/runtime/dependencies').catch(() => null),
           loadJson(`/api/runtime/logs?limit=${limit || logLimit}`).catch(() => null),
           loadJson('/health').catch(() => null),
           loadJson('/api/runtime/feature-capabilities').catch(() => null),
+          loadJson('/api/audit/events').catch(() => null),
         ])
         if (cancelled) return
         setDiag(diagData)
@@ -55,6 +57,7 @@ export default function DiagnosticsPage() {
         setLogs(logsData?.logs || logsData?.lines || (typeof logsData === 'string' ? logsData : null))
         setHealth(healthData)
         setFeatureCaps(featureData)
+        setAuditEvents(Array.isArray(auditData?.events) ? auditData.events : Array.isArray(auditData) ? auditData : null)
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
       } finally {
@@ -179,6 +182,38 @@ export default function DiagnosticsPage() {
               </div>
             ))}
           </DescriptionList>
+        </>
+      )}
+
+      {/* Audit Events */}
+      {!loading && auditEvents && auditEvents.length > 0 && (
+        <>
+          <Divider className="my-6" />
+          <Subheading>Audit Events</Subheading>
+          <Table className="mt-4 [--gutter:--spacing(6)] lg:[--gutter:--spacing(10)]">
+            <TableHead>
+              <TableRow>
+                <TableHeader>Event</TableHeader>
+                <TableHeader>Actor</TableHeader>
+                <TableHeader>Timestamp</TableHeader>
+                <TableHeader>Details</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {auditEvents.slice(0, 50).map((evt, idx) => (
+                <TableRow key={evt.id || idx}>
+                  <TableCell className="font-medium">{evt.action || evt.event || evt.type || '--'}</TableCell>
+                  <TableCell>{evt.actor || evt.user || evt.userId || '--'}</TableCell>
+                  <TableCell className="text-zinc-500">
+                    {evt.timestamp || evt.createdAt ? new Date(evt.timestamp || evt.createdAt).toLocaleString() : '--'}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate text-xs text-zinc-500">
+                    {evt.details || evt.description || (evt.metadata ? JSON.stringify(evt.metadata) : '--')}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </>
       )}
 

@@ -50,6 +50,9 @@ export default function FirewallPage() {
   // Firewall state
   const [firewallState, setFirewallState] = useState(null)
 
+  // YC Brief
+  const [ycBrief, setYcBrief] = useState(null)
+
   // Chat state
   const [chatInput, setChatInput] = useState('')
   const [chatReply, setChatReply] = useState(null)
@@ -64,14 +67,16 @@ export default function FirewallPage() {
     let cancelled = false
     ;(async () => {
       try {
-        const [capsData, rulesData, stateData] = await Promise.all([
+        const [capsData, rulesData, stateData, briefData] = await Promise.all([
           loadJson('/api/chat/capabilities').catch(() => null),
           loadJson('/api/firewall/rules/effective').catch(() => null),
           loadJson('/api/firewall/state').catch(() => null),
+          loadJson('/api/yc/brief').catch(() => null),
         ])
         if (cancelled) return
         setCapabilities(capsData)
         setFirewallState(stateData)
+        setYcBrief(briefData)
         setRules(Array.isArray(rulesData?.rules) ? rulesData.rules : Array.isArray(rulesData) ? rulesData : [])
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
@@ -170,6 +175,17 @@ export default function FirewallPage() {
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* YC Brief */}
+      {!loading && ycBrief && (
+        <>
+          <Divider className="my-6" />
+          <Subheading>Brief</Subheading>
+          <pre className="mt-4 overflow-auto rounded-2xl border border-zinc-950/10 bg-zinc-50 p-4 text-xs text-zinc-700 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300">
+            {typeof ycBrief === 'string' ? ycBrief : JSON.stringify(ycBrief, null, 2)}
+          </pre>
         </>
       )}
 

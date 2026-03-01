@@ -11,6 +11,7 @@ import { Select } from '@/components/select'
 import { Text } from '@/components/text'
 import { Textarea } from '@/components/textarea'
 import { Address } from './address'
+import { loadJson, patchJson } from '@/lib/api'
 
 export default function Settings() {
   const formRef = useRef(null)
@@ -18,22 +19,25 @@ export default function Settings() {
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
   const [profile, setProfile] = useState(null)
+  const [orgId, setOrgId] = useState(null)
 
   useEffect(() => {
+    let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch('/api/user/profile', {
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin',
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setProfile(data)
-        }
+        const [profileData, orgData] = await Promise.all([
+          loadJson('/api/user/profile').catch(() => null),
+          loadJson('/api/org').catch(() => null),
+        ])
+        if (cancelled) return
+        if (profileData) setProfile(profileData)
+        const orgs = Array.isArray(orgData?.orgs) ? orgData.orgs : Array.isArray(orgData) ? orgData : []
+        if (orgs.length > 0) setOrgId(orgs[0].id || orgs[0].orgId || null)
       } catch {
         // Profile load is best-effort
       }
     })()
+    return () => { cancelled = true }
   }, [])
 
   const handleSubmit = useCallback(async (e) => {
@@ -44,27 +48,25 @@ export default function Settings() {
     try {
       const formData = new FormData(formRef.current)
       const body = Object.fromEntries(formData.entries())
+      // Convert checkbox to boolean
+      body.email_is_public = body.email_is_public === 'on'
 
-      // Use PATCH /api/org/:orgId if an org context is available,
-      // otherwise fall back to a profile-level update.
-      const res = await fetch('/api/user/profile', {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-      })
-
-      if (!res.ok) {
-        throw new Error(`Server responded with ${res.status}`)
+      if (orgId) {
+        const res = await patchJson(`/api/org/${orgId}`, body)
+        if (!res.ok) throw new Error(`Server responded with ${res.status}`)
+        setMessageType('success')
+        setMessage('Settings saved successfully.')
+      } else {
+        setMessageType('error')
+        setMessage('No organization found. Create an organization first.')
       }
-
-      setMessageType('success')
-      setMessage('Profile loaded. Organization settings persistence is not yet available.')
     } catch (err) {
       setMessageType('error')
       setMessage('Unable to save settings. Please try again.')
     } finally {
       setSaving(false)
     }
-  }, [])
+  }, [orgId])
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="mx-auto max-w-4xl">
