@@ -2,17 +2,32 @@ import { AsyncLocalStorage } from "node:async_hooks";
 const MAPLE_LOG_LEVEL_ORDER = {
     error: 0, warn: 1, info: 2, debug: 3, trace: 4,
 };
-const mapleLogLevelRaw = String(process.env.MAPLE_LOG_LEVEL ?? "info").trim().toLowerCase();
-export const mapleLogLevel = mapleLogLevelRaw === "error" || mapleLogLevelRaw === "warn" || mapleLogLevelRaw === "info" ||
-    mapleLogLevelRaw === "debug" || mapleLogLevelRaw === "trace"
-    ? mapleLogLevelRaw : "info";
-export const mapleLogIncludeBodies = String(process.env.MAPLE_LOG_INCLUDE_BODIES ?? "0").trim().toLowerCase() === "true" ||
-    String(process.env.MAPLE_LOG_INCLUDE_BODIES ?? "0").trim().toLowerCase() === "1";
-export const mapleLogRequestsEnabled = String(process.env.MAPLE_LOG_REQUESTS ?? "1").trim().toLowerCase() !== "false" &&
-    String(process.env.MAPLE_LOG_REQUESTS ?? "1").trim().toLowerCase() !== "0";
-const mapleLogBodyMaxCharsRaw = Number.parseInt(String(process.env.MAPLE_LOG_BODY_MAX_CHARS ?? "4000"), 10);
-export const mapleLogBodyMaxChars = Number.isFinite(mapleLogBodyMaxCharsRaw)
-    ? Math.max(256, Math.min(40_000, mapleLogBodyMaxCharsRaw)) : 4000;
+if (!process.env.MAPLE_LOG_LEVEL) {
+    throw new Error("Missing required environment variable: MAPLE_LOG_LEVEL");
+}
+const mapleLogLevelRaw = process.env.MAPLE_LOG_LEVEL.trim().toLowerCase();
+if (!(mapleLogLevelRaw in MAPLE_LOG_LEVEL_ORDER)) {
+    throw new Error(`Invalid MAPLE_LOG_LEVEL: "${mapleLogLevelRaw}" (must be error/warn/info/debug/trace)`);
+}
+export const mapleLogLevel = mapleLogLevelRaw;
+if (!process.env.MAPLE_LOG_INCLUDE_BODIES) {
+    throw new Error("Missing required environment variable: MAPLE_LOG_INCLUDE_BODIES");
+}
+export const mapleLogIncludeBodies = process.env.MAPLE_LOG_INCLUDE_BODIES.trim().toLowerCase() === "true" ||
+    process.env.MAPLE_LOG_INCLUDE_BODIES.trim().toLowerCase() === "1";
+if (!process.env.MAPLE_LOG_REQUESTS) {
+    throw new Error("Missing required environment variable: MAPLE_LOG_REQUESTS");
+}
+export const mapleLogRequestsEnabled = process.env.MAPLE_LOG_REQUESTS.trim().toLowerCase() !== "false" &&
+    process.env.MAPLE_LOG_REQUESTS.trim().toLowerCase() !== "0";
+if (!process.env.MAPLE_LOG_BODY_MAX_CHARS) {
+    throw new Error("Missing required environment variable: MAPLE_LOG_BODY_MAX_CHARS");
+}
+const mapleLogBodyMaxCharsRaw = Number.parseInt(process.env.MAPLE_LOG_BODY_MAX_CHARS.trim(), 10);
+if (!Number.isFinite(mapleLogBodyMaxCharsRaw) || mapleLogBodyMaxCharsRaw < 256 || mapleLogBodyMaxCharsRaw > 40000) {
+    throw new Error(`Invalid MAPLE_LOG_BODY_MAX_CHARS: must be 256-40000`);
+}
+export const mapleLogBodyMaxChars = mapleLogBodyMaxCharsRaw;
 export const requestContextStorage = new AsyncLocalStorage();
 function normalizeOtelLogsEndpoint(raw) {
     const trimmed = raw.trim();
@@ -22,8 +37,8 @@ function normalizeOtelLogsEndpoint(raw) {
         return trimmed;
     return `${trimmed.replace(/\/$/, "")}/v1/logs`;
 }
-const otelLogsEndpoint = normalizeOtelLogsEndpoint(String(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT ?? process.env.MAPLE_OTEL_LOGS_ENDPOINT ?? "").trim());
-const otelServiceName = String(process.env.OTEL_SERVICE_NAME ?? process.env.MAPLE_SERVICE_NAME ?? "maple-service").trim();
+const otelLogsEndpoint = normalizeOtelLogsEndpoint(String(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || process.env.MAPLE_OTEL_LOGS_ENDPOINT || "").trim());
+const otelServiceName = String(process.env.OTEL_SERVICE_NAME || process.env.MAPLE_SERVICE_NAME || "").trim();
 const OTEL_SEVERITY_NUMBER = {
     error: 17,
     warn: 13,

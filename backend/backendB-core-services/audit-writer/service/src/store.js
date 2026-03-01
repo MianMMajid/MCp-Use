@@ -36,6 +36,22 @@ export class AuditStore {
           CREATE INDEX IF NOT EXISTS idx_audit_trace ON audit_events(trace_id);
           CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_events(session_id);
           CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(timestamp DESC);
+
+          CREATE TABLE IF NOT EXISTS audit_dead_letter (
+            event_id UUID PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            timestamp TIMESTAMPTZ NOT NULL,
+            source_service TEXT NOT NULL,
+            trace_id TEXT,
+            session_id TEXT,
+            payload_json JSONB,
+            severity TEXT,
+            summary TEXT,
+            error TEXT NOT NULL,
+            attempts INTEGER DEFAULT 1,
+            failed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS idx_dead_letter_failed ON audit_dead_letter(failed_at);
         `);
                 // Load recent events into in-memory cache
                 const result = await client.query(`SELECT event_id, event_type, timestamp, source_service,
@@ -76,7 +92,12 @@ export class AuditStore {
         if (this.events.length > this.maxInMemory) {
             this.events = this.events.slice(-this.maxInMemory);
         }
-        await this.insertEventPg(event);
+        try {
+            await this.insertEventPg(event);
+        } catch (err) {
+            mapleLog("error", "audit_append_to_dead_letter", { eventId: event.eventId, error: err.message });
+            await this.insertDeadLetter(event, err.message);
+        }
         return event.eventId;
     }
     async appendBatch(events) {
@@ -103,6 +124,97 @@ export class AuditStore {
             mapleLog("info", "audit_store_pg_shutdown", {});
         }
     }
+    // ── Dead-letter queue ────────────────────────────────────────────
+    async insertDeadLetter(event, error) {
+        if (!this.pgReady || !this.pool) return;
+        try {
+            await this.pool.query(
+                `INSERT INTO audit_dead_letter
+                    (event_id, event_type, timestamp, source_service, trace_id, session_id, payload_json, severity, summary, error, attempts, failed_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, NOW())
+                 ON CONFLICT (event_id) DO UPDATE SET
+                    attempts = audit_dead_letter.attempts + 1,
+                    error = EXCLUDED.error,
+                    failed_at = NOW()`,
+                [
+                    event.eventId,
+                    event.eventType,
+                    event.timestamp,
+                    event.sourceService,
+                    event.traceId ?? null,
+                    event.sessionId ?? null,
+                    event.payload ? JSON.stringify(event.payload) : null,
+                    event.severity ?? null,
+                    event.summary ?? null,
+                    error,
+                ]
+            );
+        } catch (dlqErr) {
+            mapleLog("error", "audit_dead_letter_insert_failed", { error: dlqErr.message, originalError: error });
+        }
+    }
+
+    async replayDeadLetter(eventId) {
+        if (!this.pgReady || !this.pool) {
+            throw new Error("AuditStore PostgreSQL backend is not ready.");
+        }
+        const result = await this.pool.query(
+            `SELECT event_id, event_type, timestamp, source_service, trace_id, session_id, payload_json, severity, summary
+             FROM audit_dead_letter WHERE event_id = $1`,
+            [eventId]
+        );
+        if (result.rows.length === 0) {
+            return { replayed: false, reason: "not_found" };
+        }
+        const row = result.rows[0];
+        const event = {
+            eventId: row.event_id,
+            eventType: row.event_type,
+            timestamp: typeof row.timestamp === "string" ? row.timestamp : new Date(row.timestamp).toISOString(),
+            sourceService: row.source_service,
+            traceId: row.trace_id ?? undefined,
+            sessionId: row.session_id ?? undefined,
+            payload: row.payload_json ? (typeof row.payload_json === "string" ? JSON.parse(row.payload_json) : row.payload_json) : undefined,
+            severity: row.severity ?? undefined,
+            summary: row.summary ?? undefined,
+        };
+        await this.insertEventPg(event);
+        this.events.push(event);
+        if (this.events.length > this.maxInMemory) {
+            this.events = this.events.slice(-this.maxInMemory);
+        }
+        await this.pool.query(`DELETE FROM audit_dead_letter WHERE event_id = $1`, [eventId]);
+        return { replayed: true, eventId };
+    }
+
+    async listDeadLetter(limit = 50, offset = 0) {
+        if (!this.pgReady || !this.pool) {
+            throw new Error("AuditStore PostgreSQL backend is not ready.");
+        }
+        const result = await this.pool.query(
+            `SELECT event_id, event_type, timestamp, source_service, trace_id, session_id, severity, summary, error, attempts, failed_at
+             FROM audit_dead_letter ORDER BY failed_at DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]
+        );
+        const countResult = await this.pool.query(`SELECT COUNT(*)::int AS total FROM audit_dead_letter`);
+        return {
+            events: result.rows.map((row) => ({
+                eventId: row.event_id,
+                eventType: row.event_type,
+                timestamp: typeof row.timestamp === "string" ? row.timestamp : new Date(row.timestamp).toISOString(),
+                sourceService: row.source_service,
+                traceId: row.trace_id,
+                sessionId: row.session_id,
+                severity: row.severity,
+                summary: row.summary,
+                error: row.error,
+                attempts: row.attempts,
+                failedAt: typeof row.failed_at === "string" ? row.failed_at : new Date(row.failed_at).toISOString(),
+            })),
+            totalCount: countResult.rows[0].total,
+        };
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
     async insertEventPg(event) {
         await this.pool.query(`INSERT INTO audit_events

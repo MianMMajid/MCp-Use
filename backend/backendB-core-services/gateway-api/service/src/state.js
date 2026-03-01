@@ -10,7 +10,7 @@ export const server = new MCPServer({
     title: "Maple",
     version: "1.0.0",
     description: "Unified MCP control plane for agent observability, replay/forking, risk auditing, and guardrails.",
-    baseUrl: process.env.MCP_URL || "http://localhost:3000",
+    baseUrl: (() => { if (!process.env.MCP_URL) throw new Error("Missing required environment variable: MCP_URL"); return process.env.MCP_URL; })(),
     favicon: "favicon.ico",
     websiteUrl: "https://github.com/mcp-use/mcp-use",
     icons: [

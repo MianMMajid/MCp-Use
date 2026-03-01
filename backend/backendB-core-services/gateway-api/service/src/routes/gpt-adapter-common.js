@@ -1,4 +1,7 @@
 export function gptAdapterBaseUrl() {
-    return String(process.env.MCP_URL || `http://localhost:${process.env.PORT || 3000}`);
+    if (!process.env.MCP_URL) {
+        throw new Error("Missing required environment variable: MCP_URL");
+    }
+    return process.env.MCP_URL;
 }
 //# sourceMappingURL=gpt-adapter-common.js.map

@@ -1,0 +1,21 @@
+# ServiceMonitor for Prometheus Operator
+# Only applied when prometheus-operator CRDs are installed.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: maple-gateway-metrics
+  namespace: maple
+  labels:
+    app: gateway-api
+    app.kubernetes.io/part-of: maple-stack
+spec:
+  selector:
+    matchLabels:
+      app: gateway-api
+  endpoints:
+    - port: https
+      path: /metrics/modifier
+      interval: 30s
+      scheme: HTTPS
+      tlsConfig:
+        insecureSkipVerify: true

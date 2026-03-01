@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maple — AI Firewall for Safe Agent Execution</title>
+    <meta name="description" content="Monitor, guard, and replay AI agent sessions in real-time. Open-source MCP-native security layer for safe agent execution." />
+    <meta name="theme-color" content="#e8740c" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; img-src 'self' data:;">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Maple — AI Firewall for Safe Agent Execution" />
+    <meta property="og:description" content="Monitor, guard, and replay AI agent sessions in real-time. Open-source MCP-native security layer." />
+    <meta property="og:url" content="https://mayple.cloud" />
+    <meta property="og:site_name" content="Maple" />
+    <meta property="og:image" content="https://mayple.cloud/og-image.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Maple — AI Firewall for Safe Agent Execution" />
+    <meta name="twitter:description" content="Monitor, guard, and replay AI agent sessions in real-time. Open-source MCP-native security layer." />
+    <meta name="twitter:image" content="https://mayple.cloud/og-image.png" />
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='kg' cx='45%25' cy='38%25' r='55%25'%3E%3Cstop offset='0%25' stop-color='%23ffb366'/%3E%3Cstop offset='100%25' stop-color='%23e8740c'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='14' r='12' fill='url(%23kg)'/%3E%3Cellipse cx='12' cy='12' rx='1.8' ry='2.2' fill='%23111'/%3E%3Cellipse cx='20' cy='12' rx='1.8' ry='2.2' fill='%23111'/%3E%3Ccircle cx='12.6' cy='11.2' r='0.7' fill='white'/%3E%3Ccircle cx='20.6' cy='11.2' r='0.7' fill='white'/%3E%3Cellipse cx='9' cy='16' rx='2.4' ry='1.6' fill='%23ff9966' opacity='0.5'/%3E%3Cellipse cx='23' cy='16' rx='2.4' ry='1.6' fill='%23ff9966' opacity='0.5'/%3E%3Cpath d='M13 17.5 Q16 20 19 17.5' stroke='%23111' stroke-width='0.8' fill='none' stroke-linecap='round'/%3E%3Cellipse cx='11' cy='27' rx='3.5' ry='2.2' fill='%23d06800'/%3E%3Cellipse cx='21' cy='27' rx='3.5' ry='2.2' fill='%23d06800'/%3E%3C/svg%3E" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="/landing.css" />
+    <script src="https://accounts.google.com/gsi/client" async></script>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#" class="nav-logo">
+        <svg class="nav-kirby" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="kirbyNavGrad" cx="45%" cy="38%" r="55%">
+              <stop offset="0%" stop-color="#ffb366"/>
+              <stop offset="100%" stop-color="#e8740c"/>
+            </radialGradient>
+          </defs>
+          <circle cx="16" cy="14" r="12" fill="url(#kirbyNavGrad)"/>
+          <ellipse cx="12" cy="12" rx="1.8" ry="2.2" fill="#111"/>
+          <ellipse cx="20" cy="12" rx="1.8" ry="2.2" fill="#111"/>
+          <circle cx="12.6" cy="11.2" r="0.7" fill="white"/>
+          <circle cx="20.6" cy="11.2" r="0.7" fill="white"/>
+          <ellipse cx="9" cy="16" rx="2.4" ry="1.6" fill="#ff9966" opacity="0.5"/>
+          <ellipse cx="23" cy="16" rx="2.4" ry="1.6" fill="#ff9966" opacity="0.5"/>
+          <path d="M13 17.5 Q16 20 19 17.5" stroke="#111" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+          <ellipse cx="11" cy="27" rx="3.5" ry="2.2" fill="#d06800"/>
+          <ellipse cx="21" cy="27" rx="3.5" ry="2.2" fill="#d06800"/>
+        </svg>
+        Maple
+      </a>
+      <button class="nav-hamburger" type="button" aria-label="Toggle navigation" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer">Docs</a>
+        <a href="#auth" class="nav-cta">Sign In</a>
+      </div>
+    </nav>
+
+    <main class="shell">
+      <!-- Hero Section -->
+      <section class="marketing-hero" aria-label="Maple hero">
+        <div class="hero-image-wrap">
+          <svg class="kirby-mascot hero-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="kirbyBodyGrad-hero" cx="45%" cy="38%" r="55%">
+                <stop offset="0%" stop-color="#ffb366"/>
+                <stop offset="100%" stop-color="#e8740c"/>
+              </radialGradient>
+            </defs>
+            <!-- Body -->
+            <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-hero)"/>
+            <!-- Eyes -->
+            <g class="kirby-eye">
+              <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111"/>
+              <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111"/>
+              <circle cx="81" cy="73" r="3.5" fill="white"/>
+              <circle cx="125" cy="73" r="3.5" fill="white"/>
+            </g>
+            <!-- Blush -->
+            <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+            <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5"/>
+            <!-- Smile -->
+            <path d="M85 105 Q100 120 115 105" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <!-- Feet -->
+            <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800"/>
+            <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800"/>
+          </svg>
+        </div>
+        <h1 class="hero-tagline">AI Firewall for Safe Agent Execution</h1>
+        <p class="hero-subtitle">Monitor, guard, and replay AI agent sessions in real-time. Open-source MCP-native security layer.</p>
+        <div class="hero-ctas">
+          <a href="#auth" class="btn btn-primary">Get Started</a>
+          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">View on GitHub</a>
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section id="features" class="features-section" aria-label="Features">
+        <h2 class="section-heading">Why Maple?</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <h3>Real-time Monitoring</h3>
+            <p>Observe every tool call, shell command, and HTTP request as agents execute. Full session trace with risk scoring.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3>Guard &amp; Quarantine</h3>
+            <p>Approve, block, or defer any agent action. Automatic quarantine on high-risk behavior with human-in-the-loop.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </div>
+            <h3>Fork &amp; Replay</h3>
+            <p>Fork any session at any step. Edit commands, replay with changes, compare outcomes side-by-side.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h3>MCP Native</h3>
+            <p>Built on Model Context Protocol. Connect any MCP server. Browse Smithery marketplace. Dispatch tools from the dashboard.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Download Section -->
+      <section id="download" class="download-section" aria-label="Download">
+        <h2 class="section-heading">Download Maple</h2>
+        <p class="section-subtitle">Available for all major platforms. Choose your build below.</p>
+        <div class="platform-cards">
+          <div class="platform-card">
+            <div class="platform-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            </div>
+            <h3>macOS</h3>
+            <p class="platform-format">.dmg</p>
+            <a href="https://github.com/MianMMajid/MCp-Use/releases/latest/download/maple-desktop-latest-mac-arm64.dmg" class="btn btn-primary btn-download">Download for macOS</a>
+          </div>
+          <div class="platform-card">
+            <div class="platform-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+            </div>
+            <h3>Windows</h3>
+            <p class="platform-format">.exe</p>
+            <a href="https://github.com/MianMMajid/MCp-Use/releases/latest/download/maple-desktop-latest-win-x64.exe" class="btn btn-primary btn-download">Download for Windows</a>
+          </div>
+          <div class="platform-card">
+            <div class="platform-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.311.015-.465.045C9.92.46 8.39 2.28 8.39 4.48c0 .296.032.588.096.874-.736.022-1.459.185-2.13.476C5 6.406 3.958 7.61 3.576 9.064c-.192.738-.24 1.504-.14 2.255.057.435.148.862.273 1.277-.586.318-1.1.734-1.533 1.227C1.2 14.953.56 16.404.56 17.94c0 1.224.39 2.41 1.118 3.397.413.56.923 1.034 1.506 1.4-.197.66-.298 1.344-.298 2.033 0 2.506 1.363 4.776 3.5 5.865.642.326 1.338.543 2.055.635.244.032.49.048.738.048.73 0 1.457-.14 2.137-.42.478-.197.93-.448 1.346-.748.416.3.868.55 1.346.748.68.28 1.407.42 2.137.42.247 0 .494-.016.738-.048.717-.092 1.413-.31 2.055-.635 2.137-1.089 3.5-3.36 3.5-5.865 0-.689-.1-1.373-.298-2.033.583-.366 1.093-.84 1.506-1.4.728-.987 1.118-2.173 1.118-3.397 0-1.536-.64-2.987-1.617-4.118-.432-.493-.947-.91-1.533-1.227.125-.415.216-.842.273-1.277.1-.75.052-1.517-.14-2.255-.382-1.454-1.424-2.658-2.78-3.214-.672-.29-1.395-.454-2.131-.476.064-.286.096-.578.096-.874C15.61 2.28 14.08.46 11.961.045 11.805.015 11.649 0 11.496 0h1.008z"/></svg>
+            </div>
+            <h3>Linux</h3>
+            <p class="platform-format">.AppImage</p>
+            <a href="https://github.com/MianMMajid/MCp-Use/releases/latest/download/maple-desktop-latest-linux-x86_64.AppImage" class="btn btn-primary btn-download">Download for Linux</a>
+          </div>
+        </div>
+        <p class="releases-link"><a href="https://github.com/MianMMajid/MCp-Use/releases" target="_blank" rel="noopener noreferrer">View all releases on GitHub</a></p>
+      </section>
+
+      <!-- Auth Section (preserved exactly) -->
+      <section id="auth" class="signin" aria-label="Sign in">
+        <h2 class="section-heading">Sign In to Maple</h2>
+        <div class="auth-tabs">
+          <button id="tabSignIn" class="auth-tab active" type="button">Sign In</button>
+          <button id="tabSignUp" class="auth-tab" type="button">Create Account</button>
+        </div>
+
+        <div id="signinPane">
+          <p class="muted">Enter your Maple dashboard credentials.</p>
+
+          <form id="signinForm">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="Username" required maxlength="64" />
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required />
+            <button type="submit">Open Dashboard</button>
+            <p id="signinError" class="error" role="alert" aria-live="polite"></p>
+          </form>
+
+          <div id="googleSection" class="hidden">
+            <div class="divider">or</div>
+            <div id="googleSignInContainer"></div>
+          </div>
+          <p class="forgot-link-wrap"><a href="#" id="forgotPasswordLink" class="forgot-link">Forgot password?</a></p>
+        </div>
+
+        <div id="forgotPasswordPane" class="hidden">
+          <p class="muted">Enter your email to receive a password reset link.</p>
+          <form id="forgotPasswordForm">
+            <label for="forgotEmail">Email</label>
+            <input id="forgotEmail" name="email" type="email" autocomplete="email" placeholder="your@email.com" required />
+            <button type="submit">Send Reset Link</button>
+            <p id="forgotPasswordError" class="error" role="alert" aria-live="polite"></p>
+          </form>
+          <p class="forgot-link-wrap"><a href="#" id="forgotBackLink" class="forgot-back-link">Back to Sign In</a></p>
+        </div>
+
+        <div id="signupPane" class="hidden">
+          <p class="muted">Create a new Maple account.</p>
+
+          <form id="signupForm">
+            <label for="signupUsername">Username</label>
+            <input id="signupUsername" name="username" type="text" autocomplete="username" placeholder="Username" required maxlength="64" pattern="[a-zA-Z0-9_.\-]+" />
+            <label for="signupEmail">Email <span class="label-hint">(optional)</span></label>
+            <input id="signupEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
+            <label for="signupPassword">Password</label>
+            <input id="signupPassword" name="password" type="password" autocomplete="new-password" placeholder="Password (min 8 characters)" required minlength="8" />
+            <button type="submit">Create Account</button>
+            <p id="signupError" class="error" role="alert" aria-live="polite"></p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-inner">
+        <p class="footer-copy">&copy; 2026 Maple. All rights reserved.</p>
+        <div class="footer-links">
+          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/MianMMajid/MCp-Use" target="_blank" rel="noopener noreferrer">Docs</a>
+          <a href="#">Privacy</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="/landing.js"></script>
+  </body>
+</html>

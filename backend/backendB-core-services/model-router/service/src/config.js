@@ -1,19 +1,19 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
+import { requireEnv, requireEnvPort } from "@maple/common";
 export const config = {
-    port: getEnvPort("MODEL_ROUTER_PORT", 9100),
-    host: getEnvOrDefault("MODEL_ROUTER_HOST", "0.0.0.0"),
-    auditWriterAddress: getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400"),
-    defaultModel: getEnvOrDefault("DEFAULT_MODEL", "gpt-4o"),
+    port: requireEnvPort("MODEL_ROUTER_PORT"),
+    host: requireEnv("MODEL_ROUTER_HOST"),
+    auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
+    defaultModel: requireEnv("DEFAULT_MODEL"),
     // LLM API keys
-    openaiApiKey: getEnvOrDefault("OPENAI_API_KEY", ""),
-    anthropicApiKey: getEnvOrDefault("ANTHROPIC_API_KEY", ""),
+    openaiApiKey: requireEnv("OPENAI_API_KEY"),
+    anthropicApiKey: requireEnv("ANTHROPIC_API_KEY"),
     // Provider selection
-    primaryProvider: getEnvOrDefault("MAPLE_FIREWALL_CHAT_PRIMARY", "openai"),
+    primaryProvider: requireEnv("MAPLE_FIREWALL_CHAT_PRIMARY"),
     // Model names
-    openaiModel: getEnvOrDefault("MAPLE_FIREWALL_CHAT_OPENAI_MODEL", "gpt-4o-mini"),
-    anthropicModel: getEnvOrDefault("MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL", "claude-sonnet-4-6"),
+    openaiModel: requireEnv("MAPLE_FIREWALL_CHAT_OPENAI_MODEL"),
+    anthropicModel: requireEnv("MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL"),
     // Timeouts & limits
-    chatTimeoutMs: parseInt(getEnvOrDefault("MAPLE_FIREWALL_CHAT_TIMEOUT_MS", "15000"), 10),
+    chatTimeoutMs: parseInt(requireEnv("MAPLE_FIREWALL_CHAT_TIMEOUT_MS"), 10),
     maxTokens: 4096,
 };
 //# sourceMappingURL=config.js.map

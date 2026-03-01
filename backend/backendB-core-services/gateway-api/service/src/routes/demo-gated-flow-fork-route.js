@@ -42,6 +42,7 @@ export function registerDemoForkRoute(app) {
                         forkedTrace,
                         parentTrace: trace,
                         body,
+                        waitForExecution: asBoolean(body.waitForExecution, false),
                     });
                     runtime = {
                         launched: true,

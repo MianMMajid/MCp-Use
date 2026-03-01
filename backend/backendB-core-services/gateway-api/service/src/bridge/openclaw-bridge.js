@@ -142,7 +142,10 @@ export async function startObservation(options) {
         });
     }
     // Pull mode (default): fetch events from the OpenClaw bridge
-    const bridgeUrl = options.bridgeUrl ?? process.env.OPENCLAW_BRIDGE_URL ?? HARDCODED_BRIDGE_URL;
+    if (!options.bridgeUrl && !process.env.OPENCLAW_BRIDGE_URL) {
+        throw new Error("Missing required: OPENCLAW_BRIDGE_URL env var or bridgeUrl option");
+    }
+    const bridgeUrl = options.bridgeUrl ?? process.env.OPENCLAW_BRIDGE_URL;
     const token = options.token ?? process.env.OPENCLAW_BRIDGE_TOKEN;
     if (!bridgeUrl) {
         throw new Error("OPENCLAW_BRIDGE_URL is not configured. Set it in .env or pass bridgeUrl.");

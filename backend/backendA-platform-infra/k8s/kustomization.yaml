@@ -4,6 +4,12 @@ resources:
   - namespace.yaml
   - configmap.yaml
   - secret.yaml
+  - pvc.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
+  - rbac.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - ingress.yaml
+  - servicemonitor.yaml

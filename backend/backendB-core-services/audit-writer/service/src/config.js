@@ -1,9 +1,9 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
+import { requireEnv, requireEnvPort } from "@maple/common";
 export const config = {
-    port: getEnvPort("AUDIT_WRITER_PORT", 9400),
-    httpPort: getEnvPort("AUDIT_WRITER_HTTP_PORT", 9401),
-    host: getEnvOrDefault("AUDIT_WRITER_HOST", "0.0.0.0"),
-    databaseUrl: getEnvOrDefault("DATABASE_URL", "postgresql://maple:maple@localhost:5432/maple"),
+    port: requireEnvPort("AUDIT_WRITER_PORT"),
+    httpPort: requireEnvPort("AUDIT_WRITER_HTTP_PORT"),
+    host: requireEnv("AUDIT_WRITER_HOST"),
+    databaseUrl: requireEnv("DATABASE_URL"),
     maxBatchSize: 1000,
     flushIntervalMs: 5000,
 };

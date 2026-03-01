@@ -1,7 +1,22 @@
+// Set required env vars before import (ssrf-guard.js imports cyber-proxy config.js)
+process.env.MAPLE_LOG_LEVEL = process.env.MAPLE_LOG_LEVEL || "error";
+process.env.MAPLE_LOG_REQUESTS = process.env.MAPLE_LOG_REQUESTS || "0";
+process.env.MAPLE_LOG_INCLUDE_BODIES = process.env.MAPLE_LOG_INCLUDE_BODIES || "0";
+process.env.MAPLE_LOG_BODY_MAX_CHARS = process.env.MAPLE_LOG_BODY_MAX_CHARS || "4000";
+process.env.CYBER_PROXY_PORT = process.env.CYBER_PROXY_PORT || "8080";
+process.env.CYBER_PROXY_HOST = process.env.CYBER_PROXY_HOST || "0.0.0.0";
+process.env.AUDIT_WRITER_ADDRESS = process.env.AUDIT_WRITER_ADDRESS || "localhost:9400";
+process.env.CYBER_ALLOWED_DOMAINS = process.env.CYBER_ALLOWED_DOMAINS || "example.com";
+process.env.CYBER_BLOCKED_DOMAINS = process.env.CYBER_BLOCKED_DOMAINS || "evil.com";
+process.env.CYBER_TOOL_ALLOWED_DOMAINS_JSON = process.env.CYBER_TOOL_ALLOWED_DOMAINS_JSON || "{}";
+process.env.CYBER_MAX_RESPONSE_BYTES = process.env.CYBER_MAX_RESPONSE_BYTES || "10485760";
+process.env.CYBER_QUARANTINE_ENABLED = process.env.CYBER_QUARANTINE_ENABLED || "1";
+
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { checkUrl, scanContent } from "../src/ssrf-guard.js";
+// Use dynamic import so env vars are set before config.js is evaluated
+const { checkUrl, scanContent } = await import("../src/ssrf-guard.js");
 
 test("checkUrl blocks invalid URLs and metadata endpoints", async () => {
   const invalid = await checkUrl("not-a-url", [], []);

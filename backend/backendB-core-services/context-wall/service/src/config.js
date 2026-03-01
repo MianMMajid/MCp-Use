@@ -1,13 +1,15 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
-const hitlApprovalTimeoutRaw = Number.parseInt(getEnvOrDefault("CONTEXT_WALL_HITL_TIMEOUT_MS", "120000"), 10);
+import { requireEnv, requireEnvPort } from "@maple/common";
+const hitlApprovalTimeoutRaw = Number.parseInt(requireEnv("CONTEXT_WALL_HITL_TIMEOUT_MS"), 10);
+if (!Number.isFinite(hitlApprovalTimeoutRaw) || hitlApprovalTimeoutRaw < 1000) {
+    throw new Error(`Invalid CONTEXT_WALL_HITL_TIMEOUT_MS: must be a finite number >= 1000`);
+}
 export const config = {
-    port: getEnvPort("CONTEXT_WALL_PORT", 9000),
-    host: getEnvOrDefault("CONTEXT_WALL_HOST", "0.0.0.0"),
-    auditWriterAddress: getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400"),
-    modelRouterAddress: getEnvOrDefault("MODEL_ROUTER_ADDRESS", "localhost:9100"),
-    mcpProxyAddress: getEnvOrDefault("MCP_PROXY_ADDRESS", "localhost:9200"),
-    hitlApprovalTimeoutMs: Number.isFinite(hitlApprovalTimeoutRaw)
-        ? Math.max(1000, hitlApprovalTimeoutRaw)
-        : 120_000,
+    port: requireEnvPort("CONTEXT_WALL_PORT"),
+    host: requireEnv("CONTEXT_WALL_HOST"),
+    auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
+    modelRouterAddress: requireEnv("MODEL_ROUTER_ADDRESS"),
+    mcpProxyAddress: requireEnv("MCP_PROXY_ADDRESS"),
+    hitlApprovalTimeoutMs: hitlApprovalTimeoutRaw,
+    databaseUrl: process.env.DATABASE_URL?.trim() || undefined,
 };
 //# sourceMappingURL=config.js.map

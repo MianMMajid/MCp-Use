@@ -1,4 +1,4 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
+import { requireEnv, requireEnvPort } from "@maple/common";
 function parseToolAllowedDomains(raw) {
     const trimmed = raw.trim();
     if (!trimmed)
@@ -26,16 +26,14 @@ function parseToolAllowedDomains(raw) {
     }
 }
 export const config = {
-    port: getEnvPort("CYBER_PROXY_PORT", 8080),
-    host: getEnvOrDefault("CYBER_PROXY_HOST", "0.0.0.0"),
-    auditWriterAddress: getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400"),
-    allowedDomains: getEnvOrDefault("CYBER_ALLOWED_DOMAINS", "").split(",").filter(Boolean),
-    blockedDomains: getEnvOrDefault("CYBER_BLOCKED_DOMAINS", "").split(",").filter(Boolean),
-    toolAllowedDomains: parseToolAllowedDomains(getEnvOrDefault("CYBER_TOOL_ALLOWED_DOMAINS_JSON", "")),
+    port: requireEnvPort("CYBER_PROXY_PORT"),
+    host: requireEnv("CYBER_PROXY_HOST"),
+    auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
+    allowedDomains: requireEnv("CYBER_ALLOWED_DOMAINS").split(",").filter(Boolean),
+    blockedDomains: requireEnv("CYBER_BLOCKED_DOMAINS").split(",").filter(Boolean),
+    toolAllowedDomains: parseToolAllowedDomains(requireEnv("CYBER_TOOL_ALLOWED_DOMAINS_JSON")),
     requestTimeoutMs: 15000,
-    /** Maximum response body size in bytes (default 10 MB). Responses exceeding this are quarantined. */
-    maxResponseBytes: Number.parseInt(getEnvOrDefault("CYBER_MAX_RESPONSE_BYTES", "10485760"), 10),
-    /** Enable download quarantine for dangerous file types and executables (default true). */
-    quarantineEnabled: getEnvOrDefault("CYBER_QUARANTINE_ENABLED", "1") === "1",
+    maxResponseBytes: Number.parseInt(requireEnv("CYBER_MAX_RESPONSE_BYTES"), 10),
+    quarantineEnabled: requireEnv("CYBER_QUARANTINE_ENABLED") === "1",
 };
 //# sourceMappingURL=config.js.map

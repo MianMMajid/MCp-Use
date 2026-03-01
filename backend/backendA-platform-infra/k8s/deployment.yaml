@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: maple
@@ -8,6 +8,7 @@ metadata:
     app.kubernetes.io/part-of: maple-stack
     maple-image: managed
 spec:
+  serviceName: postgres
   replicas: 1
   selector:
     matchLabels:
@@ -39,9 +40,17 @@ spec:
                 secretKeyRef:
                   name: maple-secrets
                   key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           ports:
             - name: postgres
               containerPort: 5432
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             tcpSocket:
               port: postgres
@@ -63,7 +72,8 @@ spec:
               memory: 1Gi
       volumes:
         - name: postgres-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: maple-postgres-data
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -75,7 +85,7 @@ metadata:
     app.kubernetes.io/part-of: maple-stack
     maple-image: managed
 spec:
-  replicas: 1
+  # replicas managed by HPA
   selector:
     matchLabels:
       app: gateway-api
@@ -86,6 +96,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: gateway-api-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -95,6 +106,14 @@ spec:
           ports:
             - name: https
               containerPort: 3000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: GATEWAY_PORT
               value: "3000"
@@ -153,15 +172,19 @@ spec:
             - secretRef:
                 name: maple-secrets
           readinessProbe:
-            tcpSocket:
-              port: https
+            httpGet:
+              path: /ready
+              port: 3000
+              scheme: HTTPS
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           livenessProbe:
-            tcpSocket:
-              port: https
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTPS
             initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 3
@@ -176,6 +199,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
         - name: openclaw-bridge
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
@@ -188,7 +213,7 @@ spec:
             - name: OPENCLAW_GATEWAY_WS_URL
               value: ws://openclaw-gateway.maple.svc.cluster.local:19001
             - name: OPENCLAW_GATEWAY_SESSION_KEY
-              value: agent:dev:main
+              value: agent-dev-main
           envFrom:
             - secretRef:
                 name: maple-secrets
@@ -205,6 +230,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -216,7 +243,7 @@ metadata:
     app.kubernetes.io/part-of: maple-stack
     maple-image: managed
 spec:
-  replicas: 1
+  # replicas managed by HPA
   selector:
     matchLabels:
       app: business-api
@@ -227,6 +254,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: business-api-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -235,6 +263,14 @@ spec:
           ports:
             - name: https
               containerPort: 9550
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: BUSINESS_API_PORT
               value: "9550"
@@ -280,11 +316,22 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
-            tcpSocket:
-              port: https
-            initialDelaySeconds: 5
+            httpGet:
+              path: /ready
+              port: 9550
+              scheme: HTTPS
+            initialDelaySeconds: 10
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9550
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 15
           resources:
             requests:
               cpu: 25m
@@ -295,6 +342,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -368,7 +417,7 @@ metadata:
     app.kubernetes.io/part-of: maple-stack
     maple-image: managed
 spec:
-  replicas: 1
+  # replicas managed by HPA
   selector:
     matchLabels:
       app: context-wall
@@ -379,6 +428,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: context-wall-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -387,6 +437,14 @@ spec:
           ports:
             - name: grpc
               containerPort: 9000
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: CONTEXT_WALL_PORT
               value: "9000"
@@ -411,6 +469,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -426,6 +486,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -448,6 +510,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: model-router-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -456,6 +519,14 @@ spec:
           ports:
             - name: grpc
               containerPort: 9100
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: MODEL_ROUTER_PORT
               value: "9100"
@@ -476,6 +547,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -491,6 +564,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -513,6 +588,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: mcp-proxy-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -521,6 +597,14 @@ spec:
           ports:
             - name: grpc
               containerPort: 9200
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: MCP_PROXY_PORT
               value: "9200"
@@ -549,6 +633,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -564,6 +650,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -586,6 +674,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: cyber-proxy-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -594,6 +683,14 @@ spec:
           ports:
             - name: grpc
               containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: CYBER_PROXY_PORT
               value: "8080"
@@ -614,6 +711,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -629,6 +728,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -651,6 +752,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: tool-runner-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -659,6 +761,14 @@ spec:
           ports:
             - name: grpc
               containerPort: 9250
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: TOOL_RUNNER_PORT
               value: "9250"
@@ -681,6 +791,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -696,6 +808,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -718,6 +832,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: audit-writer-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -728,6 +843,14 @@ spec:
               containerPort: 9400
             - name: ingest
               containerPort: 9401
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: AUDIT_WRITER_PORT
               value: "9400"
@@ -765,6 +888,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -780,6 +905,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -802,6 +929,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: secrets-broker-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -810,11 +938,36 @@ spec:
           ports:
             - name: grpc
               containerPort: 9300
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: SECRETS_BROKER_PORT
               value: "9300"
             - name: AUDIT_WRITER_ADDRESS
               value: audit-writer.maple.svc.cluster.local:9400
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: maple-secrets
+                  key: POSTGRES_DB
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.maple.svc.cluster.local:5432/$(POSTGRES_DB)
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -830,6 +983,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: grpc
@@ -845,6 +1000,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -867,6 +1024,7 @@ spec:
         app.kubernetes.io/part-of: maple-stack
         maple-image: managed
     spec:
+      serviceAccountName: admin-console-api-sa
       containers:
         - name: app
           image: maple-local:dev
@@ -875,6 +1033,14 @@ spec:
           ports:
             - name: https
               containerPort: 9443
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: ADMIN_CONSOLE_PORT
               value: "9443"
@@ -903,6 +1069,8 @@ spec:
             - name: maple-tls
               mountPath: /etc/maple/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: https
@@ -918,6 +1086,8 @@ spec:
         - name: maple-tls
           secret:
             secretName: maple-tls
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: apps/v1
 kind: Deployment

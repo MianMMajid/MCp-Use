@@ -1,10 +1,10 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
+import { requireEnv, requireEnvPort } from "@maple/common";
 import { loadApiKeysFromEnv } from "@maple/security";
 
-function parseBoolean(value, fallback = false) {
+function parseBoolean(value) {
     const normalized = String(value ?? "").trim().toLowerCase();
     if (!normalized) {
-        return fallback;
+        throw new Error("Boolean environment variable value is empty");
     }
     if (normalized === "1" || normalized === "true" || normalized === "yes") {
         return true;
@@ -12,7 +12,7 @@ function parseBoolean(value, fallback = false) {
     if (normalized === "0" || normalized === "false" || normalized === "no") {
         return false;
     }
-    return fallback;
+    throw new Error(`Invalid boolean value: "${value}"`);
 }
 
 function loadAdminApiKeys(env = process.env) {
@@ -23,20 +23,20 @@ function loadAdminApiKeys(env = process.env) {
     });
 }
 function isProductionRuntime() {
-    return String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production";
+    return requireEnv("NODE_ENV").toLowerCase() === "production";
 }
-const allowNoAuthRequested = parseBoolean(process.env.MAPLE_ADMIN_ALLOW_NO_AUTH, false);
+const allowNoAuthRequested = parseBoolean(requireEnv("MAPLE_ADMIN_ALLOW_NO_AUTH"));
 if (isProductionRuntime() && allowNoAuthRequested) {
     throw new Error("MAPLE_ADMIN_ALLOW_NO_AUTH cannot be enabled in production runtime.");
 }
 export const config = {
-    port: getEnvPort("ADMIN_CONSOLE_PORT", 9443),
-    host: getEnvOrDefault("ADMIN_CONSOLE_HOST", "0.0.0.0"),
-    auditWriterAddress: getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400"),
-    contextWallAddress: getEnvOrDefault("CONTEXT_WALL_ADDRESS", "localhost:9000"),
-    tlsCertPath: getEnvOrDefault("MAPLE_ADMIN_TLS_CERT", "/etc/maple/admin-tls/tls.crt"),
-    tlsKeyPath: getEnvOrDefault("MAPLE_ADMIN_TLS_KEY", "/etc/maple/admin-tls/tls.key"),
-    tlsCaPath: getEnvOrDefault("MAPLE_ADMIN_TLS_CA", "/etc/maple/admin-tls/ca.crt"),
+    port: requireEnvPort("ADMIN_CONSOLE_PORT"),
+    host: requireEnv("ADMIN_CONSOLE_HOST"),
+    auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
+    contextWallAddress: requireEnv("CONTEXT_WALL_ADDRESS"),
+    tlsCertPath: requireEnv("MAPLE_ADMIN_TLS_CERT"),
+    tlsKeyPath: requireEnv("MAPLE_ADMIN_TLS_KEY"),
+    tlsCaPath: requireEnv("MAPLE_ADMIN_TLS_CA"),
     allowNoAuth: allowNoAuthRequested,
     apiKeys: loadAdminApiKeys(),
 };

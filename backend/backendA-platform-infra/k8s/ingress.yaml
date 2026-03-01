@@ -1,0 +1,90 @@
+# Ingress resources for Maple MCP Firewall
+# Hosts are placeholders — replace per environment.
+# TLS is managed by cert-manager when available.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maple-gateway
+  namespace: maple
+  labels:
+    app: gateway-api
+    app.kubernetes.io/part-of: maple-stack
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - maple.example.com
+      secretName: maple-gateway-tls
+  rules:
+    - host: maple.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-api
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maple-admin
+  namespace: maple
+  labels:
+    app: admin-console-api
+    app.kubernetes.io/part-of: maple-stack
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - admin.maple.example.com
+      secretName: maple-admin-tls
+  rules:
+    - host: admin.maple.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-console-api
+                port:
+                  number: 9443
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maple-console
+  namespace: maple
+  labels:
+    app: frontend-a-it-console
+    app.kubernetes.io/part-of: maple-stack
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - console.maple.example.com
+      secretName: maple-console-tls
+  rules:
+    - host: console.maple.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-a-it-console
+                port:
+                  number: 8080

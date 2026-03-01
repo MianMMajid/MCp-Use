@@ -9,8 +9,8 @@ function normalizeOtelLogsEndpoint(raw) {
     }
     return `${trimmed.replace(/\/$/, "")}/v1/logs`;
 }
-const otelLogsEndpoint = normalizeOtelLogsEndpoint(String(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT ?? process.env.MAPLE_OTEL_LOGS_ENDPOINT ?? "").trim());
-const otelServiceName = String(process.env.OTEL_SERVICE_NAME ?? process.env.MAPLE_SERVICE_NAME ?? "gateway-api").trim();
+const otelLogsEndpoint = normalizeOtelLogsEndpoint(String(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT || process.env.MAPLE_OTEL_LOGS_ENDPOINT || "").trim());
+const otelServiceName = String(process.env.OTEL_SERVICE_NAME || process.env.MAPLE_SERVICE_NAME || "").trim();
 const OTEL_SEVERITY_NUMBER = {
     error: 17,
     warn: 13,

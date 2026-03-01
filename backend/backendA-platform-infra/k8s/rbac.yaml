@@ -1,0 +1,137 @@
+# ── ServiceAccounts ──────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway-api-sa
+  namespace: maple
+  labels:
+    app: gateway-api
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-proxy-sa
+  namespace: maple
+  labels:
+    app: mcp-proxy
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: business-api-sa
+  namespace: maple
+  labels:
+    app: business-api
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: context-wall-sa
+  namespace: maple
+  labels:
+    app: context-wall
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: audit-writer-sa
+  namespace: maple
+  labels:
+    app: audit-writer
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secrets-broker-sa
+  namespace: maple
+  labels:
+    app: secrets-broker
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: model-router-sa
+  namespace: maple
+  labels:
+    app: model-router
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tool-runner-sa
+  namespace: maple
+  labels:
+    app: tool-runner
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cyber-proxy-sa
+  namespace: maple
+  labels:
+    app: cyber-proxy
+    app.kubernetes.io/part-of: maple-stack
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-console-api-sa
+  namespace: maple
+  labels:
+    app: admin-console-api
+    app.kubernetes.io/part-of: maple-stack
+---
+# ── Role: job-dispatcher ─────────────────────────────────────────
+# Used by mcp-proxy and gateway-api for K8s job dispatch
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: job-dispatcher
+  namespace: maple
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+# ── RoleBindings ─────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-proxy-job-dispatcher
+  namespace: maple
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: job-dispatcher
+subjects:
+  - kind: ServiceAccount
+    name: mcp-proxy-sa
+    namespace: maple
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gateway-api-job-dispatcher
+  namespace: maple
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: job-dispatcher
+subjects:
+  - kind: ServiceAccount
+    name: gateway-api-sa
+    namespace: maple

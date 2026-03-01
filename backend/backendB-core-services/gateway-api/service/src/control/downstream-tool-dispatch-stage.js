@@ -4,6 +4,7 @@ import { dispatchToolToDownstream } from "./downstream-proxy.js";
 import { resolveDownstreamApp } from "./downstream-resolution.js";
 import { resolveProxyTrace } from "./downstream-dispatch-log-trace.js";
 import { createPostExecutionCandidateStep, createPreExecutionCandidateStep, createPreExecutionLoggedStep, setTraceDispatchMetadata, } from "./downstream-tool-dispatch-steps.js";
+import { evaluateModifierGovernance } from "../core/openclaw-modifier-runtime.js";
 export async function dispatchDownstreamAndLogStage(options) {
     const app = resolveDownstreamApp(options.appId);
     const trace = resolveProxyTrace({
@@ -20,6 +21,33 @@ export async function dispatchDownstreamAndLogStage(options) {
         invocationSummary,
         origin: options.origin,
     });
+    // B1: Modifier governance check before firewall eval
+    const modifierGovernanceEnabled = String(process.env.MAPLE_MODIFIER_GOVERNANCE_ENABLED ?? "0").trim().toLowerCase();
+    if (modifierGovernanceEnabled === "1" || modifierGovernanceEnabled === "true") {
+        const modifierDecision = await evaluateModifierGovernance(options.toolName, options.toolArgs, {
+            tenantId: options.tenantId, orgId: options.orgId, userId: options.userId,
+        });
+        if (!modifierDecision.allowed) {
+            trace.status = modifierDecision.requiresApproval ? "pending_approval" : "quarantined";
+            upsertTraceForCurrentOwner(trace);
+            const report = auditAndPersist(trace);
+            return {
+                ok: false,
+                blockedByPolicy: true,
+                preExecutionWouldBlock: true,
+                trace,
+                step: preExecutionCandidateStep,
+                preExecutionStep: preExecutionCandidateStep,
+                preExecutionDecision: { shouldBlock: true, message: modifierDecision.reason },
+                report,
+                app,
+                failure: `Modifier governance blocked: ${modifierDecision.reason}`,
+                approvalRequired: modifierDecision.requiresApproval ?? false,
+                approvalId: modifierDecision.approvalId ?? null,
+                approvalStatus: modifierDecision.status ?? null,
+            };
+        }
+    }
     const preExecutionDecision = await evaluateFirewallStepViaGrpc(preExecutionCandidateStep);
     const preExecutionWouldBlock = preExecutionDecision.shouldBlock;
     const preExecutionStep = createPreExecutionLoggedStep({

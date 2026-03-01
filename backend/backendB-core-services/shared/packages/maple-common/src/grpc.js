@@ -88,16 +88,23 @@ export function createGrpcChannel(address) {
     const credentials = createGrpcClientCredentials(loadGrpcTlsConfig());
     return new grpc.Channel(address, credentials, {});
 }
-export function getEnvOrDefault(key, defaultValue) {
+export function requireEnv(key) {
     const value = process.env[key]?.trim();
-    return value && value.length > 0 ? value : defaultValue;
+    if (!value || value.length === 0) {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
+    return value;
 }
-export function getEnvPort(key, defaultPort) {
+export function requireEnvPort(key) {
     const raw = process.env[key]?.trim();
-    if (!raw)
-        return defaultPort;
+    if (!raw) {
+        throw new Error(`Missing required environment variable: ${key}`);
+    }
     const parsed = Number.parseInt(raw, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultPort;
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+        throw new Error(`Invalid port for ${key}: "${raw}" (must be 1-65535)`);
+    }
+    return parsed;
 }
 export function gracefulShutdown(server, serviceName) {
     const shutdown = () => {

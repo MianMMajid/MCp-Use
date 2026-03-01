@@ -34,10 +34,12 @@ function grpcUnary(client, method, request) {
 }
 
 export function createAuditEmitter() {
+  if (!process.env.MAPLE_DISABLE_AUDIT_EMIT) {
+    throw new Error("Missing required environment variable: MAPLE_DISABLE_AUDIT_EMIT");
+  }
   const disabled =
-    String(process.env.MAPLE_DISABLE_AUDIT_EMIT ?? "0").trim().toLowerCase() ===
-      "true" ||
-    String(process.env.MAPLE_DISABLE_AUDIT_EMIT ?? "0").trim() === "1";
+    process.env.MAPLE_DISABLE_AUDIT_EMIT.trim().toLowerCase() === "true" ||
+    process.env.MAPLE_DISABLE_AUDIT_EMIT.trim() === "1";
   if (disabled) {
     return () => {};
   }

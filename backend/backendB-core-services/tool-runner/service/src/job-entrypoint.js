@@ -3,9 +3,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { loadGrpcTlsConfig, loadServiceClientSecure } from "@maple/common";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
-const CYBER_PROXY_ADDRESS = process.env.CYBER_PROXY_ADDRESS || "cyber-proxy.maple-cyber.svc:8080";
-const INPUT_PATH = process.env.MAPLE_JOB_INPUT_PATH || "/job-input/request.json";
-const OUTPUT_PATH = process.env.MAPLE_JOB_OUTPUT_PATH || "/job-output/result.json";
+if (!process.env.CYBER_PROXY_ADDRESS) throw new Error("Missing required environment variable: CYBER_PROXY_ADDRESS");
+if (!process.env.MAPLE_JOB_INPUT_PATH) throw new Error("Missing required environment variable: MAPLE_JOB_INPUT_PATH");
+if (!process.env.MAPLE_JOB_OUTPUT_PATH) throw new Error("Missing required environment variable: MAPLE_JOB_OUTPUT_PATH");
+const CYBER_PROXY_ADDRESS = process.env.CYBER_PROXY_ADDRESS;
+const INPUT_PATH = process.env.MAPLE_JOB_INPUT_PATH;
+const OUTPUT_PATH = process.env.MAPLE_JOB_OUTPUT_PATH;
 function inferToolNameFromJsonRpcPayload(payloadRaw) {
     try {
         const parsed = JSON.parse(payloadRaw);

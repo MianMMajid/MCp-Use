@@ -3,9 +3,13 @@ import { DownstreamRegistry } from "./downstream-registry.js";
 import { createMcpProxyService } from "./service.js";
 import { config } from "./config.js";
 async function main() {
-    mapleLog("info", "mcp_proxy_starting", { port: config.port, toolRunnerMode: config.toolRunnerMode });
+    mapleLog("info", "mcp_proxy_starting", { port: config.port, toolRunnerMode: config.toolRunnerMode, hasDatabaseUrl: !!config.databaseUrl });
     const registry = new DownstreamRegistry();
     registry.loadFromEnv();
+    if (config.databaseUrl) {
+        await registry.initializePg(config.databaseUrl);
+        await registry.loadToolsFromPg();
+    }
     // Instantiate K8s Job dispatcher if running in job mode
     let dispatcher;
     if (config.toolRunnerMode === "job") {

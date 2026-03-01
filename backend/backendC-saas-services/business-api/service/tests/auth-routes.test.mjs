@@ -1,12 +1,50 @@
+/* ---------- env vars required by config.js (must precede any source import) ---------- */
+process.env.NODE_ENV = process.env.NODE_ENV || "test";
+process.env.MAPLE_LOG_LEVEL = process.env.MAPLE_LOG_LEVEL || "error";
+process.env.MAPLE_LOG_REQUESTS = process.env.MAPLE_LOG_REQUESTS || "0";
+process.env.MAPLE_LOG_INCLUDE_BODIES = process.env.MAPLE_LOG_INCLUDE_BODIES || "0";
+process.env.MAPLE_LOG_BODY_MAX_CHARS = process.env.MAPLE_LOG_BODY_MAX_CHARS || "4000";
+process.env.BUSINESS_API_HOST = process.env.BUSINESS_API_HOST || "0.0.0.0";
+process.env.BUSINESS_API_PORT = process.env.BUSINESS_API_PORT || "9550";
+process.env.MAPLE_BUSINESS_API_TLS_CERT = process.env.MAPLE_BUSINESS_API_TLS_CERT || "/etc/maple/tls/tls.crt";
+process.env.MAPLE_BUSINESS_API_TLS_KEY = process.env.MAPLE_BUSINESS_API_TLS_KEY || "/etc/maple/tls/tls.key";
+process.env.MAPLE_BUSINESS_API_TLS_CA = process.env.MAPLE_BUSINESS_API_TLS_CA || "/etc/maple/tls/ca.crt";
+process.env.MAPLE_BUSINESS_API_MTLS_REQUIRED = process.env.MAPLE_BUSINESS_API_MTLS_REQUIRED || "1";
+process.env.MAPLE_BUSINESS_API_SKIP_DB_INIT = process.env.MAPLE_BUSINESS_API_SKIP_DB_INIT || "0";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://maple:maple@127.0.0.1:5432/maple_test";
+process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder";
+process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "whsec_test";
+process.env.STRIPE_PRICE_PRO = process.env.STRIPE_PRICE_PRO || "price_pro";
+process.env.STRIPE_PRICE_TEAM = process.env.STRIPE_PRICE_TEAM || "price_team";
+process.env.STRIPE_PRICE_ENTERPRISE = process.env.STRIPE_PRICE_ENTERPRISE || "price_enterprise";
+process.env.MAPLE_SESSION_COOKIE_NAME = process.env.MAPLE_SESSION_COOKIE_NAME || "maple_session";
+process.env.MAPLE_SESSION_TTL_SECONDS = process.env.MAPLE_SESSION_TTL_SECONDS || "604800";
+process.env.MAPLE_AUTH_ALLOW_SELF_SIGNUP = process.env.MAPLE_AUTH_ALLOW_SELF_SIGNUP || "0";
+process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "test-google-client-id";
+process.env.MAPLE_ALLOW_NO_AUTH = process.env.MAPLE_ALLOW_NO_AUTH || "1";
+process.env.MAPLE_SESSION_OWNER_SCOPE = process.env.MAPLE_SESSION_OWNER_SCOPE || "auto";
+process.env.AUDIT_WRITER_ADDRESS = process.env.AUDIT_WRITER_ADDRESS || "localhost:9400";
+process.env.MAPLE_RECOVERY_DELIVERY_REQUIRED = process.env.MAPLE_RECOVERY_DELIVERY_REQUIRED || "0";
+process.env.MAPLE_RECOVERY_EMAIL_PROVIDER = process.env.MAPLE_RECOVERY_EMAIL_PROVIDER || "none";
+process.env.MAPLE_RECOVERY_EMAIL_FROM = process.env.MAPLE_RECOVERY_EMAIL_FROM || "noreply@test.com";
+process.env.MAPLE_RECOVERY_EMAIL_REPLY_TO = process.env.MAPLE_RECOVERY_EMAIL_REPLY_TO || "support@test.com";
+process.env.MAPLE_RECOVERY_EMAIL_SUBJECT_PREFIX = process.env.MAPLE_RECOVERY_EMAIL_SUBJECT_PREFIX || "[Maple]";
+process.env.MAPLE_RECOVERY_RESET_BASE_URL = process.env.MAPLE_RECOVERY_RESET_BASE_URL || "http://localhost:3000/reset";
+process.env.MAPLE_RECOVERY_VERIFY_BASE_URL = process.env.MAPLE_RECOVERY_VERIFY_BASE_URL || "http://localhost:3000/verify";
+process.env.SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "test-sendgrid-key";
+process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || "test-resend-key";
+process.env.MAPLE_RECOVERY_SMS_PROVIDER = process.env.MAPLE_RECOVERY_SMS_PROVIDER || "none";
+process.env.MAPLE_RECOVERY_SMS_TO = process.env.MAPLE_RECOVERY_SMS_TO || "+1234567890";
+process.env.MAPLE_RECOVERY_SMS_FROM = process.env.MAPLE_RECOVERY_SMS_FROM || "+0987654321";
+process.env.TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "test-twilio-sid";
+process.env.TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "test-twilio-token";
+process.env.MAPLE_DISABLE_AUDIT_EMIT = process.env.MAPLE_DISABLE_AUDIT_EMIT || "1";
+
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { Hono } from "hono";
 import { hashPassword } from "@maple/security";
-import { registerAuthLoginRegisterRoutes } from "../src/routes/auth-login-register-routes.js";
-import { registerAuthLogoutRoute } from "../src/routes/auth-logout-route.js";
-import { registerAuthGoogleRoutes } from "../src/routes/auth-google-routes.js";
-import { registerAuthMeRoute } from "../src/routes/auth-me-route.js";
 
 function createDatabaseStub() {
   const users = new Map();
@@ -85,6 +123,7 @@ function createDatabaseStub() {
 }
 
 test("business auth login proxies existing credentials into a session cookie", async () => {
+  const { registerAuthLoginRegisterRoutes } = await import("../src/routes/auth-login-register-routes.js");
   const app = new Hono();
   const database = createDatabaseStub();
   registerAuthLoginRegisterRoutes(app, { database });
@@ -112,6 +151,7 @@ test("business auth login proxies existing credentials into a session cookie", a
 });
 
 test("business auth me resolves session and unauthenticated responses", async () => {
+  const { registerAuthMeRoute } = await import("../src/routes/auth-me-route.js");
   const app = new Hono();
   const database = createDatabaseStub();
   registerAuthMeRoute(app, { database });
@@ -136,6 +176,7 @@ test("business auth me resolves session and unauthenticated responses", async ()
 });
 
 test("business auth register enforces self-signup guard when users already exist", async () => {
+  const { registerAuthLoginRegisterRoutes } = await import("../src/routes/auth-login-register-routes.js");
   const app = new Hono();
   registerAuthLoginRegisterRoutes(app, { database: createDatabaseStub() });
 
@@ -155,6 +196,7 @@ test("business auth register enforces self-signup guard when users already exist
 });
 
 test("business auth logout revokes existing session and clears cookie", async () => {
+  const { registerAuthLogoutRoute } = await import("../src/routes/auth-logout-route.js");
   const app = new Hono();
   const database = createDatabaseStub();
   registerAuthLogoutRoute(app, { database });
@@ -176,44 +218,34 @@ test("business auth logout revokes existing session and clears cookie", async ()
   assert.equal(setCookie.includes("Max-Age=0"), true);
 });
 
-test("business google auth endpoints fail closed when Google is unconfigured", async () => {
-  const previousGoogleClientId = process.env.GOOGLE_CLIENT_ID;
-  delete process.env.GOOGLE_CLIENT_ID;
+test("business google auth endpoints report configured when config provides client id", async () => {
+  const { registerAuthGoogleRoutes } = await import("../src/routes/auth-google-routes.js");
   const app = new Hono();
   registerAuthGoogleRoutes(app, { database: createDatabaseStub() });
 
-  try {
-    const clientIdResponse = await app.request(
-      "http://localhost/api/business/auth/google/client-id"
-    );
-    assert.equal(clientIdResponse.status, 200);
-    const clientIdPayload = await clientIdResponse.json();
-    assert.equal(Object.hasOwn(clientIdPayload, "clientId"), true);
-    assert.equal(clientIdPayload.configured, false);
+  const clientIdResponse = await app.request(
+    "http://localhost/api/business/auth/google/client-id"
+  );
+  assert.equal(clientIdResponse.status, 200);
+  const clientIdPayload = await clientIdResponse.json();
+  assert.equal(Object.hasOwn(clientIdPayload, "clientId"), true);
+  assert.equal(clientIdPayload.configured, true);
 
-    const googleLogin = await app.request("http://localhost/api/business/auth/google", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "google-sim@example.com" }),
-    });
+  const googleLogin = await app.request("http://localhost/api/business/auth/google", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
 
-    assert.equal(googleLogin.status, 503);
-    const googlePayload = await googleLogin.json();
-    assert.equal(googlePayload.code, "GOOGLE_AUTH_UNAVAILABLE");
-  } finally {
-    if (previousGoogleClientId === undefined) {
-      delete process.env.GOOGLE_CLIENT_ID;
-    } else {
-      process.env.GOOGLE_CLIENT_ID = previousGoogleClientId;
-    }
-  }
+  assert.equal(googleLogin.status, 400);
+  const googlePayload = await googleLogin.json();
+  assert.equal(googlePayload.code, "INVALID_ARGUMENT");
 });
 
-test("business google auth remains unavailable in production when unconfigured", async () => {
+test("business google auth client-id endpoint remains available in production", async () => {
+  const { registerAuthGoogleRoutes } = await import("../src/routes/auth-google-routes.js");
   const previousNodeEnv = process.env.NODE_ENV;
-  const previousGoogleClientId = process.env.GOOGLE_CLIENT_ID;
   process.env.NODE_ENV = "production";
-  delete process.env.GOOGLE_CLIENT_ID;
 
   const app = new Hono();
   registerAuthGoogleRoutes(app, { database: createDatabaseStub() });
@@ -224,26 +256,13 @@ test("business google auth remains unavailable in production when unconfigured",
     );
     assert.equal(clientIdResponse.status, 200);
     const clientIdPayload = await clientIdResponse.json();
-    assert.equal(clientIdPayload.configured, false);
-
-    const login = await app.request("http://localhost/api/business/auth/google", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "google-sim@example.com" }),
-    });
-    assert.equal(login.status, 503);
-    const loginPayload = await login.json();
-    assert.equal(loginPayload.error, "Google sign-in is unavailable.");
+    assert.equal(clientIdPayload.configured, true);
+    assert.equal(typeof clientIdPayload.clientId, "string");
   } finally {
     if (previousNodeEnv === undefined) {
       delete process.env.NODE_ENV;
     } else {
       process.env.NODE_ENV = previousNodeEnv;
-    }
-    if (previousGoogleClientId === undefined) {
-      delete process.env.GOOGLE_CLIENT_ID;
-    } else {
-      process.env.GOOGLE_CLIENT_ID = previousGoogleClientId;
     }
   }
 });

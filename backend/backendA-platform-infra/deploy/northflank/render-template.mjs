@@ -31,7 +31,7 @@ const argumentsDefaults = {
   mapleAdminApiKeys: "",
   openclawBridgeToken: "",
   openclawGatewayToken: "",
-  openclawGatewaySessionKey: "agent:dev:main",
+  openclawGatewaySessionKey: "agent-dev-main",
   openclawAgentRequired: "0",
   googleClientId: "",
   stripeSecretKey: "",

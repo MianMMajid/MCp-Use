@@ -190,6 +190,74 @@ export class MaplePostgresDatabase {
           ON audit_events(trace_id, timestamp DESC);
         CREATE INDEX IF NOT EXISTS idx_audit_events_type
           ON audit_events(event_type, timestamp DESC);
+
+        CREATE TABLE IF NOT EXISTS gateway_modifier_approvals (
+          approval_id TEXT PRIMARY KEY,
+          trace_id TEXT NOT NULL,
+          step_index INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL,
+          reason TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          decided_at TEXT,
+          requested_by TEXT NOT NULL,
+          decided_by TEXT NOT NULL DEFAULT '',
+          tenant_id TEXT NOT NULL,
+          org_id TEXT NOT NULL,
+          device_id TEXT NOT NULL DEFAULT '',
+          session_id TEXT NOT NULL DEFAULT '',
+          tool TEXT NOT NULL,
+          target_profile TEXT NOT NULL,
+          dangerous_reasons_json TEXT NOT NULL DEFAULT '[]',
+          fingerprint TEXT NOT NULL,
+          command_json TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE INDEX IF NOT EXISTS idx_gateway_modifier_approvals_scope
+          ON gateway_modifier_approvals(tenant_id, org_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_gateway_modifier_approvals_fingerprint
+          ON gateway_modifier_approvals(fingerprint, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS gateway_modifier_org_members (
+          tenant_id TEXT NOT NULL,
+          org_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          role_id TEXT NOT NULL,
+          permissions_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (tenant_id, org_id, user_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_gateway_modifier_org_members_role
+          ON gateway_modifier_org_members(tenant_id, org_id, role_id);
+
+        CREATE TABLE IF NOT EXISTS gateway_modifier_tenant_policies (
+          tenant_id TEXT NOT NULL,
+          org_id TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          is_active BOOLEAN NOT NULL DEFAULT FALSE,
+          policy_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          created_by TEXT NOT NULL,
+          activated_at TEXT,
+          PRIMARY KEY (tenant_id, org_id, version)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_gateway_modifier_active_policy
+          ON gateway_modifier_tenant_policies(tenant_id, org_id)
+          WHERE is_active = TRUE;
+
+        CREATE TABLE IF NOT EXISTS gateway_audit_outbox (
+          outbox_id TEXT PRIMARY KEY,
+          event_json TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          next_attempt_at TEXT NOT NULL,
+          delivered_at TEXT,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_gateway_audit_outbox_status_next
+          ON gateway_audit_outbox(status, next_attempt_at ASC, created_at ASC);
       `);
         }
         finally {

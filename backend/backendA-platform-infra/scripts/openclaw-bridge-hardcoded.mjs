@@ -23,7 +23,7 @@ const GATEWAY_TOKEN =
     ? process.env.OPENCLAW_GATEWAY_TOKEN
     : randomBytes(24).toString("hex");
 const DEFAULT_GATEWAY_SESSION_KEY =
-  process.env.OPENCLAW_GATEWAY_SESSION_KEY ?? "agent:dev:main";
+  process.env.OPENCLAW_GATEWAY_SESSION_KEY ?? "agent-dev-main";
 const GATEWAY_HISTORY_LIMIT = Number(process.env.OPENCLAW_GATEWAY_HISTORY_LIMIT ?? 500);
 const OPENCLAW_SESSIONS_DIR =
   process.env.OPENCLAW_SESSIONS_DIR ??

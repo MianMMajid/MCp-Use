@@ -29,7 +29,9 @@ export class K8sJobDispatcher {
         this.namespace = config.toolRunnerJobNamespace;
         this.image = config.toolRunnerImage;
         // In-cluster K8s API access
-        this.apiServer = `https://${process.env.KUBERNETES_SERVICE_HOST || "kubernetes.default.svc"}:${process.env.KUBERNETES_SERVICE_PORT || "443"}`;
+        if (!process.env.KUBERNETES_SERVICE_HOST) throw new Error("Missing required environment variable: KUBERNETES_SERVICE_HOST");
+        if (!process.env.KUBERNETES_SERVICE_PORT) throw new Error("Missing required environment variable: KUBERNETES_SERVICE_PORT");
+        this.apiServer = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`;
         try {
             this.serviceAccountToken = readFileSync("/var/run/secrets/kubernetes.io/serviceaccount/token", "utf-8").trim();
         }

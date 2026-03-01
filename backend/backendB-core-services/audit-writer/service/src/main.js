@@ -12,6 +12,44 @@ function headerValue(raw) {
 }
 function startEdgeAuditIngestServer(store) {
     const server = createHttpServer((req, res) => {
+        // Dead-letter queue endpoints
+        if (req.method === "GET" && req.url?.startsWith("/v1/audit/dead-letter")) {
+            void (async () => {
+                try {
+                    const url = new URL(req.url, `http://${req.headers.host}`);
+                    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+                    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
+                    const result = await store.listDeadLetter(limit, offset);
+                    res.statusCode = 200;
+                    res.setHeader("content-type", "application/json");
+                    res.end(JSON.stringify(result));
+                } catch (err) {
+                    res.statusCode = 500;
+                    res.setHeader("content-type", "application/json");
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            })();
+            return;
+        }
+
+        const replayMatch = req.method === "POST" && req.url?.match(/^\/v1\/audit\/dead-letter\/([^/]+)\/replay$/);
+        if (replayMatch) {
+            void (async () => {
+                try {
+                    const eventId = replayMatch[1];
+                    const result = await store.replayDeadLetter(eventId);
+                    res.statusCode = result.replayed ? 200 : 404;
+                    res.setHeader("content-type", "application/json");
+                    res.end(JSON.stringify(result));
+                } catch (err) {
+                    res.statusCode = 500;
+                    res.setHeader("content-type", "application/json");
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            })();
+            return;
+        }
+
         if (req.method !== "POST" || req.url !== "/v1/audit/edge-access") {
             res.statusCode = 404;
             res.end();

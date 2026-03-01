@@ -1,8 +1,9 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
+import { requireEnv, requireEnvPort } from "@maple/common";
 export const config = {
-    port: getEnvPort("SECRETS_BROKER_PORT", 9300),
-    host: getEnvOrDefault("SECRETS_BROKER_HOST", "0.0.0.0"),
-    auditWriterAddress: getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400"),
+    port: requireEnvPort("SECRETS_BROKER_PORT"),
+    host: requireEnv("SECRETS_BROKER_HOST"),
+    auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
+    databaseUrl: process.env.DATABASE_URL?.trim() || undefined,
     defaultTtlSeconds: 300,
     maxTtlSeconds: 3600,
 };

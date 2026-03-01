@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-test("admin-console-api config source exposes tls/grpc defaults", async () => {
-  const { config } = await import("../src/config.js");
+// Set required env vars before import
+process.env.NODE_ENV = process.env.NODE_ENV || "test";
+process.env.MAPLE_ADMIN_ALLOW_NO_AUTH = process.env.MAPLE_ADMIN_ALLOW_NO_AUTH || "0";
+process.env.ADMIN_CONSOLE_PORT = "9443";
+process.env.ADMIN_CONSOLE_HOST = "0.0.0.0";
+process.env.AUDIT_WRITER_ADDRESS = "localhost:9400";
+process.env.CONTEXT_WALL_ADDRESS = "localhost:9000";
+process.env.MAPLE_ADMIN_TLS_CERT = "/etc/maple/admin-tls/tls.crt";
+process.env.MAPLE_ADMIN_TLS_KEY = "/etc/maple/admin-tls/tls.key";
+process.env.MAPLE_ADMIN_TLS_CA = "/etc/maple/admin-tls/ca.crt";
+
+test("admin-console-api config requires all env vars", async () => {
+  const { config } = await import(`../src/config.js?t=${Date.now()}`);
   assert.equal(config.port, 9443);
   assert.equal(config.host, "0.0.0.0");
   assert.equal(typeof config.contextWallAddress, "string");
@@ -26,15 +37,7 @@ test("admin-console-api config rejects MAPLE_ADMIN_ALLOW_NO_AUTH in production",
       /MAPLE_ADMIN_ALLOW_NO_AUTH cannot be enabled in production runtime\./
     );
   } finally {
-    if (previousNodeEnv === undefined) {
-      delete process.env.NODE_ENV;
-    } else {
-      process.env.NODE_ENV = previousNodeEnv;
-    }
-    if (previousAllowNoAuth === undefined) {
-      delete process.env.MAPLE_ADMIN_ALLOW_NO_AUTH;
-    } else {
-      process.env.MAPLE_ADMIN_ALLOW_NO_AUTH = previousAllowNoAuth;
-    }
+    process.env.NODE_ENV = previousNodeEnv;
+    process.env.MAPLE_ADMIN_ALLOW_NO_AUTH = previousAllowNoAuth;
   }
 });

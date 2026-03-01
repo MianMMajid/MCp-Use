@@ -4,7 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || (cd "${SCRIPT_DIR}/../../.." && pwd))"
 K8S_DIR="${ROOT_DIR}/backend/backendA-platform-infra/k8s"
-DOCKERFILE_PATH="${ROOT_DIR}/backend/backendA-platform-infra/deploy/Dockerfile"
 CERT_DIR="${ROOT_DIR}/backend/backendA-platform-infra/certs"
 CLUSTER_NAME="${MAPLE_KIND_CLUSTER:-maple-local}"
 NAMESPACE="${MAPLE_K8S_NAMESPACE:-maple}"
@@ -36,11 +35,8 @@ else
   echo "Reusing existing kind cluster: ${CLUSTER_NAME}"
 fi
 
-echo "Building image ${IMAGE_TAG}"
-docker build -f "${DOCKERFILE_PATH}" -t "${IMAGE_TAG}" "${ROOT_DIR}"
-
-echo "Loading image into kind: ${IMAGE_TAG}"
-kind load docker-image "${IMAGE_TAG}" --name "${CLUSTER_NAME}"
+bash "${SCRIPT_DIR}/k8s-local-build-image.sh"
+bash "${SCRIPT_DIR}/k8s-local-load-image.sh"
 
 echo "Generating local TLS certificates"
 bash "${ROOT_DIR}/backend/backendA-platform-infra/scripts/generate-local-certs.sh" >/dev/null

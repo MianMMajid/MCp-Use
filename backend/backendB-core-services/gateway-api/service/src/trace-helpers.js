@@ -20,6 +20,8 @@ export { asOpenClawRawEvent, eventIdFromStep, ingestOpenClawEvents, } from "./co
 export { createTraceForCurrentOwner, deleteTraceForCurrentOwner, getLatestTraceBySessionForCurrentOwner, getTraceForCurrentOwner, listTracesForCurrentOwner, resolveTraceByIdOrLatest, setGuardActionForCurrentOwner, upsertTraceForCurrentOwner, clearTracesForCurrentOwner, } from "./core/trace-ownership.js";
 export { bridgeOverrideDeniedBody, clampStepIndex, defaultForkEdits, eventIdentity, mergeLiveOpenClawTrace, recommendedRiskStepIndex, resolveBridgeTarget, } from "./core/trace-runtime-helpers.js";
 export { launchIsolatedForkSession, writeEventsToBridgeSession, } from "./core/trace-fork-runtime.js";
+export { ForkDispatcher } from "./core/fork-dispatcher.js";
+export { mergeForkExecutionResult } from "./core/fork-result-merger.js";
 export { asStepActor, asStepType, asTraceToolCall, buildCandidateStep, renderTraceMarkdown, stepToBridgeEvent, } from "./core/trace-step-utils.js";
 export { answerFirewallChatQuestion, buildFirewallChatSystemPrompt, buildFirewallRecommendations, extractStepIndexFromQuestion, formatRuleLabel, generateFirewallChatReply, isContextWallAvailable, isNetworkActionQuery, normalizeFirewallChatHistory, parseChatTurnContent, stepCommandOrUrl, stepFirewallRule, stepGuardReason, toFirewallActionSummary, } from "./core/firewall-chat.js";
 export { isContextWallAvailable as isModelRouterAvailable } from "./core/firewall-chat.js";

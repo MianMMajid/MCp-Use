@@ -1,4 +1,4 @@
-import { getEnvOrDefault, getEnvPort } from "@maple/common";
+import { requireEnv, requireEnvPort } from "@maple/common";
 /**
  * Tool Runner Configuration
  *
@@ -10,9 +10,9 @@ import { getEnvOrDefault, getEnvPort } from "@maple/common";
  *    checks, content scanning, and download quarantine.
  */
 export const config = {
-    port: getEnvPort("TOOL_RUNNER_PORT", 9250),
-    host: getEnvOrDefault("TOOL_RUNNER_HOST", "0.0.0.0"),
-    cyberProxyAddress: getEnvOrDefault("CYBER_PROXY_ADDRESS", "localhost:8080"),
-    auditWriterAddress: getEnvOrDefault("AUDIT_WRITER_ADDRESS", "localhost:9400"),
+    port: requireEnvPort("TOOL_RUNNER_PORT"),
+    host: requireEnv("TOOL_RUNNER_HOST"),
+    cyberProxyAddress: requireEnv("CYBER_PROXY_ADDRESS"),
+    auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
 };
 //# sourceMappingURL=config.js.map

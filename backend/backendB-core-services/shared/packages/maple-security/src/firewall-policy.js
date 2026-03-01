@@ -8,7 +8,10 @@ const REDACTION_MARKER = "[REDACTED BY MAPLE]";
 const RULESET_VERSION = "maple-fw-v1";
 const firewallEnabled = parseBooleanEnv(process.env.MAPLE_FIREWALL_ENABLED, true);
 const firewallDefaultAction = parseDefaultAction(process.env.MAPLE_FIREWALL_DEFAULT_ACTION);
-const firewallLogDir = expandPath(process.env.MAPLE_FIREWALL_LOG_DIR ?? "~/.maple/firewall-logs");
+if (!process.env.MAPLE_FIREWALL_LOG_DIR) {
+    throw new Error("Missing required environment variable: MAPLE_FIREWALL_LOG_DIR");
+}
+const firewallLogDir = expandPath(process.env.MAPLE_FIREWALL_LOG_DIR);
 const firewallLogPath = () => join(firewallLogDir, `${new Date().toISOString().slice(0, 10)}.jsonl`);
 let auditLogWriteChain = Promise.resolve();
 const secretPatterns = [

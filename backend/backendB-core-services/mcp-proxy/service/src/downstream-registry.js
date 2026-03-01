@@ -1,3 +1,4 @@
+import { Pool } from "pg";
 import { mapleLog } from "@maple/common";
 import { config } from "./config.js";
 function normalizeToolInputSchema(raw) {
@@ -8,6 +9,8 @@ function normalizeToolInputSchema(raw) {
 }
 export class DownstreamRegistry {
     apps = new Map();
+    pool = null;
+    pgReady = false;
     /**
      * Parse MAPLE_DOWNSTREAM_APPS env var (format: "id1=url1,id2=url2")
      * and register each app in the registry.
@@ -133,6 +136,75 @@ export class DownstreamRegistry {
             }
         }
         return tools;
+    }
+    async initializePg(databaseUrl) {
+        try {
+            this.pool = new Pool({
+                connectionString: databaseUrl,
+                max: 5,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 5000,
+            });
+            const client = await this.pool.connect();
+            try {
+                await client.query(`
+                    CREATE TABLE IF NOT EXISTS tool_registry (
+                        app_id TEXT NOT NULL,
+                        tool_name TEXT NOT NULL,
+                        tool_schema_json TEXT DEFAULT '{}',
+                        discovered_at TEXT NOT NULL,
+                        PRIMARY KEY (app_id, tool_name)
+                    );
+                `);
+                this.pgReady = true;
+                mapleLog("info", "downstream_registry_pg_initialized", {});
+            } finally {
+                client.release();
+            }
+        } catch (err) {
+            mapleLog("warn", "downstream_registry_pg_init_failed", { error: err.message });
+            this.pgReady = false;
+        }
+    }
+    async loadToolsFromPg() {
+        if (!this.pgReady || !this.pool) return;
+        try {
+            const result = await this.pool.query(
+                `SELECT app_id, tool_name, tool_schema_json, discovered_at FROM tool_registry`
+            );
+            for (const row of result.rows) {
+                const app = this.apps.get(row.app_id);
+                if (!app) continue;
+                let schema;
+                try { schema = JSON.parse(row.tool_schema_json); } catch { schema = {}; }
+                const existingTool = app.tools.find((t) => t.name === row.tool_name);
+                if (!existingTool) {
+                    app.tools.push({ name: row.tool_name, description: "", inputSchema: normalizeToolInputSchema(schema) });
+                }
+            }
+            mapleLog("info", "downstream_registry_pg_loaded", { toolCount: result.rows.length });
+        } catch (err) {
+            mapleLog("warn", "downstream_registry_pg_load_failed", { error: err.message });
+        }
+    }
+    async persistToolsForApp(appId, tools) {
+        if (!this.pgReady || !this.pool) return;
+        const now = new Date().toISOString();
+        try {
+            for (const tool of tools) {
+                if (!tool.name) continue;
+                await this.pool.query(
+                    `INSERT INTO tool_registry (app_id, tool_name, tool_schema_json, discovered_at)
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT (app_id, tool_name) DO UPDATE SET
+                        tool_schema_json = EXCLUDED.tool_schema_json,
+                        discovered_at = EXCLUDED.discovered_at`,
+                    [appId, tool.name, JSON.stringify(tool.inputSchema ?? {}), now]
+                );
+            }
+        } catch (err) {
+            mapleLog("warn", "downstream_registry_pg_persist_failed", { appId, error: err.message });
+        }
     }
 }
 //# sourceMappingURL=downstream-registry.js.map

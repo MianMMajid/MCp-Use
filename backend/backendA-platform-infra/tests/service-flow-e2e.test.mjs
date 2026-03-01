@@ -126,6 +126,127 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     "MAPLE_DOWNSTREAM_APPS",
     "MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW",
     "CONTEXT_WALL_HITL_TIMEOUT_MS",
+    "CONTEXT_WALL_PORT",
+    "CONTEXT_WALL_HOST",
+    "MODEL_ROUTER_PORT",
+    "MODEL_ROUTER_HOST",
+    "DEFAULT_MODEL",
+    "MCP_PROXY_PORT",
+    "MCP_PROXY_HOST",
+    "DOWNSTREAM_APPS",
+    "MAPLE_TOOL_RUNNER_IMAGE",
+    "MAPLE_TOOL_RUNNER_JOB_NAMESPACE",
+    "TOOL_RUNNER_PORT",
+    "TOOL_RUNNER_HOST",
+    "CYBER_PROXY_PORT",
+    "CYBER_PROXY_HOST",
+    "CYBER_ALLOWED_DOMAINS",
+    "CYBER_BLOCKED_DOMAINS",
+    "CYBER_TOOL_ALLOWED_DOMAINS_JSON",
+    "CYBER_MAX_RESPONSE_BYTES",
+    "CYBER_QUARANTINE_ENABLED",
+    "SECRETS_BROKER_PORT",
+    "SECRETS_BROKER_HOST",
+    "AUDIT_WRITER_PORT",
+    "AUDIT_WRITER_HTTP_PORT",
+    "AUDIT_WRITER_HOST",
+    // ── Gateway-API config.js required env vars ──
+    "NODE_ENV",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PRICE_PRO",
+    "STRIPE_PRICE_TEAM",
+    "STRIPE_PRICE_ENTERPRISE",
+    "STRIPE_PUBLISHABLE_KEY",
+    "MAPLE_ALLOW_BRIDGE_OVERRIDE",
+    "MAPLE_LOCK_BRIDGE_TARGET",
+    "OPENCLAW_BRIDGE_URL",
+    "OPENCLAW_BRIDGE_TOKEN",
+    "MAPLE_OPENCLAW_AGENT_ENABLED",
+    "MAPLE_OPENCLAW_AGENT_MODE",
+    "MAPLE_OPENCLAW_AGENT_REQUIRED",
+    "MAPLE_OPENCLAW_AGENT_DEV_PROFILE",
+    "MAPLE_OPENCLAW_AGENT_AUTOSTART_GATEWAY",
+    "MAPLE_OPENCLAW_AGENT_GATEWAY_PORT",
+    "MAPLE_OPENCLAW_AGENT_GATEWAY_BIND",
+    "MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID",
+    "MAPLE_OPENCLAW_AGENT_DEFAULT_THINKING",
+    "MAPLE_OPENCLAW_AGENT_TIMEOUT_SECONDS",
+    "MAPLE_OPENCLAW_MODIFIER_ENABLED",
+    "MAPLE_OPENCLAW_MODIFIER_ALLOW_DEV_PROFILE",
+    "MAPLE_OPENCLAW_MODIFIER_APPROVAL_TTL_SECONDS",
+    "MAPLE_OPENCLAW_MODIFIER_MAX_TIMEOUT_SECONDS",
+    "MAPLE_OPENCLAW_MODIFIER_MAX_BUFFER_MB",
+    "MAPLE_OPENCLAW_MODIFIER_SOURCE_PROFILE",
+    "MAPLE_OPENCLAW_MODIFIER_ALLOWED_TOOLS",
+    "MAPLE_OPENCLAW_MODIFIER_DANGEROUS_TOOLS",
+    "MAPLE_OPENCLAW_MODIFIER_BLOCKED_TARGET_PROFILES",
+    "MAPLE_OPENCLAW_MODIFIER_REQUIRE_SCOPE",
+    "MAPLE_OPENCLAW_MODIFIER_REQUIRE_ORG_RBAC",
+    "MAPLE_OPENCLAW_MODIFIER_REQUIRE_TENANT_POLICY",
+    "MAPLE_OPENCLAW_MODIFIER_AUTO_BOOTSTRAP_OWNER",
+    "MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX",
+    "MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_INTERVAL_MS",
+    "MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_BATCH_SIZE",
+    "MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_MAX_RETRIES",
+    "MAPLE_STEP_UP_REQUIRED_FOR_APPROVALS",
+    "MAPLE_ESCALATION_CHECK_INTERVAL_MS",
+    "MAPLE_RETENTION_CHECK_INTERVAL_MS",
+    "MAPLE_MODIFIER_GOVERNANCE_ENABLED",
+    "MAPLE_LEADER_ELECTION_ENABLED",
+    "MAPLE_OTLP_ENDPOINT",
+    "MAPLE_OTLP_SERVICE_NAME",
+    "MAPLE_OTLP_BATCH_SIZE",
+    "MAPLE_OTLP_FLUSH_INTERVAL_MS",
+    "MAPLE_OTLP_TIMEOUT_MS",
+    "MAPLE_EVENT_TRANSPORT_BACKEND",
+    "MAPLE_REDIS_URL",
+    "MAPLE_FIREWALL_CHAT_STRICT_MODE",
+    "MAPLE_SESSION_POLL",
+    "MAPLE_SESSION_POLL_MS",
+    "MAPLE_MCP_FIREWALL_DEFAULT_APP",
+    "MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS",
+    "MAPLE_MCP_PROXY_ALLOW_HTTP",
+    "MAPLE_MCP_PROXY_ALLOW_PRIVATE_TARGETS",
+    "MAPLE_MCP_PROXY_DEFAULT_TARGET_URL",
+    "MAPLE_MCP_PROXY_ALLOWED_HOSTS",
+    "MAPLE_MCP_EXECUTION_ORDER",
+    "MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS",
+    "MAPLE_MCP_ROUTE_LOCK",
+    "MAPLE_SESSION_OWNER_SCOPE",
+    "MAPLE_ENABLE_DEMO_ROUTES",
+    "MAPLE_ENABLE_JUDGE_UI",
+    "ANTHROPIC_API_KEY",
+    "MAPLE_FIREWALL_CHAT_PRIMARY",
+    "MAPLE_FIREWALL_CHAT_OPENAI_MODEL",
+    "MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL",
+    "MAPLE_FIREWALL_CHAT_TIMEOUT_MS",
+    "MAPLE_SESSION_COOKIE_NAME",
+    "MAPLE_SESSION_TTL_SECONDS",
+    "MAPLE_AUTH_ALLOW_SELF_SIGNUP",
+    "GOOGLE_CLIENT_ID",
+    "MAPLE_GPT_OAUTH_CLIENT_ID",
+    "MAPLE_GPT_OAUTH_CLIENT_SECRET",
+    "GATEWAY_PORT",
+    "GATEWAY_HOST",
+    "MAPLE_GATEWAY_TLS_CERT",
+    "MAPLE_GATEWAY_TLS_KEY",
+    "MAPLE_GATEWAY_TLS_CA",
+    "MAPLE_BUSINESS_API_BASE_URL",
+    "MAPLE_BUSINESS_API_REQUIRED",
+    "MAPLE_BUSINESS_API_CA",
+    "MAPLE_BUSINESS_API_CERT",
+    "MAPLE_BUSINESS_API_KEY",
+    "MAPLE_BUSINESS_API_TIMEOUT_MS",
+    "CORS_ORIGIN",
+    "MAPLE_LOG_LEVEL",
+    "MAPLE_LOG_INCLUDE_BODIES",
+    "MAPLE_LOG_REQUESTS",
+    "MAPLE_LOG_BODY_MAX_CHARS",
+    "MAPLE_TENANT_CLAIM_SIGNING_KEY",
+    "MAPLE_DISABLE_AUDIT_EMIT",
+    "MAPLE_ADMIN_ALLOW_NO_AUTH",
+    "MCP_URL",
   ];
   const envBackup = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 
@@ -136,7 +257,7 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   process.env.MAPLE_DISABLE_HITL_BROKER = "1";
   process.env.MAPLE_SKIP_AUTH_BOOTSTRAP = "1";
   process.env.PGCONNECT_TIMEOUT = "1";
-  process.env.DATABASE_URL = "postgresql://maple:maple@127.0.0.1:1/maple";
+  process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://maple:maple@127.0.0.1:5432/maple_test";
   process.env.OPENAI_API_KEY = "test-key-for-grpc-path";
 
   process.env.CONTEXT_WALL_ADDRESS = `localhost:${ports.contextWall}`;
@@ -146,9 +267,132 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   process.env.CYBER_PROXY_ADDRESS = `localhost:${ports.cyberProxy}`;
   process.env.SECRETS_BROKER_ADDRESS = `localhost:${ports.secretsBroker}`;
   process.env.AUDIT_WRITER_ADDRESS = `localhost:${ports.auditWriter}`;
+  // Service ports (required by each service's config.js)
+  process.env.CONTEXT_WALL_PORT = String(ports.contextWall);
+  process.env.CONTEXT_WALL_HOST = "0.0.0.0";
+  process.env.CONTEXT_WALL_HITL_TIMEOUT_MS = process.env.CONTEXT_WALL_HITL_TIMEOUT_MS || "1000";
+  process.env.MODEL_ROUTER_PORT = String(ports.modelRouter);
+  process.env.MODEL_ROUTER_HOST = "0.0.0.0";
+  process.env.DEFAULT_MODEL = "gpt-4o";
+  process.env.MCP_PROXY_PORT = String(ports.mcpProxy);
+  process.env.MCP_PROXY_HOST = "0.0.0.0";
+  process.env.DOWNSTREAM_APPS = "none";
+  process.env.MAPLE_TOOL_RUNNER_IMAGE = "tool-runner:latest";
+  process.env.MAPLE_TOOL_RUNNER_JOB_NAMESPACE = "maple-tools";
+  process.env.TOOL_RUNNER_PORT = String(ports.toolRunner);
+  process.env.TOOL_RUNNER_HOST = "0.0.0.0";
+  process.env.CYBER_PROXY_PORT = String(ports.cyberProxy);
+  process.env.CYBER_PROXY_HOST = "0.0.0.0";
+  process.env.CYBER_ALLOWED_DOMAINS = "example.com";
+  process.env.CYBER_BLOCKED_DOMAINS = "evil.com";
+  process.env.CYBER_TOOL_ALLOWED_DOMAINS_JSON = "{}";
+  process.env.CYBER_MAX_RESPONSE_BYTES = "10485760";
+  process.env.CYBER_QUARANTINE_ENABLED = "1";
+  process.env.SECRETS_BROKER_PORT = String(ports.secretsBroker);
+  process.env.SECRETS_BROKER_HOST = "0.0.0.0";
+  process.env.AUDIT_WRITER_PORT = String(ports.auditWriter);
+  process.env.AUDIT_WRITER_HTTP_PORT = String(await getFreePort());
+  process.env.AUDIT_WRITER_HOST = "0.0.0.0";
   process.env.MAPLE_TOOL_RUNNER_MODE = "service";
   process.env.MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW = "0";
   process.env.CONTEXT_WALL_HITL_TIMEOUT_MS = "1000";
+  // ── Gateway-API config.js required env vars ──
+  process.env.NODE_ENV = "test";
+  process.env.STRIPE_SECRET_KEY = "sk_test_ci_placeholder";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_ci_test";
+  process.env.STRIPE_PRICE_PRO = "price_pro_ci";
+  process.env.STRIPE_PRICE_TEAM = "price_team_ci";
+  process.env.STRIPE_PRICE_ENTERPRISE = "price_enterprise_ci";
+  process.env.STRIPE_PUBLISHABLE_KEY = "pk_test_ci_placeholder";
+  process.env.MAPLE_ALLOW_BRIDGE_OVERRIDE = "0";
+  process.env.MAPLE_LOCK_BRIDGE_TARGET = "0";
+  process.env.OPENCLAW_BRIDGE_URL = "http://127.0.0.1:8787";
+  process.env.OPENCLAW_BRIDGE_TOKEN = "ci-test-bridge-token";
+  process.env.MAPLE_OPENCLAW_AGENT_ENABLED = "1";
+  process.env.MAPLE_OPENCLAW_AGENT_MODE = "gateway";
+  process.env.MAPLE_OPENCLAW_AGENT_REQUIRED = "0";
+  process.env.MAPLE_OPENCLAW_AGENT_DEV_PROFILE = "1";
+  process.env.MAPLE_OPENCLAW_AGENT_AUTOSTART_GATEWAY = "0";
+  process.env.MAPLE_OPENCLAW_AGENT_GATEWAY_PORT = "19001";
+  process.env.MAPLE_OPENCLAW_AGENT_GATEWAY_BIND = "loopback";
+  process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID = "agent-dev-main";
+  process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_THINKING = "medium";
+  process.env.MAPLE_OPENCLAW_AGENT_TIMEOUT_SECONDS = "120";
+  process.env.MAPLE_OPENCLAW_MODIFIER_ENABLED = "1";
+  process.env.MAPLE_OPENCLAW_MODIFIER_ALLOW_DEV_PROFILE = "0";
+  process.env.MAPLE_OPENCLAW_MODIFIER_APPROVAL_TTL_SECONDS = "900";
+  process.env.MAPLE_OPENCLAW_MODIFIER_MAX_TIMEOUT_SECONDS = "90";
+  process.env.MAPLE_OPENCLAW_MODIFIER_MAX_BUFFER_MB = "8";
+  process.env.MAPLE_OPENCLAW_MODIFIER_SOURCE_PROFILE = "default";
+  process.env.MAPLE_OPENCLAW_MODIFIER_ALLOWED_TOOLS = "agent,agents,message,sessions,status,health,gateway,memory,models,skills,nodes,logs";
+  process.env.MAPLE_OPENCLAW_MODIFIER_DANGEROUS_TOOLS = "setup,onboard,configure,config,reset,uninstall,update,plugins,webhooks,hooks,pairing,devices,node,sandbox,daemon,voicecall,acp,system,directory,dns,browser,cron";
+  process.env.MAPLE_OPENCLAW_MODIFIER_BLOCKED_TARGET_PROFILES = "default,main,primary,root,system";
+  process.env.MAPLE_OPENCLAW_MODIFIER_REQUIRE_SCOPE = "1";
+  process.env.MAPLE_OPENCLAW_MODIFIER_REQUIRE_ORG_RBAC = "1";
+  process.env.MAPLE_OPENCLAW_MODIFIER_REQUIRE_TENANT_POLICY = "0";
+  process.env.MAPLE_OPENCLAW_MODIFIER_AUTO_BOOTSTRAP_OWNER = "1";
+  process.env.MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX = "1";
+  process.env.MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_INTERVAL_MS = "5000";
+  process.env.MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_BATCH_SIZE = "50";
+  process.env.MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_MAX_RETRIES = "5";
+  process.env.MAPLE_STEP_UP_REQUIRED_FOR_APPROVALS = "0";
+  process.env.MAPLE_ESCALATION_CHECK_INTERVAL_MS = "30000";
+  process.env.MAPLE_RETENTION_CHECK_INTERVAL_MS = "86400000";
+  process.env.MAPLE_MODIFIER_GOVERNANCE_ENABLED = "0";
+  process.env.MAPLE_LEADER_ELECTION_ENABLED = "1";
+  process.env.MAPLE_OTLP_ENDPOINT = "http://localhost:4318";
+  process.env.MAPLE_OTLP_SERVICE_NAME = "gateway-api";
+  process.env.MAPLE_OTLP_BATCH_SIZE = "100";
+  process.env.MAPLE_OTLP_FLUSH_INTERVAL_MS = "5000";
+  process.env.MAPLE_OTLP_TIMEOUT_MS = "5000";
+  process.env.MAPLE_EVENT_TRANSPORT_BACKEND = "pg";
+  process.env.MAPLE_REDIS_URL = "redis://localhost:6379";
+  process.env.MAPLE_FIREWALL_CHAT_STRICT_MODE = "0";
+  process.env.MAPLE_SESSION_POLL = "1";
+  process.env.MAPLE_SESSION_POLL_MS = "5000";
+  process.env.MAPLE_MCP_FIREWALL_DEFAULT_APP = "default";
+  process.env.MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS = "0";
+  process.env.MAPLE_MCP_PROXY_ALLOW_HTTP = "0";
+  process.env.MAPLE_MCP_PROXY_ALLOW_PRIVATE_TARGETS = "0";
+  process.env.MAPLE_MCP_PROXY_DEFAULT_TARGET_URL = "http://localhost:3000";
+  process.env.MAPLE_MCP_PROXY_ALLOWED_HOSTS = "localhost";
+  process.env.MAPLE_MCP_EXECUTION_ORDER = "default";
+  process.env.MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS = "15000";
+  process.env.MAPLE_MCP_ROUTE_LOCK = "0";
+  process.env.MAPLE_SESSION_OWNER_SCOPE = "auto";
+  process.env.MAPLE_ENABLE_DEMO_ROUTES = "1";
+  process.env.MAPLE_ENABLE_JUDGE_UI = "1";
+  process.env.ANTHROPIC_API_KEY = "ci-test-anthropic-key";
+  process.env.MAPLE_FIREWALL_CHAT_PRIMARY = "openai";
+  process.env.MAPLE_FIREWALL_CHAT_OPENAI_MODEL = "gpt-4o-mini";
+  process.env.MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+  process.env.MAPLE_FIREWALL_CHAT_TIMEOUT_MS = "15000";
+  process.env.MAPLE_SESSION_COOKIE_NAME = "maple_session";
+  process.env.MAPLE_SESSION_TTL_SECONDS = "604800";
+  process.env.MAPLE_AUTH_ALLOW_SELF_SIGNUP = "0";
+  process.env.GOOGLE_CLIENT_ID = "ci-test-google-client-id";
+  process.env.MAPLE_GPT_OAUTH_CLIENT_ID = "maple-gpt-client";
+  process.env.MAPLE_GPT_OAUTH_CLIENT_SECRET = "maple-secret";
+  process.env.GATEWAY_PORT = "8443";
+  process.env.GATEWAY_HOST = "0.0.0.0";
+  process.env.MAPLE_GATEWAY_TLS_CERT = resolve(certDir, "tls.crt");
+  process.env.MAPLE_GATEWAY_TLS_KEY = resolve(certDir, "tls.key");
+  process.env.MAPLE_GATEWAY_TLS_CA = resolve(certDir, "ca.crt");
+  process.env.MAPLE_BUSINESS_API_BASE_URL = "http://localhost:9550";
+  process.env.MAPLE_BUSINESS_API_REQUIRED = "0";
+  process.env.MAPLE_BUSINESS_API_CA = resolve(certDir, "ca.crt");
+  process.env.MAPLE_BUSINESS_API_CERT = resolve(certDir, "tls.crt");
+  process.env.MAPLE_BUSINESS_API_KEY = resolve(certDir, "tls.key");
+  process.env.MAPLE_BUSINESS_API_TIMEOUT_MS = "3000";
+  process.env.CORS_ORIGIN = "*";
+  process.env.MAPLE_LOG_LEVEL = "error";
+  process.env.MAPLE_LOG_INCLUDE_BODIES = "0";
+  process.env.MAPLE_LOG_REQUESTS = "0";
+  process.env.MAPLE_LOG_BODY_MAX_CHARS = "4000";
+  process.env.MAPLE_TENANT_CLAIM_SIGNING_KEY = "ci-test-tenant-key";
+  process.env.MAPLE_DISABLE_AUDIT_EMIT = "1";
+  process.env.MAPLE_ADMIN_ALLOW_NO_AUTH = "0";
+  process.env.MCP_URL = "http://localhost:3000";
   process.env.MAPLE_DOWNSTREAM_APPS = JSON.stringify([
     {
       id: "web-app",
