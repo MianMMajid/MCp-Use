@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
-const DEFAULT_LOCAL_GATEWAY_ORIGIN = "https://127.0.0.1:3000"
+const DEFAULT_RAILWAY_GATEWAY_ORIGIN = "https://maple-gateway-production.up.railway.app"
+const DEFAULT_LOCAL_GATEWAY_ORIGIN = DEFAULT_RAILWAY_GATEWAY_ORIGIN
 const DEFAULT_K8S_GATEWAY_ORIGIN = "https://gateway-api:3000"
 const DEFAULT_LOCAL_ADMIN_CONSOLE_ORIGIN = "http://127.0.0.1:4001"
 const DEFAULT_K8S_ADMIN_CONSOLE_ORIGIN = "https://admin-console-api:9443"
