@@ -152,6 +152,13 @@ export function registerPlatformProxyRoutes(app) {
       "org.members.list"
     )
   );
+  app.get("/api/org/:orgId/invites", async (c) =>
+    proxyGet(
+      c,
+      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/invites`,
+      "org.invites.list"
+    )
+  );
   app.post("/api/org/:orgId/invites", async (c) =>
     proxyPost(
       c,
@@ -214,6 +221,13 @@ export function registerPlatformProxyRoutes(app) {
       c,
       `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts`,
       "org.service_accounts.create"
+    )
+  );
+  app.get("/api/org/:orgId/service-accounts/:id/keys", async (c) =>
+    proxyGet(
+      c,
+      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts/${encodeURIComponent(c.req.param("id"))}/keys`,
+      "org.service_account_keys.list"
     )
   );
   app.post("/api/org/:orgId/service-accounts/:id/keys", async (c) =>

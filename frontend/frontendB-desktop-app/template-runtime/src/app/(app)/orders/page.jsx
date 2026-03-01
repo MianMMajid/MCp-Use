@@ -81,7 +81,30 @@ export default function Orders() {
   }
 
   useEffect(() => {
-    return fetchApprovals()
+    const cancel = fetchApprovals()
+
+    // SSE live updates
+    let es
+    try {
+      es = new EventSource('/api/hitl/approvals/watch')
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.approvals) {
+            setApprovals(Array.isArray(data.approvals) ? data.approvals : [])
+            setCount(data.count ?? 0)
+          } else if (data.type === 'update') {
+            fetchApprovals()
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      es.onerror = () => { /* reconnect handled by EventSource */ }
+    } catch { /* SSE not available */ }
+
+    return () => {
+      cancel()
+      if (es) es.close()
+    }
   }, [])
 
   return (

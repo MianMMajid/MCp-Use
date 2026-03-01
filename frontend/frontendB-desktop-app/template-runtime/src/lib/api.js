@@ -14,6 +14,16 @@ export async function postJson(path, body) {
   return res
 }
 
+export async function patchJson(path, body) {
+  const res = await fetch(path, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return res
+}
+
 export async function deleteJson(path) {
   const res = await fetch(path, { method: 'DELETE', credentials: 'same-origin' })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)

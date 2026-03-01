@@ -9,7 +9,9 @@ import { Input, InputGroup } from '@/components/input'
 import { Link } from '@/components/link'
 import { Select } from '@/components/select'
 import { MagnifyingGlassIcon } from '@heroicons/react/16/solid'
-import { loadJson } from '@/lib/api'
+import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/dialog'
+import { Field, Label } from '@/components/fieldset'
+import { loadJson, postJson } from '@/lib/api'
 
 function SkeletonGrid() {
   return (
@@ -70,12 +72,25 @@ export default function Events() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
+  const [showExport, setShowExport] = useState(false)
+  const [exportLoading, setExportLoading] = useState(false)
+  const [showClear, setShowClear] = useState(false)
+  const [clearLoading, setClearLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [messageType, setMessageType] = useState('success')
 
-  useEffect(() => {
+  function fetchTraces(query) {
     let cancelled = false
+    setLoading(true)
+    setError('')
     ;(async () => {
       try {
-        const data = await loadJson('/api/traces')
+        let data
+        if (query) {
+          data = await loadJson(`/api/traces/search?q=${encodeURIComponent(query)}`)
+        } else {
+          data = await loadJson('/api/traces')
+        }
         if (cancelled) return
         setTraces(Array.isArray(data?.traces) ? data.traces : [])
         setCount(data?.count ?? 0)
@@ -88,10 +103,40 @@ export default function Events() {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
+  }
+
+  useEffect(() => {
+    return fetchTraces()
   }, [])
+
+  function handleServerSearch() {
+    if (search.trim()) {
+      fetchTraces(search.trim())
+    } else {
+      fetchTraces()
+    }
+  }
+
+  async function handleExport() {
+    setExportLoading(true)
+    try {
+      const res = await postJson('/api/traces/export', { query: search || undefined })
+      if (res.ok) { setMessage('Export initiated.'); setMessageType('success') }
+      else { setMessage('Export failed.'); setMessageType('error') }
+    } catch { setMessage('Export failed.'); setMessageType('error') }
+    finally { setExportLoading(false); setShowExport(false) }
+  }
+
+  async function handleClear() {
+    setClearLoading(true)
+    try {
+      const res = await postJson('/api/traces/clear', {})
+      if (res.ok) { setMessage('All traces cleared.'); setMessageType('success'); fetchTraces() }
+      else { setMessage('Clear failed.'); setMessageType('error') }
+    } catch { setMessage('Clear failed.'); setMessageType('error') }
+    finally { setClearLoading(false); setShowClear(false) }
+  }
 
   const filtered = (traces || [])
     .filter((t) => {
@@ -127,6 +172,7 @@ export default function Events() {
                   placeholder="Search tools or agents&hellip;"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleServerSearch() }}
                 />
               </InputGroup>
             </div>
@@ -139,7 +185,11 @@ export default function Events() {
             </div>
           </div>
         </div>
-        <Button href="/orders">Review approvals</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowExport(true)}>Export</Button>
+          <Button color="red" onClick={() => setShowClear(true)}>Clear All</Button>
+          <Button href="/orders">Review approvals</Button>
+        </div>
       </div>
 
       {error && (
@@ -164,6 +214,12 @@ export default function Events() {
               : 'When agents execute runs, their traces will appear here.'}
           </p>
         </div>
+      )}
+
+      {message && (
+        <p className={`mt-4 rounded-lg border px-3 py-2 text-sm ${messageType === 'success' ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'}`}>
+          {message}
+        </p>
       )}
 
       {!loading && filtered.length > 0 && (
@@ -230,6 +286,28 @@ export default function Events() {
           </ul>
         </>
       )}
+
+      {/* Export Dialog */}
+      <Dialog open={showExport} onClose={() => setShowExport(false)} size="sm">
+        <DialogTitle>Export Traces</DialogTitle>
+        <DialogDescription>Export all traces{search ? ` matching "${search}"` : ''}.</DialogDescription>
+        <DialogBody />
+        <DialogActions>
+          <Button plain onClick={() => setShowExport(false)}>Cancel</Button>
+          <Button disabled={exportLoading} onClick={handleExport}>{exportLoading ? 'Exporting...' : 'Export'}</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Clear Dialog */}
+      <Dialog open={showClear} onClose={() => setShowClear(false)} size="sm">
+        <DialogTitle>Clear All Traces</DialogTitle>
+        <DialogDescription>This will permanently delete all traces. This action cannot be undone.</DialogDescription>
+        <DialogBody />
+        <DialogActions>
+          <Button plain onClick={() => setShowClear(false)}>Cancel</Button>
+          <Button color="red" disabled={clearLoading} onClick={handleClear}>{clearLoading ? 'Clearing...' : 'Clear All'}</Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }

@@ -122,6 +122,9 @@ export default function ToolsRegistryPage() {
   const [cliArgs, setCliArgs] = useState('')
   const [cliOutput, setCliOutput] = useState(null)
   const [cliExecuting, setCliExecuting] = useState(false)
+  const [genericCliArgs, setGenericCliArgs] = useState('')
+  const [genericCliOutput, setGenericCliOutput] = useState(null)
+  const [genericCliExecuting, setGenericCliExecuting] = useState(false)
 
   const [error, setError] = useState(null)
 
@@ -293,6 +296,20 @@ export default function ToolsRegistryPage() {
       setCliOutput({ error: err.message })
     } finally {
       setCliExecuting(false)
+    }
+  }
+
+  async function handleGenericCliExec() {
+    setGenericCliExecuting(true)
+    setGenericCliOutput(null)
+    try {
+      const body = genericCliArgs.trim() ? JSON.parse(genericCliArgs) : {}
+      const result = await postJson('/api/openclaw/cli/exec', body)
+      setGenericCliOutput(result)
+    } catch (err) {
+      setGenericCliOutput({ error: err.message })
+    } finally {
+      setGenericCliExecuting(false)
     }
   }
 
@@ -668,6 +685,41 @@ export default function ToolsRegistryPage() {
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
               CLI Console
             </h2>
+
+            {/* Generic CLI Execute */}
+            <div className="mt-4 rounded-xl border border-zinc-950/10 bg-zinc-50 p-4 dark:border-white/10 dark:bg-zinc-800">
+              <label className="block text-sm font-medium text-zinc-950 dark:text-white">
+                Generic Command (JSON)
+              </label>
+              <textarea
+                className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-2 font-mono text-sm text-zinc-950 outline-2 outline-offset-2 outline-orange-500 focus:outline dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+                rows={3}
+                value={genericCliArgs}
+                onChange={(e) => setGenericCliArgs(e.target.value)}
+                placeholder='{"command": "..."}'
+              />
+              <Button
+                variant="filled"
+                onClick={handleGenericCliExec}
+                disabled={genericCliExecuting}
+                className="mt-2"
+              >
+                {genericCliExecuting ? 'Executing...' : 'Execute Command'}
+              </Button>
+              {genericCliOutput && (
+                <div className="mt-3 rounded-xl border border-zinc-950/5 bg-white p-4 dark:border-white/5 dark:bg-zinc-900">
+                  {genericCliOutput.error ? (
+                    <p className="text-sm text-rose-600 dark:text-rose-400">
+                      {genericCliOutput.error}
+                    </p>
+                  ) : (
+                    <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                      {JSON.stringify(genericCliOutput, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Tool selector */}
             {cliLoading && !cliTools ? (

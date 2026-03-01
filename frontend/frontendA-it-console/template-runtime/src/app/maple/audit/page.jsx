@@ -137,6 +137,7 @@ export default function AuditTracesPage() {
   const [traceSearchLoading, setTraceSearchLoading] = useState(false)
   const [traceSearchError, setTraceSearchError] = useState(null)
   const [traceExporting, setTraceExporting] = useState(false)
+  const [traceClearing, setTraceClearing] = useState(false)
 
   // -- Compliance state --
   const [reports, setReports] = useState(null)
@@ -296,6 +297,20 @@ export default function AuditTracesPage() {
       // best-effort
     } finally {
       setTraceExporting(false)
+    }
+  }
+
+  async function handleTraceClear() {
+    if (!confirm('Clear all traces? This cannot be undone.')) return
+    setTraceClearing(true)
+    try {
+      await postJson('/api/traces/clear', {})
+      setTraces([])
+      setTraceSearchResults(null)
+    } catch {
+      // best-effort
+    } finally {
+      setTraceClearing(false)
     }
   }
 
@@ -792,6 +807,13 @@ export default function AuditTracesPage() {
                   disabled={traceExporting}
                 >
                   {traceExporting ? 'Exporting...' : 'Export Traces'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleTraceClear}
+                  disabled={traceClearing}
+                >
+                  {traceClearing ? 'Clearing...' : 'Clear All'}
                 </Button>
               </div>
 

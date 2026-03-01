@@ -1059,6 +1059,8 @@ spec:
               value: /etc/maple/tls/tls.key
             - name: MAPLE_GRPC_TLS_CA
               value: /etc/maple/tls/ca.crt
+            - name: GATEWAY_API_URL
+              value: https://gateway-api.maple.svc.cluster.local:3000
           envFrom:
             - configMapRef:
                 name: maple-config

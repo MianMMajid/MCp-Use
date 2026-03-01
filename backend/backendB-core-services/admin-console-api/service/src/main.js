@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createServer as createHttpsServer } from "node:https";
+import https, { createServer as createHttpsServer } from "node:https";
 import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
 import { config } from "./config.js";
 import { createAdminAuthMiddleware } from "./admin-auth.js";
@@ -617,6 +617,67 @@ async function main() {
             }
         });
         mapleLog("info", "admin_console_dead_letter_routes_enabled", { origin: auditWriterHttpOrigin });
+    }
+    // ── Gateway API reverse proxy (/api/*) ──────────────────────────────
+    if (config.gatewayApiUrl) {
+        const gatewayOrigin = new URL(config.gatewayApiUrl);
+        const proxyAgent = new https.Agent({
+            cert: readFileSync(config.tlsCertPath),
+            key: readFileSync(config.tlsKeyPath),
+            ca: readFileSync(config.tlsCaPath),
+        });
+        app.all("/api/*", async (c) => {
+            const url = new URL(c.req.url, `https://${c.req.header("host") || "localhost"}`);
+            const upstream = `${gatewayOrigin.origin}${url.pathname}${url.search}`;
+            const upstreamUrl = new URL(upstream);
+            const method = c.req.method;
+            const forwardHeaders = Object.fromEntries(
+                Object.entries(c.req.header()).filter(([k]) => k !== "host"),
+            );
+            forwardHeaders.host = upstreamUrl.host;
+            let body = null;
+            if (method !== "GET" && method !== "HEAD") {
+                body = await c.req.arrayBuffer().catch(() => null);
+            }
+            return new Promise((resolve) => {
+                const opts = {
+                    hostname: upstreamUrl.hostname,
+                    port: upstreamUrl.port || 443,
+                    path: `${upstreamUrl.pathname}${upstreamUrl.search}`,
+                    method,
+                    headers: forwardHeaders,
+                    agent: proxyAgent,
+                };
+                const proxyReq = https.request(opts, (proxyRes) => {
+                    const responseHeaders = {};
+                    for (const [key, value] of Object.entries(proxyRes.headers)) {
+                        if (value != null) responseHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
+                    }
+                    delete responseHeaders["transfer-encoding"];
+                    const chunks = [];
+                    proxyRes.on("data", (chunk) => chunks.push(chunk));
+                    proxyRes.on("end", () => {
+                        const buf = Buffer.concat(chunks);
+                        resolve(new Response(buf, {
+                            status: proxyRes.statusCode || 502,
+                            headers: responseHeaders,
+                        }));
+                    });
+                    proxyRes.on("error", () => {
+                        resolve(c.json({ error: "Gateway proxy stream error" }, 502));
+                    });
+                });
+                proxyReq.on("error", (err) => {
+                    mapleLog("warn", "admin_console_gateway_proxy_error", { error: err.message });
+                    resolve(c.json({ error: "Gateway unreachable", details: err.message }, 502));
+                });
+                if (body) {
+                    proxyReq.write(Buffer.from(body));
+                }
+                proxyReq.end();
+            });
+        });
+        mapleLog("info", "admin_console_gateway_proxy_enabled", { target: config.gatewayApiUrl });
     }
     // ── Static UI routes (dashboard) ────────────────────────────────────────
     const staticRoutes = createStaticRoutes();

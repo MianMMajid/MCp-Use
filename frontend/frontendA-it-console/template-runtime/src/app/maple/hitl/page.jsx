@@ -7,6 +7,7 @@ import { Tag } from '@/components/Tag'
 export const sections = [
   { title: 'Pending approvals', id: 'pending-approvals' },
   { title: 'Connection', id: 'connection' },
+  { title: 'Gateway HITL', id: 'gateway-hitl' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -114,6 +115,13 @@ export default function HITLQueuePage() {
   const [decidingIds, setDecidingIds] = useState(new Set())
   const eventSourceRef = useRef(null)
 
+  // Gateway-level HITL
+  const [gwApprovals, setGwApprovals] = useState(null)
+  const [gwSseStatus, setGwSseStatus] = useState('disconnected')
+  const [gwBlockingId, setGwBlockingId] = useState(null)
+  const [gwDecidingIds, setGwDecidingIds] = useState(new Set())
+  const gwEventSourceRef = useRef(null)
+
   /* -- Initial fetch -- */
   const fetchApprovals = useCallback(async () => {
     setLoading(true)
@@ -152,9 +160,11 @@ export default function HITLQueuePage() {
           if (payload.type === 'new' || payload.type === 'update') {
             setApprovals((prev) => {
               if (!prev) return [payload.approval ?? payload]
+              const incomingTraceId = payload.approval?.traceId ?? payload.traceId
+              const incomingStepIndex = payload.approval?.stepIndex ?? payload.stepIndex
               const idx = prev.findIndex(
                 (a) =>
-                  a.id === (payload.approval?.id ?? payload.id),
+                  a.traceId === incomingTraceId && a.stepIndex === incomingStepIndex,
               )
               const item = payload.approval ?? payload
               if (idx >= 0) {
@@ -165,11 +175,13 @@ export default function HITLQueuePage() {
               return [item, ...prev]
             })
           } else if (payload.type === 'remove' || payload.type === 'resolved') {
+            const remTraceId = payload.approval?.traceId ?? payload.traceId
+            const remStepIndex = payload.approval?.stepIndex ?? payload.stepIndex
             setApprovals((prev) =>
               prev
                 ? prev.filter(
                     (a) =>
-                      a.id !== (payload.approval?.id ?? payload.id),
+                      a.traceId !== remTraceId || a.stepIndex !== remStepIndex,
                   )
                 : prev,
             )
@@ -196,25 +208,86 @@ export default function HITLQueuePage() {
   }, [])
 
   /* -- Decision handlers -- */
-  async function handleDecision(id, decision, reason) {
-    setDecidingIds((prev) => new Set(prev).add(id))
+  async function handleDecision(traceId, stepIndex, decision, reason) {
+    const compositeKey = `${traceId}-${stepIndex}`
+    setDecidingIds((prev) => new Set(prev).add(compositeKey))
     try {
       await postJson('/admin/api/approvals/decision', {
-        id,
-        decision,
+        traceId,
+        stepIndex,
+        action: decision,
         ...(reason ? { reason } : {}),
       })
-      setApprovals((prev) => (prev ? prev.filter((a) => a.id !== id) : prev))
+      setApprovals((prev) => (prev ? prev.filter((a) => a.traceId !== traceId || a.stepIndex !== stepIndex) : prev))
       setBlockingId(null)
     } catch (err) {
       setError(`Decision failed: ${err.message}`)
     } finally {
       setDecidingIds((prev) => {
         const next = new Set(prev)
-        next.delete(id)
+        next.delete(compositeKey)
         return next
       })
     }
+  }
+
+  /* -- Gateway HITL fetch -- */
+  useEffect(() => {
+    let cancelled = false
+    async function fetchGw() {
+      try {
+        const data = await loadJson('/api/hitl/approvals')
+        if (!cancelled) setGwApprovals(Array.isArray(data) ? data : data.approvals ?? data.items ?? [])
+      } catch { if (!cancelled) setGwApprovals([]) }
+    }
+    fetchGw()
+    return () => { cancelled = true }
+  }, [])
+
+  /* -- Gateway HITL SSE watch -- */
+  useEffect(() => {
+    let es
+    function connectGw() {
+      setGwSseStatus('reconnecting')
+      es = new EventSource('/api/hitl/approvals/watch', { withCredentials: true })
+      es.onopen = () => setGwSseStatus('connected')
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data)
+          if (payload.type === 'new' || payload.type === 'update') {
+            setGwApprovals((prev) => {
+              if (!prev) return [payload.approval ?? payload]
+              const tid = payload.approval?.traceId ?? payload.traceId
+              const si = payload.approval?.stepIndex ?? payload.stepIndex
+              const idx = prev.findIndex((a) => a.traceId === tid && a.stepIndex === si)
+              const item = payload.approval ?? payload
+              if (idx >= 0) { const next = [...prev]; next[idx] = item; return next }
+              return [item, ...prev]
+            })
+          } else if (payload.type === 'remove' || payload.type === 'resolved') {
+            const tid = payload.approval?.traceId ?? payload.traceId
+            const si = payload.approval?.stepIndex ?? payload.stepIndex
+            setGwApprovals((prev) => prev ? prev.filter((a) => a.traceId !== tid || a.stepIndex !== si) : prev)
+          }
+        } catch { /* keepalive */ }
+      }
+      es.onerror = () => { setGwSseStatus('reconnecting'); es.close(); setTimeout(connectGw, 5000) }
+      gwEventSourceRef.current = es
+    }
+    connectGw()
+    return () => { if (gwEventSourceRef.current) gwEventSourceRef.current.close() }
+  }, [])
+
+  /* -- Gateway HITL decision -- */
+  async function handleGwDecision(traceId, stepIndex, decision, reason) {
+    const key = `${traceId}-${stepIndex}`
+    setGwDecidingIds((prev) => new Set(prev).add(key))
+    try {
+      await postJson('/api/hitl/approvals/decision', { traceId, stepIndex, action: decision, ...(reason ? { reason } : {}) })
+      setGwApprovals((prev) => prev ? prev.filter((a) => a.traceId !== traceId || a.stepIndex !== stepIndex) : prev)
+      setGwBlockingId(null)
+    } catch (err) { setError(`Gateway decision failed: ${err.message}`) }
+    finally { setGwDecidingIds((prev) => { const next = new Set(prev); next.delete(key); return next }) }
   }
 
   const pendingCount = approvals ? approvals.length : 0
@@ -285,9 +358,11 @@ export default function HITLQueuePage() {
               </div>
             ) : approvals && approvals.length > 0 ? (
               <div className="mt-4 space-y-4">
-                {approvals.map((item) => (
+                {approvals.map((item) => {
+                  const compositeKey = `${item.traceId}-${item.stepIndex}`
+                  return (
                   <div
-                    key={item.id}
+                    key={compositeKey}
                     className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -333,40 +408,104 @@ export default function HITLQueuePage() {
                     <div className="mt-4 flex gap-2">
                       <Button
                         variant="filled"
-                        onClick={() => handleDecision(item.id, 'allow')}
-                        disabled={decidingIds.has(item.id)}
+                        onClick={() => handleDecision(item.traceId, item.stepIndex, 'allow')}
+                        disabled={decidingIds.has(compositeKey)}
                       >
-                        {decidingIds.has(item.id) ? 'Processing...' : 'Allow'}
+                        {decidingIds.has(compositeKey) ? 'Processing...' : 'Allow'}
                       </Button>
                       <Button
                         variant="secondary"
                         onClick={() =>
                           setBlockingId(
-                            blockingId === item.id ? null : item.id,
+                            blockingId === compositeKey ? null : compositeKey,
                           )
                         }
-                        disabled={decidingIds.has(item.id)}
+                        disabled={decidingIds.has(compositeKey)}
                       >
                         Block
                       </Button>
                     </div>
 
                     {/* Block reason dialog */}
-                    {blockingId === item.id && (
+                    {blockingId === compositeKey && (
                       <ReasonDialog
                         onSubmit={(reason) =>
-                          handleDecision(item.id, 'block', reason)
+                          handleDecision(item.traceId, item.stepIndex, 'block', reason)
                         }
                         onCancel={() => setBlockingId(null)}
                       />
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   No pending approvals. The queue is empty.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* Gateway-level HITL (GET /api/hitl/approvals, SSE /api/hitl/approvals/watch, POST /api/hitl/approvals/decision) */}
+          <section id="gateway-hitl" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Gateway HITL
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Gateway-level approvals (separate from admin console approvals above).
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <span className={`inline-block h-2 w-2 rounded-full ${gwSseStatus === 'connected' ? 'bg-orange-500' : gwSseStatus === 'reconnecting' ? 'animate-pulse bg-amber-500' : 'bg-zinc-400'}`} />
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                {gwSseStatus === 'connected' ? 'Gateway live connection active' : gwSseStatus === 'reconnecting' ? 'Gateway reconnecting...' : 'Gateway disconnected'}
+              </span>
+            </div>
+
+            {gwApprovals && gwApprovals.length > 0 ? (
+              <div className="mt-4 space-y-4">
+                {gwApprovals.map((item) => {
+                  const key = `${item.traceId}-${item.stepIndex}`
+                  return (
+                    <div key={key} className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-sm font-medium text-zinc-950 dark:text-white">
+                            {item.toolName ?? item.tool ?? item.action ?? 'Unknown'}
+                          </span>
+                          {item.risk && (
+                            <Tag color={item.risk === 'high' ? 'rose' : item.risk === 'medium' ? 'amber' : 'orange'} variant="medium">
+                              {item.risk.toUpperCase()}
+                            </Tag>
+                          )}
+                        </div>
+                        {item.createdAt && <span className="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">{new Date(item.createdAt).toLocaleString()}</span>}
+                      </div>
+                      {(item.description ?? item.context ?? item.input) && (
+                        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                          {item.description ?? item.context ?? (typeof item.input === 'string' ? item.input : JSON.stringify(item.input))}
+                        </p>
+                      )}
+                      <div className="mt-4 flex gap-2">
+                        <Button variant="filled" onClick={() => handleGwDecision(item.traceId, item.stepIndex, 'allow')} disabled={gwDecidingIds.has(key)}>
+                          {gwDecidingIds.has(key) ? 'Processing...' : 'Allow'}
+                        </Button>
+                        <Button variant="secondary" onClick={() => setGwBlockingId(gwBlockingId === key ? null : key)} disabled={gwDecidingIds.has(key)}>
+                          Block
+                        </Button>
+                      </div>
+                      {gwBlockingId === key && (
+                        <ReasonDialog onSubmit={(reason) => handleGwDecision(item.traceId, item.stepIndex, 'block', reason)} onCancel={() => setGwBlockingId(null)} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-zinc-950/5 bg-white p-8 text-center dark:border-white/5 dark:bg-zinc-900">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  No gateway-level pending approvals.
                 </p>
               </div>
             )}

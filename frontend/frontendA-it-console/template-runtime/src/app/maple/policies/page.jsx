@@ -120,7 +120,7 @@ export default function PolicyCenterPage() {
         loadJson('/admin/api/policies/versions'),
       ])
       setPolicies(Array.isArray(p) ? p : p.rules ?? p.policies ?? [])
-      setVersions(Array.isArray(v) ? v : v.versions ?? [])
+      setVersions(Array.isArray(v) ? v : v.items ?? v.versions ?? [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -335,12 +335,12 @@ export default function PolicyCenterPage() {
               <div className="mt-4 space-y-3">
                 {versions.map((v, idx) => (
                   <div
-                    key={v.id ?? idx}
+                    key={v.versionId ?? v.id ?? idx}
                     className="flex items-center justify-between rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900"
                   >
                     <div>
                       <span className="text-sm font-medium text-zinc-950 dark:text-white">
-                        {v.label ?? v.id ?? `v${idx + 1}`}
+                        {v.label ?? v.versionId ?? v.id ?? `v${idx + 1}`}
                       </span>
                       {v.active && (
                         <Tag color="orange" variant="medium">
@@ -356,10 +356,10 @@ export default function PolicyCenterPage() {
                     {!v.active && (
                       <Button
                         variant="secondary"
-                        onClick={() => handleActivate(v.id)}
-                        disabled={activating === v.id}
+                        onClick={() => handleActivate(v.versionId ?? v.id)}
+                        disabled={activating === (v.versionId ?? v.id)}
                       >
-                        {activating === v.id ? 'Activating...' : 'Activate'}
+                        {activating === (v.versionId ?? v.id) ? 'Activating...' : 'Activate'}
                       </Button>
                     )}
                   </div>

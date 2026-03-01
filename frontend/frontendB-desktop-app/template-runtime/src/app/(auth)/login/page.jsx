@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Logo } from '@/app/logo'
 import { Button } from '@/components/button'
@@ -17,6 +17,44 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleConfigured, setGoogleConfigured] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/google/client-id', { credentials: 'same-origin' })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data?.configured) setGoogleConfigured(true) })
+      .catch(() => {})
+  }, [])
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.redirectUrl) {
+          window.location.href = data.redirectUrl
+          return
+        }
+        if (data.authenticated) {
+          router.push('/')
+          return
+        }
+      }
+      setError('Google sign-in failed. Please try again.')
+    } catch {
+      setError('Unable to connect. Please check your network and try again.')
+    } finally {
+      setGoogleLoading(false)
+    }
+  }
 
   const justRegistered = searchParams.get('registered') === 'true'
   const justReset = searchParams.get('reset') === 'true'
@@ -120,6 +158,11 @@ function LoginForm() {
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? 'Signing in...' : 'Login'}
       </Button>
+      {googleConfigured && (
+        <Button type="button" outline className="w-full" disabled={googleLoading} onClick={handleGoogleSignIn}>
+          {googleLoading ? 'Redirecting...' : 'Sign in with Google'}
+        </Button>
+      )}
       <Text>
         Don{"'"}t have an account?{' '}
         <TextLink href="/register">

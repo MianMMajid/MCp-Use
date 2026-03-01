@@ -8,6 +8,8 @@ export const sections = [
   { title: 'Status', id: 'status' },
   { title: 'Effective rules', id: 'effective-rules' },
   { title: 'Preview tool', id: 'preview-tool' },
+  { title: 'Firewall state', id: 'firewall-state' },
+  { title: 'Streaming chat', id: 'streaming-chat' },
   { title: 'Firewall chat', id: 'firewall-chat' },
   { title: 'Capabilities', id: 'capabilities' },
 ]
@@ -113,10 +115,14 @@ export default function FirewallDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Firewall state
+  const [firewallState, setFirewallState] = useState(null)
+
   // Preview state
   const [previewInput, setPreviewInput] = useState('')
   const [previewResult, setPreviewResult] = useState(null)
   const [previewing, setPreviewing] = useState(false)
+  const [enforcing, setEnforcing] = useState(false)
 
   // Chat state
   const [chatMessages, setChatMessages] = useState([])
@@ -124,15 +130,22 @@ export default function FirewallDashboardPage() {
   const [chatSending, setChatSending] = useState(false)
   const chatEndRef = useRef(null)
 
+  // Streaming chat state
+  const [streamInput, setStreamInput] = useState('')
+  const [streamMessages, setStreamMessages] = useState([])
+  const [streaming, setStreaming] = useState(false)
+  const streamEndRef = useRef(null)
+
   /* -- Data fetch -- */
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [r, cc, fc] = await Promise.allSettled([
+      const [r, cc, fc, fs] = await Promise.allSettled([
         loadJson('/api/firewall/rules/effective'),
         loadJson('/api/chat/capabilities'),
         loadJson('/api/runtime/feature-capabilities'),
+        loadJson('/api/firewall/state'),
       ])
 
       if (r.status === 'fulfilled') {
@@ -148,11 +161,13 @@ export default function FirewallDashboardPage() {
             : data.capabilities ?? data.features ?? [],
         )
       }
+      if (fs.status === 'fulfilled') setFirewallState(fs.value)
 
       if (
         r.status === 'rejected' &&
         cc.status === 'rejected' &&
-        fc.status === 'rejected'
+        fc.status === 'rejected' &&
+        fs.status === 'rejected'
       ) {
         throw new Error('All endpoints failed')
       }
@@ -187,6 +202,76 @@ export default function FirewallDashboardPage() {
       setPreviewing(false)
     }
   }
+
+  /* -- Enforce handler -- */
+  async function handleEnforce() {
+    if (!previewInput.trim()) return
+    setEnforcing(true)
+    try {
+      let body
+      try { body = JSON.parse(previewInput) } catch { body = { input: previewInput } }
+      const result = await postJson('/api/firewall/decision', body)
+      setPreviewResult(result)
+    } catch (err) {
+      setPreviewResult({ error: err.message })
+    } finally {
+      setEnforcing(false)
+    }
+  }
+
+  /* -- Streaming chat handler (POST /api/chat/stream via SSE) -- */
+  async function handleStreamSend() {
+    if (!streamInput.trim()) return
+    const userMsg = { role: 'user', content: streamInput }
+    setStreamMessages((prev) => [...prev, userMsg])
+    setStreamInput('')
+    setStreaming(true)
+    try {
+      const res = await fetch('/api/chat/stream', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: streamInput }),
+      })
+      if (!res.ok) throw new Error(`/api/chat/stream -> ${res.status}`)
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+      const msgIdx = streamMessages.length + 1
+      setStreamMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        accumulated += chunk
+        const lines = accumulated.split('\n')
+        let content = ''
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6)
+            if (dataStr === '[DONE]') continue
+            try { const parsed = JSON.parse(dataStr); content += parsed.content ?? parsed.text ?? parsed.delta ?? '' }
+            catch { content += dataStr }
+          }
+        }
+        if (content) {
+          setStreamMessages((prev) => {
+            const next = [...prev]
+            next[msgIdx] = { role: 'assistant', content }
+            return next
+          })
+        }
+      }
+    } catch (err) {
+      setStreamMessages((prev) => [...prev, { role: 'error', content: `Error: ${err.message}` }])
+    } finally {
+      setStreaming(false)
+    }
+  }
+
+  useEffect(() => {
+    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [streamMessages])
 
   /* -- Chat handler -- */
   async function handleChatSend() {
@@ -374,13 +459,20 @@ export default function FirewallDashboardPage() {
                 onChange={(e) => setPreviewInput(e.target.value)}
                 placeholder='{"tool": "file_read", "args": {"path": "/etc/passwd"}}'
               />
-              <div className="mt-3">
+              <div className="mt-3 flex gap-2">
                 <Button
                   variant="primary"
                   onClick={handlePreview}
                   disabled={previewing || !previewInput.trim()}
                 >
                   {previewing ? 'Previewing...' : 'Preview decision'}
+                </Button>
+                <Button
+                  variant="filled"
+                  onClick={handleEnforce}
+                  disabled={enforcing || !previewInput.trim()}
+                >
+                  {enforcing ? 'Enforcing...' : 'Enforce decision'}
                 </Button>
               </div>
               {previewResult && (
@@ -396,6 +488,75 @@ export default function FirewallDashboardPage() {
                   )}
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* ---- Firewall state ---- */}
+          <section id="firewall-state" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Firewall state
+            </h2>
+            {firewallState ? (
+              <div className="mt-4 rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
+                <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">{JSON.stringify(firewallState, null, 2)}</pre>
+              </div>
+            ) : !loading ? (
+              <p className="mt-4 text-sm text-zinc-500">Firewall state not available.</p>
+            ) : null}
+          </section>
+
+          {/* ---- Streaming chat (POST /api/chat/stream) ---- */}
+          <section id="streaming-chat" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Streaming chat
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Real-time streaming chat via SSE (POST /api/chat/stream).
+            </p>
+            <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white dark:border-white/10 dark:bg-zinc-900">
+              <div className="max-h-80 overflow-y-auto p-4">
+                {streamMessages.length === 0 ? (
+                  <p className="text-center text-sm text-zinc-400 dark:text-zinc-500">
+                    Start a streaming conversation.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {streamMessages.map((msg, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-xl px-4 py-2 text-sm ${
+                            msg.role === 'user'
+                              ? 'bg-zinc-900 text-white dark:bg-orange-500/20 dark:text-orange-200'
+                              : msg.role === 'error'
+                                ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                                : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                          }`}
+                        >
+                          {msg.content || (streaming ? '...' : '')}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={streamEndRef} />
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 border-t border-zinc-950/10 p-3 dark:border-white/10">
+                <input
+                  type="text"
+                  className="flex-1 rounded-full border border-zinc-950/10 bg-white px-4 py-2 text-sm text-zinc-950 outline-2 outline-offset-2 outline-orange-500 focus:outline dark:border-white/10 dark:bg-zinc-800 dark:text-white"
+                  placeholder="Stream a message..."
+                  value={streamInput}
+                  onChange={(e) => setStreamInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleStreamSend() } }}
+                  disabled={streaming}
+                />
+                <Button variant="filled" onClick={handleStreamSend} disabled={streaming || !streamInput.trim()}>
+                  {streaming ? 'Streaming...' : 'Stream'}
+                </Button>
+              </div>
             </div>
           </section>
 

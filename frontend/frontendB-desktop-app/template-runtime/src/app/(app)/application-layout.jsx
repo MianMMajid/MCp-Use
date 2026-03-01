@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/avatar'
 import {
   Dropdown,
@@ -22,6 +24,7 @@ import {
   SidebarSpacer,
 } from '@/components/sidebar'
 import { SidebarLayout } from '@/components/sidebar-layout'
+import { postJson } from '@/lib/api'
 
 import {
   ArrowRightStartOnRectangleIcon,
@@ -46,10 +49,30 @@ import {
   Square2StackIcon,
   TicketIcon,
   UserGroupIcon,
+  ShieldExclamationIcon,
+  ChatBubbleLeftRightIcon,
+  PlayCircleIcon,
+  WrenchScrewdriverIcon,
+  ServerStackIcon,
+  EyeIcon,
+  AdjustmentsHorizontalIcon,
+  ArrowsRightLeftIcon,
+  BeakerIcon,
+  CommandLineIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 
-function AccountDropdownMenu({ anchor }) {
+async function handleSignOut(router) {
+  try {
+    await postJson('/api/auth/logout', {})
+  } catch {
+    // proceed to redirect even if logout fails
+  }
+  router.push('/login')
+}
+
+function AccountDropdownMenu({ anchor, router }) {
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
       <DropdownItem href="#">
@@ -79,7 +102,7 @@ function AccountDropdownMenu({ anchor }) {
         <DropdownLabel>API Keys</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem href="/login">
+      <DropdownItem onClick={() => handleSignOut(router)}>
         <ArrowRightStartOnRectangleIcon />
         <DropdownLabel>Sign out</DropdownLabel>
       </DropdownItem>
@@ -89,6 +112,14 @@ function AccountDropdownMenu({ anchor }) {
 
 export function ApplicationLayout({ events, children }) {
   let pathname = usePathname()
+  const router = useRouter()
+
+  // Session check on mount
+  useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then((res) => { if (res.status === 401) router.push('/login') })
+      .catch(() => {})
+  }, [router])
 
   return (
     <SidebarLayout
@@ -100,7 +131,7 @@ export function ApplicationLayout({ events, children }) {
               <DropdownButton as={NavbarItem}>
                 <Avatar src="/users/erica.jpg" square />
               </DropdownButton>
-              <AccountDropdownMenu anchor="bottom end" />
+              <AccountDropdownMenu anchor="bottom end" router={router} />
             </Dropdown>
           </NavbarSection>
         </Navbar>
@@ -138,7 +169,9 @@ export function ApplicationLayout({ events, children }) {
           </SidebarHeader>
 
           <SidebarBody>
+            {/* Core */}
             <SidebarSection>
+              <SidebarHeading>Core</SidebarHeading>
               <SidebarItem href="/" current={pathname === '/'}>
                 <HomeIcon />
                 <SidebarLabel>Workspace</SidebarLabel>
@@ -151,6 +184,19 @@ export function ApplicationLayout({ events, children }) {
                 <Square2StackIcon />
                 <SidebarLabel>Sessions</SidebarLabel>
               </SidebarItem>
+              <SidebarItem href="/runs" current={pathname.startsWith('/runs')}>
+                <PlayCircleIcon />
+                <SidebarLabel>Runs</SidebarLabel>
+              </SidebarItem>
+            </SidebarSection>
+
+            {/* Security */}
+            <SidebarSection>
+              <SidebarHeading>Security</SidebarHeading>
+              <SidebarItem href="/firewall" current={pathname.startsWith('/firewall')}>
+                <ShieldExclamationIcon />
+                <SidebarLabel>Firewall</SidebarLabel>
+              </SidebarItem>
               <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
                 <TicketIcon />
                 <SidebarLabel>Approvals</SidebarLabel>
@@ -159,6 +205,57 @@ export function ApplicationLayout({ events, children }) {
                 <ShieldCheckIcon20 />
                 <SidebarLabel>Modifier Approvals</SidebarLabel>
               </SidebarItem>
+              <SidebarItem href="/modifier-observability" current={pathname.startsWith('/modifier-observability')}>
+                <EyeIcon />
+                <SidebarLabel>Observability</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/modifier-ops" current={pathname.startsWith('/modifier-ops')}>
+                <AdjustmentsHorizontalIcon />
+                <SidebarLabel>Modifier Ops</SidebarLabel>
+              </SidebarItem>
+            </SidebarSection>
+
+            {/* Infrastructure */}
+            <SidebarSection>
+              <SidebarHeading>Infrastructure</SidebarHeading>
+              <SidebarItem href="/tool-registry" current={pathname.startsWith('/tool-registry')}>
+                <WrenchScrewdriverIcon />
+                <SidebarLabel>Tool Registry</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/downstream" current={pathname.startsWith('/downstream')}>
+                <ArrowsRightLeftIcon />
+                <SidebarLabel>Downstream MCP</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/diagnostics" current={pathname.startsWith('/diagnostics')}>
+                <ServerStackIcon />
+                <SidebarLabel>Diagnostics</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/cli-tools" current={pathname.startsWith('/cli-tools')}>
+                <CommandLineIcon />
+                <SidebarLabel>CLI Tools</SidebarLabel>
+              </SidebarItem>
+            </SidebarSection>
+
+            {/* AI & Community */}
+            <SidebarSection>
+              <SidebarHeading>AI & Community</SidebarHeading>
+              <SidebarItem href="/agent-chat" current={pathname.startsWith('/agent-chat')}>
+                <ChatBubbleLeftRightIcon />
+                <SidebarLabel>Agent Chat</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/community" current={pathname.startsWith('/community')}>
+                <SparklesIcon />
+                <SidebarLabel>Community</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/demo" current={pathname.startsWith('/demo')}>
+                <BeakerIcon />
+                <SidebarLabel>Demo Playground</SidebarLabel>
+              </SidebarItem>
+            </SidebarSection>
+
+            {/* Account */}
+            <SidebarSection>
+              <SidebarHeading>Account</SidebarHeading>
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
                 <Cog6ToothIcon />
                 <SidebarLabel>Account</SidebarLabel>
@@ -186,6 +283,15 @@ export function ApplicationLayout({ events, children }) {
               <SidebarItem href="/service-accounts" current={pathname.startsWith('/service-accounts')}>
                 <KeyIcon />
                 <SidebarLabel>Service Accounts</SidebarLabel>
+              </SidebarItem>
+            </SidebarSection>
+
+            {/* Admin */}
+            <SidebarSection>
+              <SidebarHeading>Admin</SidebarHeading>
+              <SidebarItem href="/admin-console" current={pathname.startsWith('/admin-console')}>
+                <ClipboardDocumentListIcon />
+                <SidebarLabel>Admin Console</SidebarLabel>
               </SidebarItem>
             </SidebarSection>
 
@@ -226,7 +332,7 @@ export function ApplicationLayout({ events, children }) {
                 </span>
                 <ChevronUpIcon />
               </DropdownButton>
-              <AccountDropdownMenu anchor="top start" />
+              <AccountDropdownMenu anchor="top start" router={router} />
             </Dropdown>
           </SidebarFooter>
         </Sidebar>

@@ -12,6 +12,7 @@ export const sections = [
   { title: 'Logs', id: 'logs' },
   { title: 'Dependencies', id: 'dependencies' },
   { title: 'Rate limits', id: 'rate-limits' },
+  { title: 'User profile', id: 'user-profile' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -89,11 +90,18 @@ export default function RuntimeDependenciesPage() {
   const [quotaInput, setQuotaInput] = useState('')
   const [showQuotaForm, setShowQuotaForm] = useState(false)
 
+  // User profile
+  const [profile, setProfile] = useState(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordMsg, setPasswordMsg] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [h, c, rs, lg, dg, dp, rl] = await Promise.allSettled([
+      const [h, c, rs, lg, dg, dp, rl, up] = await Promise.allSettled([
         loadJson('/health'),
         loadJson('/api/runtime/feature-capabilities'),
         loadJson('/api/runtime/status'),
@@ -101,6 +109,7 @@ export default function RuntimeDependenciesPage() {
         loadJson('/api/runtime/diag'),
         loadJson('/api/runtime/dependencies'),
         loadJson('/api/openclaw/modifier/ops/rate-limit'),
+        loadJson('/api/user/profile'),
       ])
 
       if (h.status === 'fulfilled') setHealth(h.value)
@@ -123,8 +132,9 @@ export default function RuntimeDependenciesPage() {
         setDeps(Array.isArray(data) ? data : data.dependencies ?? data.tree ?? [])
       }
       if (rl.status === 'fulfilled') setRateLimits(rl.value)
+      if (up.status === 'fulfilled') setProfile(up.value)
 
-      const allFailed = [h, c, rs, lg, dg, dp, rl].every(
+      const allFailed = [h, c, rs, lg, dg, dp, rl, up].every(
         (r) => r.status === 'rejected',
       )
       if (allFailed) throw new Error('All endpoints failed')
@@ -138,6 +148,22 @@ export default function RuntimeDependenciesPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword) return
+    setChangingPassword(true)
+    setPasswordMsg('')
+    try {
+      const result = await postJson('/api/user/change-password', { currentPassword, newPassword })
+      setPasswordMsg(result.message || 'Password changed successfully.')
+      setCurrentPassword('')
+      setNewPassword('')
+    } catch (err) {
+      setPasswordMsg(`Failed: ${err.message}`)
+    } finally {
+      setChangingPassword(false)
+    }
+  }
 
   async function handleConfigureQuotas() {
     setQuotaMsg(null)
@@ -762,6 +788,50 @@ export default function RuntimeDependenciesPage() {
                 )}
               </div>
             )}
+          </section>
+
+          {/* ---- User Profile ---- */}
+          <section id="user-profile" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              User Profile
+            </h2>
+            {profile ? (
+              <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {profile.user?.username && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Username</span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">{profile.user.username}</p>
+                    </div>
+                  )}
+                  {profile.user?.email && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Email</span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">{profile.user.email}</p>
+                    </div>
+                  )}
+                  {profile.subscription?.plan && (
+                    <div>
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Plan</span>
+                      <p className="mt-1 text-sm font-medium text-zinc-950 dark:text-white">{profile.subscription.plan}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">Change password</h3>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <input type="password" className="rounded-lg border border-zinc-950/10 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-zinc-800 dark:text-white" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Current password" />
+                    <input type="password" className="rounded-lg border border-zinc-950/10 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-zinc-800 dark:text-white" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" />
+                  </div>
+                  <Button className="mt-2" variant="filled" disabled={!currentPassword || !newPassword || changingPassword} onClick={handleChangePassword}>
+                    {changingPassword ? 'Changing...' : 'Change Password'}
+                  </Button>
+                  {passwordMsg && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{passwordMsg}</p>}
+                </div>
+              </div>
+            ) : !loading ? (
+              <p className="mt-4 text-sm text-zinc-500">User profile not available.</p>
+            ) : null}
           </section>
         </div>
       </div>

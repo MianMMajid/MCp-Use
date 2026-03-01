@@ -207,8 +207,10 @@ export const navigation = [
       { title: 'Overview', href: '/' },
       { title: 'Policy Center', href: '/maple/policies' },
       { title: 'HITL Queue', href: '/maple/hitl' },
+      { title: 'Modifier Approvals', href: '/maple/modifier-approvals' },
       { title: 'Audit + Traces', href: '/maple/audit' },
       { title: 'Firewall Dashboard', href: '/maple/gateway' },
+      { title: 'Runs', href: '/maple/runs' },
       { title: 'Runtime', href: '/maple/runtime' },
     ],
   },
@@ -219,6 +221,25 @@ export const navigation = [
       { title: 'Escalation', href: '/maple/escalation' },
       { title: 'Tools Registry', href: '/maple/tools' },
       { title: 'Observability', href: '/maple/observability' },
+      { title: 'Downstream MCP', href: '/maple/downstream' },
+    ],
+  },
+  {
+    title: 'AI & Community',
+    links: [
+      { title: 'Agent Management', href: '/maple/agent' },
+      { title: 'Community', href: '/maple/community' },
+      { title: 'Demo Playground', href: '/maple/demo' },
+    ],
+  },
+  {
+    title: 'Account',
+    links: [
+      { title: 'Auth Admin', href: '/maple/auth-admin' },
+      { title: 'Organizations', href: '/maple/org' },
+      { title: 'API Keys', href: '/maple/api-keys' },
+      { title: 'Integrations', href: '/maple/integrations' },
+      { title: 'Usage & Billing', href: '/maple/usage' },
     ],
   },
   {

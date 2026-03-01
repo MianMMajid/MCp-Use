@@ -40,5 +40,6 @@ export const config = {
     tlsCaPath: requireEnv("MAPLE_ADMIN_TLS_CA"),
     allowNoAuth: allowNoAuthRequested,
     apiKeys: loadAdminApiKeys(),
+    gatewayApiUrl: process.env.GATEWAY_API_URL || "",
 };
 //# sourceMappingURL=config.js.map
