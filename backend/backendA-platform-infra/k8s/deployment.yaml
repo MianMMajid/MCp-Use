@@ -331,7 +331,6 @@ spec:
             - "19001"
             - --bind
             - lan
-            - --allow-unconfigured
             - --verbose
           ports:
             - name: ws
@@ -1128,8 +1127,7 @@ spec:
               "--proxy-prefix",
               "/mcp",
               "--proxy-prefix",
-              "/admin/api",
-              "--proxy-insecure"
+              "/admin/api"
             ]
           ports:
             - name: http

@@ -4,10 +4,52 @@ import { allowSelfSignup, sessionTtlSeconds } from "../config.js";
 import { buildSessionCookie } from "../auth-session.js";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
 
+// In-memory rate limiter for auth endpoints
+const loginAttempts = new Map(); // key: IP, value: { count, resetAt }
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return null; // allowed
+  }
+
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+    return retryAfter; // blocked, return seconds to wait
+  }
+
+  return null; // allowed
+}
+
+function resetRateLimit(ip) {
+  loginAttempts.delete(ip);
+}
+
+// Periodic cleanup of expired entries (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginAttempts) {
+    if (now > entry.resetAt) loginAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
+
 export function registerAuthLoginRegisterRoutes(app, options) {
   const database = options.database;
 
   app.post("/api/business/auth/login", async (c) => {
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const retryAfter = checkRateLimit(ip);
+    if (retryAfter) {
+      c.header('Retry-After', String(retryAfter));
+      return c.json({ error: "Too many login attempts. Please try again later." }, 429);
+    }
+
     const body = await readJsonBody(c);
     const username = asString(body.username);
     const password = asString(body.password);
@@ -20,12 +62,20 @@ export function registerAuthLoginRegisterRoutes(app, options) {
       return c.json({ error: "Invalid username or password." }, 401);
     }
 
+    resetRateLimit(ip);
     const session = await database.createSession(user.id, sessionTtlSeconds);
     c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
     return c.json(buildSessionAuthResponse(user, session));
   });
 
   app.post("/api/business/auth/register", async (c) => {
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const retryAfter = checkRateLimit(ip);
+    if (retryAfter) {
+      c.header('Retry-After', String(retryAfter));
+      return c.json({ error: "Too many registration attempts. Please try again later." }, 429);
+    }
+
     const existingUsers = await database.countUsers();
     if (!allowSelfSignup && existingUsers > 0) {
       return c.json({ error: "Self-signup is disabled." }, 403);

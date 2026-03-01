@@ -11,6 +11,35 @@ import {
   AuthRecoveryTokenKinds,
 } from "../auth-recovery-store.js";
 
+// In-memory rate limiter for recovery endpoints
+const recoveryAttempts = new Map();
+const RECOVERY_RATE_LIMIT_MAX = 5;
+const RECOVERY_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRecoveryRateLimit(ip) {
+  const now = Date.now();
+  const entry = recoveryAttempts.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    recoveryAttempts.set(ip, { count: 1, resetAt: now + RECOVERY_RATE_LIMIT_WINDOW_MS });
+    return null;
+  }
+
+  entry.count++;
+  if (entry.count > RECOVERY_RATE_LIMIT_MAX) {
+    return Math.ceil((entry.resetAt - now) / 1000);
+  }
+
+  return null;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of recoveryAttempts) {
+    if (now > entry.resetAt) recoveryAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
+
 function requestContextFromHeaders(c) {
   return {
     traceId: c.req.header("x-trace-id") ?? "",
@@ -38,6 +67,13 @@ export function registerAuthRecoveryRoutes(app, options) {
     typeof options.auditEmitter === "function" ? options.auditEmitter : () => {};
 
   app.post("/api/business/auth/forgot-password", async (c) => {
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const retryAfter = checkRecoveryRateLimit(ip);
+    if (retryAfter) {
+      c.header('Retry-After', String(retryAfter));
+      return c.json({ error: "Too many requests. Please try again later." }, 429);
+    }
+
     const parsed = parseForgotPasswordRequest(await readJsonBody(c));
     if (!parsed.ok) {
       return c.json({ error: parsed.error }, 400);

@@ -1,6 +1,7 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import type React from "react";
 import type { WikiCardWidgetProps } from "../../src/core/widget-schemas";
+import { isSafeUrl } from '../shared/url-validation';
 import "../styles.css";
 
 export const widgetMetadata: WidgetMetadata = {
@@ -38,9 +39,9 @@ const WikiCardWidget: React.FC = () => {
         <p style={{ lineHeight: 1.55, margin: 0 }}>
           {(() => { const text = props.extract ?? props.summary ?? ""; if (text.length <= 500) return text; const sliced = Array.from(text).slice(0, 500).join(""); return sliced + "\u2026"; })()}
         </p>
-        {props.url && /^https?:\/\//i.test(String(props.url).trim()) ? (
-          <a href={String(props.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.6rem" }}>
-            {String(props.url).trim()}
+        {isSafeUrl(props.url) ? (
+          <a href={props.url.trim()} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.6rem" }}>
+            {props.url.trim()}
           </a>
         ) : null}
       </div>

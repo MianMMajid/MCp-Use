@@ -1,6 +1,7 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import type React from "react";
 import type { SearchResultsWidgetProps } from "../../src/core/widget-schemas";
+import { isSafeUrl } from '../shared/url-validation';
 import "../styles.css";
 
 export const widgetMetadata: WidgetMetadata = {
@@ -54,9 +55,9 @@ const SearchResultsWidget: React.FC = () => {
                     <span className="cc-chip cc-chip-muted">{item.source}</span>
                   ) : null}
                 </div>
-                {item.url && /^https?:\/\//i.test(String(item.url).trim()) ? (
-                  <a href={String(item.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
-                    {String(item.url).trim()}
+                {isSafeUrl(item.url) ? (
+                  <a href={item.url.trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {item.url.trim()}
                   </a>
                 ) : null}
                 {item.snippet ? <p>{item.snippet}</p> : null}

@@ -10,7 +10,7 @@ data:
   MCP_URL: "https://localhost:3000"
   MAPLE_ALLOW_NO_AUTH: "false"
   MAPLE_ENABLE_JUDGE_UI: "true"
-  MAPLE_ENABLE_DEMO_ROUTES: "true"
+  MAPLE_ENABLE_DEMO_ROUTES: "false"
   MAPLE_LOCK_BRIDGE_TARGET: "false"
   MAPLE_MCP_ROUTE_LOCK: "true"
   MAPLE_MCP_FIREWALL_DEFAULT_APP: "toolhub"

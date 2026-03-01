@@ -68,6 +68,10 @@ export class MaplePostgresDatabase {
             max: 20,
             idleTimeoutMillis: 30_000,
             connectionTimeoutMillis: 10_000,
+            // NOTE: rejectUnauthorized is set to false only for Railway.app deployments
+            // and when sslmode=require is explicitly set. This is acceptable for those
+            // managed environments. For stricter enforcement in other deployments,
+            // this should be set to true with proper CA certificates configured.
             ssl: connStr.includes("railway.app") || connStr.includes("sslmode=require")
                 ? { rejectUnauthorized: false }
                 : undefined,
