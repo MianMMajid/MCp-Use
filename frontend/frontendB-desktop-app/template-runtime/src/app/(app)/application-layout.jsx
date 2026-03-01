@@ -41,6 +41,7 @@ import {
   LinkIcon,
   ChartBarIcon,
   QuestionMarkCircleIcon,
+  ShieldCheckIcon as ShieldCheckIcon20,
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
@@ -146,9 +147,17 @@ export function ApplicationLayout({ events, children }) {
                 <Square2StackIcon />
                 <SidebarLabel>Agents</SidebarLabel>
               </SidebarItem>
+              <SidebarItem href="/sessions" current={pathname.startsWith('/sessions')}>
+                <Square2StackIcon />
+                <SidebarLabel>Sessions</SidebarLabel>
+              </SidebarItem>
               <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
                 <TicketIcon />
                 <SidebarLabel>Approvals</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/modifier-approvals" current={pathname.startsWith('/modifier-approvals')}>
+                <ShieldCheckIcon20 />
+                <SidebarLabel>Modifier Approvals</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
                 <Cog6ToothIcon />

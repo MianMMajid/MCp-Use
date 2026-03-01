@@ -68,6 +68,10 @@ export default function OrganizationPage() {
   const [removeMemberDialog, setRemoveMemberDialog] = useState(null)
   const [removeLoading, setRemoveLoading] = useState(false)
 
+  // Pending invites
+  const [pendingInvites, setPendingInvites] = useState([])
+  const [acceptingInvite, setAcceptingInvite] = useState(null)
+
   const selectedOrg = orgs.find((o) => o.orgId === selectedOrgId) || null
 
   const fetchOrgs = useCallback(async () => {
@@ -89,12 +93,15 @@ export default function OrganizationPage() {
     if (!orgId) return
     setMembersLoading(true)
     try {
-      const [membersData, rolesData] = await Promise.all([
+      const [membersData, rolesData, invitesData] = await Promise.all([
         loadJson(`/api/org/${orgId}/members`).catch(() => ({ items: [] })),
         loadJson(`/api/org/${orgId}/roles`).catch(() => ({ items: [] })),
+        loadJson(`/api/org/${orgId}/invites`).catch(() => ({ items: [] })),
       ])
       setMembers(Array.isArray(membersData?.items) ? membersData.items : [])
       setRoles(Array.isArray(rolesData?.items) ? rolesData.items : [])
+      const invites = Array.isArray(invitesData?.items) ? invitesData.items : []
+      setPendingInvites(invites.filter((i) => i.status === 'pending'))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -238,6 +245,28 @@ export default function OrganizationPage() {
     } catch (err) {
       setMessage('Failed to assign role.')
       setMessageType('error')
+    }
+  }
+
+  async function handleAcceptInvite(inviteId) {
+    setAcceptingInvite(inviteId)
+    try {
+      const res = await postJson(`/api/org/invites/${inviteId}/accept`, {})
+      if (res.ok) {
+        setMessage('Invitation accepted successfully.')
+        setMessageType('success')
+        await fetchOrgs()
+        if (selectedOrgId) await fetchMembers(selectedOrgId)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setMessage(data.error || 'Failed to accept invitation.')
+        setMessageType('error')
+      }
+    } catch {
+      setMessage('Failed to accept invitation.')
+      setMessageType('error')
+    } finally {
+      setAcceptingInvite(null)
     }
   }
 
@@ -392,6 +421,42 @@ export default function OrganizationPage() {
                   )}
                 </div>
               </div>
+
+              {/* Pending Invites Section */}
+              {pendingInvites.length > 0 && (
+                <div className="mt-8">
+                  <Subheading>Pending Invites</Subheading>
+                  <Divider className="my-4" soft />
+                  <div className="space-y-3">
+                    {pendingInvites.map((invite) => {
+                      const inviteId = invite.inviteId || invite.id
+                      return (
+                        <div
+                          key={inviteId}
+                          className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-700"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                              {invite.email || invite.inviteeEmail || 'Unknown'}
+                            </p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                              <Badge color="orange">pending</Badge>
+                              {invite.createdAt && ` · Sent ${new Date(invite.createdAt).toLocaleDateString()}`}
+                            </p>
+                          </div>
+                          <Button
+                            color="orange"
+                            disabled={acceptingInvite === inviteId}
+                            onClick={() => handleAcceptInvite(inviteId)}
+                          >
+                            {acceptingInvite === inviteId ? 'Accepting...' : 'Accept'}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Members Section */}
               <div className="mt-8">

@@ -34,6 +34,7 @@ export const config = {
     host: requireEnv("ADMIN_CONSOLE_HOST"),
     auditWriterAddress: requireEnv("AUDIT_WRITER_ADDRESS"),
     contextWallAddress: requireEnv("CONTEXT_WALL_ADDRESS"),
+    auditWriterHttpOrigin: process.env.AUDIT_WRITER_HTTP_ORIGIN || "",
     tlsCertPath: requireEnv("MAPLE_ADMIN_TLS_CERT"),
     tlsKeyPath: requireEnv("MAPLE_ADMIN_TLS_KEY"),
     tlsCaPath: requireEnv("MAPLE_ADMIN_TLS_CA"),

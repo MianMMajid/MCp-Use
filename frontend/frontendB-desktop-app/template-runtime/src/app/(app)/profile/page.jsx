@@ -43,6 +43,62 @@ function formatDate(dateStr) {
   }
 }
 
+function EmailVerificationSection({ email }) {
+  const [sending, setSending] = useState(false)
+  const [verifyMessage, setVerifyMessage] = useState('')
+  const [verifyMessageType, setVerifyMessageType] = useState('success')
+
+  async function handleSendVerification() {
+    if (!email) return
+    setSending(true)
+    setVerifyMessage('')
+    try {
+      const res = await postJson('/api/auth/verify-email/request', { email })
+      if (res.ok) {
+        setVerifyMessage('Verification email sent! Check your inbox.')
+        setVerifyMessageType('success')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setVerifyMessage(data.error || 'Failed to send verification email.')
+        setVerifyMessageType('error')
+      }
+    } catch {
+      setVerifyMessage('Failed to send verification email. Please try again.')
+      setVerifyMessageType('error')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+      <div className="space-y-1">
+        <Subheading>Email Verification</Subheading>
+        <Text>Verify your email address to secure your account.</Text>
+      </div>
+      <div className="space-y-4">
+        {verifyMessage && (
+          <p className={`rounded-lg border px-3 py-2 text-sm ${
+            verifyMessageType === 'success'
+              ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300'
+              : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
+          }`}>
+            {verifyMessage}
+          </p>
+        )}
+        <div>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {email ? `A verification email will be sent to ${email}.` : 'No email address on file.'}
+          </p>
+        </div>
+        <Button onClick={handleSendVerification} disabled={sending || !email}>
+          {sending ? 'Sending...' : 'Send Verification Email'}
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null)
   const [subscription, setSubscription] = useState(null)
@@ -208,6 +264,11 @@ export default function ProfilePage() {
           </div>
         </div>
       </section>
+
+      <Divider className="my-10" soft />
+
+      {/* Email Verification */}
+      <EmailVerificationSection email={profile?.email} />
 
       <Divider className="my-10" soft />
 

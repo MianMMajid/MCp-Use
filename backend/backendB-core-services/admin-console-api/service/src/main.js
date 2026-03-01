@@ -567,6 +567,57 @@ async function main() {
             return apiErrorResponse(c, 502, "UPSTREAM_UNAVAILABLE", "Failed to submit approval", err.message);
         }
     });
+    // ── Admin API: Audit dead-letter (proxy to audit-writer HTTP) ──────────
+    const auditWriterHttpOrigin = config.auditWriterHttpOrigin || (() => {
+        // Derive from gRPC address: replace port with HTTP default
+        const addr = config.auditWriterAddress || "";
+        const host = addr.includes(":") ? addr.split(":")[0] : addr;
+        return host ? `https://${host}:8090` : "";
+    })();
+    if (auditWriterHttpOrigin) {
+        app.get("/admin/api/audit/dead-letter", async (c) => {
+            try {
+                const limit = c.req.query("limit") || "50";
+                const offset = c.req.query("offset") || "0";
+                const upstream = `${auditWriterHttpOrigin}/audit/dead-letter?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`;
+                const res = await fetch(upstream, {
+                    headers: { Accept: "application/json" },
+                });
+                if (!res.ok) {
+                    return c.json({ error: `Upstream returned ${res.status}`, items: [] }, res.status);
+                }
+                const data = await res.json();
+                return c.json(data);
+            } catch (err) {
+                mapleLog("warn", "admin_console_dead_letter_list_failed", { error: err.message });
+                return apiErrorResponse(c, 502, "UPSTREAM_UNAVAILABLE", "Failed to fetch dead-letter events", err.message);
+            }
+        });
+        app.post("/admin/api/audit/dead-letter/:eventId/replay", async (c) => {
+            try {
+                const eventId = c.req.param("eventId");
+                const upstream = `${auditWriterHttpOrigin}/audit/dead-letter/${encodeURIComponent(eventId)}/replay`;
+                const res = await fetch(upstream, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                });
+                if (!res.ok) {
+                    return c.json({ error: `Upstream returned ${res.status}` }, res.status);
+                }
+                const data = await res.json();
+                emitAuditEvent(auditWriter, {
+                    eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+                    summary: "admin-console: dead-letter event replayed",
+                    payload: { eventId },
+                });
+                return c.json(data);
+            } catch (err) {
+                mapleLog("warn", "admin_console_dead_letter_replay_failed", { error: err.message });
+                return apiErrorResponse(c, 502, "UPSTREAM_UNAVAILABLE", "Failed to replay dead-letter event", err.message);
+            }
+        });
+        mapleLog("info", "admin_console_dead_letter_routes_enabled", { origin: auditWriterHttpOrigin });
+    }
     // ── Static UI routes (dashboard) ────────────────────────────────────────
     const staticRoutes = createStaticRoutes();
     app.route("/", staticRoutes);

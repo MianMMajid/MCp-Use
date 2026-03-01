@@ -72,6 +72,11 @@ function IntegrationsContent() {
   const [disconnectDialog, setDisconnectDialog] = useState(null)
   const [disconnectLoading, setDisconnectLoading] = useState(false)
 
+  // Refresh/Revoke state
+  const [refreshLoading, setRefreshLoading] = useState(null)
+  const [revokeDialog, setRevokeDialog] = useState(null)
+  const [revokeLoading, setRevokeLoading] = useState(false)
+
   const fetchData = useCallback(async () => {
     try {
       const [catalogData, integrationsData] = await Promise.all([
@@ -138,6 +143,49 @@ function IntegrationsContent() {
       setMessageType('error')
     } finally {
       setConnectLoading(false)
+    }
+  }
+
+  async function handleRefreshToken(provider) {
+    setRefreshLoading(provider)
+    try {
+      const res = await postJson(`/api/integrations/${provider}/oauth/refresh`, {})
+      if (res.ok) {
+        setMessage('Token refreshed successfully.')
+        setMessageType('success')
+        await fetchData()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setMessage(data.error || 'Failed to refresh token.')
+        setMessageType('error')
+      }
+    } catch {
+      setMessage('Failed to refresh token.')
+      setMessageType('error')
+    } finally {
+      setRefreshLoading(null)
+    }
+  }
+
+  async function handleRevokeToken(provider) {
+    setRevokeLoading(true)
+    try {
+      const res = await postJson(`/api/integrations/${provider}/oauth/revoke`, {})
+      if (res.ok) {
+        setMessage('Token revoked successfully.')
+        setMessageType('success')
+        setRevokeDialog(null)
+        await fetchData()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setMessage(data.error || 'Failed to revoke token.')
+        setMessageType('error')
+      }
+    } catch {
+      setMessage('Failed to revoke token.')
+      setMessageType('error')
+    } finally {
+      setRevokeLoading(false)
     }
   }
 
@@ -254,7 +302,27 @@ function IntegrationsContent() {
               </div>
             )}
 
-            <div className="mt-4">
+            <div className="mt-4 space-y-2">
+              {item.connected && (item.defaultAuthType === 'oauth' || item.oauth?.configured) && (
+                <div className="flex gap-2">
+                  <Button
+                    outline
+                    className="flex-1"
+                    disabled={refreshLoading === item.id}
+                    onClick={() => handleRefreshToken(item.id)}
+                  >
+                    {refreshLoading === item.id ? 'Refreshing...' : 'Refresh Token'}
+                  </Button>
+                  <Button
+                    color="red"
+                    outline
+                    className="flex-1"
+                    onClick={() => setRevokeDialog(item)}
+                  >
+                    Revoke Token
+                  </Button>
+                </div>
+              )}
               {item.connected ? (
                 <Button
                   color="red"
@@ -335,6 +403,26 @@ function IntegrationsContent() {
             onClick={() => handleDisconnect(disconnectDialog?.id)}
           >
             {disconnectLoading ? 'Disconnecting...' : 'Disconnect'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Revoke Token Confirmation Dialog */}
+      <Dialog open={revokeDialog !== null} onClose={() => setRevokeDialog(null)} size="sm">
+        <DialogTitle>Revoke Token for {revokeDialog?.displayName || revokeDialog?.id}?</DialogTitle>
+        <DialogDescription>
+          This will revoke the OAuth token. You may need to re-authorize to use this integration again.
+        </DialogDescription>
+        <DialogActions>
+          <Button plain onClick={() => setRevokeDialog(null)}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            disabled={revokeLoading}
+            onClick={() => handleRevokeToken(revokeDialog?.id)}
+          >
+            {revokeLoading ? 'Revoking...' : 'Revoke Token'}
           </Button>
         </DialogActions>
       </Dialog>

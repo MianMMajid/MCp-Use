@@ -12,6 +12,7 @@ export const sections = [
   { title: 'Runs', id: 'runs' },
   { title: 'Audit chain', id: 'audit-chain' },
   { title: 'Retention', id: 'retention' },
+  { title: 'Dead letter', id: 'dead-letter' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -102,6 +103,7 @@ const TABS = [
   { key: 'runs', label: 'Runs' },
   { key: 'audit-chain', label: 'Audit Chain' },
   { key: 'retention', label: 'Retention' },
+  { key: 'dead-letter', label: 'Dead Letter' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -166,6 +168,12 @@ export default function AuditTracesPage() {
   const [retentionInput, setRetentionInput] = useState('')
   const [retentionMsg, setRetentionMsg] = useState(null)
   const [enforcing, setEnforcing] = useState(false)
+
+  // -- Dead-letter state --
+  const [deadLetterItems, setDeadLetterItems] = useState(null)
+  const [deadLetterLoading, setDeadLetterLoading] = useState(false)
+  const [deadLetterError, setDeadLetterError] = useState(null)
+  const [replayingId, setReplayingId] = useState(null)
 
   /* ---- Audit fetchers ---- */
   const fetchAudit = useCallback(
@@ -425,6 +433,38 @@ export default function AuditTracesPage() {
     if (activeTab === 'retention') fetchRetention()
   }, [activeTab, fetchRetention])
 
+  /* ---- Dead-letter fetchers ---- */
+  const fetchDeadLetter = useCallback(async () => {
+    setDeadLetterLoading(true)
+    setDeadLetterError(null)
+    try {
+      const data = await loadJson('/admin/api/audit/dead-letter?limit=50&offset=0')
+      const items = Array.isArray(data) ? data : data.items ?? data.events ?? []
+      setDeadLetterItems(items)
+    } catch (err) {
+      setDeadLetterError(err.message)
+    } finally {
+      setDeadLetterLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'dead-letter') fetchDeadLetter()
+  }, [activeTab, fetchDeadLetter])
+
+  async function handleReplayDeadLetter(eventId) {
+    setReplayingId(eventId)
+    try {
+      await postJson(`/admin/api/audit/dead-letter/${eventId}/replay`, {})
+      fetchDeadLetter()
+    } catch {
+      // refresh anyway
+      fetchDeadLetter()
+    } finally {
+      setReplayingId(null)
+    }
+  }
+
   async function handleSetRetention() {
     setRetentionMsg(null)
     try {
@@ -469,7 +509,8 @@ export default function AuditTracesPage() {
     runsError ||
     auditChainError ||
     retentionError ||
-    traceSearchError
+    traceSearchError ||
+    deadLetterError
 
   return (
     <article className="flex h-full flex-col pt-16 pb-10">
@@ -1250,6 +1291,82 @@ export default function AuditTracesPage() {
                   </p>
                 )}
               </div>
+            </section>
+          )}
+
+          {/* ================================================================ */}
+          {/*  DEAD LETTER TAB                                                 */}
+          {/* ================================================================ */}
+          {activeTab === 'dead-letter' && (
+            <section id="dead-letter" className="mt-8">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+                  Dead Letter Queue
+                </h2>
+                <Button variant="secondary" onClick={() => fetchDeadLetter()}>
+                  Refresh
+                </Button>
+              </div>
+
+              {deadLetterLoading && <SkeletonList />}
+
+              {!deadLetterLoading && deadLetterItems && deadLetterItems.length === 0 && (
+                <div className="mt-6 rounded-2xl border border-zinc-950/10 bg-white p-8 text-center dark:border-white/10 dark:bg-zinc-900">
+                  <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    No dead-letter events
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Failed audit events that could not be persisted will appear here.
+                  </p>
+                </div>
+              )}
+
+              {!deadLetterLoading && deadLetterItems && deadLetterItems.length > 0 && (
+                <div className="mt-6 space-y-3">
+                  {deadLetterItems.map((item, idx) => {
+                    const eventId = item.eventId || item.id || `dl-${idx}`
+                    return (
+                      <div
+                        key={eventId}
+                        className="rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-700"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                              {item.eventType || item.type || 'Unknown Event'}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                              ID: {eventId}
+                              {item.timestamp &&
+                                ` · ${new Date(item.timestamp).toLocaleString()}`}
+                            </p>
+                            {item.error && (
+                              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                                Error: {item.error}
+                              </p>
+                            )}
+                            {item.summary && (
+                              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                {item.summary}
+                              </p>
+                            )}
+                          </div>
+                          <Tag color={severityColor(item.severity)}>
+                            {item.severity || 'unknown'}
+                          </Tag>
+                          <Button
+                            variant="secondary"
+                            disabled={replayingId === eventId}
+                            onClick={() => handleReplayDeadLetter(eventId)}
+                          >
+                            {replayingId === eventId ? 'Replaying...' : 'Replay'}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </section>
           )}
         </div>
