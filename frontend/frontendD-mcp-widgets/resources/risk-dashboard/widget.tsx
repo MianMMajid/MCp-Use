@@ -53,10 +53,10 @@ const RiskDashboardWidget: React.FC = () => {
         <div className="cc-gauge-track">
           <div
             className={`cc-gauge-value ${severityClass(props.severity)}`}
-            style={{ width: `${Math.max(0, Math.min(100, props.overallRiskScore))}%` }}
+            style={{ width: `${Math.max(0, Math.min(100, Number.isFinite(props.overallRiskScore) ? props.overallRiskScore : 0))}%` }}
           />
         </div>
-        <div className="cc-gauge-label">overall risk score: {props.overallRiskScore}</div>
+        <div className="cc-gauge-label">overall risk score: {Number.isFinite(props.overallRiskScore) ? props.overallRiskScore : '--'}</div>
       </div>
 
       <div className="cc-summary-grid">

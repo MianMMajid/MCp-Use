@@ -17,10 +17,13 @@ export function loadGrpcTlsConfig() {
 }
 /**
  * Create gRPC client credentials.
- * TLS is required.
+ * TLS is required in production; falls back to insecure in development.
  */
 export function createGrpcClientCredentials(tlsConfig) {
     if (!tlsConfig) {
+        if (process.env.NODE_ENV !== "production") {
+            return grpc.credentials.createInsecure();
+        }
         throw new Error("gRPC TLS client config missing. Set MAPLE_GRPC_TLS_CERT, MAPLE_GRPC_TLS_KEY, MAPLE_GRPC_TLS_CA.");
     }
     try {

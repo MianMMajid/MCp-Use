@@ -2,13 +2,13 @@ import { useId } from 'react'
 import clsx from 'clsx'
 
 const formClasses =
-  'block w-full appearance-none rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:bg-white focus:outline-hidden focus:ring-blue-500 sm:text-sm'
+  'block w-full appearance-none rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-900 placeholder-zinc-400 focus:border-orange-500 focus:bg-white focus:outline-hidden focus:ring-orange-500 sm:text-sm'
 
 function Label({ id, children }) {
   return (
     <label
       htmlFor={id}
-      className="mb-3 block text-sm font-medium text-gray-700"
+      className="mb-3 block text-sm font-medium text-zinc-700"
     >
       {children}
     </label>

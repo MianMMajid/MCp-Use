@@ -7,10 +7,10 @@ export function Logo({ className, ...props }) {
       className={clsx('inline-flex items-center gap-2', className)}
       aria-label="Mayple"
     >
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 font-display text-lg font-semibold text-white">
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-sm font-semibold text-white">
         M
       </span>
-      <span className="font-display text-xl font-semibold tracking-tight text-slate-900">
+      <span className="text-base font-semibold tracking-tight text-zinc-900">
         Mayple
       </span>
     </div>

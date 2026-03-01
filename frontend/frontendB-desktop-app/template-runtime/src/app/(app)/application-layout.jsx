@@ -35,11 +35,15 @@ import {
 } from '@heroicons/react/16/solid'
 import {
   Cog6ToothIcon,
+  CreditCardIcon,
   HomeIcon,
+  KeyIcon,
+  LinkIcon,
   QuestionMarkCircleIcon,
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
+  UserGroupIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 
@@ -58,6 +62,19 @@ function AccountDropdownMenu({ anchor }) {
       <DropdownItem href="#">
         <LightBulbIcon />
         <DropdownLabel>Share feedback</DropdownLabel>
+      </DropdownItem>
+      <DropdownDivider />
+      <DropdownItem href="/profile">
+        <UserCircleIcon />
+        <DropdownLabel>Profile</DropdownLabel>
+      </DropdownItem>
+      <DropdownItem href="/billing">
+        <CreditCardIcon />
+        <DropdownLabel>Billing</DropdownLabel>
+      </DropdownItem>
+      <DropdownItem href="/api-keys">
+        <KeyIcon />
+        <DropdownLabel>API Keys</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
       <DropdownItem href="/login">
@@ -135,6 +152,22 @@ export function ApplicationLayout({ events, children }) {
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
                 <Cog6ToothIcon />
                 <SidebarLabel>Account</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/billing" current={pathname.startsWith('/billing')}>
+                <CreditCardIcon />
+                <SidebarLabel>Billing</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/integrations" current={pathname.startsWith('/integrations')}>
+                <LinkIcon />
+                <SidebarLabel>Integrations</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/organization" current={pathname.startsWith('/organization')}>
+                <UserGroupIcon />
+                <SidebarLabel>Organization</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/api-keys" current={pathname.startsWith('/api-keys')}>
+                <KeyIcon />
+                <SidebarLabel>API Keys</SidebarLabel>
               </SidebarItem>
             </SidebarSection>
 

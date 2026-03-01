@@ -1,6 +1,7 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import type React from "react";
 import type { BookResultsWidgetProps } from "../../src/core/widget-schemas";
+import { isSafeUrl } from '../shared/url-validation';
 import "../styles.css";
 
 export const widgetMetadata: WidgetMetadata = {
@@ -67,9 +68,9 @@ const BookResultsWidget: React.FC = () => {
                     <span className="cc-chip cc-chip-muted">ISBN {book.isbn}</span>
                   ) : null}
                 </div>
-                {book.url && /^https?:\/\//i.test(String(book.url).trim()) ? (
-                  <a href={String(book.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
-                    {String(book.url).trim()}
+                {isSafeUrl(book.url) ? (
+                  <a href={book.url.trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {book.url.trim()}
                   </a>
                 ) : null}
               </div>

@@ -10,6 +10,8 @@ function normalizeConfiguredKeys(value) {
 export function verifyAdminRequest(options = {}) {
     const configuredKeys = normalizeConfiguredKeys(options.apiKeys);
     const allowNoAuth = options.allowNoAuth === true;
+    // SAFETY: config.js throws an error if NODE_ENV=production and allowNoAuth is set,
+    // preventing this bypass from being active in production environments.
     if (allowNoAuth) {
         return {
             ok: true,

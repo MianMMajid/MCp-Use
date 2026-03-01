@@ -1,6 +1,7 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import type React from "react";
 import type { GithubCardWidgetProps } from "../../src/core/widget-schemas";
+import { isSafeUrl } from '../shared/url-validation';
 import "../styles.css";
 
 export const widgetMetadata: WidgetMetadata = {
@@ -67,9 +68,9 @@ const GithubCardWidget: React.FC = () => {
         {props.updatedAt ? (
           <p className="cc-meta">Updated: {props.updatedAt}</p>
         ) : null}
-        {props.url && /^https?:\/\//i.test(String(props.url).trim()) ? (
-          <a href={String(props.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.4rem" }}>
-            {String(props.url).trim()}
+        {isSafeUrl(props.url) ? (
+          <a href={props.url.trim()} target="_blank" rel="noopener noreferrer" className="cc-link" style={{ marginTop: "0.4rem" }}>
+            {props.url.trim()}
           </a>
         ) : null}
       </div>

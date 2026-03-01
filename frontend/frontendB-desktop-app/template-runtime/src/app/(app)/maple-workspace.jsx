@@ -29,11 +29,38 @@ async function loadJson(path) {
   return response.json()
 }
 
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
+    </div>
+  )
+}
+
+function SkeletonList() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-4 space-y-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+            <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
+            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function MapleWorkspace() {
   const [capabilities, setCapabilities] = useState(null)
   const [status, setStatus] = useState(null)
   const [hitl, setHitl] = useState([])
   const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
   const capabilityRows = useCapabilityRows(capabilities)
 
   useEffect(() => {
@@ -42,16 +69,20 @@ export function MapleWorkspace() {
       try {
         const [capabilityData, statusData, hitlData] = await Promise.all([
           loadJson('/api/runtime/feature-capabilities').catch(() => null),
-          loadJson('/api/firewall/status').catch(() => null),
-          loadJson('/api/hitl/list').catch(() => ({ items: [] })),
+          loadJson('/api/firewall/state').catch(() => null),
+          loadJson('/api/hitl/approvals').catch(() => ({ approvals: [] })),
         ])
         if (cancelled) return
         setCapabilities(capabilityData)
         setStatus(statusData)
-        setHitl(Array.isArray(hitlData?.items) ? hitlData.items.slice(0, 6) : [])
+        setHitl(Array.isArray(hitlData?.approvals) ? hitlData.approvals.slice(0, 6) : [])
       } catch (runtimeError) {
         if (!cancelled) {
           setError(runtimeError instanceof Error ? runtimeError.message : String(runtimeError))
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
         }
       }
     })()
@@ -61,6 +92,28 @@ export function MapleWorkspace() {
     }
   }, [])
 
+  if (isLoading) {
+    return (
+      <>
+        <Heading>Agent Orchestration Workspace</Heading>
+        <p className="mt-2 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+          Loading workspace data...
+        </p>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+
+        <div className="mt-8 grid gap-6 xl:grid-cols-2">
+          <SkeletonList />
+          <SkeletonList />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <Heading>Agent Orchestration Workspace</Heading>
@@ -68,14 +121,25 @@ export function MapleWorkspace() {
         Desktop Studio controls agent runs, HITL approvals, and runtime readiness through Maple gateway APIs.
       </p>
 
+      {error && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/40">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+            Some workspace data could not be loaded
+          </p>
+          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+            The gateway may be starting up or temporarily unavailable. Data shown below may be incomplete. Try refreshing the page.
+          </p>
+        </div>
+      )}
+
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
           <Subheading>Gateway Status</Subheading>
           <div className="mt-3 flex items-center gap-2">
-            <Badge color={status?.status === 'ok' ? 'green' : 'orange'}>
-              {status?.status || 'unknown'}
+            <Badge color={status?.ok ? 'green' : 'orange'}>
+              {status?.ok ? 'ok' : 'unknown'}
             </Badge>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">/api/firewall/status</span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">/api/firewall/state</span>
           </div>
         </div>
 
@@ -132,12 +196,6 @@ export function MapleWorkspace() {
         <Button color="orange" href="/orders">Review approvals</Button>
         <Button outline href="/settings">Manage account</Button>
       </div>
-
-      {error && (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          Failed to load workspace data: {error}
-        </p>
-      )}
     </>
   )
 }

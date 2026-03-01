@@ -38,3 +38,10 @@
 
   --container-2xl: 40rem;
 }
+
+@layer base {
+  ::selection {
+    background-color: var(--color-orange-200);
+    color: var(--color-zinc-900);
+  }
+}

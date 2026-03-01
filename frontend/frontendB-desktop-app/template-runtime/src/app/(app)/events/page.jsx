@@ -1,20 +1,117 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Divider } from '@/components/divider'
-import { Dropdown, DropdownButton, DropdownItem, DropdownMenu } from '@/components/dropdown'
 import { Heading } from '@/components/heading'
 import { Input, InputGroup } from '@/components/input'
 import { Link } from '@/components/link'
 import { Select } from '@/components/select'
-import { getEvents } from '@/data'
-import { EllipsisVerticalIcon, MagnifyingGlassIcon } from '@heroicons/react/16/solid'
+import { MagnifyingGlassIcon } from '@heroicons/react/16/solid'
+import { loadJson } from '@/lib/api'
 
-export const metadata = {
-  title: 'Agents',
+function SkeletonGrid() {
+  return (
+    <div className="mt-10 animate-pulse space-y-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
+              <div className="mt-2 h-3 w-64 rounded bg-zinc-100 dark:bg-zinc-800" />
+              <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
+            </div>
+            <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
-export default async function Events() {
-  let events = await getEvents()
+function statusColor(status) {
+  if (!status) return 'zinc'
+  const s = status.toLowerCase()
+  if (s === 'completed' || s === 'success' || s === 'active') return 'green'
+  if (s === 'failed' || s === 'error') return 'red'
+  if (s === 'running' || s === 'pending' || s === 'in_progress') return 'orange'
+  return 'sky'
+}
+
+function severityColor(severity) {
+  if (!severity) return 'zinc'
+  const s = severity.toLowerCase()
+  if (s === 'critical' || s === 'high') return 'red'
+  if (s === 'medium' || s === 'warning') return 'orange'
+  if (s === 'low' || s === 'info') return 'sky'
+  return 'zinc'
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '--'
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  } catch {
+    return dateStr
+  }
+}
+
+export default function Events() {
+  const [traces, setTraces] = useState(null)
+  const [count, setCount] = useState(0)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('date')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await loadJson('/api/traces')
+        if (cancelled) return
+        setTraces(Array.isArray(data?.traces) ? data.traces : [])
+        setCount(data?.count ?? 0)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err))
+          setTraces([])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const filtered = (traces || [])
+    .filter((t) => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return (
+        (t.name || '').toLowerCase().includes(q) ||
+        (t.agent || '').toLowerCase().includes(q) ||
+        (t.toolName || '').toLowerCase().includes(q) ||
+        (t.traceId || t.id || '').toString().toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '')
+      if (sortBy === 'status') return (a.status || '').localeCompare(b.status || '')
+      // default: sort by date descending
+      const dateA = new Date(a.startedAt || a.createdAt || 0).getTime()
+      const dateB = new Date(b.startedAt || b.createdAt || 0).getTime()
+      return dateB - dateA
+    })
 
   return (
     <>
@@ -25,62 +122,114 @@ export default async function Events() {
             <div className="flex-1">
               <InputGroup>
                 <MagnifyingGlassIcon />
-                <Input name="search" placeholder="Search tools or agents&hellip;" />
+                <Input
+                  name="search"
+                  placeholder="Search tools or agents&hellip;"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </InputGroup>
             </div>
             <div>
-              <Select name="sort_by">
-                <option value="name">Sort by name</option>
+              <Select name="sort_by" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                 <option value="date">Sort by updated</option>
+                <option value="name">Sort by name</option>
                 <option value="status">Sort by status</option>
               </Select>
             </div>
           </div>
         </div>
-        <Button>Create run</Button>
+        <Button href="/orders">Review approvals</Button>
       </div>
-      <ul className="mt-10">
-        {events.map((event, index) => (
-          <li key={event.id}>
-            <Divider soft={index > 0} />
-            <div className="flex items-center justify-between">
-              <div key={event.id} className="flex gap-6 py-6">
-                <div className="w-32 shrink-0">
-                  <Link href={event.url} aria-hidden="true">
-                    <img className="aspect-3/2 rounded-lg shadow-sm" src={event.imgUrl} alt="" />
-                  </Link>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="text-base/6 font-semibold">
-                    <Link href={event.url}>{event.name}</Link>
+
+      {error && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/40">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Some data could not be loaded</p>
+          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+            The gateway may be starting up or temporarily unavailable. Try refreshing the page.
+          </p>
+        </div>
+      )}
+
+      {loading && <SkeletonGrid />}
+
+      {!loading && filtered.length === 0 && !error && (
+        <div className="mt-10 rounded-2xl border border-zinc-950/10 bg-white p-8 text-center dark:border-white/10 dark:bg-zinc-900">
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {search ? 'No matching traces found' : 'No agent traces yet'}
+          </p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {search
+              ? 'Try adjusting your search query.'
+              : 'When agents execute runs, their traces will appear here.'}
+          </p>
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            {count} trace{count !== 1 ? 's' : ''} total
+            {search && ` \u00b7 ${filtered.length} matching`}
+          </p>
+          <ul className="mt-6">
+            {filtered.map((trace, index) => {
+              const traceId = trace.traceId || trace.id || `trace-${index}`
+              const traceStatus = trace.status || 'unknown'
+              const severity = trace.severity || trace.risk?.severity || null
+
+              return (
+                <li key={traceId}>
+                  <Divider soft={index > 0} />
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-6 py-6">
+                      <div className="space-y-1.5">
+                        <div className="text-base/6 font-semibold">
+                          <Link href={`/events/${traceId}`}>
+                            {trace.name || trace.toolName || trace.agent || `Trace ${typeof traceId === 'string' ? traceId.substring(0, 12) : traceId}`}
+                          </Link>
+                        </div>
+                        <div className="text-xs/6 text-zinc-500">
+                          {formatDate(trace.startedAt || trace.createdAt)}
+                          {trace.agent && (
+                            <>
+                              {' '}
+                              <span aria-hidden="true">&middot;</span> {trace.agent}
+                            </>
+                          )}
+                          {trace.duration && (
+                            <>
+                              {' '}
+                              <span aria-hidden="true">&middot;</span> {trace.duration}
+                            </>
+                          )}
+                        </div>
+                        <div className="text-xs/6 text-zinc-600 dark:text-zinc-400">
+                          {trace.toolName && <>Tool: {trace.toolName}</>}
+                          {trace.stepsCount != null && (
+                            <>
+                              {trace.toolName ? ' \u00b7 ' : ''}
+                              {trace.stepsCount} step{trace.stepsCount !== 1 ? 's' : ''}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {severity && (
+                        <Badge className="max-sm:hidden" color={severityColor(severity)}>
+                          {severity}
+                        </Badge>
+                      )}
+                      <Badge color={statusColor(traceStatus)}>{traceStatus}</Badge>
+                    </div>
                   </div>
-                  <div className="text-xs/6 text-zinc-500">
-                    {event.date} at {event.time} <span aria-hidden="true">·</span> {event.location}
-                  </div>
-                  <div className="text-xs/6 text-zinc-600">
-                    {event.ticketsSold}/{event.ticketsAvailable} tickets sold
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <Badge className="max-sm:hidden" color={event.status === 'On Sale' ? 'lime' : 'zinc'}>
-                  {event.status}
-                </Badge>
-                <Dropdown>
-                  <DropdownButton plain aria-label="More options">
-                    <EllipsisVerticalIcon />
-                  </DropdownButton>
-                  <DropdownMenu anchor="bottom end">
-                    <DropdownItem href={event.url}>View</DropdownItem>
-                    <DropdownItem>Edit</DropdownItem>
-                    <DropdownItem>Delete</DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
     </>
   )
 }

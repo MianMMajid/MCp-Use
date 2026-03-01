@@ -9,7 +9,7 @@ function read(relativePath: string): string {
 }
 
 describe("template runtime config wiring", () => {
-  it("all template runtimes rewrite /api and /admin/api through gateway", () => {
+  it("all template runtimes rewrite /api through gateway and /admin/api through admin console", () => {
     const frontendANextConfig = read("frontend/frontendA-it-console/template-runtime/next.config.mjs");
     const frontendBNextConfig = read("frontend/frontendB-desktop-app/template-runtime/next.config.mjs");
     const frontendCNextConfig = read("frontend/frontendC-marketing-download-site/template-runtime/next.config.js");
@@ -18,7 +18,7 @@ describe("template runtime config wiring", () => {
       expect(source).toContain("source: '/api/:path*'");
       expect(source).toContain("destination: `${mapleGatewayOrigin}/api/:path*`");
       expect(source).toContain("source: '/admin/api/:path*'");
-      expect(source).toContain("destination: `${mapleGatewayOrigin}/admin/api/:path*`");
+      expect(source).toContain("destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`");
     }
   });
 

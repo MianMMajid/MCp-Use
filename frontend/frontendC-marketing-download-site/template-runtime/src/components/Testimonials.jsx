@@ -11,19 +11,19 @@ const testimonials = [
   [
     {
       content:
-        'TaxPal is so easy to use I can’t help but wonder if it’s really doing the things the government expects me to do.',
+        'Maple\'s agent governance saved us hours of manual review every week. The policy controls catch risky actions before they reach production, giving our team confidence to deploy agents faster.',
       author: {
-        name: 'Sheryl Berge',
-        role: 'CEO at Lynch LLC',
+        name: 'Sarah Chen',
+        role: 'VP of Engineering at Nexus AI',
         image: avatarImage1,
       },
     },
     {
       content:
-        'I’m trying to get a hold of someone in support, I’m in a lot of trouble right now and they are saying it has something to do with my books. Please get back to me right away.',
+        'The HITL approval workflow was exactly what we needed. Our compliance team can now review agent actions in real-time without slowing down development.',
       author: {
-        name: 'Amy Hahn',
-        role: 'Director at Velocity Industries',
+        name: 'Marcus Rivera',
+        role: 'Head of Compliance at DataForge',
         image: avatarImage4,
       },
     },
@@ -31,19 +31,19 @@ const testimonials = [
   [
     {
       content:
-        'The best part about TaxPal is every time I pay my employees, my bank balance doesn’t go down like it used to. Looking forward to spending this extra cash when I figure out why my card is being declined.',
+        'We went from zero visibility into our agent operations to full trace auditing in under a day. The audit trail has been invaluable for our SOC 2 compliance.',
       author: {
-        name: 'Leland Kiehn',
-        role: 'Founder of Kiehn and Sons',
+        name: 'Priya Patel',
+        role: 'CTO at CloudScale Labs',
         image: avatarImage5,
       },
     },
     {
       content:
-        'There are so many things I had to do with my old software that I just don’t do at all with TaxPal. Suspicious but I can’t say I don’t love it.',
+        'Maple\'s risk scoring caught an anomalous agent behavior pattern that would have cost us thousands. The ML-powered detection is genuinely impressive.',
       author: {
-        name: 'Erin Powlowski',
-        role: 'COO at Armstrong Inc',
+        name: 'James Okonkwo',
+        role: 'Security Lead at Meridian Systems',
         image: avatarImage2,
       },
     },
@@ -51,19 +51,19 @@ const testimonials = [
   [
     {
       content:
-        'I used to have to remit tax to the EU and with TaxPal I somehow don’t have to do that anymore. Nervous to travel there now though.',
+        'Setting up policy controls for our MCP-compatible agents took minutes, not days. Maple works as a transparent proxy — no agent modifications needed.',
       author: {
-        name: 'Peter Renolds',
-        role: 'Founder of West Inc',
+        name: 'Elena Vasquez',
+        role: 'Platform Engineer at Orion Tech',
         image: avatarImage3,
       },
     },
     {
       content:
-        'This is the fourth email I’ve sent to your support team. I am literally being held in jail for tax fraud. Please answer your damn emails, this is important.',
+        'The combination of real-time monitoring and configurable guard actions gives us the confidence to scale our agent fleet. Maple is the governance layer we were missing.',
       author: {
-        name: 'Amy Hahn',
-        role: 'Director at Velocity Industries',
+        name: 'Alex Kim',
+        role: 'Director of AI Operations at Summit Analytics',
         image: avatarImage4,
       },
     },
@@ -83,17 +83,16 @@ export function Testimonials() {
     <section
       id="testimonials"
       aria-label="What our customers are saying"
-      className="bg-slate-50 py-20 sm:py-32"
+      className="bg-zinc-50 py-20 sm:py-32"
     >
       <Container>
         <div className="mx-auto max-w-2xl md:text-center">
-          <h2 className="font-display text-3xl tracking-tight text-slate-900 sm:text-4xl">
-            Loved by businesses worldwide.
+          <h2 className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl">
+            Trusted by engineering teams worldwide.
           </h2>
-          <p className="mt-4 text-lg tracking-tight text-slate-700">
-            Our software is so simple that people can’t help but fall in love
-            with it. Simplicity is easy when you just skip tons of
-            mission-critical features.
+          <p className="mt-4 text-lg tracking-tight text-zinc-700">
+            See how teams are using Maple to govern their AI agents and keep
+            operations secure.
           </p>
         </div>
         <ul
@@ -105,23 +104,23 @@ export function Testimonials() {
               <ul role="list" className="flex flex-col gap-y-6 sm:gap-y-8">
                 {column.map((testimonial, testimonialIndex) => (
                   <li key={testimonialIndex}>
-                    <figure className="relative rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/10">
-                      <QuoteIcon className="absolute top-6 left-6 fill-slate-100" />
+                    <figure className="relative rounded-2xl bg-white p-6 shadow-xl shadow-zinc-900/10">
+                      <QuoteIcon className="absolute top-6 left-6 fill-zinc-100" />
                       <blockquote className="relative">
-                        <p className="text-lg tracking-tight text-slate-900">
+                        <p className="text-lg tracking-tight text-zinc-900">
                           {testimonial.content}
                         </p>
                       </blockquote>
-                      <figcaption className="relative mt-6 flex items-center justify-between border-t border-slate-100 pt-6">
+                      <figcaption className="relative mt-6 flex items-center justify-between border-t border-zinc-100 pt-6">
                         <div>
-                          <div className="font-display text-base text-slate-900">
+                          <div className="font-display text-base text-zinc-900">
                             {testimonial.author.name}
                           </div>
-                          <div className="mt-1 text-sm text-slate-500">
+                          <div className="mt-1 text-sm text-zinc-500">
                             {testimonial.author.role}
                           </div>
                         </div>
-                        <div className="overflow-hidden rounded-full bg-slate-50">
+                        <div className="overflow-hidden rounded-full bg-zinc-50">
                           <Image
                             className="h-14 w-14 object-cover"
                             src={testimonial.author.image}

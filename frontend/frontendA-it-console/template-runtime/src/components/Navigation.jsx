@@ -107,7 +107,7 @@ function ActivePageMarker({ group, pathname }) {
   return (
     <motion.div
       layout
-      className="absolute left-2 h-6 w-px bg-emerald-500"
+      className="absolute left-2 h-6 w-px bg-orange-500"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1, transition: { delay: 0.2 } }}
       exit={{ opacity: 0 }}
@@ -202,15 +202,15 @@ export const navigation = [
       { title: 'Policy Center', href: '/maple/policies' },
       { title: 'HITL Queue', href: '/maple/hitl' },
       { title: 'Audit + Traces', href: '/maple/audit' },
-      { title: 'Runtime Dependencies', href: '/maple/runtime' },
+      { title: 'Firewall Dashboard', href: '/maple/gateway' },
+      { title: 'Runtime', href: '/maple/runtime' },
     ],
   },
   {
     title: 'References',
     links: [
-      { title: 'Gateway API', href: '/maple/gateway' },
       { title: 'Admin API', href: '/maple/admin' },
-      { title: 'Desktop Studio', href: '/maple/desktop' },
+      { title: 'Desktop Studio', href: 'http://localhost:4102' },
     ],
   },
 ]
@@ -230,7 +230,7 @@ export function Navigation(props) {
           />
         ))}
         <li className="sticky bottom-0 z-10 mt-6 min-[416px]:hidden">
-          <Button href="/maple/desktop" variant="filled" className="w-full">
+          <Button href="http://localhost:4102/login" variant="filled" className="w-full">
             Sign in
           </Button>
         </li>

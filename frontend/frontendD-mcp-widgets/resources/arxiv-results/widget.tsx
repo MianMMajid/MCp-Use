@@ -1,6 +1,7 @@
 import { useWidget, type WidgetMetadata } from "mcp-use/react";
 import type React from "react";
 import type { ArxivResultsWidgetProps } from "../../src/core/widget-schemas";
+import { isSafeUrl } from '../shared/url-validation';
 import "../styles.css";
 
 export const widgetMetadata: WidgetMetadata = {
@@ -75,9 +76,9 @@ const ArxivResultsWidget: React.FC = () => {
                       : paper.summary}
                   </p>
                 ) : null}
-                {paper.url && /^https?:\/\//i.test(String(paper.url).trim()) ? (
-                  <a href={String(paper.url).trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
-                    {String(paper.url).trim()}
+                {isSafeUrl(paper.url) ? (
+                  <a href={paper.url.trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {paper.url.trim()}
                   </a>
                 ) : null}
               </div>

@@ -71,7 +71,7 @@ function CopyButton({ code }) {
       className={clsx(
         'group/button absolute top-3.5 right-4 overflow-hidden rounded-full py-1 pr-3 pl-2 text-2xs font-medium opacity-0 backdrop-blur-sm transition group-hover:opacity-100 focus:opacity-100',
         copied
-          ? 'bg-emerald-400/10 ring-1 ring-emerald-400/20 ring-inset'
+          ? 'bg-orange-400/10 ring-1 ring-orange-400/20 ring-inset'
           : 'bg-white/5 hover:bg-white/7.5 dark:bg-white/2.5 dark:hover:bg-white/5',
       )}
       onClick={() => {
@@ -93,7 +93,7 @@ function CopyButton({ code }) {
       <span
         aria-hidden={!copied}
         className={clsx(
-          'pointer-events-none absolute inset-0 flex items-center justify-center text-emerald-400 transition duration-300',
+          'pointer-events-none absolute inset-0 flex items-center justify-center text-orange-400 transition duration-300',
           !copied && 'translate-y-1.5 opacity-0',
         )}
       >
@@ -173,7 +173,7 @@ function CodeGroupHeader({ title, children, selectedIndex }) {
               className={clsx(
                 'border-b py-3 transition data-selected:not-data-focus:outline-hidden',
                 childIndex === selectedIndex
-                  ? 'border-emerald-500 text-emerald-400'
+                  ? 'border-orange-500 text-orange-400'
                   : 'border-transparent text-zinc-400 hover:text-zinc-300',
               )}
             >
@@ -324,6 +324,8 @@ export function Code({ children, ...props }) {
         '`Code` children must be a string when nested inside a `CodeGroup`.',
       )
     }
+    // SAFETY: children is Shiki-generated HTML from MDX code blocks at build time.
+    // It does not contain user-supplied content. If this changes, add DOMPurify.
     return <code {...props} dangerouslySetInnerHTML={{ __html: children }} />
   }
 
