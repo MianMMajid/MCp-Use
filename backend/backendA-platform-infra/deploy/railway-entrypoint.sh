@@ -41,10 +41,13 @@ EXTEOF
 fi
 
 # ── Core ─────────────────────────────────────────────────────────────────────
-export NODE_ENV="${NODE_ENV:-production}"
+# Use "staging" — "production" mode rejects MAPLE_ALLOW_NO_AUTH=true
+export NODE_ENV="${MAPLE_NODE_ENV:-staging}"
 export GATEWAY_PORT="${PORT:-${GATEWAY_PORT:-3000}}"
 export GATEWAY_HOST="${GATEWAY_HOST:-0.0.0.0}"
 export CORS_ORIGIN="${CORS_ORIGIN:-*}"
+# Railway terminates TLS at edge — disable TLS inside container for healthcheck
+export MAPLE_DISABLE_TLS="${MAPLE_DISABLE_TLS:-true}"
 
 # ── TLS paths ────────────────────────────────────────────────────────────────
 export MAPLE_GATEWAY_TLS_CERT="${MAPLE_GATEWAY_TLS_CERT:-${TLS_DIR}/tls.crt}"

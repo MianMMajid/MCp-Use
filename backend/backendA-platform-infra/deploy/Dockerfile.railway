@@ -65,14 +65,14 @@ RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>
     && chown -R 1000:1000 /app \
     && mkdir -p /tmp/tls && chown 1000:1000 /tmp/tls
 
-ENV NODE_ENV=production
+# NODE_ENV is set by the entrypoint (staging by default for Railway)
 ENV HOST=0.0.0.0
 
 # Railway injects PORT dynamically — the entrypoint maps it to GATEWAY_PORT
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-    CMD node -e "fetch('https://localhost:' + (process.env.PORT || 3000) + '/health',{method:'GET',headers:{},rejectUnauthorized:false}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" || exit 1
+    CMD node -e "fetch('http://localhost:' + (process.env.PORT || 3000) + '/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" || exit 1
 
 USER 1000:1000
 

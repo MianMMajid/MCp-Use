@@ -5,8 +5,9 @@ import { createApp } from "./app.js";
 import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, } from "./config.js";
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus } from "./state.js";
+const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
 async function main() {
-    mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost });
+    mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost, tls: !disableTls });
     const { server, shutdown } = await createApp();
     const runtimeStatus = buildRuntimeStatus();
     mapleLog("info", "gateway_api.runtime_status", {
@@ -14,27 +15,31 @@ async function main() {
         routeSummary: runtimeStatus.routeSummary,
         activeDownstreamCount: runtimeStatus.activeDownstreamCount,
     });
-    const tlsConfig = {
-        cert: readFileSync(gatewayTlsCertPath),
-        key: readFileSync(gatewayTlsKeyPath),
-        ca: readFileSync(gatewayTlsCaPath),
-    };
     const fetchHandler = await server.getHandler();
-    const httpServer = serve({
+    const serveOptions = {
         fetch: fetchHandler,
         hostname: gatewayHost,
         port: gatewayPort,
-        createServer: createHttpsServer,
-        serverOptions: {
+    };
+    if (!disableTls) {
+        const tlsConfig = {
+            cert: readFileSync(gatewayTlsCertPath),
+            key: readFileSync(gatewayTlsKeyPath),
+            ca: readFileSync(gatewayTlsCaPath),
+        };
+        serveOptions.createServer = createHttpsServer;
+        serveOptions.serverOptions = {
             cert: tlsConfig.cert,
             key: tlsConfig.key,
             ca: tlsConfig.ca,
-        },
-    }, (info) => {
+        };
+    }
+    const protocol = disableTls ? "http" : "https";
+    const httpServer = serve(serveOptions, (info) => {
         mapleLog("info", "gateway_api.listening", {
             port: info.port,
             host: info.address,
-            protocol: "https",
+            protocol,
         });
     });
     let shuttingDown = false;
