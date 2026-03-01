@@ -84,7 +84,7 @@ export default function OrderDetail() {
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : String(err)
-          if (msg.includes('404')) {
+          if (msg.endsWith('-> 404')) {
             setNotFound(true)
           } else {
             setError(msg)
@@ -220,7 +220,7 @@ export default function OrderDetail() {
                 </div>
                 {(step.reason || step.description || step.output) && (
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {step.reason || step.description || (typeof step.output === 'string' ? step.output.substring(0, 200) : '')}
+                    {step.reason || step.description || (typeof step.output === 'string' ? step.output.substring(0, 200) : (step.output != null ? JSON.stringify(step.output).substring(0, 200) : ''))}
                   </p>
                 )}
                 {step.timestamp && (

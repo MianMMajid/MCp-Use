@@ -178,6 +178,13 @@ export default function FirewallPage() {
         </>
       )}
 
+      {/* Empty capabilities state */}
+      {!loading && !capabilities && (
+        <div className="mt-6 rounded-2xl border border-zinc-950/10 bg-white p-6 text-center dark:border-white/10 dark:bg-zinc-900">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Capability data is not available.</p>
+        </div>
+      )}
+
       {/* YC Brief */}
       {!loading && ycBrief && (
         <>
@@ -216,6 +223,17 @@ export default function FirewallPage() {
               ))}
             </TableBody>
           </Table>
+        </>
+      )}
+
+      {/* Empty rules state */}
+      {!loading && rules && rules.length === 0 && (
+        <>
+          <Divider className="my-6" />
+          <Subheading>Effective Rules</Subheading>
+          <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-6 text-center dark:border-white/10 dark:bg-zinc-900">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No effective firewall rules loaded.</p>
+          </div>
         </>
       )}
 

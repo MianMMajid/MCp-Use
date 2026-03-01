@@ -94,7 +94,7 @@ export function DecisionDialog({ traceId, ...props }) {
           <Button plain onClick={() => setIsOpen(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!action || submitting}>
+          <Button color="orange" onClick={handleSubmit} disabled={!action || submitting}>
             {submitting ? 'Submitting...' : 'Submit Decision'}
           </Button>
         </DialogActions>

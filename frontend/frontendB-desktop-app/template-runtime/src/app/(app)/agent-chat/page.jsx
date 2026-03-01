@@ -10,6 +10,16 @@ import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { loadJson, postJson } from '@/lib/api'
 
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
+    </div>
+  )
+}
+
 function statusColor(s) {
   if (!s) return 'zinc'
   const v = s.toLowerCase()
@@ -62,12 +72,24 @@ export default function AgentChatPage() {
 
   const agentStatus = status?.status || status?.state || 'unknown'
 
+  if (loading) {
+    return (
+      <>
+        <Heading>Agent Chat</Heading>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="flex items-end justify-between gap-4">
         <div className="flex items-center gap-3">
           <Heading>Agent Chat</Heading>
-          {!loading && <Badge color={statusColor(agentStatus)}>{agentStatus}</Badge>}
+          <Badge color={statusColor(agentStatus)}>{agentStatus}</Badge>
         </div>
       </div>
 

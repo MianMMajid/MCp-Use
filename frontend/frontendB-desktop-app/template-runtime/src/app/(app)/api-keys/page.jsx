@@ -96,9 +96,9 @@ export default function ApiKeysPage() {
       const res = await postJson('/api/user/api-keys', body)
       const data = await res.json().catch(() => ({}))
 
-      if (res.ok && data.ok) {
+      if (res.ok && data.ok && data.key?.token) {
         setRevealedToken(data.key.token)
-        setRevealedKeyName(data.key.name)
+        setRevealedKeyName(data.key.name || newKeyName)
         setCreateDialogOpen(false)
         setNewKeyName('')
         setNewKeyExpires('')

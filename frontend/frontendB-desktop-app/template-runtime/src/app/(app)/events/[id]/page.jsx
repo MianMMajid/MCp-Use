@@ -83,7 +83,7 @@ export default function EventDetail() {
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : String(err)
-          if (msg.includes('404')) {
+          if (msg.endsWith('-> 404')) {
             setNotFound(true)
           } else {
             setError(msg)
@@ -159,7 +159,7 @@ export default function EventDetail() {
           </Heading>
           <Badge color={statusColor(traceStatus)}>{traceStatus}</Badge>
         </div>
-        <div className="isolate mt-2.5 flex flex-wrap gap-x-10 gap-y-4 py-1.5">
+        <div className="isolate mt-2.5 flex flex-wrap gap-x-6 gap-y-4 py-1.5 lg:gap-x-10">
           <span className="flex items-center gap-3 text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
             <ClockIcon className="size-4 shrink-0 fill-zinc-400 dark:fill-zinc-500" />
             <span>{formatDate(trace?.startedAt || trace?.createdAt)}</span>
@@ -226,7 +226,9 @@ export default function EventDetail() {
         <Subheading>Steps Timeline</Subheading>
         <Divider className="mt-4" />
         {steps.length === 0 && (
-          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No steps recorded for this trace.</p>
+          <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-6 text-center dark:border-white/10 dark:bg-zinc-900">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No steps recorded for this trace.</p>
+          </div>
         )}
         <div className="mt-4 space-y-3">
           {steps.map((step, idx) => {
@@ -242,7 +244,7 @@ export default function EventDetail() {
                 </div>
                 {(step.reason || step.description || step.output) && (
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {step.reason || step.description || (typeof step.output === 'string' ? step.output.substring(0, 200) : '')}
+                    {step.reason || step.description || (typeof step.output === 'string' ? step.output.substring(0, 200) : (step.output != null ? JSON.stringify(step.output).substring(0, 200) : ''))}
                   </p>
                 )}
                 {step.timestamp && (

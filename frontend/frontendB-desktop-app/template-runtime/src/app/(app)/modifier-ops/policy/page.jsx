@@ -14,6 +14,16 @@ import { DescriptionList, DescriptionTerm, DescriptionDetails } from '@/componen
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { loadJson, postJson } from '@/lib/api'
 
+function SkeletonCard() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
+    </div>
+  )
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '--'
   try {
@@ -31,7 +41,7 @@ function statusColor(s) {
 }
 
 export default function ModifierOpsPolicyPage() {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -135,6 +145,19 @@ export default function ModifierOpsPolicyPage() {
       if (res.ok) { setMessage('Escalation triggered.'); setMessageType('success') }
       else { setMessage('Escalation failed.'); setMessageType('error') }
     } catch { setMessage('Escalation failed.'); setMessageType('error') }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Heading>Modifier Operations</Heading>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </>
+    )
   }
 
   return (

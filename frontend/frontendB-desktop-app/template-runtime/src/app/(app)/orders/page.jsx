@@ -145,7 +145,7 @@ export default function Orders() {
   }, [])
 
   return (
-    <>
+    <div className="mx-auto max-w-4xl">
       <div className="flex items-end justify-between gap-4">
         <Heading>Approvals</Heading>
         <Button className="-my-0.5" onClick={() => fetchApprovals()}>
@@ -195,7 +195,7 @@ export default function Orders() {
                 return (
                   <TableRow key={traceId} href={`/orders/${traceId}`} title={`Approval ${traceIdShort}`}>
                     <TableCell className="font-mono text-xs">{traceIdShort}</TableCell>
-                    <TableCell className="text-zinc-500">{formatDate(approval.requestedAt || approval.createdAt)}</TableCell>
+                    <TableCell className="text-zinc-500 dark:text-zinc-400">{formatDate(approval.requestedAt || approval.createdAt)}</TableCell>
                     <TableCell>{approval.toolName || approval.step || approval.action || '--'}</TableCell>
                     <TableCell>{approval.actor || approval.agent || '--'}</TableCell>
                     <TableCell className="text-right">
@@ -208,6 +208,6 @@ export default function Orders() {
           </Table>
         </>
       )}
-    </>
+    </div>
   )
 }

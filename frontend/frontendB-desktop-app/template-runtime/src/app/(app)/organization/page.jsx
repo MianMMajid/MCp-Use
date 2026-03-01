@@ -461,6 +461,7 @@ export default function OrganizationPage() {
                     <Text>No members yet. Invite someone to get started.</Text>
                   </div>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHead>
                       <TableRow>
@@ -520,6 +521,7 @@ export default function OrganizationPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </div>
             </>

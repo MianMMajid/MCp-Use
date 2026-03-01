@@ -165,6 +165,13 @@ export default function ModifierObservabilityPage() {
 
       {loading && <SkeletonRows />}
 
+      {/* Empty summary state */}
+      {!loading && !summary && !error && (
+        <div className="mt-6 rounded-2xl border border-zinc-950/10 bg-white p-6 text-center dark:border-white/10 dark:bg-zinc-900">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Summary data is not available.</p>
+        </div>
+      )}
+
       {/* Summary Cards */}
       {!loading && summary && (
         <>
@@ -201,6 +208,17 @@ export default function ModifierObservabilityPage() {
               </div>
             ))}
           </DescriptionList>
+        </>
+      )}
+
+      {/* Empty audit log state */}
+      {!loading && auditLog && auditLog.length === 0 && (
+        <>
+          <Divider className="my-6" />
+          <Subheading>Audit Log</Subheading>
+          <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-6 text-center dark:border-white/10 dark:bg-zinc-900">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No audit log entries recorded.</p>
+          </div>
         </>
       )}
 
