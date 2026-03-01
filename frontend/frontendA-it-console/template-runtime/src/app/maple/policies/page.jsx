@@ -209,7 +209,7 @@ export default function PolicyCenterPage() {
                           <Tag
                             color={
                               rule.action === 'allow'
-                                ? 'emerald'
+                                ? 'orange'
                                 : rule.action === 'block'
                                   ? 'rose'
                                   : 'amber'
@@ -271,7 +271,7 @@ export default function PolicyCenterPage() {
                         {v.label ?? v.id ?? `v${idx + 1}`}
                       </span>
                       {v.active && (
-                        <Tag color="emerald" variant="medium">
+                        <Tag color="orange" variant="medium">
                           ACTIVE
                         </Tag>
                       )}

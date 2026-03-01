@@ -76,7 +76,7 @@ function SkeletonList() {
 function StatusCard({ label, value, detail, color }) {
   const dotColor =
     color === 'green'
-      ? 'bg-emerald-500'
+      ? 'bg-orange-500'
       : color === 'red'
         ? 'bg-rose-500'
         : 'bg-amber-500'
@@ -318,7 +318,7 @@ export default function FirewallDashboardPage() {
                           <Tag
                             color={
                               rule.action === 'allow'
-                                ? 'emerald'
+                                ? 'orange'
                                 : rule.action === 'block'
                                   ? 'rose'
                                   : 'amber'
@@ -491,7 +491,7 @@ export default function FirewallDashboardPage() {
                         {cap.name ?? cap.id ?? `Capability ${idx + 1}`}
                       </span>
                       <Tag
-                        color={cap.enabled !== false ? 'emerald' : 'rose'}
+                        color={cap.enabled !== false ? 'orange' : 'rose'}
                         variant="medium"
                       >
                         {cap.enabled !== false ? 'ON' : 'OFF'}

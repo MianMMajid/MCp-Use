@@ -104,7 +104,7 @@ export default function RuntimeDependenciesPage() {
     : null
   const healthColor =
     healthStatus === 'healthy' || healthStatus === 'ok'
-      ? 'emerald'
+      ? 'orange'
       : healthStatus === 'degraded'
         ? 'amber'
         : 'rose'
@@ -163,8 +163,8 @@ export default function RuntimeDependenciesPage() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`inline-block h-3 w-3 rounded-full ${
-                      healthColor === 'emerald'
-                        ? 'bg-emerald-500'
+                      healthColor === 'orange'
+                        ? 'bg-orange-500'
                         : healthColor === 'amber'
                           ? 'bg-amber-500'
                           : 'bg-rose-500'
@@ -236,7 +236,7 @@ export default function RuntimeDependenciesPage() {
                                   'ok' ||
                                 (typeof svc === 'string' ? svc : svc?.status) ===
                                   'healthy'
-                                  ? 'emerald'
+                                  ? 'orange'
                                   : 'rose'
                               }
                               variant="medium"
@@ -296,7 +296,7 @@ export default function RuntimeDependenciesPage() {
                         {cap.name ?? cap.id ?? `Feature ${idx + 1}`}
                       </span>
                       <Tag
-                        color={cap.enabled !== false ? 'emerald' : 'rose'}
+                        color={cap.enabled !== false ? 'orange' : 'rose'}
                         variant="medium"
                       >
                         {cap.enabled !== false ? 'ENABLED' : 'DISABLED'}

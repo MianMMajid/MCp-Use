@@ -426,7 +426,7 @@ export default function AuditTracesPage() {
                               <Tag
                                 color={
                                   trace.status === 'ok'
-                                    ? 'emerald'
+                                    ? 'orange'
                                     : trace.status === 'error'
                                       ? 'rose'
                                       : 'amber'
@@ -507,7 +507,7 @@ export default function AuditTracesPage() {
                           <Tag
                             color={
                               report.status === 'pass'
-                                ? 'emerald'
+                                ? 'orange'
                                 : report.status === 'fail'
                                   ? 'rose'
                                   : 'amber'

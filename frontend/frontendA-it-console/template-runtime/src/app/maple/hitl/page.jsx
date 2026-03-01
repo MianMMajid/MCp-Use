@@ -256,7 +256,7 @@ export default function HITLQueuePage() {
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
                   sseStatus === 'connected'
-                    ? 'bg-emerald-500'
+                    ? 'bg-orange-500'
                     : sseStatus === 'reconnecting'
                       ? 'animate-pulse bg-amber-500'
                       : 'bg-zinc-400'
@@ -302,7 +302,7 @@ export default function HITLQueuePage() {
                                 ? 'rose'
                                 : item.risk === 'medium'
                                   ? 'amber'
-                                  : 'emerald'
+                                  : 'orange'
                             }
                             variant="medium"
                           >
