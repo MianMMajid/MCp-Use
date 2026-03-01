@@ -1,8 +1,11 @@
 import { businessApiUnavailableResponse, proxyBusinessApiRequest } from "../core/business-api-client.js";
 export function registerBillingWebhookRoute(app) {
     app.post("/api/billing/webhook", async (c) => {
-        const rawBody = await c.req.text();
         const signature = c.req.header("stripe-signature");
+        if (!signature) {
+            return c.json({ error: "Missing webhook signature" }, 401);
+        }
+        const rawBody = await c.req.text();
         const proxied = await proxyBusinessApiRequest(c, "/api/business/billing/webhook", {
             method: "POST",
             rawBody,

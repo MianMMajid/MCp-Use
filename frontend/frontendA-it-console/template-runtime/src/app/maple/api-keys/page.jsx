@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { loadJson, postJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -9,27 +10,25 @@ export const sections = [
   { title: 'Service accounts', id: 'service-accounts' },
 ]
 
-async function loadJson(path) {
-  const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function deleteJson(path) {
-  const res = await fetch(path, { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
 function formatDate(d) {
   if (!d) return '--'
   try { return new Date(d).toLocaleString() } catch { return d }
+}
+
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
+        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm}>Confirm</Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function SkeletonList() {
@@ -57,6 +56,7 @@ export default function ApiKeysPage() {
   // Create key form
   const [keyName, setKeyName] = useState('')
   const [newKeyResult, setNewKeyResult] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   // Service accounts
   const [orgId, setOrgId] = useState('')
@@ -199,7 +199,7 @@ export default function ApiKeysPage() {
                         <span className="ml-2 font-mono text-xs text-zinc-500">{k.prefix || (typeof kid === 'string' ? kid.substring(0, 8) + '...' : '')}</span>
                         <span className="ml-2 text-xs text-zinc-400">{formatDate(k.createdAt)}</span>
                       </div>
-                      <Button variant="secondary" disabled={actionLoading === `delete-${kid}`} onClick={() => deleteKey(kid)}>
+                      <Button variant="secondary" disabled={actionLoading === `delete-${kid}`} onClick={() => setConfirmDeleteId(kid)}>
                         {actionLoading === `delete-${kid}` ? 'Deleting...' : 'Delete'}
                       </Button>
                     </div>
@@ -268,6 +268,13 @@ export default function ApiKeysPage() {
           </section>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete API Key"
+        message="This action cannot be undone. Are you sure you want to delete this key?"
+        onConfirm={() => { deleteKey(confirmDeleteId); setConfirmDeleteId(null) }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </article>
   )
 }

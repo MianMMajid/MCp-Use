@@ -160,7 +160,7 @@ export default function ProfilePage() {
         currentPassword,
         newPassword,
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (res.ok && data.ok) {
         setMessage('Password changed successfully.')
         setMessageType('success')

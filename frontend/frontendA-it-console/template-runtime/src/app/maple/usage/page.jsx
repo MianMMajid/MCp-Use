@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -12,18 +13,6 @@ export const sections = [
   { title: 'Invoices', id: 'invoices' },
   { title: 'Limits override', id: 'limits-override' },
 ]
-
-async function loadJson(path) {
-  const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
 
 function SkeletonCard() {
   return (

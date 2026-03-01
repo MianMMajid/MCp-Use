@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { loadJson, postJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -12,38 +13,20 @@ export const sections = [
   { title: 'Alert webhooks', id: 'alert-webhooks' },
 ]
 
-/* ------------------------------------------------------------------ */
-/*  Fetch helpers                                                      */
-/* ------------------------------------------------------------------ */
-
-async function loadJson(path) {
-  const res = await fetch(path, {
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-  })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function deleteJson(path) {
-  const res = await fetch(path, {
-    method: 'DELETE',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-  })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
+        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm}>Confirm</Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,6 +98,8 @@ export default function ObservabilityPage() {
   const [expandedWebhookId, setExpandedWebhookId] = useState(null)
   const [deliveries, setDeliveries] = useState(null)
   const [deliveriesLoading, setDeliveriesLoading] = useState(false)
+
+  const [confirmDeleteWebhookId, setConfirmDeleteWebhookId] = useState(null)
 
   const [error, setError] = useState(null)
 
@@ -624,7 +609,7 @@ export default function ObservabilityPage() {
                         </Button>
                         <Button
                           variant="secondary"
-                          onClick={() => handleDeleteWebhook(wh.id)}
+                          onClick={() => setConfirmDeleteWebhookId(wh.id)}
                         >
                           Delete
                         </Button>
@@ -689,6 +674,13 @@ export default function ObservabilityPage() {
           </section>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDeleteWebhookId !== null}
+        title="Delete Webhook"
+        message="Are you sure you want to delete this webhook? This cannot be undone."
+        onConfirm={() => { handleDeleteWebhook(confirmDeleteWebhookId); setConfirmDeleteWebhookId(null) }}
+        onCancel={() => setConfirmDeleteWebhookId(null)}
+      />
     </article>
   )
 }

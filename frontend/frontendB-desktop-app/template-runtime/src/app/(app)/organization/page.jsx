@@ -11,7 +11,7 @@ import { Select } from '@/components/select'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table'
 import { Text } from '@/components/text'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson, deleteJson } from '@/lib/api'
+import { loadJson, postJson, patchJson, deleteJson } from '@/lib/api'
 
 function SkeletonCard() {
   return (
@@ -79,15 +79,15 @@ export default function OrganizationPage() {
       const data = await loadJson('/api/org')
       const items = Array.isArray(data?.items) ? data.items : []
       setOrgs(items)
-      if (items.length > 0 && !selectedOrgId) {
-        setSelectedOrgId(items[0].orgId)
+      if (items.length > 0) {
+        setSelectedOrgId((prev) => prev ?? items[0].orgId)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
-  }, [selectedOrgId])
+  }, [])
 
   const fetchMembers = useCallback(async (orgId) => {
     if (!orgId) return
@@ -151,12 +151,7 @@ export default function OrganizationPage() {
     if (!orgNameDraft.trim() || !selectedOrgId) return
     setRenameLoading(true)
     try {
-      const res = await fetch(`/api/org/${selectedOrgId}`, {
-        method: 'PATCH',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: orgNameDraft.trim() }),
-      })
+      const res = await patchJson(`/api/org/${selectedOrgId}`, { name: orgNameDraft.trim() })
       if (res.ok) {
         setMessage('Organization renamed successfully.')
         setMessageType('success')
@@ -206,21 +201,11 @@ export default function OrganizationPage() {
     if (!selectedOrgId) return
     setRemoveLoading(true)
     try {
-      const res = await fetch(`/api/org/${selectedOrgId}/members/${userId}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-      })
-      if (res.ok) {
-        setMessage('Member removed successfully.')
-        setMessageType('success')
-        setRemoveMemberDialog(null)
-        await fetchMembers(selectedOrgId)
-      } else {
-        const data = await res.json().catch(() => ({}))
-        setMessage(data.error || 'Failed to remove member.')
-        setMessageType('error')
-      }
+      await deleteJson(`/api/org/${selectedOrgId}/members/${userId}`)
+      setMessage('Member removed successfully.')
+      setMessageType('success')
+      setRemoveMemberDialog(null)
+      await fetchMembers(selectedOrgId)
     } catch (err) {
       setMessage('Failed to remove member.')
       setMessageType('error')

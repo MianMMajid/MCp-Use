@@ -7,6 +7,7 @@
  */
 import { mapleLog } from "../logging.js";
 
+const MAX_BUFFER_SIZE = 10_000;
 let _buffer = [];
 let _flushTimer = null;
 let _flushing = false;
@@ -47,6 +48,14 @@ function parseHeaders(raw) {
 export function recordSpan(span) {
   const config = getConfig();
   if (!config.endpoint) return; // OTLP disabled
+
+  if (_buffer.length >= MAX_BUFFER_SIZE) {
+    mapleLog("warn", "trace_exporter.buffer_full", {
+      dropped: 1,
+      maxBufferSize: MAX_BUFFER_SIZE,
+    });
+    return;
+  }
 
   _buffer.push({
     traceId: span.traceId ?? "",
@@ -118,7 +127,7 @@ export async function flushSpans() {
       batchSize: batch.length,
     });
     // Put spans back for retry (up to max buffer)
-    if (_buffer.length < config.batchSize * 10) {
+    if (_buffer.length + batch.length <= MAX_BUFFER_SIZE) {
       _buffer.unshift(...batch);
     }
     return { sent: 0, error: err instanceof Error ? err.message : String(err) };

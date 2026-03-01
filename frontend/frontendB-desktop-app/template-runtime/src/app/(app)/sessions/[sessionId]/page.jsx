@@ -70,6 +70,12 @@ export default function SessionDetailPage() {
   const [streaming, setStreaming] = useState(false)
   const [artifacts, setArtifacts] = useState(null)
   const eventSourceRef = useRef(null)
+  const reconnectTimeoutRef = useRef(null)
+  const heartbeatTimeoutRef = useRef(null)
+  const reconnectAttemptsRef = useRef(0)
+  const mountedRef = useRef(true)
+  const MAX_RECONNECT = 5
+  const HEARTBEAT_MS = 30000
 
   useEffect(() => {
     let cancelled = false
@@ -108,15 +114,41 @@ export default function SessionDetailPage() {
     return () => { cancelled = true }
   }, [sessionId])
 
-  function startStream() {
+  function resetHeartbeat() {
+    clearTimeout(heartbeatTimeoutRef.current)
+    heartbeatTimeoutRef.current = setTimeout(() => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        reconnectStream()
+      }
+    }, HEARTBEAT_MS)
+  }
+
+  function reconnectStream() {
+    if (!mountedRef.current) return
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT) {
+      setStreaming(false)
+      return
+    }
+    reconnectAttemptsRef.current++
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) connectStream()
+    }, 5000)
+  }
+
+  function connectStream() {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
     }
-    setStreaming(true)
     const es = new EventSource(`/api/openclaw/agent/sessions/${sessionId}/stream`)
     eventSourceRef.current = es
 
+    es.onopen = () => {
+      reconnectAttemptsRef.current = 0
+      resetHeartbeat()
+    }
     es.onmessage = (e) => {
+      resetHeartbeat()
       try {
         const data = JSON.parse(e.data)
         setEvents((prev) => [...prev, data])
@@ -125,12 +157,21 @@ export default function SessionDetailPage() {
       }
     }
     es.onerror = () => {
-      setStreaming(false)
       es.close()
+      reconnectStream()
     }
   }
 
+  function startStream() {
+    if (!mountedRef.current) return
+    reconnectAttemptsRef.current = 0
+    setStreaming(true)
+    connectStream()
+  }
+
   function stopStream() {
+    clearTimeout(reconnectTimeoutRef.current)
+    clearTimeout(heartbeatTimeoutRef.current)
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
@@ -139,7 +180,11 @@ export default function SessionDetailPage() {
   }
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
+      clearTimeout(reconnectTimeoutRef.current)
+      clearTimeout(heartbeatTimeoutRef.current)
       if (eventSourceRef.current) eventSourceRef.current.close()
     }
   }, [])

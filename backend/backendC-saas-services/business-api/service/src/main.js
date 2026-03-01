@@ -38,7 +38,7 @@ async function main() {
     rejectUnauthorized: businessApiMtlsRequired,
   };
 
-  serve(
+  const httpServer = serve(
     {
       fetch: app.fetch,
       hostname: businessApiHost,
@@ -59,6 +59,9 @@ async function main() {
   const handleSignal = async (signal) => {
     mapleLog("info", "business_api.shutdown_signal", { signal });
     try {
+      await new Promise((resolve, reject) => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      });
       await shutdown();
     } catch (err) {
       mapleLog("warn", "business_api.shutdown_error", {

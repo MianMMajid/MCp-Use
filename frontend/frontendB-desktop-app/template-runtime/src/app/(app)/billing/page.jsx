@@ -118,7 +118,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/portal-session', {})
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (data.ok && data.url) {
         window.location.href = data.url
       } else {
@@ -138,7 +138,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/create-checkout-session', { plan })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (data.ok && data.url) {
         window.location.href = data.url
       } else {
@@ -158,7 +158,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/subscription/cancel', { atPeriodEnd: true })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (data.ok) {
         setSubscription((prev) => ({
           ...prev,
@@ -186,7 +186,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/subscription/resume', {})
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (data.ok) {
         setSubscription((prev) => ({
           ...prev,

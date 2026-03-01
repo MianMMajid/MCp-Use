@@ -28,7 +28,7 @@ export function firewallRoutes(clients) {
         }
         catch (err) {
             mapleLog("error", "firewall_decision_failed", { error: err.message });
-            return c.json({ error: err.message }, 500);
+            return c.json({ error: "Firewall operation failed" }, 500);
         }
     });
     router.post("/api/firewall/chat", async (c) => {
@@ -47,7 +47,7 @@ export function firewallRoutes(clients) {
         }
         catch (err) {
             mapleLog("error", "firewall_chat_failed", { error: err.message });
-            return c.json({ error: err.message }, 500);
+            return c.json({ error: "Firewall operation failed" }, 500);
         }
     });
     return router;

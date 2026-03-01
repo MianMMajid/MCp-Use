@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -10,16 +11,20 @@ export const sections = [
   { title: 'OAuth actions', id: 'oauth-actions' },
 ]
 
-async function loadJson(path) {
-  const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
+        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm}>Confirm</Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function SkeletonList() {
@@ -44,6 +49,8 @@ export default function IntegrationsPage() {
   const [error, setError] = useState(null)
   const [message, setMessage] = useState('')
   const [actionLoading, setActionLoading] = useState('')
+
+  const [confirmDisconnect, setConfirmDisconnect] = useState(null)
 
   const [oauthProvider, setOauthProvider] = useState('')
   const [oauthResult, setOauthResult] = useState(null)
@@ -161,7 +168,7 @@ export default function IntegrationsPage() {
                         <span className="text-sm font-medium text-zinc-950 dark:text-white">{item.name || provider}</span>
                         <Tag color={item.status === 'connected' || item.status === 'active' ? 'orange' : 'zinc'} variant="medium">{item.status || 'connected'}</Tag>
                       </div>
-                      <Button variant="secondary" disabled={actionLoading === `disconnect-${provider}`} onClick={() => handleDisconnect(provider)}>
+                      <Button variant="secondary" disabled={actionLoading === `disconnect-${provider}`} onClick={() => setConfirmDisconnect(provider)}>
                         {actionLoading === `disconnect-${provider}` ? 'Disconnecting...' : 'Disconnect'}
                       </Button>
                     </div>
@@ -202,6 +209,13 @@ export default function IntegrationsPage() {
           </section>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDisconnect !== null}
+        title="Disconnect Integration"
+        message="Are you sure you want to disconnect this integration?"
+        onConfirm={() => { handleDisconnect(confirmDisconnect); setConfirmDisconnect(null) }}
+        onCancel={() => setConfirmDisconnect(null)}
+      />
     </article>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -9,30 +10,6 @@ export const sections = [
   { title: 'Connection', id: 'connection' },
   { title: 'Gateway HITL', id: 'gateway-hitl' },
 ]
-
-/* ------------------------------------------------------------------ */
-/*  Fetch helpers                                                      */
-/* ------------------------------------------------------------------ */
-
-async function loadJson(path) {
-  const res = await fetch(path, {
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-  })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
 
 /* ------------------------------------------------------------------ */
 /*  Skeletons                                                          */
@@ -106,6 +83,8 @@ function ReasonDialog({ onSubmit, onCancel }) {
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
+const MAX_APPROVALS = 500
+
 export default function HITLQueuePage() {
   const [approvals, setApprovals] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -114,6 +93,9 @@ export default function HITLQueuePage() {
   const [blockingId, setBlockingId] = useState(null)
   const [decidingIds, setDecidingIds] = useState(new Set())
   const eventSourceRef = useRef(null)
+  const reconnectTimeoutRef = useRef(null)
+  const heartbeatTimeoutRef = useRef(null)
+  const reconnectAttemptsRef = useRef(0)
 
   // Gateway-level HITL
   const [gwApprovals, setGwApprovals] = useState(null)
@@ -121,6 +103,9 @@ export default function HITLQueuePage() {
   const [gwBlockingId, setGwBlockingId] = useState(null)
   const [gwDecidingIds, setGwDecidingIds] = useState(new Set())
   const gwEventSourceRef = useRef(null)
+  const gwReconnectTimeoutRef = useRef(null)
+  const gwHeartbeatTimeoutRef = useRef(null)
+  const gwReconnectAttemptsRef = useRef(0)
 
   /* -- Initial fetch -- */
   const fetchApprovals = useCallback(async () => {
@@ -144,17 +129,46 @@ export default function HITLQueuePage() {
 
   /* -- SSE watch -- */
   useEffect(() => {
+    const MAX_RECONNECT_ATTEMPTS = 5
+    const HEARTBEAT_TIMEOUT_MS = 30000
     let es
 
+    function resetHeartbeat() {
+      clearTimeout(heartbeatTimeoutRef.current)
+      heartbeatTimeoutRef.current = setTimeout(() => {
+        // No message received within 30s — close and reconnect
+        if (es) {
+          es.close()
+          eventSourceRef.current = null
+        }
+        scheduleReconnect()
+      }, HEARTBEAT_TIMEOUT_MS)
+    }
+
+    function scheduleReconnect() {
+      if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        setSseStatus('disconnected')
+        return
+      }
+      setSseStatus('reconnecting')
+      reconnectTimeoutRef.current = setTimeout(connect, 5000)
+    }
+
     function connect() {
+      reconnectAttemptsRef.current += 1
       setSseStatus('reconnecting')
       es = new EventSource('/admin/api/approvals/watch', {
         withCredentials: true,
       })
 
-      es.onopen = () => setSseStatus('connected')
+      es.onopen = () => {
+        reconnectAttemptsRef.current = 0
+        setSseStatus('connected')
+        resetHeartbeat()
+      }
 
       es.onmessage = (event) => {
+        resetHeartbeat()
         try {
           const payload = JSON.parse(event.data)
           if (payload.type === 'new' || payload.type === 'update') {
@@ -172,7 +186,7 @@ export default function HITLQueuePage() {
                 next[idx] = item
                 return next
               }
-              return [item, ...prev]
+              return [item, ...prev].slice(0, MAX_APPROVALS)
             })
           } else if (payload.type === 'remove' || payload.type === 'resolved') {
             const remTraceId = payload.approval?.traceId ?? payload.traceId
@@ -192,9 +206,10 @@ export default function HITLQueuePage() {
       }
 
       es.onerror = () => {
-        setSseStatus('reconnecting')
         es.close()
-        setTimeout(connect, 5000)
+        eventSourceRef.current = null
+        clearTimeout(heartbeatTimeoutRef.current)
+        scheduleReconnect()
       }
 
       eventSourceRef.current = es
@@ -203,6 +218,8 @@ export default function HITLQueuePage() {
     connect()
 
     return () => {
+      clearTimeout(reconnectTimeoutRef.current)
+      clearTimeout(heartbeatTimeoutRef.current)
       if (eventSourceRef.current) eventSourceRef.current.close()
     }
   }, [])
@@ -246,12 +263,43 @@ export default function HITLQueuePage() {
 
   /* -- Gateway HITL SSE watch -- */
   useEffect(() => {
+    const MAX_RECONNECT_ATTEMPTS = 5
+    const HEARTBEAT_TIMEOUT_MS = 30000
     let es
+
+    function resetHeartbeat() {
+      clearTimeout(gwHeartbeatTimeoutRef.current)
+      gwHeartbeatTimeoutRef.current = setTimeout(() => {
+        if (es) {
+          es.close()
+          gwEventSourceRef.current = null
+        }
+        scheduleReconnect()
+      }, HEARTBEAT_TIMEOUT_MS)
+    }
+
+    function scheduleReconnect() {
+      if (gwReconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        setGwSseStatus('disconnected')
+        return
+      }
+      setGwSseStatus('reconnecting')
+      gwReconnectTimeoutRef.current = setTimeout(connectGw, 5000)
+    }
+
     function connectGw() {
+      gwReconnectAttemptsRef.current += 1
       setGwSseStatus('reconnecting')
       es = new EventSource('/api/hitl/approvals/watch', { withCredentials: true })
-      es.onopen = () => setGwSseStatus('connected')
+
+      es.onopen = () => {
+        gwReconnectAttemptsRef.current = 0
+        setGwSseStatus('connected')
+        resetHeartbeat()
+      }
+
       es.onmessage = (event) => {
+        resetHeartbeat()
         try {
           const payload = JSON.parse(event.data)
           if (payload.type === 'new' || payload.type === 'update') {
@@ -262,7 +310,7 @@ export default function HITLQueuePage() {
               const idx = prev.findIndex((a) => a.traceId === tid && a.stepIndex === si)
               const item = payload.approval ?? payload
               if (idx >= 0) { const next = [...prev]; next[idx] = item; return next }
-              return [item, ...prev]
+              return [item, ...prev].slice(0, MAX_APPROVALS)
             })
           } else if (payload.type === 'remove' || payload.type === 'resolved') {
             const tid = payload.approval?.traceId ?? payload.traceId
@@ -271,11 +319,24 @@ export default function HITLQueuePage() {
           }
         } catch { /* keepalive */ }
       }
-      es.onerror = () => { setGwSseStatus('reconnecting'); es.close(); setTimeout(connectGw, 5000) }
+
+      es.onerror = () => {
+        es.close()
+        gwEventSourceRef.current = null
+        clearTimeout(gwHeartbeatTimeoutRef.current)
+        scheduleReconnect()
+      }
+
       gwEventSourceRef.current = es
     }
+
     connectGw()
-    return () => { if (gwEventSourceRef.current) gwEventSourceRef.current.close() }
+
+    return () => {
+      clearTimeout(gwReconnectTimeoutRef.current)
+      clearTimeout(gwHeartbeatTimeoutRef.current)
+      if (gwEventSourceRef.current) gwEventSourceRef.current.close()
+    }
   }, [])
 
   /* -- Gateway HITL decision -- */

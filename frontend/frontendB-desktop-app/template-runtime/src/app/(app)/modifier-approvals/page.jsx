@@ -108,20 +108,65 @@ export default function ModifierApprovalsPage() {
     fetchData()
   }, [fetchData])
 
-  // SSE watch for live badge updates
+  // SSE watch for live badge updates with heartbeat and reconnect
   useEffect(() => {
-    const es = new EventSource('/api/openclaw/modifier/approvals/watch')
-    eventSourceRef.current = es
-    es.onmessage = () => {
-      setWatchCount((c) => c + 1)
+    let es = null
+    let reconnectTimeout = null
+    let heartbeatTimeout = null
+    let reconnectAttempts = 0
+    const MAX_RECONNECT = 5
+    const HEARTBEAT_MS = 30000
+    let mounted = true
+
+    function resetHeartbeat() {
+      clearTimeout(heartbeatTimeout)
+      heartbeatTimeout = setTimeout(() => {
+        if (es) { es.close(); reconnect() }
+      }, HEARTBEAT_MS)
     }
-    es.addEventListener('approval', () => {
+
+    function reconnect() {
+      if (!mounted) return
+      if (reconnectAttempts >= MAX_RECONNECT) return
+      reconnectAttempts++
+      reconnectTimeout = setTimeout(connect, 5000)
+    }
+
+    const approvalHandler = () => {
       fetchData()
-    })
-    es.onerror = () => {
-      es.close()
     }
-    return () => es.close()
+
+    function connect() {
+      if (!mounted) return
+      es = new EventSource('/api/openclaw/modifier/approvals/watch')
+      eventSourceRef.current = es
+      es.onopen = () => {
+        reconnectAttempts = 0
+        resetHeartbeat()
+      }
+      es.onmessage = () => {
+        resetHeartbeat()
+        setWatchCount((c) => c + 1)
+      }
+      es.addEventListener('approval', approvalHandler)
+      es.onerror = () => {
+        es.removeEventListener('approval', approvalHandler)
+        es.close()
+        reconnect()
+      }
+    }
+
+    connect()
+
+    return () => {
+      mounted = false
+      clearTimeout(reconnectTimeout)
+      clearTimeout(heartbeatTimeout)
+      if (es) {
+        es.removeEventListener('approval', approvalHandler)
+        es.close()
+      }
+    }
   }, [fetchData])
 
   async function handleDecision() {

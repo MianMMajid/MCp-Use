@@ -1,18 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { loadJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
 export const sections = [
   { title: 'Runs list', id: 'runs-list' },
 ]
-
-async function loadJson(path) {
-  const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
 
 function SkeletonList() {
   return (

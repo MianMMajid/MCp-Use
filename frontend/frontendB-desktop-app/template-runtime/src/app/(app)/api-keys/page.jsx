@@ -81,19 +81,7 @@ export default function ApiKeysPage() {
   }
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const data = await loadJson('/api/user/api-keys')
-        if (cancelled) return
-        setKeys(data?.items || [])
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
+    fetchKeys()
   }, [])
 
   async function handleCreateKey(e) {
@@ -106,7 +94,7 @@ export default function ApiKeysPage() {
       if (newKeyExpires) body.expiresAt = newKeyExpires
 
       const res = await postJson('/api/user/api-keys', body)
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
 
       if (res.ok && data.ok) {
         setRevealedToken(data.key.token)
@@ -134,21 +122,10 @@ export default function ApiKeysPage() {
     setMessage('')
 
     try {
-      const res = await fetch(`/api/user/api-keys/${deleteTarget.id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-      })
-      const data = await res.json()
-
-      if (res.ok && data.ok) {
-        setKeys((prev) => (prev || []).filter((k) => k.id !== deleteTarget.id))
-        setMessage(`API key "${deleteTarget.name}" deleted.`)
-        setMessageType('success')
-      } else {
-        setMessage(data.error || 'Could not delete API key.')
-        setMessageType('error')
-      }
+      await deleteJson(`/api/user/api-keys/${deleteTarget.id}`)
+      setKeys((prev) => (prev || []).filter((k) => k.id !== deleteTarget.id))
+      setMessage(`API key "${deleteTarget.name}" deleted.`)
+      setMessageType('success')
     } catch {
       setMessage('Failed to delete API key.')
       setMessageType('error')

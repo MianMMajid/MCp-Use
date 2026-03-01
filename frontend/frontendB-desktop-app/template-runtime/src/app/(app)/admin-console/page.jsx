@@ -105,25 +105,62 @@ export default function AdminConsolePage() {
   useEffect(() => {
     const cancel = fetchAll()
 
-    // SSE live updates for approvals
-    let es
-    try {
-      es = new EventSource('/admin/api/approvals/watch')
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.approvals) {
-            setApprovals(Array.isArray(data.approvals) ? data.approvals : [])
-          } else if (data.type === 'update') {
-            fetchAll()
-          }
-        } catch { /* ignore */ }
-      }
-      es.onerror = () => { /* reconnect handled by EventSource */ }
-    } catch { /* SSE not available */ }
+    // SSE live updates for approvals with heartbeat and reconnect
+    let es = null
+    let reconnectTimeout = null
+    let heartbeatTimeout = null
+    let reconnectAttempts = 0
+    const MAX_RECONNECT = 5
+    const HEARTBEAT_MS = 30000
+    let mounted = true
+
+    function resetHeartbeat() {
+      clearTimeout(heartbeatTimeout)
+      heartbeatTimeout = setTimeout(() => {
+        if (es) { es.close(); reconnect() }
+      }, HEARTBEAT_MS)
+    }
+
+    function reconnect() {
+      if (!mounted) return
+      if (reconnectAttempts >= MAX_RECONNECT) return
+      reconnectAttempts++
+      reconnectTimeout = setTimeout(connect, 5000)
+    }
+
+    function connect() {
+      if (!mounted) return
+      try {
+        es = new EventSource('/admin/api/approvals/watch')
+        es.onopen = () => {
+          reconnectAttempts = 0
+          resetHeartbeat()
+        }
+        es.onmessage = (event) => {
+          resetHeartbeat()
+          try {
+            const data = JSON.parse(event.data)
+            if (data.approvals) {
+              setApprovals(Array.isArray(data.approvals) ? data.approvals : [])
+            } else if (data.type === 'update') {
+              fetchAll()
+            }
+          } catch { /* ignore */ }
+        }
+        es.onerror = () => {
+          es.close()
+          reconnect()
+        }
+      } catch { /* SSE not available */ }
+    }
+
+    connect()
 
     return () => {
+      mounted = false
       cancel()
+      clearTimeout(reconnectTimeout)
+      clearTimeout(heartbeatTimeout)
       if (es) es.close()
     }
   }, [])

@@ -86,7 +86,7 @@ export default function UsagePage() {
     try {
       const body = overrideInput.trim() ? JSON.parse(overrideInput) : {}
       const res = await postJson('/api/limits/override', body)
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setMessage(
           data.message ?? 'Override request submitted.',

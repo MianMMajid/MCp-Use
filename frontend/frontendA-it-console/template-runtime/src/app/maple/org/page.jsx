@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { loadJson, postJson, patchJson, deleteJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -12,28 +13,20 @@ export const sections = [
   { title: 'Roles', id: 'roles' },
 ]
 
-async function loadJson(path) {
-  const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function patchJson(path, body) {
-  const res = await fetch(path, { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function deleteJson(path) {
-  const res = await fetch(path, { method: 'DELETE', credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
+function ConfirmDialog({ open, title, message, onConfirm, onCancel }) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-zinc-900">
+        <h3 className="text-base font-semibold text-zinc-950 dark:text-white">{title}</h3>
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{message}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm}>Confirm</Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function SkeletonList() {
@@ -62,6 +55,8 @@ export default function OrgPage() {
   const [members, setMembers] = useState(null)
   const [invites, setInvites] = useState(null)
   const [roles, setRoles] = useState(null)
+
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null)
 
   // Create org form
   const [newOrgName, setNewOrgName] = useState('')
@@ -251,7 +246,7 @@ export default function OrgPage() {
                             <span className="text-sm font-medium text-zinc-950 dark:text-white">{m.email || m.username || uid}</span>
                             {m.role && <Tag className="ml-2" color="zinc" variant="small">{m.role}</Tag>}
                           </div>
-                          <Button variant="secondary" disabled={actionLoading === `remove-${uid}`} onClick={() => removeMember(uid)}>
+                          <Button variant="secondary" disabled={actionLoading === `remove-${uid}`} onClick={() => setConfirmRemoveId(uid)}>
                             {actionLoading === `remove-${uid}` ? 'Removing...' : 'Remove'}
                           </Button>
                         </div>
@@ -322,6 +317,13 @@ export default function OrgPage() {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmRemoveId !== null}
+        title="Remove Member"
+        message="Are you sure you want to remove this member from the organization?"
+        onConfirm={() => { removeMember(confirmRemoveId); setConfirmRemoveId(null) }}
+        onCancel={() => setConfirmRemoveId(null)}
+      />
     </article>
   )
 }

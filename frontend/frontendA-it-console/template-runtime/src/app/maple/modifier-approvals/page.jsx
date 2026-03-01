@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
 
@@ -10,18 +11,6 @@ export const sections = [
   { title: 'Connection', id: 'connection' },
   { title: 'Execute', id: 'execute' },
 ]
-
-async function loadJson(path) {
-  const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
-
-async function postJson(path, body) {
-  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
-}
 
 function SkeletonCard() {
   return (
@@ -67,6 +56,8 @@ function ReasonDialog({ onSubmit, onCancel }) {
   )
 }
 
+const MAX_APPROVALS = 500
+
 export default function ModifierApprovalsPage() {
   const [capabilities, setCapabilities] = useState(null)
   const [approvals, setApprovals] = useState(null)
@@ -79,6 +70,9 @@ export default function ModifierApprovalsPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [detail, setDetail] = useState(null)
   const eventSourceRef = useRef(null)
+  const reconnectTimeoutRef = useRef(null)
+  const heartbeatTimeoutRef = useRef(null)
+  const reconnectAttemptsRef = useRef(0)
 
   // Execute form
   const [execPayload, setExecPayload] = useState('')
@@ -104,12 +98,44 @@ export default function ModifierApprovalsPage() {
 
   // SSE watch
   useEffect(() => {
+    const MAX_RECONNECT_ATTEMPTS = 5
+    const HEARTBEAT_TIMEOUT_MS = 30000
     let es
+
+    function resetHeartbeat() {
+      clearTimeout(heartbeatTimeoutRef.current)
+      heartbeatTimeoutRef.current = setTimeout(() => {
+        // No message received within 30s — close and reconnect
+        if (es) {
+          es.close()
+          eventSourceRef.current = null
+        }
+        scheduleReconnect()
+      }, HEARTBEAT_TIMEOUT_MS)
+    }
+
+    function scheduleReconnect() {
+      if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        setSseStatus('disconnected')
+        return
+      }
+      setSseStatus('reconnecting')
+      reconnectTimeoutRef.current = setTimeout(connect, 5000)
+    }
+
     function connect() {
+      reconnectAttemptsRef.current += 1
       setSseStatus('reconnecting')
       es = new EventSource('/api/openclaw/modifier/approvals/watch', { withCredentials: true })
-      es.onopen = () => setSseStatus('connected')
+
+      es.onopen = () => {
+        reconnectAttemptsRef.current = 0
+        setSseStatus('connected')
+        resetHeartbeat()
+      }
+
       es.onmessage = (event) => {
+        resetHeartbeat()
         try {
           const payload = JSON.parse(event.data)
           if (payload.eventType === 'new' || payload.eventType === 'update') {
@@ -117,18 +143,31 @@ export default function ModifierApprovalsPage() {
               if (!prev) return [payload]
               const idx = prev.findIndex((a) => a.approvalId === payload.approvalId)
               if (idx >= 0) { const next = [...prev]; next[idx] = payload; return next }
-              return [payload, ...prev]
+              return [payload, ...prev].slice(0, MAX_APPROVALS)
             })
           } else if (payload.eventType === 'resolved' || payload.eventType === 'remove') {
             setApprovals((prev) => prev ? prev.filter((a) => a.approvalId !== payload.approvalId) : prev)
           }
         } catch { /* keepalive */ }
       }
-      es.onerror = () => { setSseStatus('reconnecting'); es.close(); setTimeout(connect, 5000) }
+
+      es.onerror = () => {
+        es.close()
+        eventSourceRef.current = null
+        clearTimeout(heartbeatTimeoutRef.current)
+        scheduleReconnect()
+      }
+
       eventSourceRef.current = es
     }
+
     connect()
-    return () => { if (eventSourceRef.current) eventSourceRef.current.close() }
+
+    return () => {
+      clearTimeout(reconnectTimeoutRef.current)
+      clearTimeout(heartbeatTimeoutRef.current)
+      if (eventSourceRef.current) eventSourceRef.current.close()
+    }
   }, [])
 
   async function handleDecision(approvalId, action, reason) {

@@ -70,7 +70,11 @@ export default function SessionsPage() {
         const data = await loadJson(`/api/openclaw/agent/sessions${qs ? `?${qs}` : ''}`)
         if (cancelled) return
         const items = Array.isArray(data?.sessions) ? data.sessions : Array.isArray(data?.items) ? data.items : []
-        setSessions((prev) => nextCursor && prev ? [...prev, ...items] : items)
+        const MAX_SESSIONS = 1000
+        setSessions((prev) => {
+          const merged = nextCursor && prev ? [...prev, ...items] : items
+          return merged.slice(-MAX_SESSIONS)
+        })
         setCursor(data?.nextCursor || data?.cursor || null)
       } catch (err) {
         if (!cancelled) {
