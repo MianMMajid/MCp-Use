@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, accessSync } from "node:fs";
 import { createServer as createHttpsServer } from "node:https";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
-import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, } from "./config.js";
+import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, isProductionRuntime, } from "./config.js";
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus } from "./state.js";
+function canReadFile(p) { try { accessSync(p); return true; } catch { return false; } }
 async function main() {
     mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost });
     const { server, shutdown } = await createApp();
@@ -14,27 +15,30 @@ async function main() {
         routeSummary: runtimeStatus.routeSummary,
         activeDownstreamCount: runtimeStatus.activeDownstreamCount,
     });
-    const tlsConfig = {
-        cert: readFileSync(gatewayTlsCertPath),
-        key: readFileSync(gatewayTlsKeyPath),
-        ca: readFileSync(gatewayTlsCaPath),
-    };
     const fetchHandler = await server.getHandler();
-    const httpServer = serve({
-        fetch: fetchHandler,
-        hostname: gatewayHost,
-        port: gatewayPort,
-        createServer: createHttpsServer,
-        serverOptions: {
-            cert: tlsConfig.cert,
-            key: tlsConfig.key,
-            ca: tlsConfig.ca,
-        },
-    }, (info) => {
+    const tlsAvailable = canReadFile(gatewayTlsCertPath) && canReadFile(gatewayTlsKeyPath);
+    const useHttps = tlsAvailable && gatewayTlsCertPath !== "/dev/null";
+    if (!useHttps && isProductionRuntime) {
+        throw new Error("TLS certificates are required in production. Set MAPLE_GATEWAY_TLS_CERT/KEY.");
+    }
+    const serveOpts = { fetch: fetchHandler, hostname: gatewayHost, port: gatewayPort };
+    if (useHttps) {
+        const tlsConfig = {
+            cert: readFileSync(gatewayTlsCertPath),
+            key: readFileSync(gatewayTlsKeyPath),
+            ca: canReadFile(gatewayTlsCaPath) ? readFileSync(gatewayTlsCaPath) : undefined,
+        };
+        serveOpts.createServer = createHttpsServer;
+        serveOpts.serverOptions = { cert: tlsConfig.cert, key: tlsConfig.key, ca: tlsConfig.ca };
+    } else {
+        mapleLog("warn", "gateway_api.no_tls", { message: "Running without TLS (development only)" });
+    }
+    const protocol = useHttps ? "https" : "http";
+    const httpServer = serve(serveOpts, (info) => {
         mapleLog("info", "gateway_api.listening", {
             port: info.port,
             host: info.address,
-            protocol: "https",
+            protocol,
         });
     });
     let shuttingDown = false;

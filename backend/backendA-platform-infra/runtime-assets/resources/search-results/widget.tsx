@@ -1,0 +1,80 @@
+import { useWidget, type WidgetMetadata } from "mcp-use/react";
+import type React from "react";
+import type { SearchResultsWidgetProps } from "../../src/core/widget-schemas";
+import { isSafeUrl } from '../shared/url-validation';
+import "../styles.css";
+
+export const widgetMetadata: WidgetMetadata = {
+  title: "Search Results",
+  description: "Ranked search results with title, URL, and snippet.",
+  exposeAsTool: false,
+  metadata: {
+    autoResize: true,
+    prefersBorder: true,
+  },
+};
+
+const SearchResultsWidget: React.FC = () => {
+  const { props, isPending } = useWidget<SearchResultsWidgetProps>();
+
+  if (isPending || !props.results) {
+    return (
+      <section className="cc-card cc-loading">
+        <div className="cc-spinner" />
+        <p>Searching...</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="cc-card">
+      <header className="cc-header">
+        <div>
+          <p className="cc-eyebrow">{props.source ?? "Search"}</p>
+          <h2>{props.query}</h2>
+          <p className="cc-meta">
+            {props.results.length} result{props.results.length !== 1 ? "s" : ""}
+            {props.totalResults != null ? ` of ${props.totalResults}` : ""}
+          </p>
+        </div>
+      </header>
+
+      {props.results.length === 0 ? (
+        <div className="cc-pane" style={{ textAlign: "center", padding: "1.5rem 1rem" }}>
+          <p style={{ margin: 0, opacity: 0.6, fontSize: "0.9rem" }}>No results found for &ldquo;{props.query}&rdquo;.</p>
+        </div>
+      ) : (
+        <div className="cc-timeline" role="list">
+          {props.results.slice(0, 50).map((item, i) => (
+            <article key={item.url ?? `result-${i}`} className="cc-timeline-item" role="listitem">
+              <div className="cc-marker cc-risk-low" aria-hidden />
+              <div className="cc-step-main">
+                <div className="cc-step-row">
+                  <strong>{item.title}</strong>
+                  {item.source ? (
+                    <span className="cc-chip cc-chip-muted">{item.source}</span>
+                  ) : null}
+                </div>
+                {isSafeUrl(item.url) ? (
+                  <a href={item.url.trim()} target="_blank" rel="noopener noreferrer" className="cc-link">
+                    {item.url.trim()}
+                  </a>
+                ) : null}
+                {item.snippet ? <p>{item.snippet}</p> : null}
+              </div>
+            </article>
+          ))}
+          {props.results.length > 50 ? (
+            <p className="cc-meta" style={{ textAlign: "center", padding: "0.5rem" }}>
+              …and {props.results.length - 50} more results
+            </p>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+};
+
+import { WidgetErrorBoundary } from "../shared/ErrorBoundary";
+const WrappedSearchResultsWidget: React.FC = () => <WidgetErrorBoundary><SearchResultsWidget /></WidgetErrorBoundary>;
+export default WrappedSearchResultsWidget;
