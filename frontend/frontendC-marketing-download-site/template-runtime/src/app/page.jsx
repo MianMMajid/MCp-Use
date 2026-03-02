@@ -8,7 +8,7 @@ import { PrimaryFeatures } from '@/components/PrimaryFeatures'
 import { SecondaryFeatures } from '@/components/SecondaryFeatures'
 import { Testimonials } from '@/components/Testimonials'
 import { Container } from '@/components/Container'
-import { Button } from '@/components/Button'
+import { DownloadSection } from '@/components/DownloadSection'
 
 export default function Home() {
   return (
@@ -34,23 +34,7 @@ export default function Home() {
         <CallToAction />
         <Testimonials />
         <Pricing />
-        <section id="download" className="py-20 sm:py-24">
-          <Container className="rounded-3xl bg-zinc-50 p-8 ring-1 ring-zinc-900/5 sm:p-12">
-            <h3 className="font-display text-2xl tracking-tight text-zinc-900">Desktop app</h3>
-            <p className="mt-3 max-w-2xl text-sm text-zinc-700">
-              Download Maple Desktop to orchestrate agents, review approvals, and monitor runtime status from one place.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button href="https://github.com/omar2001ramadan/Mayple/releases/">Download for macOS</Button>
-              <Button href="https://github.com/omar2001ramadan/Mayple/releases/" variant="outline">
-                Download for Windows
-              </Button>
-            </div>
-            <p className="mt-3 text-xs text-zinc-500">
-              Requires macOS 12+ or Windows 10+
-            </p>
-          </Container>
-        </section>
+        <DownloadSection />
         <Faqs />
       </main>
       <Footer />

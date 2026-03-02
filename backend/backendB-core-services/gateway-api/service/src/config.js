@@ -168,6 +168,7 @@ export const firewallChatOpenAiModel = requireEnv("MAPLE_FIREWALL_CHAT_OPENAI_MO
 export const firewallChatAnthropicModel = requireEnv("MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL");
 export const firewallChatTimeoutMs = requireEnvInt("MAPLE_FIREWALL_CHAT_TIMEOUT_MS", { min: 2000, max: 60000 });
 export const firewallChatAiEnabled = Boolean(firewallChatOpenAiApiKey || firewallChatAnthropicApiKey);
+export const sessionCookieDomain = (process.env.MAPLE_SESSION_COOKIE_DOMAIN ?? "").trim() || "";
 export const sessionCookieName = requireEnv("MAPLE_SESSION_COOKIE_NAME");
 export const sessionTtlSeconds = requireEnvInt("MAPLE_SESSION_TTL_SECONDS", { min: 60 });
 export const allowSelfSignup = requireEnvBool("MAPLE_AUTH_ALLOW_SELF_SIGNUP");

@@ -1,4 +1,4 @@
-import { sessionCookieName } from "./config.js";
+import { sessionCookieName, sessionCookieDomain } from "./config.js";
 export function parseCookieHeader(header) {
     if (!header) {
         return {};
@@ -28,6 +28,7 @@ export function buildSessionCookie(sessionId, maxAgeSeconds) {
         "SameSite=Lax",
         `Max-Age=${Math.max(0, Math.trunc(maxAgeSeconds))}`,
     ];
+    if (sessionCookieDomain) parts.push(`Domain=${sessionCookieDomain}`);
     if (process.env.NODE_ENV === "production") {
         parts.push("Secure");
     }
@@ -41,6 +42,7 @@ export function clearSessionCookieHeader() {
         "SameSite=Lax",
         "Max-Age=0",
     ];
+    if (sessionCookieDomain) parts.push(`Domain=${sessionCookieDomain}`);
     if (process.env.NODE_ENV === "production") {
         parts.push("Secure");
     }

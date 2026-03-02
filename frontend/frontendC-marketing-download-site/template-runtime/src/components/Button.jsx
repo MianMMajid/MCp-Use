@@ -24,7 +24,7 @@ const variantStyles = {
   },
 }
 
-export function Button({ className, ...props }) {
+export function Button({ className, external, ...props }) {
   props.variant ??= 'solid'
   props.color ??= 'zinc'
 
@@ -40,6 +40,8 @@ export function Button({ className, ...props }) {
 
   return typeof props.href === 'undefined' ? (
     <button className={className} {...props} />
+  ) : external ? (
+    <a className={className} {...props} />
   ) : (
     <Link className={className} {...props} />
   )

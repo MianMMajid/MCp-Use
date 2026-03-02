@@ -62,6 +62,7 @@ for (const [plan, priceId] of Object.entries(STRIPE_PLAN_PRICE_IDS)) {
 }
 
 export const billingEnabled = Boolean(stripeSecretKey || stripeWebhookSecret);
+export const sessionCookieDomain = (process.env.MAPLE_SESSION_COOKIE_DOMAIN ?? "").trim() || "";
 export const sessionCookieName = requireEnv("MAPLE_SESSION_COOKIE_NAME");
 export const sessionTtlSeconds = requireEnvInt("MAPLE_SESSION_TTL_SECONDS", { min: 60 });
 export const allowSelfSignup = requireEnvBool("MAPLE_AUTH_ALLOW_SELF_SIGNUP");
