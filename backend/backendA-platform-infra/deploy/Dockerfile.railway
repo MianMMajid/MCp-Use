@@ -23,9 +23,14 @@ RUN npm ci
 # Copy source and build
 COPY . .
 
-# Recreate dist->src symlinks for workspace packages (.dockerignore strips dist/)
+# Ensure workspace package dist/ dirs exist (symlinked packages need recreation)
 RUN for pkg in maple-common maple-persistence maple-security; do \
       ln -sfn src "backend/backendB-core-services/shared/packages/${pkg}/dist"; \
+    done && \
+    echo "Workspace dist check:" && \
+    for pkg in maple-risk-engine maple-types maple-proto-ts; do \
+      dir="backend/backendB-core-services/shared/packages/${pkg}/dist"; \
+      echo "  ${pkg}: $(ls ${dir} 2>/dev/null | wc -l) files"; \
     done
 
 RUN npm run template:install
@@ -65,7 +70,6 @@ RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>
     && chown -R 1000:1000 /app \
     && mkdir -p /tmp/tls && chown 1000:1000 /tmp/tls
 
-# NODE_ENV is set by the entrypoint (staging by default for Railway)
 ENV HOST=0.0.0.0
 
 # Railway injects PORT dynamically — the entrypoint maps it to GATEWAY_PORT

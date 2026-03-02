@@ -1,0 +1,27 @@
+# Railway upload ignore (overrides .gitignore for `railway up`)
+# We need workspace package dist/ dirs that .gitignore excludes
+
+node_modules/
+**/.next
+.mcp-use/
+*.tsbuildinfo
+.env.local
+.demo-secrets.env
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+/backend/backendB-core-services/maple-monolith/
+mcp-firewall-reference/
+/frontend/frontendB-desktop-app/node_modules/
+/frontend/frontendB-desktop-app/installers/dist/
+/frontend/frontendB-desktop-app/bridge-runtime/
+/backend/backendA-platform-infra/certs/*
+/tests/
+/playwright-report/
+/backend/backendA-platform-infra/deploy/northflank/
+.git
+.claude
