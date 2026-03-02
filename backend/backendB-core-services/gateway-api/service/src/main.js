@@ -4,17 +4,15 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, } from "./config.js";
 import { mapleLog } from "./logging.js";
-import { buildRuntimeStatus } from "./state.js";
+import { buildRuntimeStatus, server } from "./state.js";
+import { healthRoutes } from "./routes/health.js";
 const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
 async function main() {
     mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost, tls: !disableTls });
-    const { server, shutdown } = await createApp();
-    const runtimeStatus = buildRuntimeStatus();
-    mapleLog("info", "gateway_api.runtime_status", {
-        routeMode: runtimeStatus.routeMode,
-        routeSummary: runtimeStatus.routeSummary,
-        activeDownstreamCount: runtimeStatus.activeDownstreamCount,
-    });
+    // Register health routes EARLY so /health is reachable during initialization.
+    // Without this, Railway healthchecks fail because createApp() blocks for
+    // 30-60+ seconds on dependency checks, DB init, and OpenClaw bootstrap.
+    server.app.route("/", healthRoutes);
     const fetchHandler = await server.getHandler();
     const serveOptions = {
         fetch: fetchHandler,
@@ -41,6 +39,15 @@ async function main() {
             host: info.address,
             protocol,
         });
+    });
+    // Full app initialization runs AFTER the server is listening.
+    // Routes registered by createApp() will be picked up dynamically by Hono.
+    const { shutdown } = await createApp();
+    const runtimeStatus = buildRuntimeStatus();
+    mapleLog("info", "gateway_api.runtime_status", {
+        routeMode: runtimeStatus.routeMode,
+        routeSummary: runtimeStatus.routeSummary,
+        activeDownstreamCount: runtimeStatus.activeDownstreamCount,
     });
     let shuttingDown = false;
     const shutdownHandler = async (signal) => {

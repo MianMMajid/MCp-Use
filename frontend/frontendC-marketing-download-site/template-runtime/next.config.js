@@ -1,3 +1,5 @@
+const path = require('node:path')
+
 /** @type {import('next').NextConfig} */
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
@@ -35,6 +37,7 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 const nextConfig = {
+  outputFileTracingRoot: path.resolve(__dirname, '../../../'),
   async rewrites() {
     return [
       {

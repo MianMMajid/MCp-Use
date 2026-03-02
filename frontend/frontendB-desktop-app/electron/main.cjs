@@ -31,7 +31,8 @@ let tray = null;
 let trayPollTimer = null;
 
 const defaultGatewayUrl = process.env.MAPLE_DESKTOP_GATEWAY_URL ?? "http://127.0.0.1:3000/judge";
-const defaultDesktopUiUrl = process.env.MAPLE_DESKTOP_UI_URL ?? "http://127.0.0.1:4102";
+const defaultDesktopUiUrl = process.env.MAPLE_DESKTOP_UI_URL
+  ?? (app.isPackaged ? "https://app.mayple.cloud" : "http://127.0.0.1:4102");
 const runtimeController = createRuntimeController();
 const secureStoreFilename = "maple-desktop-secure-store.json";
 

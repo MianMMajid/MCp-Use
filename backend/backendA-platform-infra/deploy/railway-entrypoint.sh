@@ -281,8 +281,8 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
     export MCP_PROXY_PORT="${MCP_PROXY_PORT:-9200}"
     export MCP_PROXY_HOST="${MCP_PROXY_HOST:-0.0.0.0}"
-    export DOWNSTREAM_APPS="${DOWNSTREAM_APPS:-default}"
-    export MAPLE_DOWNSTREAM_APPS="${MAPLE_DOWNSTREAM_APPS:-default}"
+    export DOWNSTREAM_APPS="${DOWNSTREAM_APPS:-}"
+    export MAPLE_DOWNSTREAM_APPS="${MAPLE_DOWNSTREAM_APPS:-}"
     export MAPLE_TOOL_RUNNER_MODE="${MAPLE_TOOL_RUNNER_MODE:-in-process}"
     export MAPLE_TOOL_RUNNER_IMAGE="${MAPLE_TOOL_RUNNER_IMAGE:-none}"
     export MAPLE_TOOL_RUNNER_JOB_NAMESPACE="${MAPLE_TOOL_RUNNER_JOB_NAMESPACE:-default}"
@@ -347,6 +347,13 @@ case "${MAPLE_SERVICE}" in
   frontendA)
   # ────────────────────────────────────────────────────────────────────────────
     FRONTEND_PORT="${PORT:-8080}"
+    export NODE_ENV=production
+    case "${MAPLE_GATEWAY_ORIGIN:-}" in
+      *localhost*|*127.0.0.1*)
+        echo "[railway-entrypoint] WARN: MAPLE_GATEWAY_ORIGIN points to localhost — overriding to Railway public URL"
+        export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
+        ;;
+    esac
     echo "[railway-entrypoint] Starting frontendA (IT Console) on port ${FRONTEND_PORT}..."
     cd /app/frontend/frontendA-it-console/template-runtime
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
@@ -356,6 +363,14 @@ case "${MAPLE_SERVICE}" in
   frontendB)
   # ────────────────────────────────────────────────────────────────────────────
     FRONTEND_PORT="${PORT:-8080}"
+    export NODE_ENV=production
+    # Override localhost gateway origins — they can't work inside Railway containers
+    case "${MAPLE_GATEWAY_ORIGIN:-}" in
+      *localhost*|*127.0.0.1*)
+        echo "[railway-entrypoint] WARN: MAPLE_GATEWAY_ORIGIN points to localhost — overriding to Railway public URL"
+        export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
+        ;;
+    esac
     echo "[railway-entrypoint] Starting frontendB (Desktop App) on port ${FRONTEND_PORT}..."
     cd /app/frontend/frontendB-desktop-app/template-runtime
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
@@ -365,6 +380,13 @@ case "${MAPLE_SERVICE}" in
   frontendC)
   # ────────────────────────────────────────────────────────────────────────────
     FRONTEND_PORT="${PORT:-8080}"
+    export NODE_ENV=production
+    case "${MAPLE_GATEWAY_ORIGIN:-}" in
+      *localhost*|*127.0.0.1*)
+        echo "[railway-entrypoint] WARN: MAPLE_GATEWAY_ORIGIN points to localhost — overriding to Railway public URL"
+        export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
+        ;;
+    esac
     echo "[railway-entrypoint] Starting frontendC (Marketing/Download Site) on port ${FRONTEND_PORT}..."
     cd /app/frontend/frontendC-marketing-download-site/template-runtime
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0

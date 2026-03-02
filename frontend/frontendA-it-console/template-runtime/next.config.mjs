@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import path from 'node:path'
 import nextMDX from '@next/mdx'
 
 import { recmaPlugins } from './src/mdx/recma.mjs'
@@ -51,8 +52,10 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 /** @type {import('next').NextConfig} */
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
 const nextConfig = {
-  bundler: 'webpack',
+  outputFileTracingRoot: path.resolve(__dirname, '../../../'),
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'mdx'],
   onDemandEntries: {
     maxInactiveAge: 15 * 60 * 1000,

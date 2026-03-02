@@ -8,6 +8,7 @@ files:
   - "!installers/dist/**"
   - "!node_modules/**"
   - "!scripts/**"
+  - "!template-runtime/**"
 artifactName: maple-desktop-${version}-${os}-${arch}.${ext}
 mac:
   identity: null # Set to Developer ID certificate for production: "Developer ID Application: Your Name (TEAMID)"

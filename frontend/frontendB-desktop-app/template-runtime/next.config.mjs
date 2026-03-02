@@ -1,4 +1,7 @@
 import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /** @type {import('next').NextConfig} */
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
@@ -38,7 +41,8 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 const nextConfig = {
-  bundler: 'webpack',
+  outputFileTracingRoot: path.resolve(__dirname, '../../../'),
+  reactCompiler: true,
   onDemandEntries: {
     maxInactiveAge: 24 * 60 * 60 * 1000,
     pagesBufferLength: 64,
@@ -49,7 +53,6 @@ const nextConfig = {
       '@headlessui/react',
       '@heroicons/react',
     ],
-    reactCompiler: true,
     staleTimes: {
       dynamic: 300,
       static: 600,
