@@ -9,7 +9,7 @@ set -euo pipefail
 # Supported MAPLE_SERVICE values:
 #   gateway-api (default), admin-console-api, context-wall, model-router,
 #   mcp-proxy, tool-runner, cyber-proxy, secrets-broker, audit-writer,
-#   frontendA, frontendB
+#   frontendA, frontendB, frontendC
 # ──────────────────────────────────────────────────────────────────────────────
 
 MAPLE_SERVICE="${MAPLE_SERVICE:-gateway-api}"
@@ -356,11 +356,20 @@ case "${MAPLE_SERVICE}" in
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
+  frontendC)
+  # ────────────────────────────────────────────────────────────────────────────
+    FRONTEND_PORT="${PORT:-8080}"
+    echo "[railway-entrypoint] Starting frontendC (Marketing/Download Site) on port ${FRONTEND_PORT}..."
+    cd /app/frontend/frontendC-marketing-download-site/template-runtime
+    exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
+    ;;
+
+  # ────────────────────────────────────────────────────────────────────────────
   *)
     echo "[railway-entrypoint] ERROR: Unknown MAPLE_SERVICE='${MAPLE_SERVICE}'"
     echo "Valid values: gateway-api, admin-console-api, context-wall, model-router,"
     echo "  mcp-proxy, tool-runner, cyber-proxy, secrets-broker, audit-writer,"
-    echo "  frontendA, frontendB"
+    echo "  frontendA, frontendB, frontendC"
     exit 1
     ;;
 esac
