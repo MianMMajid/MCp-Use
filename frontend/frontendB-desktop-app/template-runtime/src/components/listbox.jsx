@@ -1,13 +1,13 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
+import { Listbox as HeadlessListbox, ListboxButton, ListboxOptions, ListboxOption as HeadlessListboxOption, ListboxSelectedOption } from '@headlessui/react'
 import clsx from 'clsx'
 import { Fragment } from 'react'
 
 export function Listbox({ className, placeholder, autoFocus, 'aria-label': ariaLabel, children: options, ...props }) {
   return (
-    <Headless.Listbox {...props} multiple={false}>
-      <Headless.ListboxButton
+    <HeadlessListbox {...props} multiple={false}>
+      <ListboxButton
         autoFocus={autoFocus}
         data-slot="control"
         aria-label={ariaLabel}
@@ -27,7 +27,7 @@ export function Listbox({ className, placeholder, autoFocus, 'aria-label': ariaL
           'data-disabled:opacity-50 data-disabled:before:bg-zinc-950/5 data-disabled:before:shadow-none',
         ])}
       >
-        <Headless.ListboxSelectedOption
+        <ListboxSelectedOption
           as="span"
           options={options}
           placeholder={placeholder && <span className="block truncate text-zinc-500">{placeholder}</span>}
@@ -61,8 +61,8 @@ export function Listbox({ className, placeholder, autoFocus, 'aria-label': ariaL
             <path d="M10.25 5.25L8 3L5.75 5.25" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-      </Headless.ListboxButton>
-      <Headless.ListboxOptions
+      </ListboxButton>
+      <ListboxOptions
         transition
         anchor="selection start"
         className={clsx(
@@ -83,8 +83,8 @@ export function Listbox({ className, placeholder, autoFocus, 'aria-label': ariaL
         )}
       >
         {options}
-      </Headless.ListboxOptions>
-    </Headless.Listbox>
+      </ListboxOptions>
+    </HeadlessListbox>
   )
 }
 
@@ -101,7 +101,7 @@ export function ListboxOption({ children, className, ...props }) {
   )
 
   return (
-    <Headless.ListboxOption as={Fragment} {...props}>
+    <HeadlessListboxOption as={Fragment} {...props}>
       {({ selectedOption }) => {
         if (selectedOption) {
           return <div className={clsx(className, sharedClasses)}>{children}</div>
@@ -134,7 +134,7 @@ export function ListboxOption({ children, className, ...props }) {
           </div>
         )
       }}
-    </Headless.ListboxOption>
+    </HeadlessListboxOption>
   )
 }
 

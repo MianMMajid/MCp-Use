@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { PageManager, _visitedPages } from './page-manager'
 import { Avatar } from '@/components/avatar'
 import {
   Dropdown,
@@ -62,6 +62,40 @@ import {
   ClipboardDocumentListIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
+
+// Pre-cache all sidebar route RSC payloads on mount (works in dev mode unlike <Link prefetch>)
+const ALL_SIDEBAR_ROUTES = [
+  '/', '/events', '/sessions', '/runs', '/firewall', '/orders',
+  '/modifier-approvals', '/modifier-observability', '/modifier-ops',
+  '/tool-registry', '/downstream', '/diagnostics', '/cli-tools',
+  '/agent-chat', '/community', '/demo', '/settings', '/billing',
+  '/usage', '/integrations', '/organization', '/api-keys',
+  '/service-accounts', '/profile', '/admin-console',
+]
+
+function useRoutePrefetch() {
+  const router = useRouter()
+  useEffect(() => {
+    let i = 0
+    const id = setInterval(() => {
+      if (i >= ALL_SIDEBAR_ROUTES.length) { clearInterval(id); return }
+      router.prefetch(ALL_SIDEBAR_ROUTES[i])
+      i++
+    }, 150)
+    return () => clearInterval(id)
+  }, [router])
+}
+
+// For sidebar links to visited pages: bypass Next.js RSC fetch, use pushState
+function sidebarClick(href) {
+  return (e) => {
+    if (_visitedPages.has(href)) {
+      e.preventDefault()
+      window.history.pushState({}, '', href)
+    }
+  }
+}
 
 async function handleSignOut(router) {
   try {
@@ -113,13 +147,7 @@ function AccountDropdownMenu({ anchor, router }) {
 export function ApplicationLayout({ events, children }) {
   let pathname = usePathname()
   const router = useRouter()
-
-  // Session check on mount
-  useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then((res) => { if (res.status === 401) router.push('/login') })
-      .catch(() => {})
-  }, [router])
+  useRoutePrefetch()
 
   return (
     <SidebarLayout
@@ -141,7 +169,7 @@ export function ApplicationLayout({ events, children }) {
           <SidebarHeader>
             <Dropdown>
               <DropdownButton as={SidebarItem}>
-                <Avatar src="/teams/catalyst.svg" />
+                <Avatar src="/teams/maple.svg" />
                 <SidebarLabel>Mayple Desktop</SidebarLabel>
                 <ChevronDownIcon />
               </DropdownButton>
@@ -152,7 +180,7 @@ export function ApplicationLayout({ events, children }) {
                 </DropdownItem>
                 <DropdownDivider />
                 <DropdownItem href="/">
-                  <Avatar slot="icon" src="/teams/catalyst.svg" />
+                  <Avatar slot="icon" src="/teams/maple.svg" />
                   <DropdownLabel>Mayple Desktop</DropdownLabel>
                 </DropdownItem>
                 <DropdownItem href="/organization">
@@ -172,19 +200,19 @@ export function ApplicationLayout({ events, children }) {
             {/* Core */}
             <SidebarSection>
               <SidebarHeading>Core</SidebarHeading>
-              <SidebarItem href="/" current={pathname === '/'}>
+              <SidebarItem href="/" current={pathname === '/'} onClick={sidebarClick('/')}>
                 <HomeIcon />
                 <SidebarLabel>Workspace</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/events" current={pathname.startsWith('/events')}>
+              <SidebarItem href="/events" current={pathname.startsWith('/events')} onClick={sidebarClick('/events')}>
                 <Square2StackIcon />
                 <SidebarLabel>Agents</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/sessions" current={pathname.startsWith('/sessions')}>
+              <SidebarItem href="/sessions" current={pathname.startsWith('/sessions')} onClick={sidebarClick('/sessions')}>
                 <Square2StackIcon />
                 <SidebarLabel>Sessions</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/runs" current={pathname.startsWith('/runs')}>
+              <SidebarItem href="/runs" current={pathname.startsWith('/runs')} onClick={sidebarClick('/runs')}>
                 <PlayCircleIcon />
                 <SidebarLabel>Runs</SidebarLabel>
               </SidebarItem>
@@ -193,23 +221,23 @@ export function ApplicationLayout({ events, children }) {
             {/* Security */}
             <SidebarSection>
               <SidebarHeading>Security</SidebarHeading>
-              <SidebarItem href="/firewall" current={pathname.startsWith('/firewall')}>
+              <SidebarItem href="/firewall" current={pathname.startsWith('/firewall')} onClick={sidebarClick('/firewall')}>
                 <ShieldExclamationIcon />
                 <SidebarLabel>Firewall</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
+              <SidebarItem href="/orders" current={pathname.startsWith('/orders')} onClick={sidebarClick('/orders')}>
                 <TicketIcon />
                 <SidebarLabel>Approvals</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/modifier-approvals" current={pathname.startsWith('/modifier-approvals')}>
+              <SidebarItem href="/modifier-approvals" current={pathname.startsWith('/modifier-approvals')} onClick={sidebarClick('/modifier-approvals')}>
                 <ShieldCheckIcon20 />
                 <SidebarLabel>Modifier Approvals</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/modifier-observability" current={pathname.startsWith('/modifier-observability')}>
+              <SidebarItem href="/modifier-observability" current={pathname.startsWith('/modifier-observability')} onClick={sidebarClick('/modifier-observability')}>
                 <EyeIcon />
                 <SidebarLabel>Observability</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/modifier-ops" current={pathname.startsWith('/modifier-ops')}>
+              <SidebarItem href="/modifier-ops" current={pathname.startsWith('/modifier-ops')} onClick={sidebarClick('/modifier-ops')}>
                 <AdjustmentsHorizontalIcon />
                 <SidebarLabel>Modifier Ops</SidebarLabel>
               </SidebarItem>
@@ -218,19 +246,19 @@ export function ApplicationLayout({ events, children }) {
             {/* Infrastructure */}
             <SidebarSection>
               <SidebarHeading>Infrastructure</SidebarHeading>
-              <SidebarItem href="/tool-registry" current={pathname.startsWith('/tool-registry')}>
+              <SidebarItem href="/tool-registry" current={pathname.startsWith('/tool-registry')} onClick={sidebarClick('/tool-registry')}>
                 <WrenchScrewdriverIcon />
                 <SidebarLabel>Tool Registry</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/downstream" current={pathname.startsWith('/downstream')}>
+              <SidebarItem href="/downstream" current={pathname.startsWith('/downstream')} onClick={sidebarClick('/downstream')}>
                 <ArrowsRightLeftIcon />
                 <SidebarLabel>Downstream MCP</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/diagnostics" current={pathname.startsWith('/diagnostics')}>
+              <SidebarItem href="/diagnostics" current={pathname.startsWith('/diagnostics')} onClick={sidebarClick('/diagnostics')}>
                 <ServerStackIcon />
                 <SidebarLabel>Diagnostics</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/cli-tools" current={pathname.startsWith('/cli-tools')}>
+              <SidebarItem href="/cli-tools" current={pathname.startsWith('/cli-tools')} onClick={sidebarClick('/cli-tools')}>
                 <CommandLineIcon />
                 <SidebarLabel>CLI Tools</SidebarLabel>
               </SidebarItem>
@@ -239,15 +267,15 @@ export function ApplicationLayout({ events, children }) {
             {/* AI & Community */}
             <SidebarSection>
               <SidebarHeading>AI & Community</SidebarHeading>
-              <SidebarItem href="/agent-chat" current={pathname.startsWith('/agent-chat')}>
+              <SidebarItem href="/agent-chat" current={pathname.startsWith('/agent-chat')} onClick={sidebarClick('/agent-chat')}>
                 <ChatBubbleLeftRightIcon />
                 <SidebarLabel>Agent Chat</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/community" current={pathname.startsWith('/community')}>
+              <SidebarItem href="/community" current={pathname.startsWith('/community')} onClick={sidebarClick('/community')}>
                 <SparklesIcon />
                 <SidebarLabel>Community</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/demo" current={pathname.startsWith('/demo')}>
+              <SidebarItem href="/demo" current={pathname.startsWith('/demo')} onClick={sidebarClick('/demo')}>
                 <BeakerIcon />
                 <SidebarLabel>Demo Playground</SidebarLabel>
               </SidebarItem>
@@ -256,31 +284,31 @@ export function ApplicationLayout({ events, children }) {
             {/* Account */}
             <SidebarSection>
               <SidebarHeading>Account</SidebarHeading>
-              <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
+              <SidebarItem href="/settings" current={pathname.startsWith('/settings')} onClick={sidebarClick('/settings')}>
                 <Cog6ToothIcon />
                 <SidebarLabel>Account</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/billing" current={pathname.startsWith('/billing')}>
+              <SidebarItem href="/billing" current={pathname.startsWith('/billing')} onClick={sidebarClick('/billing')}>
                 <CreditCardIcon />
                 <SidebarLabel>Billing</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/usage" current={pathname.startsWith('/usage')}>
+              <SidebarItem href="/usage" current={pathname.startsWith('/usage')} onClick={sidebarClick('/usage')}>
                 <ChartBarIcon />
                 <SidebarLabel>Usage</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/integrations" current={pathname.startsWith('/integrations')}>
+              <SidebarItem href="/integrations" current={pathname.startsWith('/integrations')} onClick={sidebarClick('/integrations')}>
                 <LinkIcon />
                 <SidebarLabel>Integrations</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/organization" current={pathname.startsWith('/organization')}>
+              <SidebarItem href="/organization" current={pathname.startsWith('/organization')} onClick={sidebarClick('/organization')}>
                 <UserGroupIcon />
                 <SidebarLabel>Organization</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/api-keys" current={pathname.startsWith('/api-keys')}>
+              <SidebarItem href="/api-keys" current={pathname.startsWith('/api-keys')} onClick={sidebarClick('/api-keys')}>
                 <KeyIcon />
                 <SidebarLabel>API Keys</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/service-accounts" current={pathname.startsWith('/service-accounts')}>
+              <SidebarItem href="/service-accounts" current={pathname.startsWith('/service-accounts')} onClick={sidebarClick('/service-accounts')}>
                 <KeyIcon />
                 <SidebarLabel>Service Accounts</SidebarLabel>
               </SidebarItem>
@@ -289,7 +317,7 @@ export function ApplicationLayout({ events, children }) {
             {/* Admin */}
             <SidebarSection>
               <SidebarHeading>Admin</SidebarHeading>
-              <SidebarItem href="/admin-console" current={pathname.startsWith('/admin-console')}>
+              <SidebarItem href="/admin-console" current={pathname.startsWith('/admin-console')} onClick={sidebarClick('/admin-console')}>
                 <ClipboardDocumentListIcon />
                 <SidebarLabel>Admin Console</SidebarLabel>
               </SidebarItem>
@@ -307,11 +335,11 @@ export function ApplicationLayout({ events, children }) {
             <SidebarSpacer />
 
             <SidebarSection>
-              <SidebarItem href="/diagnostics" current={pathname.startsWith('/diagnostics')}>
+              <SidebarItem href="/diagnostics" current={pathname.startsWith('/diagnostics')} onClick={sidebarClick('/diagnostics')}>
                 <QuestionMarkCircleIcon />
                 <SidebarLabel>Support</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/community" current={pathname.startsWith('/community')}>
+              <SidebarItem href="/community" current={pathname.startsWith('/community')} onClick={sidebarClick('/community')}>
                 <SparklesIcon />
                 <SidebarLabel>Release Notes</SidebarLabel>
               </SidebarItem>
@@ -338,7 +366,7 @@ export function ApplicationLayout({ events, children }) {
         </Sidebar>
       }
     >
-      {children}
+      <PageManager>{children}</PageManager>
     </SidebarLayout>
   )
 }

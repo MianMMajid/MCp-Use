@@ -13,25 +13,11 @@ import { Link } from '@/components/link'
 import { DescriptionList, DescriptionTerm, DescriptionDetails } from '@/components/description-list'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { loadJson, postJson } from '@/lib/api'
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-  } catch { return dateStr }
-}
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'active' || v === 'verified' || v === 'success') return 'green'
-  if (v === 'failed' || v === 'error' || v === 'expired') return 'red'
-  if (v === 'pending' || v === 'challenged') return 'orange'
-  return 'zinc'
-}
+import { formatDate, statusColor } from '@/lib/format'
+import { SkeletonCard } from '@/components/skeleton'
 
 export default function ModifierOpsPolicyPage() {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -135,6 +121,19 @@ export default function ModifierOpsPolicyPage() {
       if (res.ok) { setMessage('Escalation triggered.'); setMessageType('success') }
       else { setMessage('Escalation failed.'); setMessageType('error') }
     } catch { setMessage('Escalation failed.'); setMessageType('error') }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Heading>Modifier Operations</Heading>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </>
+    )
   }
 
   return (

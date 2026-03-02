@@ -8,19 +8,14 @@ import { Divider } from '@/components/divider'
 import { Input } from '@/components/input'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson } from '@/lib/api'
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'online' || v === 'ready' || v === 'active') return 'green'
-  if (v === 'offline' || v === 'error') return 'red'
-  return 'orange'
-}
+import { loadJson, postJson, getCached } from '@/lib/api'
+import { statusColor } from '@/lib/format'
+import { SkeletonCard } from '@/components/skeleton'
 
 export default function AgentChatPage() {
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/openclaw/agent/status')
+  const [status, setStatus] = useState(_c || null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [mode, setMode] = useState('turn') // 'turn' | 'longform'
   const [input, setInput] = useState('')
@@ -62,12 +57,24 @@ export default function AgentChatPage() {
 
   const agentStatus = status?.status || status?.state || 'unknown'
 
+  if (loading) {
+    return (
+      <>
+        <Heading>Agent Chat</Heading>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="flex items-end justify-between gap-4">
         <div className="flex items-center gap-3">
           <Heading>Agent Chat</Heading>
-          {!loading && <Badge color={statusColor(agentStatus)}>{agentStatus}</Badge>}
+          <Badge color={statusColor(agentStatus)}>{agentStatus}</Badge>
         </div>
       </div>
 

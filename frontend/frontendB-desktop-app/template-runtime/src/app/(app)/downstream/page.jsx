@@ -10,33 +10,17 @@ import { Textarea } from '@/components/textarea'
 import { Select } from '@/components/select'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-10 rounded bg-zinc-100 dark:bg-zinc-800" />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'connected' || v === 'active' || v === 'success') return 'green'
-  if (v === 'error' || v === 'disconnected') return 'red'
-  return 'orange'
-}
+import { loadJson, postJson, getCached } from '@/lib/api'
+import { statusColor } from '@/lib/format'
+import { SkeletonRows } from '@/components/skeleton'
 
 export default function DownstreamPage() {
-  const [apps, setApps] = useState(null)
-  const [tools, setTools] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _ca = getCached('/api/downstream/apps')
+  const _ct = getCached('/api/downstream/tools')
+  const _hasCached = !!(_ca || _ct)
+  const [apps, setApps] = useState(() => _ca ? (Array.isArray(_ca?.apps) ? _ca.apps : Array.isArray(_ca) ? _ca : []) : null)
+  const [tools, setTools] = useState(_ct || null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState(null)
 

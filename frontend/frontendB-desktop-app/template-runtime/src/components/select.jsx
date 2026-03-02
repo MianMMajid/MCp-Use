@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Select as HeadlessSelect } from '@headlessui/react'
 import clsx from 'clsx'
 import { forwardRef } from 'react'
 
@@ -20,7 +20,7 @@ export const Select = forwardRef(function Select({ className, multiple, ...props
         'has-data-disabled:opacity-50 has-data-disabled:before:bg-zinc-950/5 has-data-disabled:before:shadow-none',
       ])}
     >
-      <Headless.Select
+      <HeadlessSelect
         ref={ref}
         multiple={multiple}
         {...props}

@@ -9,40 +9,14 @@ import { Input } from '@/components/input'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-10 rounded bg-zinc-100 dark:bg-zinc-800" />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-  } catch { return dateStr }
-}
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'active' || v === 'completed' || v === 'success') return 'green'
-  if (v === 'error' || v === 'failed') return 'red'
-  if (v === 'running' || v === 'pending') return 'orange'
-  return 'zinc'
-}
+import { loadJson, postJson, getCached } from '@/lib/api'
+import { formatDate, statusColor } from '@/lib/format'
+import { SkeletonRows } from '@/components/skeleton'
 
 export default function DemoPage() {
-  const [sessions, setSessions] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/demo/sessions')
+  const [sessions, setSessions] = useState(() => _c ? (Array.isArray(_c?.sessions) ? _c.sessions : Array.isArray(_c) ? _c : []) : null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

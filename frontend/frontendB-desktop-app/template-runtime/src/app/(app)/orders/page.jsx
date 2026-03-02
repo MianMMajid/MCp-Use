@@ -5,26 +5,9 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Heading } from '@/components/heading'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="flex items-center justify-between">
-              <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-            </div>
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+import { loadJson, getCached } from '@/lib/api'
+import { formatDate } from '@/lib/format'
+import { SkeletonRows } from '@/components/skeleton'
 
 function decisionColor(decision) {
   if (!decision) return 'orange'
@@ -35,26 +18,12 @@ function decisionColor(decision) {
   return 'zinc'
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
-  } catch {
-    return dateStr
-  }
-}
-
 export default function Orders() {
-  const [approvals, setApprovals] = useState(null)
-  const [count, setCount] = useState(0)
+  const _c = getCached('/api/hitl/approvals')
+  const [approvals, setApprovals] = useState(() => _c ? (Array.isArray(_c?.approvals) ? _c.approvals : []) : null)
+  const [count, setCount] = useState(() => _c?.count ?? 0)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_c)
 
   function fetchApprovals() {
     let cancelled = false

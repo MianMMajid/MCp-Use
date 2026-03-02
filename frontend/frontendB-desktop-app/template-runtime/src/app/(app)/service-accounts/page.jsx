@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { loadJson, postJson, deleteJson } from '@/lib/api'
+import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 import { Heading, Subheading } from '@/components/heading'
 import { Badge } from '@/components/badge'
 import {
@@ -14,32 +14,12 @@ import {
 } from '@/components/table'
 import { Button } from '@/components/button'
 import { Divider } from '@/components/divider'
-
-function SkeletonRow() {
-  return (
-    <TableRow>
-      <TableCell>
-        <div className="h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-32 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-10 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-      </TableCell>
-      <TableCell>
-        <div className="h-4 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-      </TableCell>
-    </TableRow>
-  )
-}
+import { SkeletonRows } from '@/components/skeleton'
 
 export default function ServiceAccountsPage() {
-  const [accounts, setAccounts] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/org/default/service-accounts')
+  const [accounts, setAccounts] = useState(() => _c ? (Array.isArray(_c) ? _c : _c.accounts ?? _c.items ?? []) : null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -91,6 +71,7 @@ export default function ServiceAccountsPage() {
       })
       const data = await res.json()
       if (res.ok) {
+        invalidateCache('/api/org')
         setAccounts((prev) => [
           ...(prev ?? []),
           data.account ?? data,
@@ -145,6 +126,7 @@ export default function ServiceAccountsPage() {
       )
       const data = await res.json()
       if (res.ok) {
+        invalidateCache('/api/org')
         setNewKeyValue(data.key ?? data.apiKey ?? data.secret ?? data.value)
         setMessage('Key generated. Copy it now — it will not be shown again.')
         setMessageType('success')
@@ -175,6 +157,7 @@ export default function ServiceAccountsPage() {
       await deleteJson(
         `/api/org/${orgId}/service-accounts/${accountId}/keys/${keyId}`,
       )
+      invalidateCache('/api/org')
       setKeys((prev) => (prev ? prev.filter((k) => (k.id ?? k.keyId) !== keyId) : prev))
       setMessage('Key revoked.')
       setMessageType('success')
@@ -195,22 +178,7 @@ export default function ServiceAccountsPage() {
       <div className="mx-auto max-w-4xl">
         <Heading>Service Accounts</Heading>
         <Divider className="my-10 mt-6" />
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableHeader>Name</TableHeader>
-              <TableHeader>Description</TableHeader>
-              <TableHeader>Created</TableHeader>
-              <TableHeader>Keys</TableHeader>
-              <TableHeader>Actions</TableHeader>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            <SkeletonRow />
-            <SkeletonRow />
-            <SkeletonRow />
-          </TableBody>
-        </Table>
+        <SkeletonRows rows={3} cols={5} />
       </div>
     )
   }

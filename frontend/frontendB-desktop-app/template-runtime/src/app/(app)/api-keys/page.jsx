@@ -9,33 +9,9 @@ import { Heading, Subheading } from '@/components/heading'
 import { Input } from '@/components/input'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table'
 import { Text } from '@/components/text'
-import { loadJson, postJson, deleteJson } from '@/lib/api'
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse space-y-3">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <div className="h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
-          <div className="mt-2 h-3 w-24 rounded bg-zinc-100 dark:bg-zinc-800" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  } catch {
-    return dateStr
-  }
-}
+import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
+import { formatDate } from '@/lib/format'
+import { SkeletonList } from '@/components/skeleton'
 
 function isExpired(dateStr) {
   if (!dateStr) return false
@@ -47,8 +23,9 @@ function isExpired(dateStr) {
 }
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/user/api-keys')
+  const [keys, setKeys] = useState(() => _c ? (_c?.items || []) : null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -81,19 +58,7 @@ export default function ApiKeysPage() {
   }
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const data = await loadJson('/api/user/api-keys')
-        if (cancelled) return
-        setKeys(data?.items || [])
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
+    fetchKeys()
   }, [])
 
   async function handleCreateKey(e) {
@@ -106,11 +71,12 @@ export default function ApiKeysPage() {
       if (newKeyExpires) body.expiresAt = newKeyExpires
 
       const res = await postJson('/api/user/api-keys', body)
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
 
-      if (res.ok && data.ok) {
+      if (res.ok && data.ok && data.key?.token) {
+        invalidateCache('/api/user/api-keys')
         setRevealedToken(data.key.token)
-        setRevealedKeyName(data.key.name)
+        setRevealedKeyName(data.key.name || newKeyName)
         setCreateDialogOpen(false)
         setNewKeyName('')
         setNewKeyExpires('')
@@ -134,21 +100,11 @@ export default function ApiKeysPage() {
     setMessage('')
 
     try {
-      const res = await fetch(`/api/user/api-keys/${deleteTarget.id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-      })
-      const data = await res.json()
-
-      if (res.ok && data.ok) {
-        setKeys((prev) => (prev || []).filter((k) => k.id !== deleteTarget.id))
-        setMessage(`API key "${deleteTarget.name}" deleted.`)
-        setMessageType('success')
-      } else {
-        setMessage(data.error || 'Could not delete API key.')
-        setMessageType('error')
-      }
+      await deleteJson(`/api/user/api-keys/${deleteTarget.id}`)
+      invalidateCache('/api/user/api-keys')
+      setKeys((prev) => (prev || []).filter((k) => k.id !== deleteTarget.id))
+      setMessage(`API key "${deleteTarget.name}" deleted.`)
+      setMessageType('success')
     } catch {
       setMessage('Failed to delete API key.')
       setMessageType('error')

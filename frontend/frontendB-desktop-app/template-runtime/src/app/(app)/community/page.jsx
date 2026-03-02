@@ -9,39 +9,17 @@ import { Divider } from '@/components/divider'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { Textarea } from '@/components/textarea'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-10 rounded bg-zinc-100 dark:bg-zinc-800" />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function riskColor(score) {
-  if (score == null) return 'zinc'
-  if (typeof score === 'string') {
-    const s = score.toLowerCase()
-    if (s === 'high' || s === 'critical') return 'red'
-    if (s === 'medium') return 'orange'
-    if (s === 'low') return 'green'
-    return 'zinc'
-  }
-  if (score >= 0.7) return 'red'
-  if (score >= 0.4) return 'orange'
-  return 'green'
-}
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
+import { riskColor } from '@/lib/format'
+import { SkeletonRows } from '@/components/skeleton'
 
 export default function CommunityPage() {
-  const [stats, setStats] = useState(null)
-  const [traces, setTraces] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cst = getCached('/api/community/stats')
+  const _ctr = getCached('/api/community/traces')
+  const _hasCached = !!(_cst || _ctr)
+  const [stats, setStats] = useState(_cst || null)
+  const [traces, setTraces] = useState(() => _ctr ? (Array.isArray(_ctr?.traces) ? _ctr.traces : Array.isArray(_ctr) ? _ctr : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -89,6 +67,7 @@ export default function CommunityPage() {
       }
       const res = await postJson('/api/demo/share', body)
       if (res.ok) {
+        invalidateCache('/api/demo')
         setMessage('Trace shared successfully.')
         setMessageType('success')
         setShowShareDialog(false)
@@ -115,6 +94,7 @@ export default function CommunityPage() {
       }
       const res = await postJson('/api/demo/suggest', body)
       if (res.ok) {
+        invalidateCache('/api/demo')
         setMessage('Suggestion submitted.')
         setMessageType('success')
         setShowSuggestDialog(false)
@@ -136,6 +116,7 @@ export default function CommunityPage() {
     setBriefResult(null)
     try {
       const res = await postJson('/api/demo/brief', {})
+      invalidateCache('/api/demo')
       const data = await res.json().catch(() => ({}))
       setBriefResult(data)
     } catch {

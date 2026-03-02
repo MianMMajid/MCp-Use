@@ -8,17 +8,9 @@ import { Divider } from '@/components/divider'
 import { Heading, Subheading } from '@/components/heading'
 import { Input } from '@/components/input'
 import { Text } from '@/components/text'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
+import { loadJson, postJson, getCached } from '@/lib/api'
+import { formatDate } from '@/lib/format'
+import { SkeletonCard } from '@/components/skeleton'
 
 function getInitials(username, email) {
   const name = username || email || '?'
@@ -28,19 +20,6 @@ function getInitials(username, email) {
     .slice(0, 2)
     .map((part) => part[0].toUpperCase())
     .join('')
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  } catch {
-    return dateStr
-  }
 }
 
 function EmailVerificationSection({ email }) {
@@ -100,11 +79,15 @@ function EmailVerificationSection({ email }) {
 }
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState(null)
-  const [subscription, setSubscription] = useState(null)
-  const [usage, setUsage] = useState(null)
-  const [limits, setLimits] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cp = getCached('/api/user/profile')
+  const _cu = getCached('/api/usage/summary')
+  const _cl = getCached('/api/limits')
+  const _hasCached = !!(_cp || _cu || _cl)
+  const [profile, setProfile] = useState(() => _cp ? (_cp?.user || null) : null)
+  const [subscription, setSubscription] = useState(() => _cp ? (_cp?.subscription || null) : null)
+  const [usage, setUsage] = useState(() => _cu ? (_cu?.summary || null) : null)
+  const [limits, setLimits] = useState(() => _cl ? (_cl?.limits || null) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
 
   // Password change state

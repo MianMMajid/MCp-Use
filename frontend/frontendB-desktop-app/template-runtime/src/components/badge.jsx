@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Button } from '@headlessui/react'
 import clsx from 'clsx'
 import { forwardRef } from 'react'
 import { TouchTarget } from './button'
@@ -64,10 +64,10 @@ export const BadgeButton = forwardRef(function BadgeButton(
       </TouchTarget>
     </Link>
   ) : (
-    <Headless.Button {...props} className={classes} ref={ref}>
+    <Button {...props} className={classes} ref={ref}>
       <TouchTarget>
         <Badge color={color}>{children}</Badge>
       </TouchTarget>
-    </Headless.Button>
+    </Button>
   )
 })

@@ -8,25 +8,8 @@ import { Divider } from '@/components/divider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="flex items-center justify-between">
-              <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
+import { SkeletonRows } from '@/components/skeleton'
 
 function decisionColor(d) {
   if (!d) return 'zinc'
@@ -37,9 +20,14 @@ function decisionColor(d) {
 }
 
 export default function FirewallPage() {
-  const [capabilities, setCapabilities] = useState(null)
-  const [rules, setRules] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cc = getCached('/api/chat/capabilities')
+  const _cr = getCached('/api/firewall/rules/effective')
+  const _cs = getCached('/api/firewall/state')
+  const _cb = getCached('/api/yc/brief')
+  const _hasCached = !!(_cc || _cr || _cs || _cb)
+  const [capabilities, setCapabilities] = useState(_cc || null)
+  const [rules, setRules] = useState(() => _cr ? (Array.isArray(_cr?.rules) ? _cr.rules : Array.isArray(_cr) ? _cr : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
 
   // Decision tester state
@@ -48,10 +36,10 @@ export default function FirewallPage() {
   const [previewLoading, setPreviewLoading] = useState(false)
 
   // Firewall state
-  const [firewallState, setFirewallState] = useState(null)
+  const [firewallState, setFirewallState] = useState(_cs || null)
 
   // YC Brief
-  const [ycBrief, setYcBrief] = useState(null)
+  const [ycBrief, setYcBrief] = useState(_cb || null)
 
   // Chat state
   const [chatInput, setChatInput] = useState('')
@@ -94,6 +82,7 @@ export default function FirewallPage() {
       let body = {}
       try { body = JSON.parse(testPayload) } catch { body = { raw: testPayload } }
       const res = await postJson('/api/firewall/preview', body)
+      invalidateCache('/api/firewall')
       const data = await res.json().catch(() => ({}))
       setPreviewResult(data)
     } catch {
@@ -110,6 +99,7 @@ export default function FirewallPage() {
       let body = {}
       try { body = JSON.parse(testPayload) } catch { body = { raw: testPayload } }
       const res = await postJson('/api/firewall/decision', body)
+      invalidateCache('/api/firewall')
       const data = await res.json().catch(() => ({}))
       setPreviewResult(data)
     } catch {
@@ -125,6 +115,7 @@ export default function FirewallPage() {
     setChatReply(null)
     try {
       const res = await postJson('/api/firewall/chat', { message: chatInput })
+      invalidateCache('/api/firewall')
       const data = await res.json().catch(() => ({}))
       setChatReply(data)
     } catch {

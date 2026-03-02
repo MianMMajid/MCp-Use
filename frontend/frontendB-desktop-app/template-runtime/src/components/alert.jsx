@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Description, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react'
 import clsx from 'clsx'
 
 import { Text } from './text'
@@ -17,15 +17,15 @@ const sizes = {
 
 export function Alert({ size = 'md', className, children, ...props }) {
   return (
-    <Headless.Dialog {...props}>
-      <Headless.DialogBackdrop
+    <Dialog {...props}>
+      <DialogBackdrop
         transition
         className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-zinc-950/15 px-2 py-2 transition duration-100 focus:outline-0 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-zinc-950/50"
       />
 
       <div className="fixed inset-0 w-screen overflow-y-auto pt-6 sm:pt-0">
         <div className="grid min-h-full grid-rows-[1fr_auto_1fr] justify-items-center p-8 sm:grid-rows-[1fr_auto_3fr] sm:p-4">
-          <Headless.DialogPanel
+          <DialogPanel
             transition
             className={clsx(
               className,
@@ -35,16 +35,16 @@ export function Alert({ size = 'md', className, children, ...props }) {
             )}
           >
             {children}
-          </Headless.DialogPanel>
+          </DialogPanel>
         </div>
       </div>
-    </Headless.Dialog>
+    </Dialog>
   )
 }
 
 export function AlertTitle({ className, ...props }) {
   return (
-    <Headless.DialogTitle
+    <DialogTitle
       {...props}
       className={clsx(
         className,
@@ -56,7 +56,7 @@ export function AlertTitle({ className, ...props }) {
 
 export function AlertDescription({ className, ...props }) {
   return (
-    <Headless.Description
+    <Description
       as={Text}
       {...props}
       className={clsx(className, 'mt-2 text-center text-pretty sm:text-left')}

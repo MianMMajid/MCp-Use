@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { Heading, Subheading } from '@/components/heading'
 import { Badge } from '@/components/badge'
 import {
@@ -14,23 +14,19 @@ import {
 } from '@/components/table'
 import { Button } from '@/components/button'
 import { Divider } from '@/components/divider'
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
+import { SkeletonCard } from '@/components/skeleton'
 
 export default function UsagePage() {
-  const [entitlements, setEntitlements] = useState(null)
-  const [usageSummary, setUsageSummary] = useState(null)
-  const [timeseries, setTimeseries] = useState(null)
-  const [limits, setLimits] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _ce = getCached('/api/entitlements')
+  const _cu = getCached('/api/usage/summary')
+  const _cts = getCached('/api/usage/timeseries')
+  const _cl = getCached('/api/limits')
+  const _hasCached = !!(_ce || _cu || _cts || _cl)
+  const [entitlements, setEntitlements] = useState(_ce || null)
+  const [usageSummary, setUsageSummary] = useState(_cu || null)
+  const [timeseries, setTimeseries] = useState(() => _cts ? (Array.isArray(_cts) ? _cts : _cts.data ?? _cts.series ?? _cts.items ?? []) : null)
+  const [limits, setLimits] = useState(() => _cl ? (Array.isArray(_cl) ? _cl : _cl.limits ?? _cl.items ?? []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -86,7 +82,8 @@ export default function UsagePage() {
     try {
       const body = overrideInput.trim() ? JSON.parse(overrideInput) : {}
       const res = await postJson('/api/limits/override', body)
-      const data = await res.json()
+      invalidateCache('/api/limits')
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setMessage(
           data.message ?? 'Override request submitted.',

@@ -11,65 +11,16 @@ import { Select } from '@/components/select'
 import { MagnifyingGlassIcon } from '@heroicons/react/16/solid'
 import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/dialog'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonGrid() {
-  return (
-    <div className="mt-10 animate-pulse space-y-4">
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="mt-2 h-3 w-64 rounded bg-zinc-100 dark:bg-zinc-800" />
-              <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-            </div>
-            <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function statusColor(status) {
-  if (!status) return 'zinc'
-  const s = status.toLowerCase()
-  if (s === 'completed' || s === 'success' || s === 'active') return 'green'
-  if (s === 'failed' || s === 'error') return 'red'
-  if (s === 'running' || s === 'pending' || s === 'in_progress') return 'orange'
-  return 'sky'
-}
-
-function severityColor(severity) {
-  if (!severity) return 'zinc'
-  const s = severity.toLowerCase()
-  if (s === 'critical' || s === 'high') return 'red'
-  if (s === 'medium' || s === 'warning') return 'orange'
-  if (s === 'low' || s === 'info') return 'sky'
-  return 'zinc'
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
-  } catch {
-    return dateStr
-  }
-}
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
+import { formatDate, statusColor, severityColor } from '@/lib/format'
+import { SkeletonGrid } from '@/components/skeleton'
 
 export default function Events() {
-  const [traces, setTraces] = useState(null)
-  const [count, setCount] = useState(0)
+  const _c = getCached('/api/traces')
+  const [traces, setTraces] = useState(() => _c ? (Array.isArray(_c?.traces) ? _c.traces : []) : null)
+  const [count, setCount] = useState(() => _c?.count ?? 0)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_c)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
   const [showExport, setShowExport] = useState(false)
@@ -122,7 +73,7 @@ export default function Events() {
     setExportLoading(true)
     try {
       const res = await postJson('/api/traces/export', { query: search || undefined })
-      if (res.ok) { setMessage('Export initiated.'); setMessageType('success') }
+      if (res.ok) { invalidateCache('/api/traces'); setMessage('Export initiated.'); setMessageType('success') }
       else { setMessage('Export failed.'); setMessageType('error') }
     } catch { setMessage('Export failed.'); setMessageType('error') }
     finally { setExportLoading(false); setShowExport(false) }
@@ -132,7 +83,7 @@ export default function Events() {
     setClearLoading(true)
     try {
       const res = await postJson('/api/traces/clear', {})
-      if (res.ok) { setMessage('All traces cleared.'); setMessageType('success'); fetchTraces() }
+      if (res.ok) { invalidateCache('/api/traces'); setMessage('All traces cleared.'); setMessageType('success'); fetchTraces() }
       else { setMessage('Clear failed.'); setMessageType('error') }
     } catch { setMessage('Clear failed.'); setMessageType('error') }
     finally { setClearLoading(false); setShowClear(false) }

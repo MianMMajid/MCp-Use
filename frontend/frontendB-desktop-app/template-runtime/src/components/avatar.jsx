@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Button } from '@headlessui/react'
 import clsx from 'clsx'
 import { forwardRef } from 'react'
 import { TouchTarget } from './button'
@@ -53,10 +53,10 @@ export const AvatarButton = forwardRef(function AvatarButton(
       </TouchTarget>
     </Link>
   ) : (
-    <Headless.Button {...props} className={classes} ref={ref}>
+    <Button {...props} className={classes} ref={ref}>
       <TouchTarget>
         <Avatar src={src} square={square} initials={initials} alt={alt} />
       </TouchTarget>
-    </Headless.Button>
+    </Button>
   )
 })

@@ -15,7 +15,7 @@ export function Address() {
         aria-label="Street Address"
         name="address"
         placeholder="Street Address"
-        defaultValue="147 Catalyst Ave"
+        defaultValue="147 Maple Ave"
         className="col-span-2"
       />
       <Input aria-label="City" name="city" placeholder="City" defaultValue="Toronto" className="col-span-2" />

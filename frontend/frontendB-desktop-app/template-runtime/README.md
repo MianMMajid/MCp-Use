@@ -1,6 +1,6 @@
-# Catalyst Demo
+# Maple Demo
 
-To run the Catalyst demo, first install the npm dependencies:
+To run the Maple demo, first install the npm dependencies:
 
 ```bash
 npm install

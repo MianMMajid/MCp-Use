@@ -10,61 +10,8 @@ import { Heading, Subheading } from '@/components/heading'
 import { Link } from '@/components/link'
 import { ChevronLeftIcon, ClockIcon, ShieldCheckIcon } from '@heroicons/react/16/solid'
 import { loadJson } from '@/lib/api'
-
-function SkeletonDetail() {
-  return (
-    <div className="animate-pulse">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-6 flex items-center gap-4">
-        <div className="h-7 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
-        <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-      </div>
-      <div className="mt-8 rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-        <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-        <div className="mt-4 space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-              <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function statusColor(status) {
-  if (!status) return 'zinc'
-  const s = status.toLowerCase()
-  if (s === 'completed' || s === 'success' || s === 'active') return 'green'
-  if (s === 'failed' || s === 'error') return 'red'
-  if (s === 'running' || s === 'pending' || s === 'in_progress') return 'orange'
-  return 'sky'
-}
-
-function riskColor(score) {
-  if (score == null) return 'zinc'
-  if (score >= 0.7) return 'red'
-  if (score >= 0.4) return 'orange'
-  return 'green'
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  } catch {
-    return dateStr
-  }
-}
+import { formatDate, statusColor, riskColor } from '@/lib/format'
+import { SkeletonDetail } from '@/components/skeleton'
 
 export default function EventDetail() {
   const { id: traceId } = useParams()

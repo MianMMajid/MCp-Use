@@ -11,42 +11,21 @@ import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Link } from '@/components/link'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson, patchJson, deleteJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-10 rounded bg-zinc-100 dark:bg-zinc-800" />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-  } catch { return dateStr }
-}
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'active' || v === 'enabled' || v === 'bound') return 'green'
-  if (v === 'inactive' || v === 'disabled' || v === 'deactivated') return 'red'
-  return 'orange'
-}
+import { loadJson, postJson, patchJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
+import { formatDate, statusColor } from '@/lib/format'
+import { SkeletonRows } from '@/components/skeleton'
 
 export default function ModifierOpsGovernancePage() {
-  const [bindings, setBindings] = useState(null)
-  const [orgHierarchy, setOrgHierarchy] = useState(null)
-  const [rateLimits, setRateLimits] = useState(null)
-  const [tenantScope, setTenantScope] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cb = getCached('/api/openclaw/modifier/ops/tenant-bindings')
+  const _corg = getCached('/api/openclaw/modifier/ops/org')
+  const _crl = getCached('/api/openclaw/modifier/ops/rate-limit')
+  const _cts = getCached('/api/openclaw/modifier/ops/tenant-scope')
+  const _hasCached = !!(_cb || _corg || _crl || _cts)
+  const [bindings, setBindings] = useState(() => _cb ? (Array.isArray(_cb?.bindings) ? _cb.bindings : Array.isArray(_cb) ? _cb : []) : null)
+  const [orgHierarchy, setOrgHierarchy] = useState(() => _corg ? (Array.isArray(_corg?.nodes) ? _corg.nodes : Array.isArray(_corg?.items) ? _corg.items : Array.isArray(_corg) ? _corg : []) : null)
+  const [rateLimits, setRateLimits] = useState(_crl || null)
+  const [tenantScope, setTenantScope] = useState(_cts || null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -113,7 +92,7 @@ export default function ModifierOpsGovernancePage() {
       let body = {}
       if (bindingPayload.trim()) { try { body = JSON.parse(bindingPayload) } catch { body = { raw: bindingPayload } } }
       const res = await postJson('/api/openclaw/modifier/ops/tenant-bindings', body)
-      if (res.ok) { setMessage('Binding added.'); setMessageType('success'); setShowAddBinding(false); fetchAll() }
+      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Binding added.'); setMessageType('success'); setShowAddBinding(false); fetchAll() }
       else { setMessage('Failed to add binding.'); setMessageType('error') }
     } catch { setMessage('Failed to add binding.'); setMessageType('error') }
     finally { setBindingLoading(false) }
@@ -122,6 +101,7 @@ export default function ModifierOpsGovernancePage() {
   async function handleRemoveBinding(bindingId) {
     try {
       await deleteJson(`/api/openclaw/modifier/ops/tenant-bindings/${bindingId}`)
+      invalidateCache('/api/openclaw/modifier/ops')
       setMessage('Binding removed.'); setMessageType('success')
       fetchAll()
     } catch { setMessage('Failed to remove binding.'); setMessageType('error') }
@@ -133,7 +113,7 @@ export default function ModifierOpsGovernancePage() {
       let body = {}
       if (editBindingPayload.trim()) { try { body = JSON.parse(editBindingPayload) } catch { body = { raw: editBindingPayload } } }
       const res = await patchJson(`/api/openclaw/modifier/ops/tenant-bindings/${editBindingId}`, body)
-      if (res.ok) { setMessage('Binding updated.'); setMessageType('success'); setShowEditBinding(false); fetchAll() }
+      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Binding updated.'); setMessageType('success'); setShowEditBinding(false); fetchAll() }
       else { setMessage('Failed to update binding.'); setMessageType('error') }
     } catch { setMessage('Failed to update binding.'); setMessageType('error') }
     finally { setEditBindingLoading(false) }
@@ -145,7 +125,7 @@ export default function ModifierOpsGovernancePage() {
       let body = {}
       if (orgPayload.trim()) { try { body = JSON.parse(orgPayload) } catch { body = { raw: orgPayload } } }
       const res = await postJson('/api/openclaw/modifier/ops/org', body)
-      if (res.ok) { setMessage('Org node added.'); setMessageType('success'); setShowAddOrg(false); fetchAll() }
+      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Org node added.'); setMessageType('success'); setShowAddOrg(false); fetchAll() }
       else { setMessage('Failed to add org node.'); setMessageType('error') }
     } catch { setMessage('Failed to add org node.'); setMessageType('error') }
     finally { setOrgLoading(false) }
@@ -154,7 +134,7 @@ export default function ModifierOpsGovernancePage() {
   async function handleDeactivateOrg(nodeId) {
     try {
       const res = await postJson(`/api/openclaw/modifier/ops/org/${nodeId}/deactivate`, {})
-      if (res.ok) { setMessage('Org node deactivated.'); setMessageType('success'); fetchAll() }
+      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Org node deactivated.'); setMessageType('success'); fetchAll() }
       else { setMessage('Failed to deactivate.'); setMessageType('error') }
     } catch { setMessage('Failed to deactivate.'); setMessageType('error') }
   }
@@ -165,7 +145,7 @@ export default function ModifierOpsGovernancePage() {
       let body = {}
       if (editOrgPayload.trim()) { try { body = JSON.parse(editOrgPayload) } catch { body = { raw: editOrgPayload } } }
       const res = await patchJson(`/api/openclaw/modifier/ops/org/${editOrgId}`, body)
-      if (res.ok) { setMessage('Org node updated.'); setMessageType('success'); setShowEditOrg(false); fetchAll() }
+      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Org node updated.'); setMessageType('success'); setShowEditOrg(false); fetchAll() }
       else { setMessage('Failed to update org node.'); setMessageType('error') }
     } catch { setMessage('Failed to update org node.'); setMessageType('error') }
     finally { setEditOrgLoading(false) }
@@ -174,6 +154,7 @@ export default function ModifierOpsGovernancePage() {
   async function handleDeleteOrg(nodeId) {
     try {
       await deleteJson(`/api/openclaw/modifier/ops/org/${nodeId}`)
+      invalidateCache('/api/openclaw/modifier/ops')
       setMessage('Org node deleted.'); setMessageType('success')
       fetchAll()
     } catch { setMessage('Failed to delete org node.'); setMessageType('error') }
@@ -185,7 +166,7 @@ export default function ModifierOpsGovernancePage() {
       let body = {}
       if (rlPayload.trim()) { try { body = JSON.parse(rlPayload) } catch { body = { raw: rlPayload } } }
       const res = await postJson('/api/openclaw/modifier/ops/rate-limit', body)
-      if (res.ok) { setMessage('Rate limit updated.'); setMessageType('success'); fetchAll() }
+      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Rate limit updated.'); setMessageType('success'); fetchAll() }
       else { setMessage('Failed to update rate limit.'); setMessageType('error') }
     } catch { setMessage('Failed to update rate limit.'); setMessageType('error') }
     finally { setRlLoading(false) }

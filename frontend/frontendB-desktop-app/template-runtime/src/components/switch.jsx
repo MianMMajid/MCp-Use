@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Field, Switch as HeadlessSwitch } from '@headlessui/react'
 import clsx from 'clsx'
 
 export function SwitchGroup({ className, ...props }) {
@@ -19,7 +19,7 @@ export function SwitchGroup({ className, ...props }) {
 
 export function SwitchField({ className, ...props }) {
   return (
-    <Headless.Field
+    <Field
       data-slot="field"
       {...props}
       className={clsx(
@@ -132,7 +132,7 @@ const colors = {
 
 export function Switch({ color = 'dark/zinc', className, ...props }) {
   return (
-    <Headless.Switch
+    <HeadlessSwitch
       data-slot="control"
       {...props}
       className={clsx(
@@ -177,6 +177,6 @@ export function Switch({ color = 'dark/zinc', className, ...props }) {
           'group-data-checked:group-data-disabled:bg-white group-data-checked:group-data-disabled:shadow-sm group-data-checked:group-data-disabled:ring-black/5'
         )}
       />
-    </Headless.Switch>
+    </HeadlessSwitch>
   )
 }
