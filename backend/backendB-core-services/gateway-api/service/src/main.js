@@ -12,10 +12,12 @@ async function main() {
     // Register health routes EARLY so /health is reachable during initialization.
     // Without this, Railway healthchecks fail because createApp() blocks for
     // 30-60+ seconds on dependency checks, DB init, and OpenClaw bootstrap.
+    // We use the Hono app's fetch handler directly instead of server.getHandler()
+    // because getHandler() mounts widgets, MCP endpoints, and inspector — all
+    // slow async ops. Those are set up later after createApp() completes.
     server.app.route("/", healthRoutes);
-    const fetchHandler = await server.getHandler();
     const serveOptions = {
-        fetch: fetchHandler,
+        fetch: server.app.fetch.bind(server.app),
         hostname: gatewayHost,
         port: gatewayPort,
     };
@@ -41,8 +43,9 @@ async function main() {
         });
     });
     // Full app initialization runs AFTER the server is listening.
-    // Routes registered by createApp() will be picked up dynamically by Hono.
+    // Routes registered by createApp() and getHandler() are picked up dynamically by Hono.
     const { shutdown } = await createApp();
+    await server.getHandler();
     const runtimeStatus = buildRuntimeStatus();
     mapleLog("info", "gateway_api.runtime_status", {
         routeMode: runtimeStatus.routeMode,
