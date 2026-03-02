@@ -93,14 +93,6 @@ const nextConfig = {
         ...config.watchOptions,
         ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
       }
-      // Lazy compilation — only compile chunks when browser requests them
-      config.experiments = {
-        ...config.experiments,
-        lazyCompilation: {
-          imports: true,
-          entries: false,
-        },
-      }
     }
     return config
   },

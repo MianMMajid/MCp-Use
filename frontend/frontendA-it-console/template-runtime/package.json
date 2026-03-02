@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:warm": "next dev --webpack --port 4101 & sleep 3 && node scripts/prewarm-dev.js",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint"

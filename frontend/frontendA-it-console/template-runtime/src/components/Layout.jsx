@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -7,9 +8,13 @@ import { usePathname } from 'next/navigation'
 import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
 import { Logo } from '@/components/Logo'
-import { Navigation } from '@/components/Navigation'
 import { NavigationProgress } from '@/components/NavigationProgress'
 import { SectionProvider } from '@/components/SectionProvider'
+
+const Navigation = dynamic(
+  () => import('@/components/Navigation').then((mod) => mod.Navigation),
+  { ssr: false },
+)
 
 export function Layout({ children, allSections }) {
   let pathname = usePathname()
