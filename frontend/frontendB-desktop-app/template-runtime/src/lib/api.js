@@ -92,3 +92,23 @@ export async function deleteJson(path) {
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
   return res.json()
 }
+
+export function connectSSE(url, { onEvent, onError, onDone }) {
+  const es = new EventSource(url)
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data)
+      if (data.eventType === 'done' || data.type === 'done') {
+        onDone?.(data)
+        es.close()
+      } else {
+        onEvent?.(data)
+      }
+    } catch {
+      onEvent?.({ raw: e.data })
+    }
+  }
+  es.addEventListener('done', () => { onDone?.(); es.close() })
+  es.onerror = () => { onError?.(); es.close() }
+  return { eventSource: es, close: () => es.close() }
+}

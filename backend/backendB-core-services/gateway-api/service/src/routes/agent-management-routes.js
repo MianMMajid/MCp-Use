@@ -2,7 +2,7 @@ import { database } from "../state.js";
 import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
-import { runOpenClawTurn, runOpenClawLongform } from "../core/openclaw-agent-runtime.js";
+import { runOpenClawTurn, runOpenClawLongform, listSessionsForAgent } from "../core/openclaw-agent-runtime.js";
 
 export function registerAgentManagementRoutes(app) {
     // POST /api/agents — create agent definition
@@ -160,6 +160,8 @@ export function registerAgentManagementRoutes(app) {
             return c.json({ error: "message (for turn) or objective (for longform) is required" }, 400);
         }
 
+        const parentRunId = asString(body.parentRunId) ?? null;
+
         try {
             let result;
             if (mode === "longform" && objective) {
@@ -168,12 +170,14 @@ export function registerAgentManagementRoutes(app) {
                     sessionId: body.sessionId,
                     agentId,
                     maxTurns: body.maxTurns,
+                    parentRunId,
                 });
             } else {
                 result = await runOpenClawTurn({
                     message: message || objective,
                     sessionId: body.sessionId,
                     agentId,
+                    parentRunId,
                 });
             }
             return c.json({ ...result, agentId });
@@ -181,5 +185,20 @@ export function registerAgentManagementRoutes(app) {
             mapleLog("error", "agent.run_failed", { agentId, error: err.message });
             return c.json({ error: "Agent run failed", details: err.message }, 500);
         }
+    });
+
+    // GET /api/agents/:agentId/sessions — list sessions for this agent
+    app.get("/api/agents/:agentId/sessions", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) return unauthorized;
+
+        const agentId = c.req.param("agentId");
+        const agent = await database.findAgentById(agentId);
+        if (!agent) {
+            return c.json({ error: "Agent not found" }, 404);
+        }
+
+        const sessions = listSessionsForAgent(agentId);
+        return c.json({ ok: true, items: sessions, agentId });
     });
 }

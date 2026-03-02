@@ -112,7 +112,7 @@ function emitSessionEvent(sessionId, eventType, payload = {}) {
   return event;
 }
 
-function createRunRecord({ type, sessionId, input }) {
+function createRunRecord({ type, sessionId, input, parentRunId }) {
   const session = ensureSessionRecord(sessionId);
   const runId = randomUUID();
   const createdAt = nowIso();
@@ -127,8 +127,18 @@ function createRunRecord({ type, sessionId, input }) {
     output: null,
     error: "",
     artifacts: [],
+    parentRunId: parentRunId || null,
+    childRunIds: [],
   };
   runStore.set(runId, run);
+
+  if (parentRunId) {
+    const parent = runStore.get(parentRunId);
+    if (parent) {
+      parent.childRunIds.push(runId);
+    }
+  }
+
   session.status = "running";
   session.updatedAt = createdAt;
   session.lastRunId = runId;
@@ -138,6 +148,7 @@ function createRunRecord({ type, sessionId, input }) {
   emitSessionEvent(session.sessionId, "run_started", {
     runId,
     type: run.type,
+    parentRunId: run.parentRunId,
   });
   return run;
 }
@@ -551,10 +562,12 @@ export async function runOpenClawTurn(options = {}) {
   const run = createRunRecord({
     type: "turn",
     sessionId: requestedSessionId,
+    parentRunId: asString(options.parentRunId) || null,
     input: {
       message,
       mode: resolved.mode,
       deliver: options.deliver === true,
+      agentId: asString(options.agentId) || null,
     },
   });
   if (isSessionCancelRequested(run.sessionId)) {
@@ -642,9 +655,11 @@ export async function runOpenClawLongform(options = {}) {
   const run = createRunRecord({
     type: "longform",
     sessionId,
+    parentRunId: asString(options.parentRunId) || null,
     input: {
       objective,
       maxTurns,
+      agentId: asString(options.agentId) || null,
     },
   });
   const turns = [];
@@ -722,6 +737,12 @@ export async function runOpenClawLongform(options = {}) {
 }
 
 function toPublicSession(session) {
+  let lastInputPreview = "";
+  if (session.lastRunId) {
+    const lastRun = runStore.get(session.lastRunId);
+    const msg = lastRun?.input?.message ?? lastRun?.input?.objective ?? "";
+    lastInputPreview = msg.length > 80 ? msg.slice(0, 80) + "..." : msg;
+  }
   return {
     sessionId: session.sessionId,
     status: session.status,
@@ -731,6 +752,7 @@ function toPublicSession(session) {
     lastError: session.lastError,
     cancelRequested: session.cancelRequested,
     runCount: session.runIds.length,
+    lastInputPreview,
   };
 }
 
@@ -744,6 +766,8 @@ function toPublicRun(run) {
     updatedAt: run.updatedAt,
     error: run.error,
     cost: run.cost ?? null,
+    parentRunId: run.parentRunId ?? null,
+    childRunIds: run.childRunIds ?? [],
   };
 }
 
@@ -907,6 +931,37 @@ export function getOpenClawRuntimeStatus() {
     lastError: runtimeState.lastError,
     lastCheckAt: runtimeState.lastCheckAt,
   };
+}
+
+export function getOpenClawRunChildren(runId) {
+  const parent = runStore.get(String(runId ?? ""));
+  if (!parent) {
+    return null;
+  }
+  const children = (parent.childRunIds ?? [])
+    .map((childId) => runStore.get(childId))
+    .filter(Boolean)
+    .map(toPublicRun);
+  return { parentRunId: parent.runId, children };
+}
+
+export function listSessionsForAgent(agentId) {
+  const normalizedAgentId = String(agentId ?? "").trim();
+  if (!normalizedAgentId) {
+    return [];
+  }
+  const results = [];
+  for (const session of sessionStore.values()) {
+    const hasAgentRun = session.runIds.some((runId) => {
+      const run = runStore.get(runId);
+      return run && String(run.input?.agentId ?? "") === normalizedAgentId;
+    });
+    if (hasAgentRun) {
+      results.push(toPublicSession(session));
+    }
+  }
+  results.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  return results;
 }
 
 export async function shutdownOpenClawRuntime() {

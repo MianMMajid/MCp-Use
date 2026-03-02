@@ -11,6 +11,7 @@ import { toTraceSummary } from "../core/presenters.js";
 import {
   getOpenClawRun,
   getOpenClawRunTimeline,
+  getOpenClawRunChildren,
   listOpenClawRuns,
 } from "../core/openclaw-agent-runtime.js";
 import { ToolGovernanceStore } from "../core/tool-governance-store.js";
@@ -233,6 +234,18 @@ export function registerOpsGovernanceRoutes(app) {
       return c.json({ error: "Run not found." }, 404);
     }
     return c.json({ ok: true, ...timeline });
+  });
+
+  app.get("/api/runs/:runId/children", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const result = getOpenClawRunChildren(c.req.param("runId"));
+    if (!result) {
+      return c.json({ error: "Run not found." }, 404);
+    }
+    return c.json({ ok: true, ...result });
   });
 
   app.get("/api/runtime/dependencies", async (c) => {
