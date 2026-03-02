@@ -125,9 +125,9 @@ function LoginForm() {
       )}
 
       <Field>
-        <Label>Email</Label>
+        <Label>Username or Email</Label>
         <Input
-          type="email"
+          type="text"
           name="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
