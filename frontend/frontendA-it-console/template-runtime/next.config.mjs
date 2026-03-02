@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import nextMDX from '@next/mdx'
 
 import { recmaPlugins } from './src/mdx/recma.mjs'
@@ -51,9 +52,57 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  bundler: 'webpack',
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'mdx'],
+  onDemandEntries: {
+    maxInactiveAge: 15 * 60 * 1000,
+    pagesBufferLength: 24,
+  },
   outputFileTracingIncludes: {
     '/**/*': ['./src/app/**/*.mdx'],
+  },
+  experimental: {
+    optimizePackageImports: [
+      'framer-motion',
+      '@headlessui/react',
+      'zustand',
+      'shiki',
+      'flexsearch',
+      'react-highlight-words',
+    ],
+  },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Persistent disk cache — survives dev server restarts
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [fileURLToPath(import.meta.url)],
+        },
+      }
+      // Skip expensive optimization passes irrelevant in dev
+      config.output.pathinfo = false
+      config.optimization.removeAvailableModules = false
+      config.optimization.removeEmptyChunks = false
+      config.optimization.splitChunks = false
+      config.optimization.runtimeChunk = true
+      // Fewer filesystem stat calls per import
+      config.resolve.extensions = ['.jsx', '.js', '.mjs', '.json']
+      // Don't watch node_modules / .git / .next
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
+      }
+      // Lazy compilation — only compile chunks when browser requests them
+      config.experiments = {
+        ...config.experiments,
+        lazyCompilation: {
+          imports: true,
+          entries: false,
+        },
+      }
+    }
+    return config
   },
   async rewrites() {
     return [
