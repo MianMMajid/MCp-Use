@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { loadJson, postJson, connectSSE, invalidateCache } from '@/lib/api'
-import { ThreePanel } from '@/components/three-panel'
 import { ChatPanel } from '@/components/agent-workspace/chat-panel'
 import { ExecutionTrace } from '@/components/agent-workspace/execution-trace'
 import { SessionList } from '@/components/agent-workspace/session-list'
@@ -369,39 +368,39 @@ export default function AgentWorkspacePage() {
       )}
 
       {/* Three-panel workspace */}
-      <div className="mt-6 h-[calc(100vh-220px)] min-h-[500px]">
-        <ThreePanel
-          className="h-full"
-          left={
-            <SessionList
-              sessions={sessions}
-              activeSessionId={sessionId}
-              onSelectSession={handleSelectSession}
-              onNewSession={handleNewSession}
-              loading={sessionsLoading}
-            />
-          }
-          center={
-            <ChatPanel
-              messages={messages}
-              onSend={handleSend}
-              streaming={streaming}
-              sessionId={sessionId}
-              onStopped={handleStopped}
-              error={runError}
-              onRetry={handleRetry}
-              disabled={agent?.status !== 'active'}
-            />
-          }
-          right={
-            <div className="flex h-full flex-col">
-              <div className="flex-1 overflow-hidden">
-                <ExecutionTrace events={events} currentRunId={currentRunId} />
-              </div>
-              <DelegationTree runs={runs} />
-            </div>
-          }
-        />
+      <div className="mt-6 grid h-[calc(100svh-240px)] min-h-[500px] gap-4 lg:grid-cols-[260px_1fr_340px]">
+        {/* Left — Session history */}
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <SessionList
+            sessions={sessions}
+            activeSessionId={sessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            loading={sessionsLoading}
+          />
+        </div>
+
+        {/* Center — Chat */}
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <ChatPanel
+            messages={messages}
+            onSend={handleSend}
+            streaming={streaming}
+            sessionId={sessionId}
+            onStopped={handleStopped}
+            error={runError}
+            onRetry={handleRetry}
+            disabled={agent?.status !== 'active'}
+          />
+        </div>
+
+        {/* Right — Trace + delegation */}
+        <div className="flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="flex-1 overflow-hidden">
+            <ExecutionTrace events={events} currentRunId={currentRunId} />
+          </div>
+          <DelegationTree runs={runs} />
+        </div>
       </div>
     </>
   )

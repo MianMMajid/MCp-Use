@@ -27,7 +27,7 @@ export function ChatPanel({
   return (
     <div className="flex h-full flex-col">
       {/* scrollable message area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 dark:bg-zinc-950">
         {messages.length === 0 && !streaming && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <ChatBubbleLeftRightIcon className="h-10 w-10 text-zinc-300 dark:text-zinc-600" />

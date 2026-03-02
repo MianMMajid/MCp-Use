@@ -58,6 +58,7 @@ const nextConfig = {
       static: 600,
     },
   },
+  turbopack: {},
   webpack: (config, { dev }) => {
     if (dev) {
       config.cache = {
