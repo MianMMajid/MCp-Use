@@ -1,9 +1,15 @@
-import * as Headless from '@headlessui/react'
+import {
+  Description as HeadlessDescription,
+  Field as HeadlessField,
+  Fieldset as HeadlessFieldset,
+  Label as HeadlessLabel,
+  Legend as HeadlessLegend,
+} from '@headlessui/react'
 import clsx from 'clsx'
 
 export function Fieldset({ className, ...props }) {
   return (
-    <Headless.Fieldset
+    <HeadlessFieldset
       {...props}
       className={clsx(className, '*:data-[slot=text]:mt-1 [&>*+[data-slot=control]]:mt-6')}
     />
@@ -12,7 +18,7 @@ export function Fieldset({ className, ...props }) {
 
 export function Legend({ className, ...props }) {
   return (
-    <Headless.Legend
+    <HeadlessLegend
       data-slot="legend"
       {...props}
       className={clsx(
@@ -29,7 +35,7 @@ export function FieldGroup({ className, ...props }) {
 
 export function Field({ className, ...props }) {
   return (
-    <Headless.Field
+    <HeadlessField
       {...props}
       className={clsx(
         className,
@@ -46,7 +52,7 @@ export function Field({ className, ...props }) {
 
 export function Label({ className, ...props }) {
   return (
-    <Headless.Label
+    <HeadlessLabel
       data-slot="label"
       {...props}
       className={clsx(
@@ -59,7 +65,7 @@ export function Label({ className, ...props }) {
 
 export function Description({ className, ...props }) {
   return (
-    <Headless.Description
+    <HeadlessDescription
       data-slot="description"
       {...props}
       className={clsx(className, 'text-base/6 text-zinc-500 data-disabled:opacity-50 sm:text-sm/6 dark:text-zinc-400')}
@@ -69,7 +75,7 @@ export function Description({ className, ...props }) {
 
 export function ErrorMessage({ className, ...props }) {
   return (
-    <Headless.Description
+    <HeadlessDescription
       data-slot="error"
       {...props}
       className={clsx(className, 'text-base/6 text-red-600 data-disabled:opacity-50 sm:text-sm/6 dark:text-red-500')}

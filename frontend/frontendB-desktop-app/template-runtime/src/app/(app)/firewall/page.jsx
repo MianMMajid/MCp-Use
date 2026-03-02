@@ -8,25 +8,8 @@ import { Divider } from '@/components/divider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="flex items-center justify-between">
-              <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { SkeletonRows } from '@/components/skeleton'
 
 function decisionColor(d) {
   if (!d) return 'zinc'
@@ -94,6 +77,7 @@ export default function FirewallPage() {
       let body = {}
       try { body = JSON.parse(testPayload) } catch { body = { raw: testPayload } }
       const res = await postJson('/api/firewall/preview', body)
+      invalidateCache('/api/firewall')
       const data = await res.json().catch(() => ({}))
       setPreviewResult(data)
     } catch {
@@ -110,6 +94,7 @@ export default function FirewallPage() {
       let body = {}
       try { body = JSON.parse(testPayload) } catch { body = { raw: testPayload } }
       const res = await postJson('/api/firewall/decision', body)
+      invalidateCache('/api/firewall')
       const data = await res.json().catch(() => ({}))
       setPreviewResult(data)
     } catch {
@@ -125,6 +110,7 @@ export default function FirewallPage() {
     setChatReply(null)
     try {
       const res = await postJson('/api/firewall/chat', { message: chatInput })
+      invalidateCache('/api/firewall')
       const data = await res.json().catch(() => ({}))
       setChatReply(data)
     } catch {

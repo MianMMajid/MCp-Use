@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Checkbox as HeadlessCheckbox, Field } from '@headlessui/react'
 import clsx from 'clsx'
 
 export function CheckboxGroup({ className, ...props }) {
@@ -19,7 +19,7 @@ export function CheckboxGroup({ className, ...props }) {
 
 export function CheckboxField({ className, ...props }) {
   return (
-    <Headless.Field
+    <Field
       data-slot="field"
       {...props}
       className={clsx(
@@ -110,7 +110,7 @@ const colors = {
 
 export function Checkbox({ color = 'dark/zinc', className, ...props }) {
   return (
-    <Headless.Checkbox
+    <HeadlessCheckbox
       data-slot="control"
       {...props}
       className={clsx(className, 'group inline-flex focus:outline-hidden')}
@@ -139,6 +139,6 @@ export function Checkbox({ color = 'dark/zinc', className, ...props }) {
           />
         </svg>
       </span>
-    </Headless.Checkbox>
+    </HeadlessCheckbox>
   )
 }

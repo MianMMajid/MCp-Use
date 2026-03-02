@@ -1,9 +1,9 @@
-import * as Headless from '@headlessui/react'
+import { Field, Radio as HeadlessRadio, RadioGroup as HeadlessRadioGroup } from '@headlessui/react'
 import clsx from 'clsx'
 
 export function RadioGroup({ className, ...props }) {
   return (
-    <Headless.RadioGroup
+    <HeadlessRadioGroup
       data-slot="control"
       {...props}
       className={clsx(
@@ -19,7 +19,7 @@ export function RadioGroup({ className, ...props }) {
 
 export function RadioField({ className, ...props }) {
   return (
-    <Headless.Field
+    <Field
       data-slot="field"
       {...props}
       className={clsx(
@@ -111,7 +111,7 @@ const colors = {
 
 export function Radio({ color = 'dark/zinc', className, ...props }) {
   return (
-    <Headless.Radio
+    <HeadlessRadio
       data-slot="control"
       {...props}
       className={clsx(className, 'group inline-flex focus:outline-hidden')}
@@ -125,6 +125,6 @@ export function Radio({ color = 'dark/zinc', className, ...props }) {
           )}
         />
       </span>
-    </Headless.Radio>
+    </HeadlessRadio>
   )
 }

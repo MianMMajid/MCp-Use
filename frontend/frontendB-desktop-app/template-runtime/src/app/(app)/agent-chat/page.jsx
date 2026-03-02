@@ -9,24 +9,8 @@ import { Input } from '@/components/input'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'online' || v === 'ready' || v === 'active') return 'green'
-  if (v === 'offline' || v === 'error') return 'red'
-  return 'orange'
-}
+import { statusColor } from '@/lib/format'
+import { SkeletonCard } from '@/components/skeleton'
 
 export default function AgentChatPage() {
   const [status, setStatus] = useState(null)

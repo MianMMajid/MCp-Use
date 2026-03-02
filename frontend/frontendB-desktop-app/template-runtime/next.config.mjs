@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 /** @type {import('next').NextConfig} */
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
@@ -36,6 +38,44 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 const nextConfig = {
+  bundler: 'webpack',
+  onDemandEntries: {
+    maxInactiveAge: 15 * 60 * 1000,
+    pagesBufferLength: 32,
+  },
+  experimental: {
+    optimizePackageImports: [
+      'motion',
+      '@headlessui/react',
+      '@heroicons/react',
+    ],
+    reactCompiler: true,
+    staleTimes: {
+      dynamic: 300,
+      static: 600,
+    },
+  },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [fileURLToPath(import.meta.url)],
+        },
+      }
+      config.output.pathinfo = false
+      config.optimization.removeAvailableModules = false
+      config.optimization.removeEmptyChunks = false
+      config.optimization.splitChunks = false
+      config.optimization.runtimeChunk = true
+      config.resolve.extensions = ['.jsx', '.js', '.mjs', '.json']
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
+      }
+    }
+    return config
+  },
   async rewrites() {
     return [
       {

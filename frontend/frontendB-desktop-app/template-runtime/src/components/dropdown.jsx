@@ -1,22 +1,22 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
+import { Description, Menu, MenuButton, MenuHeading, MenuItem, MenuItems, MenuSection, MenuSeparator } from '@headlessui/react'
 import clsx from 'clsx'
 
 import { Button } from './button'
 import { Link } from './link'
 
 export function Dropdown(props) {
-  return <Headless.Menu {...props} />
+  return <Menu {...props} />
 }
 
 export function DropdownButton({ as = Button, ...props }) {
-  return <Headless.MenuButton as={as} {...props} />
+  return <MenuButton as={as} {...props} />
 }
 
 export function DropdownMenu({ anchor = 'bottom', className, ...props }) {
   return (
-    <Headless.MenuItems
+    <MenuItems
       {...props}
       transition
       anchor={anchor}
@@ -66,9 +66,9 @@ export function DropdownItem({ className, ...props }) {
   )
 
   return typeof props.href === 'string' ? (
-    <Headless.MenuItem as={Link} {...props} className={classes} />
+    <MenuItem as={Link} {...props} className={classes} />
   ) : (
-    <Headless.MenuItem as="button" type="button" {...props} className={classes} />
+    <MenuItem as="button" type="button" {...props} className={classes} />
   )
 }
 
@@ -78,7 +78,7 @@ export function DropdownHeader({ className, ...props }) {
 
 export function DropdownSection({ className, ...props }) {
   return (
-    <Headless.MenuSection
+    <MenuSection
       {...props}
       className={clsx(
         className,
@@ -91,7 +91,7 @@ export function DropdownSection({ className, ...props }) {
 
 export function DropdownHeading({ className, ...props }) {
   return (
-    <Headless.MenuHeading
+    <MenuHeading
       {...props}
       className={clsx(
         className,
@@ -103,7 +103,7 @@ export function DropdownHeading({ className, ...props }) {
 
 export function DropdownDivider({ className, ...props }) {
   return (
-    <Headless.MenuSeparator
+    <MenuSeparator
       {...props}
       className={clsx(
         className,
@@ -119,7 +119,7 @@ export function DropdownLabel({ className, ...props }) {
 
 export function DropdownDescription({ className, ...props }) {
   return (
-    <Headless.Description
+    <Description
       data-slot="description"
       {...props}
       className={clsx(
@@ -132,7 +132,7 @@ export function DropdownDescription({ className, ...props }) {
 
 export function DropdownShortcut({ keys, className, ...props }) {
   return (
-    <Headless.Description
+    <Description
       as="kbd"
       {...props}
       className={clsx(className, 'col-start-5 row-start-1 flex justify-self-end')}
@@ -149,6 +149,6 @@ export function DropdownShortcut({ keys, className, ...props }) {
           {char}
         </kbd>
       ))}
-    </Headless.Description>
+    </Description>
   )
 }

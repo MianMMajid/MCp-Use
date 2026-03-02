@@ -13,32 +13,8 @@ import { Link } from '@/components/link'
 import { DescriptionList, DescriptionTerm, DescriptionDetails } from '@/components/description-list'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-  } catch { return dateStr }
-}
-
-function statusColor(s) {
-  if (!s) return 'zinc'
-  const v = s.toLowerCase()
-  if (v === 'active' || v === 'verified' || v === 'success') return 'green'
-  if (v === 'failed' || v === 'error' || v === 'expired') return 'red'
-  if (v === 'pending' || v === 'challenged') return 'orange'
-  return 'zinc'
-}
+import { formatDate, statusColor } from '@/lib/format'
+import { SkeletonCard } from '@/components/skeleton'
 
 export default function ModifierOpsPolicyPage() {
   const [loading, setLoading] = useState(true)

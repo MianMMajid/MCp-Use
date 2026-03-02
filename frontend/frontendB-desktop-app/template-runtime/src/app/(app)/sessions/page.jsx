@@ -5,51 +5,9 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Heading } from '@/components/heading'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonRows() {
-  return (
-    <div className="mt-8 animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 space-y-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-            <div className="flex items-center justify-between">
-              <div className="h-4 w-40 rounded bg-zinc-200 dark:bg-zinc-700" />
-              <div className="h-5 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-            </div>
-            <div className="mt-2 h-3 w-56 rounded bg-zinc-100 dark:bg-zinc-800" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function statusColor(status) {
-  if (!status) return 'zinc'
-  const s = status.toLowerCase()
-  if (s === 'completed' || s === 'success') return 'green'
-  if (s === 'failed' || s === 'error' || s === 'cancelled') return 'red'
-  if (s === 'running' || s === 'in_progress' || s === 'active') return 'orange'
-  if (s === 'pending') return 'sky'
-  return 'zinc'
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    })
-  } catch {
-    return dateStr
-  }
-}
+import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { formatDate, statusColor } from '@/lib/format'
+import { SkeletonRows } from '@/components/skeleton'
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState(null)
@@ -96,6 +54,7 @@ export default function SessionsPage() {
     setCancelling(sessionId)
     try {
       await postJson(`/api/openclaw/agent/sessions/${sessionId}/cancel`, {})
+      invalidateCache('/api/openclaw/agent/sessions')
       fetchSessions()
     } catch {
       // refresh anyway

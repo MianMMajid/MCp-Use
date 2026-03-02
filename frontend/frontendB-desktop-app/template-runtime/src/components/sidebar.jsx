@@ -1,6 +1,6 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
+import { Button, CloseButton } from '@headlessui/react'
 import clsx from 'clsx'
 import { LayoutGroup, motion } from 'motion/react'
 import { forwardRef, useId } from 'react'
@@ -107,7 +107,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
         />
       )}
       {typeof props.href === 'string' ? (
-        <Headless.CloseButton
+        <CloseButton
           as={Link}
           {...props}
           className={classes}
@@ -115,16 +115,16 @@ export const SidebarItem = forwardRef(function SidebarItem(
           ref={ref}
         >
           <TouchTarget>{children}</TouchTarget>
-        </Headless.CloseButton>
+        </CloseButton>
       ) : (
-        <Headless.Button
+        <Button
           {...props}
           className={clsx('cursor-default', classes)}
           data-current={current ? 'true' : undefined}
           ref={ref}
         >
           <TouchTarget>{children}</TouchTarget>
-        </Headless.Button>
+        </Button>
       )}
     </span>
   )

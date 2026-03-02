@@ -8,30 +8,9 @@ import { Divider } from '@/components/divider'
 import { Heading, Subheading } from '@/components/heading'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table'
 import { Text } from '@/components/text'
-import { loadJson, postJson } from '@/lib/api'
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
-
-function SkeletonList() {
-  return (
-    <div className="animate-pulse space-y-3">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <div className="h-4 w-48 rounded bg-zinc-200 dark:bg-zinc-700" />
-          <div className="mt-2 h-3 w-24 rounded bg-zinc-100 dark:bg-zinc-800" />
-        </div>
-      ))}
-    </div>
-  )
-}
+import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { formatDate } from '@/lib/format'
+import { SkeletonCard, SkeletonList } from '@/components/skeleton'
 
 const statusBadgeColor = {
   active: 'green',
@@ -57,19 +36,6 @@ function formatCurrency(amount, currency) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'usd' }).format(value)
   } catch {
     return `$${value.toFixed(2)}`
-  }
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '--'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  } catch {
-    return dateStr
   }
 }
 
@@ -118,6 +84,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/portal-session', {})
+      invalidateCache('/api/billing')
       const data = await res.json().catch(() => ({}))
       if (data.ok && data.url) {
         window.location.href = data.url
@@ -138,6 +105,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/create-checkout-session', { plan })
+      invalidateCache('/api/billing')
       const data = await res.json().catch(() => ({}))
       if (data.ok && data.url) {
         window.location.href = data.url
@@ -158,6 +126,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/subscription/cancel', { atPeriodEnd: true })
+      invalidateCache('/api/billing')
       const data = await res.json().catch(() => ({}))
       if (data.ok) {
         setSubscription((prev) => ({
@@ -186,6 +155,7 @@ export default function BillingPage() {
     setMessage('')
     try {
       const res = await postJson('/api/billing/subscription/resume', {})
+      invalidateCache('/api/billing')
       const data = await res.json().catch(() => ({}))
       if (data.ok) {
         setSubscription((prev) => ({

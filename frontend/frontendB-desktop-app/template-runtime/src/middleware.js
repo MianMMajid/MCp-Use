@@ -6,19 +6,6 @@ const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password
 export function middleware(request) {
   const { pathname } = request.nextUrl
 
-  // Allow Next.js internals and API routes through
-  if (
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/favicon') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.ico')
-  ) {
-    return NextResponse.next()
-  }
-
   // Allow public auth routes without session
   if (publicPaths.some((p) => pathname.startsWith(p))) {
     return NextResponse.next()
@@ -37,11 +24,6 @@ export function middleware(request) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except static files.
-     * This ensures middleware runs on page navigations but not on
-     * static asset requests that are already handled above.
-     */
-    '/((?!_next/static|_next/image).*)',
+    '/((?!_next/static|_next/image|api/|favicon|.*\\.(?:svg|png|jpg|ico|webp)$).*)',
   ],
 }

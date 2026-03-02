@@ -1,4 +1,4 @@
-import * as Headless from '@headlessui/react'
+import { Button as HeadlessButton } from '@headlessui/react'
 import clsx from 'clsx'
 import { forwardRef } from 'react'
 import { Link } from './link'
@@ -170,9 +170,9 @@ export const Button = forwardRef(function Button({ color, outline, plain, classN
       <TouchTarget>{children}</TouchTarget>
     </Link>
   ) : (
-    <Headless.Button {...props} className={clsx(classes, 'cursor-default')} ref={ref}>
+    <HeadlessButton {...props} className={clsx(classes, 'cursor-default')} ref={ref}>
       <TouchTarget>{children}</TouchTarget>
-    </Headless.Button>
+    </HeadlessButton>
   )
 })
 

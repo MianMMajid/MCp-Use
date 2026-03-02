@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, invalidateCache } from '@/lib/api'
 import { Heading, Subheading } from '@/components/heading'
 import { Badge } from '@/components/badge'
 import {
@@ -14,16 +14,7 @@ import {
 } from '@/components/table'
 import { Button } from '@/components/button'
 import { Divider } from '@/components/divider'
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
-      <div className="h-4 w-24 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-4 h-8 w-16 rounded bg-zinc-200 dark:bg-zinc-700" />
-      <div className="mt-2 h-3 w-32 rounded bg-zinc-100 dark:bg-zinc-800" />
-    </div>
-  )
-}
+import { SkeletonCard } from '@/components/skeleton'
 
 export default function UsagePage() {
   const [entitlements, setEntitlements] = useState(null)
@@ -86,6 +77,7 @@ export default function UsagePage() {
     try {
       const body = overrideInput.trim() ? JSON.parse(overrideInput) : {}
       const res = await postJson('/api/limits/override', body)
+      invalidateCache('/api/limits')
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setMessage(

@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/avatar'
 import {
@@ -114,13 +113,6 @@ export function ApplicationLayout({ events, children }) {
   let pathname = usePathname()
   const router = useRouter()
 
-  // Session check on mount
-  useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then((res) => { if (res.status === 401) router.push('/login') })
-      .catch(() => {})
-  }, [router])
-
   return (
     <SidebarLayout
       navbar={
@@ -141,7 +133,7 @@ export function ApplicationLayout({ events, children }) {
           <SidebarHeader>
             <Dropdown>
               <DropdownButton as={SidebarItem}>
-                <Avatar src="/teams/catalyst.svg" />
+                <Avatar src="/teams/maple.svg" />
                 <SidebarLabel>Mayple Desktop</SidebarLabel>
                 <ChevronDownIcon />
               </DropdownButton>
@@ -152,7 +144,7 @@ export function ApplicationLayout({ events, children }) {
                 </DropdownItem>
                 <DropdownDivider />
                 <DropdownItem href="/">
-                  <Avatar slot="icon" src="/teams/catalyst.svg" />
+                  <Avatar slot="icon" src="/teams/maple.svg" />
                   <DropdownLabel>Mayple Desktop</DropdownLabel>
                 </DropdownItem>
                 <DropdownItem href="/organization">

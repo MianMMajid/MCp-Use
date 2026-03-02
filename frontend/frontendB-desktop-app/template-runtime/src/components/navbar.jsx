@@ -1,6 +1,6 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
+import { Button } from '@headlessui/react'
 import clsx from 'clsx'
 import { LayoutGroup, motion } from 'motion/react'
 import { forwardRef, useId } from 'react'
@@ -66,14 +66,14 @@ export const NavbarItem = forwardRef(function NavbarItem(
           <TouchTarget>{children}</TouchTarget>
         </Link>
       ) : (
-        <Headless.Button
+        <Button
           {...props}
           className={clsx('cursor-default', classes)}
           data-current={current ? 'true' : undefined}
           ref={ref}
         >
           <TouchTarget>{children}</TouchTarget>
-        </Headless.Button>
+        </Button>
       )}
     </span>
   )
