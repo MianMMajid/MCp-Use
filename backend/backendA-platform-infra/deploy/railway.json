@@ -7,7 +7,7 @@
   "deploy": {
     "startCommand": "/app/railway-entrypoint.sh",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 60,
+    "healthcheckTimeout": 180,
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 5,
     "numReplicas": 1

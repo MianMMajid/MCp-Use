@@ -72,7 +72,7 @@ export class MaplePostgresDatabase {
             // and when sslmode=require is explicitly set. This is acceptable for those
             // managed environments. For stricter enforcement in other deployments,
             // this should be set to true with proper CA certificates configured.
-            ssl: connStr.includes("railway.app") || connStr.includes("sslmode=require")
+            ssl: connStr.includes("railway.app") || connStr.includes(".railway.internal") || connStr.includes("sslmode=require")
                 ? { rejectUnauthorized: false }
                 : undefined,
         });

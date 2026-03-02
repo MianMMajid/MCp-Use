@@ -2,7 +2,7 @@ import { readFileSync, accessSync } from "node:fs";
 import { createServer as createHttpsServer } from "node:https";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
-import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, isProductionRuntime, } from "./config.js";
+import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, isProductionRuntime, isBehindTrustedProxy, } from "./config.js";
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus } from "./state.js";
 function canReadFile(p) { try { accessSync(p); return true; } catch { return false; } }
@@ -18,8 +18,13 @@ async function main() {
     const fetchHandler = await server.getHandler();
     const tlsAvailable = canReadFile(gatewayTlsCertPath) && canReadFile(gatewayTlsKeyPath);
     const useHttps = tlsAvailable && gatewayTlsCertPath !== "/dev/null";
-    if (!useHttps && isProductionRuntime) {
+    if (!useHttps && isProductionRuntime && !isBehindTrustedProxy) {
         throw new Error("TLS certificates are required in production. Set MAPLE_GATEWAY_TLS_CERT/KEY.");
+    }
+    if (!useHttps && isBehindTrustedProxy) {
+        mapleLog("info", "gateway_api.trusted_proxy_mode", {
+            message: "Running plain HTTP behind trusted reverse proxy (TLS terminated at edge)"
+        });
     }
     const serveOpts = { fetch: fetchHandler, hostname: gatewayHost, port: gatewayPort };
     if (useHttps) {

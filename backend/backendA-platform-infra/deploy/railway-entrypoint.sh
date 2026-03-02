@@ -3,42 +3,10 @@ set -euo pipefail
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Railway Entrypoint for Maple Gateway
-# Generates self-signed TLS certs and sets sensible defaults for ALL required
-# env vars so the gateway can boot on Railway without a full k8s mesh.
+# Sets sensible defaults for ALL required env vars so the gateway can boot on
+# Railway without a full k8s mesh. TLS is terminated at Railway's edge proxy;
+# the container runs plain HTTP behind MAPLE_BEHIND_TRUSTED_PROXY=true.
 # ──────────────────────────────────────────────────────────────────────────────
-
-TLS_DIR="/tmp/tls"
-mkdir -p "${TLS_DIR}"
-
-# ── Generate self-signed TLS certs (Railway terminates real TLS at edge) ─────
-if [ ! -f "${TLS_DIR}/tls.crt" ]; then
-  echo "[railway-entrypoint] Generating self-signed TLS certificates..."
-  openssl req -x509 -newkey rsa:2048 -nodes \
-    -keyout "${TLS_DIR}/ca.key" -out "${TLS_DIR}/ca.crt" \
-    -days 3650 -subj "/CN=Maple Railway CA" 2>/dev/null
-
-  openssl req -newkey rsa:2048 -nodes \
-    -keyout "${TLS_DIR}/tls.key" -out "${TLS_DIR}/tls.csr" \
-    -subj "/CN=localhost" 2>/dev/null
-
-  cat > "${TLS_DIR}/ext.cnf" <<'EXTEOF'
-subjectAltName = @alt_names
-extendedKeyUsage = serverAuth, clientAuth
-keyUsage = digitalSignature, keyEncipherment
-[alt_names]
-DNS.1 = localhost
-DNS.2 = gateway-api
-DNS.3 = 0.0.0.0
-IP.1 = 127.0.0.1
-EXTEOF
-
-  openssl x509 -req -in "${TLS_DIR}/tls.csr" \
-    -CA "${TLS_DIR}/ca.crt" -CAkey "${TLS_DIR}/ca.key" -CAcreateserial \
-    -out "${TLS_DIR}/tls.crt" -days 825 -extfile "${TLS_DIR}/ext.cnf" 2>/dev/null
-
-  rm -f "${TLS_DIR}/tls.csr" "${TLS_DIR}/ext.cnf" "${TLS_DIR}/ca.srl"
-  echo "[railway-entrypoint] TLS certs ready."
-fi
 
 # ── Core ─────────────────────────────────────────────────────────────────────
 export NODE_ENV="${NODE_ENV:-production}"
@@ -46,16 +14,21 @@ export GATEWAY_PORT="${PORT:-${GATEWAY_PORT:-3000}}"
 export GATEWAY_HOST="${GATEWAY_HOST:-0.0.0.0}"
 export CORS_ORIGIN="${CORS_ORIGIN:-*}"
 
-# ── TLS paths ────────────────────────────────────────────────────────────────
-export MAPLE_GATEWAY_TLS_CERT="${MAPLE_GATEWAY_TLS_CERT:-${TLS_DIR}/tls.crt}"
-export MAPLE_GATEWAY_TLS_KEY="${MAPLE_GATEWAY_TLS_KEY:-${TLS_DIR}/tls.key}"
-export MAPLE_GATEWAY_TLS_CA="${MAPLE_GATEWAY_TLS_CA:-${TLS_DIR}/ca.crt}"
+# ── Trusted proxy mode (Railway terminates TLS at edge) ─────────────────────
+export MAPLE_BEHIND_TRUSTED_PROXY="${MAPLE_BEHIND_TRUSTED_PROXY:-true}"
+export MAPLE_ENFORCE_STARTUP_DEPENDENCIES="${MAPLE_ENFORCE_STARTUP_DEPENDENCIES:-false}"
+export MAPLE_RUNTIME_STRICT_DEPENDENCIES="${MAPLE_RUNTIME_STRICT_DEPENDENCIES:-false}"
+
+# ── TLS paths (bypassed — no certs needed behind proxy) ─────────────────────
+export MAPLE_GATEWAY_TLS_CERT="${MAPLE_GATEWAY_TLS_CERT:-/dev/null}"
+export MAPLE_GATEWAY_TLS_KEY="${MAPLE_GATEWAY_TLS_KEY:-/dev/null}"
+export MAPLE_GATEWAY_TLS_CA="${MAPLE_GATEWAY_TLS_CA:-/dev/null}"
 
 # ── Database (Railway injects DATABASE_URL from Postgres plugin) ─────────────
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/railway}"
 
 # ── Auth / Session ───────────────────────────────────────────────────────────
-export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
+export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-false}"
 export MAPLE_SESSION_COOKIE_NAME="${MAPLE_SESSION_COOKIE_NAME:-maple_sid}"
 export MAPLE_SESSION_TTL_SECONDS="${MAPLE_SESSION_TTL_SECONDS:-604800}"
 export MAPLE_AUTH_ALLOW_SELF_SIGNUP="${MAPLE_AUTH_ALLOW_SELF_SIGNUP:-true}"
@@ -118,7 +91,7 @@ export MAPLE_OTLP_FLUSH_INTERVAL_MS="${MAPLE_OTLP_FLUSH_INTERVAL_MS:-5000}"
 
 # ── Event Transport ──────────────────────────────────────────────────────────
 export MAPLE_EVENT_TRANSPORT_BACKEND="${MAPLE_EVENT_TRANSPORT_BACKEND:-pg}"
-export MAPLE_REDIS_URL="${MAPLE_REDIS_URL:-}"
+export MAPLE_REDIS_URL="${MAPLE_REDIS_URL:-redis://localhost:6379}"
 
 # ── Firewall Chat AI ────────────────────────────────────────────────────────
 export MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW="${MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW:-false}"
@@ -162,16 +135,17 @@ export CYBER_PROXY_ADDRESS="${CYBER_PROXY_ADDRESS:-localhost:8090}"
 export SECRETS_BROKER_ADDRESS="${SECRETS_BROKER_ADDRESS:-localhost:9300}"
 export AUDIT_WRITER_ADDRESS="${AUDIT_WRITER_ADDRESS:-localhost:9400}"
 
-# ── Business API (disabled for test — no mTLS needed) ───────────────────────
+# ── Business API (no mTLS certs on Railway) ──────────────────────────────────
 export MAPLE_BUSINESS_API_BASE_URL="${MAPLE_BUSINESS_API_BASE_URL:-https://localhost:9550}"
 export MAPLE_BUSINESS_API_REQUIRED="${MAPLE_BUSINESS_API_REQUIRED:-false}"
-export MAPLE_BUSINESS_API_CA="${MAPLE_BUSINESS_API_CA:-${TLS_DIR}/ca.crt}"
-export MAPLE_BUSINESS_API_CERT="${MAPLE_BUSINESS_API_CERT:-${TLS_DIR}/tls.crt}"
-export MAPLE_BUSINESS_API_KEY="${MAPLE_BUSINESS_API_KEY:-${TLS_DIR}/tls.key}"
+export MAPLE_BUSINESS_API_CA="${MAPLE_BUSINESS_API_CA:-/dev/null}"
+export MAPLE_BUSINESS_API_CERT="${MAPLE_BUSINESS_API_CERT:-/dev/null}"
+export MAPLE_BUSINESS_API_KEY="${MAPLE_BUSINESS_API_KEY:-/dev/null}"
 export MAPLE_BUSINESS_API_TIMEOUT_MS="${MAPLE_BUSINESS_API_TIMEOUT_MS:-5000}"
 
 # ──────────────────────────────────────────────────────────────────────────────
 echo "[railway-entrypoint] Starting Maple gateway on port ${GATEWAY_PORT}..."
+echo "[railway-entrypoint] Trusted proxy: ${MAPLE_BEHIND_TRUSTED_PROXY}"
 echo "[railway-entrypoint] Agent: ${MAPLE_OPENCLAW_AGENT_ENABLED} (mode=${MAPLE_OPENCLAW_AGENT_MODE})"
 echo "[railway-entrypoint] Auth: MAPLE_ALLOW_NO_AUTH=${MAPLE_ALLOW_NO_AUTH}"
 echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."
