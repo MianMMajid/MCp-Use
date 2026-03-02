@@ -36,7 +36,12 @@ export MAPLE_GATEWAY_TLS_CA="${MAPLE_GATEWAY_TLS_CA:-/dev/null}"
 # ── Database (Railway injects DATABASE_URL from Postgres plugin) ─────────────
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/railway}"
 
-# ── Auth / Session ───────────────────────────────────────────────────────────
+# ── Tenant / Auth / Session ──────────────────────────────────────────────────
+export MAPLE_TENANT_CLAIM_SIGNING_KEY="${MAPLE_TENANT_CLAIM_SIGNING_KEY:-railway-default-signing-key-$(hostname)}"
+export MAPLE_ADMIN_USERNAME="${MAPLE_ADMIN_USERNAME:-admin}"
+export MAPLE_ADMIN_PASSWORD="${MAPLE_ADMIN_PASSWORD:-admin}"
+export MAPLE_DISABLE_HITL_BROKER="${MAPLE_DISABLE_HITL_BROKER:-1}"
+export MAPLE_DISABLE_AUDIT_EMIT="${MAPLE_DISABLE_AUDIT_EMIT:-1}"
 export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-false}"
 export MAPLE_SESSION_COOKIE_NAME="${MAPLE_SESSION_COOKIE_NAME:-maple_sid}"
 export MAPLE_SESSION_TTL_SECONDS="${MAPLE_SESSION_TTL_SECONDS:-604800}"
