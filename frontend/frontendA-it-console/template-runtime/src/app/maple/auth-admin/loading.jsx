@@ -1,0 +1,17 @@
+import { SkeletonCard, SkeletonForm } from '@/components/Skeleton'
+
+export default function Loading() {
+  return (
+    <article className="flex h-full flex-col pt-16 pb-10">
+      <div className="mx-auto max-w-2xl lg:max-w-5xl">
+        <div className="h-8 w-32 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="mt-8">
+          <SkeletonCard />
+        </div>
+        <div className="mt-8">
+          <SkeletonForm />
+        </div>
+      </div>
+    </article>
+  )
+}

@@ -1,6 +1,6 @@
 import { compress } from "hono/compress";
 import { randomUUID } from "node:crypto";
-import { isProductionRuntime } from "./config.js";
+import { isProductionRuntime, isBehindTrustedProxy } from "./config.js";
 import { mapleLogRequestsEnabled, mapleLogIncludeBodies, shouldLogLevel, shouldLogHttpRequestPath, requestBodyPreview, requestContextStorage, mapleLog, } from "./logging.js";
 import { server } from "./state.js";
 import { emitAuditEvent } from "./audit-emitter.js";
@@ -128,7 +128,7 @@ server.app.use("*", async (c, next) => {
 });
 // ── Compression ─────────────────────────────────────────────────────────────
 // Skip compression in production — Cloudflare/Manufact proxy handles it.
-if (!isProductionRuntime) {
+if (!isProductionRuntime || isBehindTrustedProxy) {
     server.app.use("*", async (c, next) => {
         if (c.req.path.startsWith("/sse")) {
             await next();

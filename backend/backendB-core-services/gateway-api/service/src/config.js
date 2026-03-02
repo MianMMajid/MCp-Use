@@ -37,6 +37,10 @@ function requireCsvList(key) {
 }
 
 export const isProductionRuntime = requireEnv("NODE_ENV") === "production";
+export const isBehindTrustedProxy = (() => {
+    const raw = (process.env.MAPLE_BEHIND_TRUSTED_PROXY ?? "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+})();
 // -- Stripe billing setup ----------------------------------------------------
 export const stripeSecretKey = requireEnv("STRIPE_SECRET_KEY");
 export const stripeWebhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
@@ -59,8 +63,11 @@ export function incrementEvolvedSuggestionsServed(count) {
 export const configuredApiKeys = loadApiKeysFromEnv();
 export const apiKeyAuthEnabled = configuredApiKeys.length > 0;
 const allowNoAuthRequested = requireEnvBool("MAPLE_ALLOW_NO_AUTH");
-if (isProductionRuntime && allowNoAuthRequested) {
+if (isProductionRuntime && allowNoAuthRequested && !isBehindTrustedProxy) {
     throw new Error("MAPLE_ALLOW_NO_AUTH cannot be enabled in production runtime.");
+}
+if (isProductionRuntime && allowNoAuthRequested && isBehindTrustedProxy) {
+    console.warn("[config] MAPLE_ALLOW_NO_AUTH is enabled in production behind trusted proxy. Ensure the proxy enforces authentication.");
 }
 export const allowNoAuth = allowNoAuthRequested;
 export const allowBridgeOverride = requireEnvBool("MAPLE_ALLOW_BRIDGE_OVERRIDE");

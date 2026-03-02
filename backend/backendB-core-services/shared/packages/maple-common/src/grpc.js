@@ -21,10 +21,13 @@ export function loadGrpcTlsConfig() {
  */
 export function createGrpcClientCredentials(tlsConfig) {
     if (!tlsConfig) {
-        if (process.env.NODE_ENV !== "production") {
+        const isTrustedProxy = ["1","true","yes"].includes(
+            (process.env.MAPLE_BEHIND_TRUSTED_PROXY ?? "").trim().toLowerCase()
+        );
+        if (process.env.NODE_ENV !== "production" || isTrustedProxy) {
             return grpc.credentials.createInsecure();
         }
-        throw new Error("gRPC TLS client config missing. Set MAPLE_GRPC_TLS_CERT, MAPLE_GRPC_TLS_KEY, MAPLE_GRPC_TLS_CA.");
+        throw new Error("gRPC TLS client config missing. Set MAPLE_GRPC_TLS_CERT/KEY/CA or MAPLE_BEHIND_TRUSTED_PROXY=true.");
     }
     try {
         const rootCerts = readFileSync(tlsConfig.caPath);

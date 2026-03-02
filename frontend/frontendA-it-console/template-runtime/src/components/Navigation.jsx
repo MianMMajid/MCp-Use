@@ -39,26 +39,48 @@ function NavLink({
   active = false,
   isAnchorLink = false,
 }) {
-  return (
-    <CloseButton
-      as={Link}
-      href={href}
-      aria-current={active ? 'page' : undefined}
-      className={clsx(
-        'flex justify-between gap-2 py-1 pr-3 text-sm transition',
-        isAnchorLink ? 'pl-7' : 'pl-4',
-        active
-          ? 'text-zinc-900 dark:text-white'
-          : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white',
-      )}
-    >
+  let isInsideMobileNavigation = useIsInsideMobileNavigation()
+
+  const className = clsx(
+    'flex justify-between gap-2 py-1 pr-3 text-sm transition',
+    isAnchorLink ? 'pl-7' : 'pl-4',
+    active
+      ? 'text-zinc-900 dark:text-white'
+      : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white',
+  )
+
+  const content = (
+    <>
       <span className="truncate">{children}</span>
       {tag && (
         <Tag variant="small" color="zinc">
           {tag}
         </Tag>
       )}
-    </CloseButton>
+    </>
+  )
+
+  if (isInsideMobileNavigation) {
+    return (
+      <CloseButton
+        as={Link}
+        href={href}
+        aria-current={active ? 'page' : undefined}
+        className={className}
+      >
+        {content}
+      </CloseButton>
+    )
+  }
+
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={className}
+    >
+      {content}
+    </Link>
   )
 }
 
