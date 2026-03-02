@@ -93,6 +93,11 @@ export MAPLE_OTLP_FLUSH_INTERVAL_MS="${MAPLE_OTLP_FLUSH_INTERVAL_MS:-5000}"
 export MAPLE_EVENT_TRANSPORT_BACKEND="${MAPLE_EVENT_TRANSPORT_BACKEND:-pg}"
 export MAPLE_REDIS_URL="${MAPLE_REDIS_URL:-redis://localhost:6379}"
 
+# ── Firewall Engine ─────────────────────────────────────────────────────────
+export MAPLE_FIREWALL_ENABLED="${MAPLE_FIREWALL_ENABLED:-true}"
+export MAPLE_FIREWALL_DEFAULT_ACTION="${MAPLE_FIREWALL_DEFAULT_ACTION:-allow}"
+export MAPLE_FIREWALL_LOG_DIR="${MAPLE_FIREWALL_LOG_DIR:-/tmp/maple-firewall-logs}"
+
 # ── Firewall Chat AI ────────────────────────────────────────────────────────
 export MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW="${MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW:-false}"
 export MAPLE_FIREWALL_CHAT_STRICT_MODE="${MAPLE_FIREWALL_CHAT_STRICT_MODE:-false}"
