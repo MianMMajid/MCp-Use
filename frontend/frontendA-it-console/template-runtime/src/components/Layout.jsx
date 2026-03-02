@@ -19,6 +19,11 @@ const Navigation = dynamic(
 export function Layout({ children, allSections }) {
   let pathname = usePathname()
 
+  // Render login page without sidebar/navigation
+  if (pathname === '/login') {
+    return <>{children}</>
+  }
+
   return (
     <SectionProvider sections={allSections[pathname] ?? []}>
       <NavigationProgress />
