@@ -683,26 +683,31 @@ async function main() {
     const staticRoutes = createStaticRoutes();
     app.route("/", staticRoutes);
     // ── Start server ────────────────────────────────────────────────────────
-    const tlsConfig = {
-        cert: readFileSync(config.tlsCertPath),
-        key: readFileSync(config.tlsKeyPath),
-        ca: readFileSync(config.tlsCaPath),
-    };
-    serve({
+    const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
+    const serveOptions = {
         fetch: app.fetch,
         port: config.port,
         hostname: config.host,
-        createServer: createHttpsServer,
-        serverOptions: {
+    };
+    if (!disableTls) {
+        const tlsConfig = {
+            cert: readFileSync(config.tlsCertPath),
+            key: readFileSync(config.tlsKeyPath),
+            ca: readFileSync(config.tlsCaPath),
+        };
+        serveOptions.createServer = createHttpsServer;
+        serveOptions.serverOptions = {
             cert: tlsConfig.cert,
             key: tlsConfig.key,
             ca: tlsConfig.ca,
-        },
-    }, (info) => {
+        };
+    }
+    const protocol = disableTls ? "http" : "https";
+    serve(serveOptions, (info) => {
         mapleLog("info", "admin_console_listening", {
             port: info.port,
             host: info.address,
-            protocol: "https",
+            protocol,
         });
     });
 }
