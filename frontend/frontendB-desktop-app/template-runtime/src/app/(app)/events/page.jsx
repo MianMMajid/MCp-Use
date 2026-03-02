@@ -11,15 +11,16 @@ import { Select } from '@/components/select'
 import { MagnifyingGlassIcon } from '@heroicons/react/16/solid'
 import { Dialog, DialogTitle, DialogDescription, DialogBody, DialogActions } from '@/components/dialog'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { formatDate, statusColor, severityColor } from '@/lib/format'
 import { SkeletonGrid } from '@/components/skeleton'
 
 export default function Events() {
-  const [traces, setTraces] = useState(null)
-  const [count, setCount] = useState(0)
+  const _c = getCached('/api/traces')
+  const [traces, setTraces] = useState(() => _c ? (Array.isArray(_c?.traces) ? _c.traces : []) : null)
+  const [count, setCount] = useState(() => _c?.count ?? 0)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_c)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('date')
   const [showExport, setShowExport] = useState(false)

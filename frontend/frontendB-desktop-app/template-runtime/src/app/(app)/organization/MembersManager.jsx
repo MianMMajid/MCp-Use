@@ -12,12 +12,14 @@ import { Text } from '@/components/text'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table'
 import { SkeletonList } from '@/components/skeleton'
-import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 
 export default function MembersManager() {
-  const [selectedOrgId, setSelectedOrgId] = useState(null)
-  const [selectedOrgName, setSelectedOrgName] = useState('')
-  const [ownerUserId, setOwnerUserId] = useState(null)
+  const _c = getCached('/api/org')
+  const _items = _c ? (Array.isArray(_c?.items) ? _c.items : []) : []
+  const [selectedOrgId, setSelectedOrgId] = useState(() => _items.length > 0 ? _items[0].orgId : null)
+  const [selectedOrgName, setSelectedOrgName] = useState(() => _items.length > 0 ? (_items[0].name || '') : '')
+  const [ownerUserId, setOwnerUserId] = useState(() => _items.length > 0 ? (_items[0].ownerUserId || null) : null)
   const [members, setMembers] = useState([])
   const [roles, setRoles] = useState([])
   const [membersLoading, setMembersLoading] = useState(false)

@@ -8,7 +8,7 @@ import { Divider } from '@/components/divider'
 import { Heading, Subheading } from '@/components/heading'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table'
 import { Text } from '@/components/text'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { SkeletonCard, SkeletonList } from '@/components/skeleton'
 
@@ -40,11 +40,14 @@ function formatCurrency(amount, currency) {
 }
 
 export default function BillingPage() {
-  const [subscription, setSubscription] = useState(null)
-  const [billingEnabled, setBillingEnabled] = useState(true)
-  const [billingMode, setBillingMode] = useState(null)
-  const [invoices, setInvoices] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cs = getCached('/api/billing/subscription')
+  const _ci = getCached('/api/billing/invoices?limit=20')
+  const _hasCached = !!(_cs || _ci)
+  const [subscription, setSubscription] = useState(() => _cs ? (_cs.subscription || null) : null)
+  const [billingEnabled, setBillingEnabled] = useState(() => _cs ? (_cs.billingEnabled !== false) : true)
+  const [billingMode, setBillingMode] = useState(() => _cs ? (_cs.billingMode || null) : null)
+  const [invoices, setInvoices] = useState(() => _ci ? (_ci?.items || []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

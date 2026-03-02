@@ -14,32 +14,38 @@ import { Link } from '@/components/link'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { SkeletonRows } from '@/components/skeleton'
 import { formatDate, statusColor } from '@/lib/format'
-import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 
 export default function ComplianceContent() {
-  const [loading, setLoading] = useState(true)
+  const _cbg = getCached('/api/openclaw/modifier/ops/break-glass')
+  const _cac = getCached('/api/openclaw/modifier/ops/audit-chain/events')
+  const _crt = getCached('/api/openclaw/modifier/ops/retention')
+  const _cwh = getCached('/api/openclaw/modifier/ops/alert-webhooks')
+  const _ccs = getCached('/api/openclaw/modifier/ops/compliance/summary')
+  const _hasCached = !!(_cbg || _cac || _crt || _cwh || _ccs)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 
   // Break-glass state
-  const [breakGlassLog, setBreakGlassLog] = useState(null)
+  const [breakGlassLog, setBreakGlassLog] = useState(() => _cbg ? (Array.isArray(_cbg?.entries) ? _cbg.entries : Array.isArray(_cbg) ? _cbg : []) : null)
 
   // Audit chain state
-  const [auditEvents, setAuditEvents] = useState(null)
+  const [auditEvents, setAuditEvents] = useState(() => _cac ? (Array.isArray(_cac?.events) ? _cac.events : Array.isArray(_cac) ? _cac : []) : null)
   const [verifyResult, setVerifyResult] = useState(null)
 
   // Retention state
-  const [retentionConfig, setRetentionConfig] = useState(null)
+  const [retentionConfig, setRetentionConfig] = useState(_crt || null)
   const [retentionPayload, setRetentionPayload] = useState('')
 
   // Alert webhooks state
-  const [webhooks, setWebhooks] = useState(null)
+  const [webhooks, setWebhooks] = useState(() => _cwh ? (Array.isArray(_cwh?.webhooks) ? _cwh.webhooks : Array.isArray(_cwh) ? _cwh : []) : null)
   const [expandedWebhook, setExpandedWebhook] = useState(null)
   const [deliveries, setDeliveries] = useState(null)
 
   // Compliance state
-  const [complianceSummary, setComplianceSummary] = useState(null)
+  const [complianceSummary, setComplianceSummary] = useState(_ccs || null)
 
   // Break-glass execute dialog
   const [showExecute, setShowExecute] = useState(false)

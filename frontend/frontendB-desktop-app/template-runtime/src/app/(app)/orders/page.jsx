@@ -5,7 +5,7 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Heading } from '@/components/heading'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson } from '@/lib/api'
+import { loadJson, getCached } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
@@ -19,10 +19,11 @@ function decisionColor(decision) {
 }
 
 export default function Orders() {
-  const [approvals, setApprovals] = useState(null)
-  const [count, setCount] = useState(0)
+  const _c = getCached('/api/hitl/approvals')
+  const [approvals, setApprovals] = useState(() => _c ? (Array.isArray(_c?.approvals) ? _c.approvals : []) : null)
+  const [count, setCount] = useState(() => _c?.count ?? 0)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_c)
 
   function fetchApprovals() {
     let cancelled = false

@@ -9,7 +9,7 @@ import { Heading, Subheading } from '@/components/heading'
 import { Input } from '@/components/input'
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table'
 import { Text } from '@/components/text'
-import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { SkeletonList } from '@/components/skeleton'
 
@@ -23,8 +23,9 @@ function isExpired(dateStr) {
 }
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/user/api-keys')
+  const [keys, setKeys] = useState(() => _c ? (_c?.items || []) : null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

@@ -8,7 +8,7 @@ import { Divider } from '@/components/divider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { SkeletonRows } from '@/components/skeleton'
 
 function decisionColor(d) {
@@ -20,9 +20,14 @@ function decisionColor(d) {
 }
 
 export default function FirewallPage() {
-  const [capabilities, setCapabilities] = useState(null)
-  const [rules, setRules] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cc = getCached('/api/chat/capabilities')
+  const _cr = getCached('/api/firewall/rules/effective')
+  const _cs = getCached('/api/firewall/state')
+  const _cb = getCached('/api/yc/brief')
+  const _hasCached = !!(_cc || _cr || _cs || _cb)
+  const [capabilities, setCapabilities] = useState(_cc || null)
+  const [rules, setRules] = useState(() => _cr ? (Array.isArray(_cr?.rules) ? _cr.rules : Array.isArray(_cr) ? _cr : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
 
   // Decision tester state
@@ -31,10 +36,10 @@ export default function FirewallPage() {
   const [previewLoading, setPreviewLoading] = useState(false)
 
   // Firewall state
-  const [firewallState, setFirewallState] = useState(null)
+  const [firewallState, setFirewallState] = useState(_cs || null)
 
   // YC Brief
-  const [ycBrief, setYcBrief] = useState(null)
+  const [ycBrief, setYcBrief] = useState(_cb || null)
 
   // Chat state
   const [chatInput, setChatInput] = useState('')

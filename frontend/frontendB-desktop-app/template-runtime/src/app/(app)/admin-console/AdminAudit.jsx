@@ -10,14 +10,18 @@ import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { SkeletonRows } from '@/components/skeleton'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 
 export default function AdminAudit() {
-  const [audit, setAudit] = useState(null)
-  const [auditSchemas, setAuditSchemas] = useState(null)
-  const [complianceReports, setComplianceReports] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _ca = getCached('/admin/api/audit')
+  const _cs = getCached('/admin/api/audit/schemas')
+  const _cr = getCached('/admin/api/compliance/reports')
+  const _hasCached = !!(_ca || _cs || _cr)
+  const [audit, setAudit] = useState(() => _ca ? (Array.isArray(_ca?.events) ? _ca.events : Array.isArray(_ca?.entries) ? _ca.entries : Array.isArray(_ca) ? _ca : []) : null)
+  const [auditSchemas, setAuditSchemas] = useState(_cs || null)
+  const [complianceReports, setComplianceReports] = useState(() => _cr ? (Array.isArray(_cr?.reports) ? _cr.reports : Array.isArray(_cr) ? _cr : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 import { Heading, Subheading } from '@/components/heading'
 import { Badge } from '@/components/badge'
 import {
@@ -17,8 +17,9 @@ import { Divider } from '@/components/divider'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function ServiceAccountsPage() {
-  const [accounts, setAccounts] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/org/default/service-accounts')
+  const [accounts, setAccounts] = useState(() => _c ? (Array.isArray(_c) ? _c : _c.accounts ?? _c.items ?? []) : null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

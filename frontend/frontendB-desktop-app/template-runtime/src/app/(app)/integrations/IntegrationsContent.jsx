@@ -13,7 +13,7 @@ import { Text } from '@/components/text'
 import { Field, Label } from '@/components/fieldset'
 import { SkeletonGrid } from '@/components/skeleton'
 import { statusColor } from '@/lib/format'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 
 function authTypeColor(authType) {
   if (authType === 'oauth') return 'blue'
@@ -25,10 +25,13 @@ export default function IntegrationsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const [loading, setLoading] = useState(true)
+  const _cc = getCached('/api/integrations/catalog')
+  const _ci = getCached('/api/integrations')
+  const _hasCached = !!(_cc || _ci)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
-  const [catalog, setCatalog] = useState([])
-  const [integrations, setIntegrations] = useState([])
+  const [catalog, setCatalog] = useState(() => _cc ? (Array.isArray(_cc?.providers) ? _cc.providers : []) : [])
+  const [integrations, setIntegrations] = useState(() => _ci ? (Array.isArray(_ci?.items) ? _ci.items : []) : [])
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 

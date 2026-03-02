@@ -10,14 +10,17 @@ import { Textarea } from '@/components/textarea'
 import { Select } from '@/components/select'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { statusColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function DownstreamPage() {
-  const [apps, setApps] = useState(null)
-  const [tools, setTools] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _ca = getCached('/api/downstream/apps')
+  const _ct = getCached('/api/downstream/tools')
+  const _hasCached = !!(_ca || _ct)
+  const [apps, setApps] = useState(() => _ca ? (Array.isArray(_ca?.apps) ? _ca.apps : Array.isArray(_ca) ? _ca : []) : null)
+  const [tools, setTools] = useState(_ct || null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState(null)
 

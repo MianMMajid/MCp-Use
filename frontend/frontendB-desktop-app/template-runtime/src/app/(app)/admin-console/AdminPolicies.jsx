@@ -10,13 +10,16 @@ import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { SkeletonRows } from '@/components/skeleton'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 
 export default function AdminPolicies() {
-  const [policies, setPolicies] = useState(null)
-  const [versions, setVersions] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cp = getCached('/admin/api/policies')
+  const _cv = getCached('/admin/api/policies/versions')
+  const _hasCached = !!(_cp || _cv)
+  const [policies, setPolicies] = useState(_cp || null)
+  const [versions, setVersions] = useState(() => _cv ? (Array.isArray(_cv?.versions) ? _cv.versions : Array.isArray(_cv) ? _cv : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 

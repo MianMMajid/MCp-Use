@@ -5,15 +5,16 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Heading } from '@/components/heading'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState(null)
-  const [cursor, setCursor] = useState(null)
+  const _c = getCached('/api/openclaw/agent/sessions')
+  const [sessions, setSessions] = useState(() => _c ? (Array.isArray(_c?.sessions) ? _c.sessions : Array.isArray(_c?.items) ? _c.items : []) : null)
+  const [cursor, setCursor] = useState(() => _c ? (_c?.nextCursor || _c?.cursor || null) : null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_c)
   const [cancelling, setCancelling] = useState(null)
 
   function fetchSessions(nextCursor) {

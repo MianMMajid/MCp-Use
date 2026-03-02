@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { Heading, Subheading } from '@/components/heading'
 import { Badge } from '@/components/badge'
 import {
@@ -17,11 +17,16 @@ import { Divider } from '@/components/divider'
 import { SkeletonCard } from '@/components/skeleton'
 
 export default function UsagePage() {
-  const [entitlements, setEntitlements] = useState(null)
-  const [usageSummary, setUsageSummary] = useState(null)
-  const [timeseries, setTimeseries] = useState(null)
-  const [limits, setLimits] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _ce = getCached('/api/entitlements')
+  const _cu = getCached('/api/usage/summary')
+  const _cts = getCached('/api/usage/timeseries')
+  const _cl = getCached('/api/limits')
+  const _hasCached = !!(_ce || _cu || _cts || _cl)
+  const [entitlements, setEntitlements] = useState(_ce || null)
+  const [usageSummary, setUsageSummary] = useState(_cu || null)
+  const [timeseries, setTimeseries] = useState(() => _cts ? (Array.isArray(_cts) ? _cts : _cts.data ?? _cts.series ?? _cts.items ?? []) : null)
+  const [limits, setLimits] = useState(() => _cl ? (Array.isArray(_cl) ? _cl : _cl.limits ?? _cl.items ?? []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

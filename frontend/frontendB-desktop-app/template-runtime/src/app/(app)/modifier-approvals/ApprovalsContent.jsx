@@ -11,13 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Field, Label } from '@/components/fieldset'
 import { SkeletonRows } from '@/components/skeleton'
 import { formatDate, statusColor } from '@/lib/format'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 
 export default function ApprovalsContent() {
-  const [capabilities, setCapabilities] = useState(null)
-  const [approvals, setApprovals] = useState(null)
+  const _ccaps = getCached('/api/openclaw/modifier/capabilities')
+  const _cappr = getCached('/api/openclaw/modifier/approvals')
+  const _hasCached = !!(_ccaps || _cappr)
+  const [capabilities, setCapabilities] = useState(_ccaps || null)
+  const [approvals, setApprovals] = useState(() => _cappr ? (Array.isArray(_cappr?.approvals) ? _cappr.approvals : Array.isArray(_cappr?.items) ? _cappr.items : []) : null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_hasCached)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 

@@ -6,14 +6,15 @@ import { Button } from '@/components/button'
 import { Heading, Subheading } from '@/components/heading'
 import { Divider } from '@/components/divider'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson } from '@/lib/api'
+import { loadJson, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function RunsPage() {
-  const [runs, setRuns] = useState(null)
+  const _c = getCached('/api/runs')
+  const [runs, setRuns] = useState(() => _c ? (Array.isArray(_c?.runs) ? _c.runs : Array.isArray(_c?.items) ? _c.items : Array.isArray(_c) ? _c : []) : null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!_c)
   const [expanded, setExpanded] = useState(null)
   const [detail, setDetail] = useState(null)
   const [timeline, setTimeline] = useState(null)

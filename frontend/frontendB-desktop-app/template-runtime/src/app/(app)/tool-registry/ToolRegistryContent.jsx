@@ -11,15 +11,19 @@ import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { SkeletonRows } from '@/components/skeleton'
 import { formatDate, statusColor } from '@/lib/format'
-import { loadJson, postJson, patchJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, patchJson, invalidateCache, getCached } from '@/lib/api'
 
 export default function ToolRegistryContent() {
+  const _ct = getCached('/api/tools/registry')
+  const _cp = getCached('/api/tools/policies')
+  const _ce = getCached('/api/tools/executions')
+  const _hasCached = !!(_ct || _cp || _ce)
   const [section, setSection] = useState('tools') // 'tools' | 'policies' | 'executions'
-  const [tools, setTools] = useState(null)
-  const [policies, setPolicies] = useState(null)
-  const [executions, setExecutions] = useState(null)
-  const [execCursor, setExecCursor] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [tools, setTools] = useState(() => _ct ? (Array.isArray(_ct?.tools) ? _ct.tools : Array.isArray(_ct) ? _ct : []) : null)
+  const [policies, setPolicies] = useState(() => _cp ? (Array.isArray(_cp?.policies) ? _cp.policies : Array.isArray(_cp) ? _cp : []) : null)
+  const [executions, setExecutions] = useState(() => _ce ? (Array.isArray(_ce?.executions) ? _ce.executions : Array.isArray(_ce?.items) ? _ce.items : []) : null)
+  const [execCursor, setExecCursor] = useState(() => _ce?.nextCursor || null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState(null)
   const [expandedDetail, setExpandedDetail] = useState(null)

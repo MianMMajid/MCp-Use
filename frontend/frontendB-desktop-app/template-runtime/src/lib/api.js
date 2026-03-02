@@ -52,6 +52,14 @@ export async function loadJson(path) {
   return _fetchAndCache(path)
 }
 
+export function getCached(path) {
+  const entry = _cache.get(path)
+  if (!entry) return null
+  const age = Date.now() - entry.ts
+  if (age < STALE_MS) return entry.data
+  return null
+}
+
 export function invalidateCache(pathOrPrefix) {
   if (!pathOrPrefix) { _cache.clear(); return }
   for (const key of _cache.keys()) {

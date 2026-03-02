@@ -9,14 +9,17 @@ import { Divider } from '@/components/divider'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { Textarea } from '@/components/textarea'
-import { loadJson, postJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, invalidateCache, getCached } from '@/lib/api'
 import { riskColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function CommunityPage() {
-  const [stats, setStats] = useState(null)
-  const [traces, setTraces] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cst = getCached('/api/community/stats')
+  const _ctr = getCached('/api/community/traces')
+  const _hasCached = !!(_cst || _ctr)
+  const [stats, setStats] = useState(_cst || null)
+  const [traces, setTraces] = useState(() => _ctr ? (Array.isArray(_ctr?.traces) ? _ctr.traces : Array.isArray(_ctr) ? _ctr : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

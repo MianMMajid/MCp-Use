@@ -8,13 +8,14 @@ import { Divider } from '@/components/divider'
 import { Input } from '@/components/input'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { statusColor } from '@/lib/format'
 import { SkeletonCard } from '@/components/skeleton'
 
 export default function AgentChatPage() {
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/openclaw/agent/status')
+  const [status, setStatus] = useState(_c || null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [mode, setMode] = useState('turn') // 'turn' | 'longform'
   const [input, setInput] = useState('')

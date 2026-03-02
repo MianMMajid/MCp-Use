@@ -9,12 +9,15 @@ import { Heading, Subheading } from '@/components/heading'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function CliToolsPage() {
-  const [catalog, setCatalog] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cc = getCached('/api/openclaw/cli/catalog')
+  const _ct = getCached('/api/openclaw/cli/tools')
+  const _hasCached = !!(_cc || _ct)
+  const [catalog, setCatalog] = useState(() => _cc ? (Array.isArray(_cc?.tools) ? _cc.tools : Array.isArray(_cc?.catalog) ? _cc.catalog : Array.isArray(_cc) ? _cc : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [expandedHelp, setExpandedHelp] = useState(null)
   const [helpContent, setHelpContent] = useState(null)
@@ -32,7 +35,7 @@ export default function CliToolsPage() {
   const [genericLoading, setGenericLoading] = useState(false)
 
   // Tools list (separate from catalog)
-  const [toolsList, setToolsList] = useState(null)
+  const [toolsList, setToolsList] = useState(() => _ct ? (Array.isArray(_ct?.tools) ? _ct.tools : Array.isArray(_ct) ? _ct : null) : null)
 
   useEffect(() => {
     let cancelled = false

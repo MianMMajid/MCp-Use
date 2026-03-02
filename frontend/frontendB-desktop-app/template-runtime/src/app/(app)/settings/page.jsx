@@ -11,15 +11,23 @@ import { Select } from '@/components/select'
 import { Text } from '@/components/text'
 import { Textarea } from '@/components/textarea'
 import { Address } from './address'
-import { loadJson, patchJson } from '@/lib/api'
+import { loadJson, patchJson, getCached } from '@/lib/api'
 
 export default function Settings() {
   const formRef = useRef(null)
+  const _cp = getCached('/api/user/profile')
+  const _co = getCached('/api/org')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
-  const [profile, setProfile] = useState(null)
-  const [orgId, setOrgId] = useState(null)
+  const [profile, setProfile] = useState(_cp || null)
+  const [orgId, setOrgId] = useState(() => {
+    if (_co) {
+      const orgs = Array.isArray(_co?.orgs) ? _co.orgs : Array.isArray(_co) ? _co : []
+      return orgs.length > 0 ? (orgs[0].id || orgs[0].orgId || null) : null
+    }
+    return null
+  })
 
   useEffect(() => {
     let cancelled = false

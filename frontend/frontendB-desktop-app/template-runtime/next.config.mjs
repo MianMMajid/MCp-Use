@@ -40,8 +40,8 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 const nextConfig = {
   bundler: 'webpack',
   onDemandEntries: {
-    maxInactiveAge: 15 * 60 * 1000,
-    pagesBufferLength: 32,
+    maxInactiveAge: 24 * 60 * 60 * 1000,
+    pagesBufferLength: 64,
   },
   experimental: {
     optimizePackageImports: [

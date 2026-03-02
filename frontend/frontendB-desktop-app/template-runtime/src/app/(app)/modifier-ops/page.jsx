@@ -11,16 +11,21 @@ import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Link } from '@/components/link'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, patchJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function ModifierOpsGovernancePage() {
-  const [bindings, setBindings] = useState(null)
-  const [orgHierarchy, setOrgHierarchy] = useState(null)
-  const [rateLimits, setRateLimits] = useState(null)
-  const [tenantScope, setTenantScope] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cb = getCached('/api/openclaw/modifier/ops/tenant-bindings')
+  const _corg = getCached('/api/openclaw/modifier/ops/org')
+  const _crl = getCached('/api/openclaw/modifier/ops/rate-limit')
+  const _cts = getCached('/api/openclaw/modifier/ops/tenant-scope')
+  const _hasCached = !!(_cb || _corg || _crl || _cts)
+  const [bindings, setBindings] = useState(() => _cb ? (Array.isArray(_cb?.bindings) ? _cb.bindings : Array.isArray(_cb) ? _cb : []) : null)
+  const [orgHierarchy, setOrgHierarchy] = useState(() => _corg ? (Array.isArray(_corg?.nodes) ? _corg.nodes : Array.isArray(_corg?.items) ? _corg.items : Array.isArray(_corg) ? _corg : []) : null)
+  const [rateLimits, setRateLimits] = useState(_crl || null)
+  const [tenantScope, setTenantScope] = useState(_cts || null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

@@ -10,15 +10,17 @@ import { Select } from '@/components/select'
 import { Text } from '@/components/text'
 import { Field, Label } from '@/components/fieldset'
 import { SkeletonCard } from '@/components/skeleton'
-import { loadJson, postJson, patchJson, invalidateCache } from '@/lib/api'
+import { loadJson, postJson, patchJson, invalidateCache, getCached } from '@/lib/api'
 
 export default function OrgManager() {
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/org')
+  const _items = _c ? (Array.isArray(_c?.items) ? _c.items : []) : []
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
-  const [orgs, setOrgs] = useState([])
-  const [selectedOrgId, setSelectedOrgId] = useState(null)
+  const [orgs, setOrgs] = useState(_items)
+  const [selectedOrgId, setSelectedOrgId] = useState(() => _items.length > 0 ? _items[0].orgId : null)
 
   // Create org dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false)

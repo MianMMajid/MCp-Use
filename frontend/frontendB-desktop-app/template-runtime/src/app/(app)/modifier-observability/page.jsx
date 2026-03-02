@@ -11,16 +11,21 @@ import { Select } from '@/components/select'
 import { Field, Label } from '@/components/fieldset'
 import { DescriptionList, DescriptionTerm, DescriptionDetails } from '@/components/description-list'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function ModifierObservabilityPage() {
-  const [summary, setSummary] = useState(null)
-  const [slo, setSlo] = useState(null)
-  const [auditLog, setAuditLog] = useState(null)
-  const [org, setOrg] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cs = getCached('/api/openclaw/modifier/observability/summary')
+  const _csl = getCached('/api/openclaw/modifier/observability/slo?window=1h')
+  const _ca = getCached('/api/openclaw/modifier/observability/audit-log')
+  const _co = getCached('/api/openclaw/modifier/observability/org')
+  const _hasCached = !!(_cs || _csl || _ca || _co)
+  const [summary, setSummary] = useState(_cs || null)
+  const [slo, setSlo] = useState(_csl || null)
+  const [auditLog, setAuditLog] = useState(() => _ca ? (Array.isArray(_ca?.entries) ? _ca.entries : Array.isArray(_ca?.items) ? _ca.items : Array.isArray(_ca) ? _ca : []) : null)
+  const [org, setOrg] = useState(_co || null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [sloWindow, setSloWindow] = useState('1h')
 

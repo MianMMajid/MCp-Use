@@ -8,18 +8,26 @@ import { Divider } from '@/components/divider'
 import { Select } from '@/components/select'
 import { DescriptionList, DescriptionTerm, DescriptionDetails } from '@/components/description-list'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson } from '@/lib/api'
+import { loadJson, getCached } from '@/lib/api'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function DiagnosticsPage() {
-  const [diag, setDiag] = useState(null)
-  const [status, setStatus] = useState(null)
-  const [deps, setDeps] = useState(null)
-  const [logs, setLogs] = useState(null)
-  const [health, setHealth] = useState(null)
-  const [featureCaps, setFeatureCaps] = useState(null)
-  const [auditEvents, setAuditEvents] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cd = getCached('/api/runtime/diag')
+  const _cst = getCached('/api/runtime/status')
+  const _cdp = getCached('/api/runtime/dependencies')
+  const _clg = getCached('/api/runtime/logs?limit=50')
+  const _ch = getCached('/health')
+  const _cf = getCached('/api/runtime/feature-capabilities')
+  const _cae = getCached('/api/audit/events')
+  const _hasCached = !!(_cd || _cst || _cdp || _clg || _ch || _cf || _cae)
+  const [diag, setDiag] = useState(_cd || null)
+  const [status, setStatus] = useState(_cst || null)
+  const [deps, setDeps] = useState(() => _cdp ? (Array.isArray(_cdp?.dependencies) ? _cdp.dependencies : Array.isArray(_cdp) ? _cdp : []) : null)
+  const [logs, setLogs] = useState(() => _clg ? (_clg?.logs || _clg?.lines || (typeof _clg === 'string' ? _clg : null)) : null)
+  const [health, setHealth] = useState(_ch || null)
+  const [featureCaps, setFeatureCaps] = useState(_cf || null)
+  const [auditEvents, setAuditEvents] = useState(() => _cae ? (Array.isArray(_cae?.events) ? _cae.events : Array.isArray(_cae) ? _cae : null) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
   const [logLimit, setLogLimit] = useState('50')
 

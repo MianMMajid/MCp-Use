@@ -10,13 +10,16 @@ import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { SkeletonRows } from '@/components/skeleton'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 
 export default function AdminApprovals() {
-  const [approvals, setApprovals] = useState(null)
-  const [deadLetter, setDeadLetter] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _ca = getCached('/admin/api/approvals')
+  const _cdl = getCached('/admin/api/audit/dead-letter')
+  const _hasCached = !!(_ca || _cdl)
+  const [approvals, setApprovals] = useState(() => _ca ? (Array.isArray(_ca?.approvals) ? _ca.approvals : Array.isArray(_ca) ? _ca : []) : null)
+  const [deadLetter, setDeadLetter] = useState(() => _cdl ? (Array.isArray(_cdl?.events) ? _cdl.events : Array.isArray(_cdl) ? _cdl : []) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
 

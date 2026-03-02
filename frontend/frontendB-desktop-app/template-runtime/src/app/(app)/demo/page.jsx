@@ -9,13 +9,14 @@ import { Input } from '@/components/input'
 import { Textarea } from '@/components/textarea'
 import { Field, Label } from '@/components/fieldset'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function DemoPage() {
-  const [sessions, setSessions] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _c = getCached('/api/demo/sessions')
+  const [sessions, setSessions] = useState(() => _c ? (Array.isArray(_c?.sessions) ? _c.sessions : Array.isArray(_c) ? _c : []) : null)
+  const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')

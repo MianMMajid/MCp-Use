@@ -1,7 +1,6 @@
 'use client'
 
 import { CloseButton, Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
-import { motion } from 'motion/react'
 import { useState } from 'react'
 import { NavbarItem } from './navbar'
 
@@ -51,9 +50,9 @@ export function SidebarLayout({ navbar, sidebar, children }) {
   return (
     <div className="relative isolate flex min-h-svh w-full bg-white max-lg:flex-col lg:bg-zinc-100 dark:bg-zinc-900 dark:lg:bg-zinc-950">
       {/* Sidebar on desktop */}
-      <motion.div layoutScroll className="fixed inset-y-0 left-0 w-64 max-lg:hidden">
+      <div className="fixed inset-y-0 left-0 w-64 max-lg:hidden overflow-y-auto">
         {sidebar}
-      </motion.div>
+      </div>
 
       {/* Sidebar on mobile */}
       <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)}>

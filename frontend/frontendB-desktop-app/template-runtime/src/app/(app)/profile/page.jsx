@@ -8,7 +8,7 @@ import { Divider } from '@/components/divider'
 import { Heading, Subheading } from '@/components/heading'
 import { Input } from '@/components/input'
 import { Text } from '@/components/text'
-import { loadJson, postJson } from '@/lib/api'
+import { loadJson, postJson, getCached } from '@/lib/api'
 import { formatDate } from '@/lib/format'
 import { SkeletonCard } from '@/components/skeleton'
 
@@ -79,11 +79,15 @@ function EmailVerificationSection({ email }) {
 }
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState(null)
-  const [subscription, setSubscription] = useState(null)
-  const [usage, setUsage] = useState(null)
-  const [limits, setLimits] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const _cp = getCached('/api/user/profile')
+  const _cu = getCached('/api/usage/summary')
+  const _cl = getCached('/api/limits')
+  const _hasCached = !!(_cp || _cu || _cl)
+  const [profile, setProfile] = useState(() => _cp ? (_cp?.user || null) : null)
+  const [subscription, setSubscription] = useState(() => _cp ? (_cp?.subscription || null) : null)
+  const [usage, setUsage] = useState(() => _cu ? (_cu?.summary || null) : null)
+  const [limits, setLimits] = useState(() => _cl ? (_cl?.limits || null) : null)
+  const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
 
   // Password change state
