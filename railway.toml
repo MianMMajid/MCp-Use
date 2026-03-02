@@ -3,8 +3,6 @@ builder = "dockerfile"
 dockerfilePath = "backend/backendA-platform-infra/deploy/Dockerfile.railway"
 
 [deploy]
-healthcheckPath = "/health"
-healthcheckTimeout = 180
 startCommand = "/app/railway-entrypoint.sh"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
