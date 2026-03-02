@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
 import { Logo } from '@/components/Logo'
 import { Navigation } from '@/components/Navigation'
+import { NavigationProgress } from '@/components/NavigationProgress'
 import { SectionProvider } from '@/components/SectionProvider'
 
 export function Layout({ children, allSections }) {
@@ -15,6 +16,7 @@ export function Layout({ children, allSections }) {
 
   return (
     <SectionProvider sections={allSections[pathname] ?? []}>
+      <NavigationProgress />
       <div className="h-full lg:ml-72 xl:ml-80">
         <motion.header
           layoutScroll
