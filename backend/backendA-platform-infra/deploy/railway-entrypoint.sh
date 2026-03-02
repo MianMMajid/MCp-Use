@@ -14,6 +14,15 @@ export GATEWAY_PORT="${PORT:-${GATEWAY_PORT:-3000}}"
 export GATEWAY_HOST="${GATEWAY_HOST:-0.0.0.0}"
 export CORS_ORIGIN="${CORS_ORIGIN:-*}"
 
+# ── Logging ──────────────────────────────────────────────────────────────────
+export MAPLE_LOG_LEVEL="${MAPLE_LOG_LEVEL:-info}"
+export MAPLE_LOG_REQUESTS="${MAPLE_LOG_REQUESTS:-true}"
+export MAPLE_LOG_INCLUDE_BODIES="${MAPLE_LOG_INCLUDE_BODIES:-false}"
+export MAPLE_LOG_BODY_MAX_CHARS="${MAPLE_LOG_BODY_MAX_CHARS:-2048}"
+
+# ── MCP URL (used in server metadata) ───────────────────────────────────────
+export MCP_URL="${MCP_URL:-http://localhost:${PORT:-${GATEWAY_PORT:-3000}}}"
+
 # ── Trusted proxy mode (Railway terminates TLS at edge) ─────────────────────
 export MAPLE_BEHIND_TRUSTED_PROXY="${MAPLE_BEHIND_TRUSTED_PROXY:-true}"
 export MAPLE_ENFORCE_STARTUP_DEPENDENCIES="${MAPLE_ENFORCE_STARTUP_DEPENDENCIES:-false}"
