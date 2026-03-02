@@ -20,6 +20,8 @@ RUN git config --global --add url."https://github.com/".insteadOf "ssh://git@git
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Cache bust — change this value to force a fresh COPY
+ARG CACHE_BUST=2
 # Copy source and build
 COPY . .
 

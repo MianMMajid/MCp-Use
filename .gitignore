@@ -3,6 +3,9 @@ node_modules/
 
 # Build output
 dist/
+# But keep workspace packages that only have compiled dist/ (no source)
+!backend/backendB-core-services/shared/packages/maple-risk-engine/dist/
+!backend/backendB-core-services/shared/packages/maple-types/dist/
 .mcp-use/
 
 # TypeScript
