@@ -1,187 +1,85 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/button'
-import { Checkbox, CheckboxField } from '@/components/checkbox'
-import { Divider } from '@/components/divider'
-import { Label } from '@/components/fieldset'
-import { Heading, Subheading } from '@/components/heading'
-import { Input } from '@/components/input'
-import { Select } from '@/components/select'
-import { Text } from '@/components/text'
-import { Textarea } from '@/components/textarea'
-import { Address } from './address'
-import { loadJson, patchJson, getCached } from '@/lib/api'
+import { useSearchParams } from 'next/navigation'
+import { Suspense, useMemo } from 'react'
+import dynamic from 'next/dynamic'
+import { Heading } from '@/components/heading'
+import { TabBar, TabPanel } from '@/components/tab-bar'
+import { SkeletonList } from '@/components/skeleton'
 
-export default function Settings() {
-  const formRef = useRef(null)
-  const _cp = getCached('/api/user/profile')
-  const _co = getCached('/api/org')
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState('')
-  const [messageType, setMessageType] = useState('success')
-  const [profile, setProfile] = useState(_cp || null)
-  const [orgId, setOrgId] = useState(() => {
-    if (_co) {
-      const orgs = Array.isArray(_co?.orgs) ? _co.orgs : Array.isArray(_co) ? _co : []
-      return orgs.length > 0 ? (orgs[0].id || orgs[0].orgId || null) : null
-    }
-    return null
-  })
+const AccountTab = dynamic(() => import('./account-tab'), { loading: () => <SkeletonList /> })
+const BillingTab = dynamic(() => import('../../(app)/billing/page'), { loading: () => <SkeletonList /> })
+const UsageTab = dynamic(() => import('../../(app)/usage/page'), { loading: () => <SkeletonList /> })
+const IntegrationsTab = dynamic(() => import('../../(app)/integrations/page'), { loading: () => <SkeletonList /> })
+const ApiKeysTab = dynamic(() => import('../../(app)/api-keys/page'), { loading: () => <SkeletonList /> })
+const ServiceAccountsTab = dynamic(() => import('../../(app)/service-accounts/page'), { loading: () => <SkeletonList /> })
+const DiagnosticsTab = dynamic(() => import('../../(app)/diagnostics/page'), { loading: () => <SkeletonList /> })
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const [profileData, orgData] = await Promise.all([
-          loadJson('/api/user/profile').catch(() => null),
-          loadJson('/api/org').catch(() => null),
-        ])
-        if (cancelled) return
-        if (profileData) setProfile(profileData)
-        const orgs = Array.isArray(orgData?.orgs) ? orgData.orgs : Array.isArray(orgData) ? orgData : []
-        if (orgs.length > 0) setOrgId(orgs[0].id || orgs[0].orgId || null)
-      } catch {
-        // Profile load is best-effort
-      }
-    })()
-    return () => { cancelled = true }
-  }, [])
+const TAB_NAMES = [
+  'Account', 'Billing', 'Usage', 'Integrations',
+  'API Keys', 'Service Accounts', 'Developer', 'Diagnostics',
+]
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault()
-    setSaving(true)
-    setMessage('')
+const TAB_KEYS = [
+  'account', 'billing', 'usage', 'integrations',
+  'api-keys', 'service-accounts', 'developer', 'diagnostics',
+]
 
-    try {
-      const formData = new FormData(formRef.current)
-      const body = Object.fromEntries(formData.entries())
-      // Convert checkbox to boolean
-      body.email_is_public = body.email_is_public === 'on'
-
-      if (orgId) {
-        const res = await patchJson(`/api/org/${orgId}`, body)
-        if (!res.ok) throw new Error(`Server responded with ${res.status}`)
-        setMessageType('success')
-        setMessage('Settings saved successfully.')
-      } else {
-        setMessageType('error')
-        setMessage('No organization found. Create an organization first.')
-      }
-    } catch (err) {
-      setMessageType('error')
-      setMessage('Unable to save settings. Please try again.')
-    } finally {
-      setSaving(false)
-    }
-  }, [orgId])
+function SettingsInner() {
+  const searchParams = useSearchParams()
+  const tab = searchParams.get('tab') ?? 'account'
+  const defaultIndex = useMemo(() => {
+    const idx = TAB_KEYS.indexOf(tab)
+    return idx >= 0 ? idx : 0
+  }, [tab])
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="mx-auto max-w-4xl">
-      <Heading>Account</Heading>
-      <Divider className="my-10 mt-6" />
-
-      {profile?.user && (
-        <>
-          <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Subheading>Account Email</Subheading>
-              <Text>Your login email address.</Text>
+    <>
+      <Heading>Settings</Heading>
+      <div className="mt-6">
+        <TabBar tabs={TAB_NAMES} defaultIndex={defaultIndex}>
+          <TabPanel><AccountTab /></TabPanel>
+          <TabPanel><BillingTab /></TabPanel>
+          <TabPanel><UsageTab /></TabPanel>
+          <TabPanel><IntegrationsTab /></TabPanel>
+          <TabPanel><ApiKeysTab /></TabPanel>
+          <TabPanel><ServiceAccountsTab /></TabPanel>
+          <TabPanel>
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Developer tools: Agent Chat, CLI Tools, Community, and Demo Playground are available here.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <a href="/agent-chat" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <p className="font-medium text-zinc-900 dark:text-white">Agent Chat</p>
+                  <p className="text-xs text-zinc-500">Interactive agent conversation</p>
+                </a>
+                <a href="/cli-tools" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <p className="font-medium text-zinc-900 dark:text-white">CLI Tools</p>
+                  <p className="text-xs text-zinc-500">Command line utilities</p>
+                </a>
+                <a href="/community" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <p className="font-medium text-zinc-900 dark:text-white">Community</p>
+                  <p className="text-xs text-zinc-500">Shared traces and playbooks</p>
+                </a>
+                <a href="/demo" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                  <p className="font-medium text-zinc-900 dark:text-white">Demo Playground</p>
+                  <p className="text-xs text-zinc-500">Try out agent capabilities</p>
+                </a>
+              </div>
             </div>
-            <div>
-              <Input aria-label="Account Email" name="account_email" defaultValue={profile.user.email || profile.user.username} disabled />
-            </div>
-          </section>
-
-          <Divider className="my-10" soft />
-        </>
-      )}
-
-      <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Subheading>Organization Name</Subheading>
-          <Text>This will be displayed on your public profile.</Text>
-        </div>
-        <div>
-          <Input aria-label="Organization Name" name="name" defaultValue="Maple" />
-        </div>
-      </section>
-
-      <Divider className="my-10" soft />
-
-      <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Subheading>Organization Bio</Subheading>
-          <Text>This will be displayed on your public profile. Maximum 240 characters.</Text>
-        </div>
-        <div>
-          <Textarea aria-label="Organization Bio" name="bio" />
-        </div>
-      </section>
-
-      <Divider className="my-10" soft />
-
-      <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Subheading>Organization Email</Subheading>
-          <Text>This is how customers can contact you for support.</Text>
-        </div>
-        <div className="space-y-4">
-          <Input type="email" aria-label="Organization Email" name="email" defaultValue="" placeholder="you@example.com" />
-          <CheckboxField>
-            <Checkbox name="email_is_public" defaultChecked />
-            <Label>Show email on public profile</Label>
-          </CheckboxField>
-        </div>
-      </section>
-
-      <Divider className="my-10" soft />
-
-      <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Subheading>Address</Subheading>
-          <Text>This is where your organization is registered.</Text>
-        </div>
-        <Address />
-      </section>
-
-      <Divider className="my-10" soft />
-
-      <section className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Subheading>Currency</Subheading>
-          <Text>The currency that your organization will be collecting.</Text>
-        </div>
-        <div>
-          <Select aria-label="Currency" name="currency" defaultValue="cad">
-            <option value="cad">CAD - Canadian Dollar</option>
-            <option value="usd">USD - United States Dollar</option>
-          </Select>
-        </div>
-      </section>
-
-      <Divider className="my-10" soft />
-
-      {message && (
-        <p
-          className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
-            messageType === 'success'
-              ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300'
-              : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
-          }`}
-        >
-          {message}
-        </p>
-      )}
-
-      <div className="flex justify-end gap-4">
-        <Button type="reset" plain>
-          Reset
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? 'Saving...' : 'Save changes'}
-        </Button>
+          </TabPanel>
+          <TabPanel><DiagnosticsTab /></TabPanel>
+        </TabBar>
       </div>
-    </form>
+    </>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<SkeletonList />}>
+      <SettingsInner />
+    </Suspense>
   )
 }

@@ -83,6 +83,10 @@ export function ingestOpenClawEvents(options) {
         ingestSkippedDuplicates: skippedDuplicateCount,
         ...(metadata ?? {}),
     };
+    // Attach agentId if provided in metadata (from /api/agents/:agentId/run)
+    if (metadata?.agentId) {
+        trace.metadata.agentId = metadata.agentId;
+    }
     upsertTraceForCurrentOwner(trace);
     const report = auditAndPersist(trace);
     mapleLog("info", "openclaw.ingest.complete", {

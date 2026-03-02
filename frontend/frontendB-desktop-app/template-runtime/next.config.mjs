@@ -91,6 +91,40 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      // Route consolidation: old routes → new routes
+      { source: '/events', destination: '/agents', permanent: true },
+      { source: '/events/:id', destination: '/agents/:id', permanent: true },
+      { source: '/sessions', destination: '/runs', permanent: true },
+      { source: '/sessions/:id', destination: '/runs', permanent: true },
+      { source: '/orders', destination: '/approvals', permanent: true },
+      { source: '/orders/:id', destination: '/approvals/:id', permanent: true },
+      { source: '/modifier-approvals', destination: '/approvals', permanent: true },
+      { source: '/modifier-approvals/:id', destination: '/approvals/:id', permanent: true },
+      { source: '/tool-registry', destination: '/tools', permanent: true },
+      { source: '/downstream', destination: '/tools', permanent: true },
+      { source: '/firewall', destination: '/policies', permanent: true },
+      { source: '/modifier-ops', destination: '/policies', permanent: true },
+      { source: '/modifier-ops/policy', destination: '/policies', permanent: true },
+      { source: '/modifier-ops/compliance', destination: '/audit', permanent: true },
+      { source: '/modifier-observability', destination: '/audit', permanent: true },
+      { source: '/admin-console', destination: '/admin', permanent: true },
+      // Settings consolidation
+      { source: '/billing', destination: '/settings?tab=billing', permanent: true },
+      { source: '/usage', destination: '/settings?tab=usage', permanent: true },
+      { source: '/integrations', destination: '/settings?tab=integrations', permanent: true },
+      { source: '/organization', destination: '/settings?tab=organization', permanent: true },
+      { source: '/api-keys', destination: '/settings?tab=api-keys', permanent: true },
+      { source: '/service-accounts', destination: '/settings?tab=service-accounts', permanent: true },
+      { source: '/profile', destination: '/settings?tab=account', permanent: true },
+      { source: '/cli-tools', destination: '/settings?tab=developer', permanent: true },
+      { source: '/agent-chat', destination: '/settings?tab=developer', permanent: true },
+      { source: '/community', destination: '/settings?tab=developer', permanent: true },
+      { source: '/demo', destination: '/settings?tab=developer', permanent: true },
+      { source: '/diagnostics', destination: '/settings?tab=diagnostics', permanent: true },
+    ]
+  },
 }
 
 export default nextConfig

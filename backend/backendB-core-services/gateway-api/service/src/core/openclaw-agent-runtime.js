@@ -142,11 +142,24 @@ function createRunRecord({ type, sessionId, input }) {
   return run;
 }
 
+function extractCostFromOutput(output) {
+  if (!output || typeof output !== "object") return null;
+  const raw = output.raw ?? output;
+  const usage = raw?.usage ?? raw?.result?.usage ?? raw?.response?.usage;
+  if (!usage) return null;
+  const inputTokens = Number(usage.input_tokens ?? usage.inputTokens ?? usage.prompt_tokens ?? 0);
+  const outputTokens = Number(usage.output_tokens ?? usage.outputTokens ?? usage.completion_tokens ?? 0);
+  if (!inputTokens && !outputTokens) return null;
+  const estimatedCostUsd = (inputTokens * 0.000003) + (outputTokens * 0.000015);
+  return { inputTokens, outputTokens, estimatedCostUsd: Math.round(estimatedCostUsd * 1000000) / 1000000 };
+}
+
 function completeRunRecord(run, output, artifacts = []) {
   const session = ensureSessionRecord(run.sessionId);
   run.status = session.cancelRequested ? "canceled" : "completed";
   run.output = output;
   run.artifacts = Array.isArray(artifacts) ? artifacts : [];
+  run.cost = extractCostFromOutput(output);
   run.updatedAt = nowIso();
 
   session.status = run.status;
@@ -730,6 +743,7 @@ function toPublicRun(run) {
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
     error: run.error,
+    cost: run.cost ?? null,
   };
 }
 

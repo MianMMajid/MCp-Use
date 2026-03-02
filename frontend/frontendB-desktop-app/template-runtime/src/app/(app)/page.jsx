@@ -1,4 +1,4 @@
-import { MapleWorkspace } from './maple-workspace'
+import MapleWorkspace from './maple-workspace'
 
 export default function Home() {
   return <MapleWorkspace />

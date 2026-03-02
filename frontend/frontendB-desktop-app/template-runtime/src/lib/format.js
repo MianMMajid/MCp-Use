@@ -58,6 +58,17 @@ export function severityColor(severity) {
   return 'zinc'
 }
 
+export function riskLabel(score) {
+  if (score == null) return 'unknown'
+  if (typeof score === 'number') {
+    if (score < 0.3) return 'low'
+    if (score < 0.6) return 'medium'
+    if (score < 0.8) return 'high'
+    return 'critical'
+  }
+  return String(score).toLowerCase()
+}
+
 export function riskColor(risk) {
   if (risk == null) return 'zinc'
   // Handle numeric scores (0–1)

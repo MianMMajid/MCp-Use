@@ -21,6 +21,13 @@ export function registerHitlDecisionRoute(app) {
         const stepIndexRaw = asNumber(body.stepIndex);
         const action = asString(body.action) ?? "";
         const reason = asString(body.reason) ?? "";
+        // Phase 0E: Optional constraints on approval
+        const constraints = body.constraints && typeof body.constraints === "object" ? {
+            ...(Number.isFinite(body.constraints.timeboxSeconds) ? { timeboxSeconds: body.constraints.timeboxSeconds } : {}),
+            ...(Number.isFinite(body.constraints.rowLimit) ? { rowLimit: body.constraints.rowLimit } : {}),
+            ...(Array.isArray(body.constraints.allowedEndpoints) ? { allowedEndpoints: body.constraints.allowedEndpoints } : {}),
+            ...(Number.isFinite(body.constraints.rateLimit) ? { rateLimit: body.constraints.rateLimit } : {}),
+        } : null;
         const authContext = authContextStorage.getStore();
         const approverId = asString(body.approverId) ??
             authContext?.userId ??
@@ -52,13 +59,14 @@ export function registerHitlDecisionRoute(app) {
                 sourceService: "gateway-api",
                 traceId,
                 userId: approverId,
-                summary: `HITL decision submitted (${fromGuardActionEnum(grpcAction)})`,
+                summary: `HITL decision submitted (${fromGuardActionEnum(grpcAction)})${constraints ? " with constraints" : ""}`,
                 payload: {
                     traceId,
                     stepIndex,
                     action: fromGuardActionEnum(grpcAction),
                     reason,
                     accepted: Boolean(response?.accepted),
+                    ...(constraints ? { constraints } : {}),
                 },
                 severity: grpcAction === "GUARD_ACTION_ALLOW" ? "RISK_SEVERITY_LOW" : "RISK_SEVERITY_HIGH",
             });
@@ -67,6 +75,7 @@ export function registerHitlDecisionRoute(app) {
                 traceId: String(response?.traceId || traceId),
                 stepIndex: Number(response?.stepIndex ?? stepIndex),
                 resultingAction: fromGuardActionEnum(response?.resultingAction || grpcAction),
+                ...(constraints ? { constraints } : {}),
             });
         }
         catch (err) {

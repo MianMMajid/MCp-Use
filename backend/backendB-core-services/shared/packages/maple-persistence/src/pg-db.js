@@ -49,6 +49,34 @@ function toIntegrationRecord(row) {
         updatedAt: row.updated_at,
     };
 }
+function toAgentRecord(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        ownerId: row.owner_id,
+        riskTier: row.risk_tier,
+        status: row.status,
+        capabilities: parsePayload(row.capabilities) ?? [],
+        tags: parsePayload(row.tags) ?? [],
+        config: parsePayload(row.config) ?? {},
+        pinned: row.pinned === true || row.pinned === "true",
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
+function toNotificationRecord(row) {
+    return {
+        id: row.id,
+        userId: row.user_id,
+        type: row.type,
+        title: row.title,
+        body: row.body,
+        read: row.read === true || row.read === "true",
+        data: parsePayload(row.data) ?? {},
+        createdAt: row.created_at,
+    };
+}
 function normalizeUsername(value) {
     return value.trim().toLowerCase();
 }
@@ -262,6 +290,38 @@ export class MaplePostgresDatabase {
         );
         CREATE INDEX IF NOT EXISTS idx_gateway_audit_outbox_status_next
           ON gateway_audit_outbox(status, next_attempt_at ASC, created_at ASC);
+
+        CREATE TABLE IF NOT EXISTS agents (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          owner_id TEXT,
+          risk_tier TEXT NOT NULL DEFAULT 'medium',
+          status TEXT NOT NULL DEFAULT 'active',
+          capabilities TEXT NOT NULL DEFAULT '[]',
+          tags TEXT NOT NULL DEFAULT '[]',
+          config TEXT NOT NULL DEFAULT '{}',
+          pinned BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_agents_owner
+          ON agents(owner_id);
+        CREATE INDEX IF NOT EXISTS idx_agents_status
+          ON agents(status);
+
+        CREATE TABLE IF NOT EXISTS notifications (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL DEFAULT '',
+          read BOOLEAN NOT NULL DEFAULT FALSE,
+          data TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_read
+          ON notifications(user_id, read, created_at DESC);
       `);
         }
         finally {
@@ -496,6 +556,129 @@ export class MaplePostgresDatabase {
     }
     async updatePasswordByUserId(userId, newPasswordHash) {
         await this.pool.query(`UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3`, [newPasswordHash, new Date().toISOString(), userId]);
+    }
+    // ── Agent CRUD ────────────────────────────────────────────────────────────
+    async createAgent(input) {
+        const now = new Date().toISOString();
+        const id = input.id ?? randomUUID();
+        await this.pool.query(
+            `INSERT INTO agents (id, name, description, owner_id, risk_tier, status, capabilities, tags, config, pinned, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
+            [
+                id,
+                input.name,
+                input.description ?? "",
+                input.ownerId ?? null,
+                input.riskTier ?? "medium",
+                input.status ?? "active",
+                JSON.stringify(input.capabilities ?? []),
+                JSON.stringify(input.tags ?? []),
+                JSON.stringify(input.config ?? {}),
+                input.pinned === true,
+                now,
+            ]
+        );
+        return { id, name: input.name, description: input.description ?? "", ownerId: input.ownerId ?? null, riskTier: input.riskTier ?? "medium", status: input.status ?? "active", capabilities: input.capabilities ?? [], tags: input.tags ?? [], config: input.config ?? {}, pinned: input.pinned === true, createdAt: now, updatedAt: now };
+    }
+    async listAgents(filters = {}) {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (filters.ownerId) {
+            conditions.push(`owner_id = $${idx++}`);
+            params.push(filters.ownerId);
+        }
+        if (filters.status) {
+            conditions.push(`status = $${idx++}`);
+            params.push(filters.status);
+        }
+        if (filters.riskTier) {
+            conditions.push(`risk_tier = $${idx++}`);
+            params.push(filters.riskTier);
+        }
+        if (filters.pinned !== undefined) {
+            conditions.push(`pinned = $${idx++}`);
+            params.push(filters.pinned);
+        }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 200);
+        const offset = Math.max(Number(filters.offset) || 0, 0);
+        params.push(limit, offset);
+        const result = await this.pool.query(
+            `SELECT * FROM agents ${where} ORDER BY updated_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+            params
+        );
+        return result.rows.map(toAgentRecord);
+    }
+    async findAgentById(agentId) {
+        const result = await this.pool.query(`SELECT * FROM agents WHERE id = $1`, [agentId]);
+        if (result.rows.length === 0) return undefined;
+        return toAgentRecord(result.rows[0]);
+    }
+    async updateAgent(agentId, updates) {
+        const sets = [];
+        const params = [];
+        let idx = 1;
+        if (updates.name !== undefined) { sets.push(`name = $${idx++}`); params.push(updates.name); }
+        if (updates.description !== undefined) { sets.push(`description = $${idx++}`); params.push(updates.description); }
+        if (updates.riskTier !== undefined) { sets.push(`risk_tier = $${idx++}`); params.push(updates.riskTier); }
+        if (updates.status !== undefined) { sets.push(`status = $${idx++}`); params.push(updates.status); }
+        if (updates.capabilities !== undefined) { sets.push(`capabilities = $${idx++}`); params.push(JSON.stringify(updates.capabilities)); }
+        if (updates.tags !== undefined) { sets.push(`tags = $${idx++}`); params.push(JSON.stringify(updates.tags)); }
+        if (updates.config !== undefined) { sets.push(`config = $${idx++}`); params.push(JSON.stringify(updates.config)); }
+        if (updates.pinned !== undefined) { sets.push(`pinned = $${idx++}`); params.push(updates.pinned); }
+        if (sets.length === 0) return this.findAgentById(agentId);
+        const now = new Date().toISOString();
+        sets.push(`updated_at = $${idx++}`);
+        params.push(now);
+        params.push(agentId);
+        const result = await this.pool.query(
+            `UPDATE agents SET ${sets.join(", ")} WHERE id = $${idx++} RETURNING *`,
+            params
+        );
+        if (result.rows.length === 0) return undefined;
+        return toAgentRecord(result.rows[0]);
+    }
+    async archiveAgent(agentId) {
+        return this.updateAgent(agentId, { status: "archived" });
+    }
+    async searchAgents(query, limit = 10) {
+        const pattern = `%${query}%`;
+        const result = await this.pool.query(
+            `SELECT * FROM agents WHERE status != 'archived' AND (name ILIKE $1 OR description ILIKE $1) ORDER BY updated_at DESC LIMIT $2`,
+            [pattern, limit]
+        );
+        return result.rows.map(toAgentRecord);
+    }
+    // ── Notifications ─────────────────────────────────────────────────────────
+    async createNotification(input) {
+        const now = new Date().toISOString();
+        const id = randomUUID();
+        await this.pool.query(
+            `INSERT INTO notifications (id, user_id, type, title, body, read, data, created_at)
+             VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7)`,
+            [id, input.userId, input.type, input.title, input.body ?? "", JSON.stringify(input.data ?? {}), now]
+        );
+        return { id, userId: input.userId, type: input.type, title: input.title, body: input.body ?? "", read: false, data: input.data ?? {}, createdAt: now };
+    }
+    async listNotifications(userId, options = {}) {
+        const limit = Math.min(Math.max(Number(options.limit) || 20, 1), 100);
+        const offset = Math.max(Number(options.offset) || 0, 0);
+        const result = await this.pool.query(
+            `SELECT * FROM notifications WHERE user_id = $1 ORDER BY read ASC, created_at DESC LIMIT $2 OFFSET $3`,
+            [userId, limit, offset]
+        );
+        return result.rows.map(toNotificationRecord);
+    }
+    async markNotificationRead(notificationId) {
+        await this.pool.query(`UPDATE notifications SET read = TRUE WHERE id = $1`, [notificationId]);
+    }
+    async markAllNotificationsRead(userId) {
+        await this.pool.query(`UPDATE notifications SET read = TRUE WHERE user_id = $1 AND read = FALSE`, [userId]);
+    }
+    async countUnreadNotifications(userId) {
+        const result = await this.pool.query(`SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND read = FALSE`, [userId]);
+        return Number(result.rows[0]?.count ?? 0);
     }
     async close() {
         await this.pool.end();
