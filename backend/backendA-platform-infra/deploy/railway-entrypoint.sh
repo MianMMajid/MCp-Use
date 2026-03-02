@@ -125,9 +125,14 @@ case "${MAPLE_SERVICE}" in
     export GATEWAY_HOST="${GATEWAY_HOST:-0.0.0.0}"
     export CORS_ORIGIN="${CORS_ORIGIN:-*}"
 
+    # Admin bootstrap
+    export MAPLE_ADMIN_USERNAME="${MAPLE_ADMIN_USERNAME:-admin}"
+    export MAPLE_ADMIN_PASSWORD="${MAPLE_ADMIN_PASSWORD:-maple-live-2026}"
+    export MAPLE_ADMIN_EMAIL="${MAPLE_ADMIN_EMAIL:-admin@mayple.cloud}"
+
     # Auth / Session
     export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
-    export MAPLE_SESSION_COOKIE_NAME="${MAPLE_SESSION_COOKIE_NAME:-maple_sid}"
+    export MAPLE_SESSION_COOKIE_NAME="${MAPLE_SESSION_COOKIE_NAME:-maple_session}"
     export MAPLE_SESSION_TTL_SECONDS="${MAPLE_SESSION_TTL_SECONDS:-604800}"
     export MAPLE_AUTH_ALLOW_SELF_SIGNUP="${MAPLE_AUTH_ALLOW_SELF_SIGNUP:-true}"
     export MAPLE_SESSION_OWNER_SCOPE="${MAPLE_SESSION_OWNER_SCOPE:-auto}"
@@ -221,8 +226,8 @@ case "${MAPLE_SERVICE}" in
     export STRIPE_PRICE_ENTERPRISE="${STRIPE_PRICE_ENTERPRISE:-price_not_configured}"
     export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-pk_test_not_configured}"
 
-    # Business API
-    export MAPLE_BUSINESS_API_BASE_URL="${MAPLE_BUSINESS_API_BASE_URL:-https://localhost:9550}"
+    # Business API (disabled by default — no business-api service deployed)
+    export MAPLE_BUSINESS_API_BASE_URL="${MAPLE_BUSINESS_API_BASE_URL:-}"
     export MAPLE_BUSINESS_API_REQUIRED="${MAPLE_BUSINESS_API_REQUIRED:-false}"
     export MAPLE_BUSINESS_API_CA="${MAPLE_BUSINESS_API_CA:-${TLS_DIR}/ca.crt}"
     export MAPLE_BUSINESS_API_CERT="${MAPLE_BUSINESS_API_CERT:-${TLS_DIR}/tls.crt}"
