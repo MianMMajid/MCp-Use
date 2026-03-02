@@ -23,10 +23,12 @@ RUN npm ci
 # Copy source and build
 COPY . .
 
-# Recreate dist->src symlinks for workspace packages (.dockerignore strips dist/)
+# Recreate dist->src symlinks for workspace packages (.dockerignore may strip dist/)
 RUN for pkg in maple-common maple-persistence maple-security; do \
       ln -sfn src "backend/backendB-core-services/shared/packages/${pkg}/dist"; \
-    done
+    done \
+    && test -f backend/backendB-core-services/shared/packages/maple-risk-engine/dist/index.js \
+    || { echo "ERROR: maple-risk-engine/dist missing — check .dockerignore negation"; exit 1; }
 
 RUN npm run template:install
 RUN npm run sync:runtime-assets
