@@ -65,6 +65,19 @@ function toAgentRecord(row) {
         updatedAt: row.updated_at,
     };
 }
+function toOrchestrationRecord(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        ownerId: row.owner_id,
+        status: row.status,
+        nodes: parsePayload(row.nodes_json) ?? [],
+        edges: parsePayload(row.edges_json) ?? [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+    };
+}
 function toNotificationRecord(row) {
     return {
         id: row.id,
@@ -322,6 +335,22 @@ export class MaplePostgresDatabase {
         );
         CREATE INDEX IF NOT EXISTS idx_notifications_user_read
           ON notifications(user_id, read, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS orchestrations (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL DEFAULT 'Untitled Orchestration',
+          description TEXT NOT NULL DEFAULT '',
+          owner_id TEXT,
+          status TEXT NOT NULL DEFAULT 'draft',
+          nodes_json TEXT NOT NULL DEFAULT '[]',
+          edges_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestrations_owner
+          ON orchestrations(owner_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_orchestrations_status
+          ON orchestrations(status, updated_at DESC);
       `);
         }
         finally {
@@ -679,6 +708,77 @@ export class MaplePostgresDatabase {
     async countUnreadNotifications(userId) {
         const result = await this.pool.query(`SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND read = FALSE`, [userId]);
         return Number(result.rows[0]?.count ?? 0);
+    }
+    // ── Orchestration CRUD ──────────────────────────────────────────────────
+    async createOrchestration(input) {
+        const now = new Date().toISOString();
+        const id = randomUUID();
+        await this.pool.query(
+            `INSERT INTO orchestrations (id, name, description, owner_id, status, nodes_json, edges_json, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+            [
+                id,
+                input.name ?? "Untitled Orchestration",
+                input.description ?? "",
+                input.ownerId ?? null,
+                input.status ?? "draft",
+                JSON.stringify(input.nodes ?? []),
+                JSON.stringify(input.edges ?? []),
+                now,
+            ]
+        );
+        return { id, name: input.name ?? "Untitled Orchestration", description: input.description ?? "", ownerId: input.ownerId ?? null, status: input.status ?? "draft", nodes: input.nodes ?? [], edges: input.edges ?? [], createdAt: now, updatedAt: now };
+    }
+    async listOrchestrations(filters = {}) {
+        const conditions = [];
+        const params = [];
+        let idx = 1;
+        if (filters.ownerId) {
+            conditions.push(`owner_id = $${idx++}`);
+            params.push(filters.ownerId);
+        }
+        if (filters.status) {
+            conditions.push(`status = $${idx++}`);
+            params.push(filters.status);
+        }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 200);
+        const offset = Math.max(Number(filters.offset) || 0, 0);
+        params.push(limit, offset);
+        const result = await this.pool.query(
+            `SELECT * FROM orchestrations ${where} ORDER BY updated_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+            params
+        );
+        return result.rows.map(toOrchestrationRecord);
+    }
+    async findOrchestrationById(id) {
+        const result = await this.pool.query(`SELECT * FROM orchestrations WHERE id = $1`, [id]);
+        if (result.rows.length === 0) return undefined;
+        return toOrchestrationRecord(result.rows[0]);
+    }
+    async updateOrchestration(id, updates) {
+        const sets = [];
+        const params = [];
+        let idx = 1;
+        if (updates.name !== undefined) { sets.push(`name = $${idx++}`); params.push(updates.name); }
+        if (updates.description !== undefined) { sets.push(`description = $${idx++}`); params.push(updates.description); }
+        if (updates.status !== undefined) { sets.push(`status = $${idx++}`); params.push(updates.status); }
+        if (updates.nodes !== undefined) { sets.push(`nodes_json = $${idx++}`); params.push(JSON.stringify(updates.nodes)); }
+        if (updates.edges !== undefined) { sets.push(`edges_json = $${idx++}`); params.push(JSON.stringify(updates.edges)); }
+        if (sets.length === 0) return this.findOrchestrationById(id);
+        const now = new Date().toISOString();
+        sets.push(`updated_at = $${idx++}`);
+        params.push(now);
+        params.push(id);
+        const result = await this.pool.query(
+            `UPDATE orchestrations SET ${sets.join(", ")} WHERE id = $${idx++} RETURNING *`,
+            params
+        );
+        if (result.rows.length === 0) return undefined;
+        return toOrchestrationRecord(result.rows[0]);
+    }
+    async archiveOrchestration(id) {
+        return this.updateOrchestration(id, { status: "archived" });
     }
     async close() {
         await this.pool.end();

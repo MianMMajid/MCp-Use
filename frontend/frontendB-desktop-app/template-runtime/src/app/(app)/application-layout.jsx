@@ -1,13 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { PageManager, _visitedPages } from './page-manager'
+import { PageManager } from './page-manager'
 import { AppShell } from '@/components/app-shell'
-import { NAV_ITEMS } from '@/components/app-sidebar'
+import { ChatProvider } from '@/contexts/chat-context'
 import { useEffect } from 'react'
 
-// Pre-cache all sidebar route RSC payloads on mount
-const ALL_SIDEBAR_ROUTES = NAV_ITEMS.map((item) => item.href)
+const ALL_SIDEBAR_ROUTES = ['/', '/agents', '/runs', '/orchestrate', '/settings']
 
 function useRoutePrefetch() {
   const router = useRouter()
@@ -26,8 +25,10 @@ export function ApplicationLayout({ events, children }) {
   useRoutePrefetch()
 
   return (
-    <AppShell>
-      <PageManager>{children}</PageManager>
-    </AppShell>
+    <ChatProvider>
+      <AppShell>
+        <PageManager>{children}</PageManager>
+      </AppShell>
+    </ChatProvider>
   )
 }

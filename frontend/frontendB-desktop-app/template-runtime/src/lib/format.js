@@ -33,7 +33,7 @@ const GREEN_KEYWORDS = new Set([
 ])
 const RED_KEYWORDS = new Set([
   'error', 'failed', 'denied', 'block', 'blocked', 'rejected', 'disabled',
-  'expired', 'revoked', 'critical', 'unhealthy', 'broken', 'disconnected',
+  'expired', 'revoked', 'critical', 'unhealthy', 'broken', 'disconnected', 'archived',
 ])
 const ORANGE_KEYWORDS = new Set([
   'pending', 'draft', 'review', 'warning', 'partial', 'suspended',
@@ -67,6 +67,30 @@ export function riskLabel(score) {
     return 'critical'
   }
   return String(score).toLowerCase()
+}
+
+export function groupByDate(items, dateField = 'createdAt') {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfYesterday = new Date(startOfToday)
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
+  const sevenDaysAgo = new Date(startOfToday)
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const thirtyDaysAgo = new Date(startOfToday)
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const groups = { Today: [], Yesterday: [], 'Previous 7 Days': [], 'Previous 30 Days': [], Older: [] }
+
+  for (const item of items) {
+    const d = new Date(item[dateField] ?? 0)
+    if (d >= startOfToday) groups.Today.push(item)
+    else if (d >= startOfYesterday) groups.Yesterday.push(item)
+    else if (d >= sevenDaysAgo) groups['Previous 7 Days'].push(item)
+    else if (d >= thirtyDaysAgo) groups['Previous 30 Days'].push(item)
+    else groups.Older.push(item)
+  }
+
+  return Object.entries(groups).filter(([, items]) => items.length > 0)
 }
 
 export function riskColor(risk) {

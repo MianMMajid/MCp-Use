@@ -9,6 +9,7 @@ import { registerDownstreamRoutes } from "./routes/downstream-routes.js";
 import { registerAgentManagementRoutes } from "./routes/agent-management-routes.js";
 import { registerSearchRoutes } from "./routes/search-routes.js";
 import { registerNotificationRoutes } from "./routes/notification-routes.js";
+import { registerOrchestrationRoutes } from "./routes/orchestration-routes.js";
 import { mapleLog } from "./logging.js";
 import { bootstrapOpenClawRuntime, shutdownOpenClawRuntime } from "./core/openclaw-agent-runtime.js";
 import { configureOpenClawModifierRuntime } from "./core/openclaw-modifier-runtime.js";
@@ -65,6 +66,7 @@ export async function createApp() {
     registerAgentManagementRoutes(app);
     registerSearchRoutes(app);
     registerNotificationRoutes(app);
+    registerOrchestrationRoutes(app);
     // 404 fallback
     app.notFound((c) => c.json({ error: "Not Found", path: c.req.path }, 404));
     // Error handler

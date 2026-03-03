@@ -34,7 +34,8 @@ function SettingsInner() {
   }, [tab])
 
   return (
-    <>
+    <div className="flex-1 overflow-y-auto p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl">
       <Heading>Settings</Heading>
       <div className="mt-6">
         <TabBar tabs={TAB_NAMES} defaultIndex={defaultIndex}>
@@ -72,7 +73,8 @@ function SettingsInner() {
           <TabPanel><DiagnosticsTab /></TabPanel>
         </TabBar>
       </div>
-    </>
+      </div>
+    </div>
   )
 }
 

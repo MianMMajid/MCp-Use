@@ -1,20 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CloseButton, Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
 import { NavbarItem } from './navbar'
-import { TopBar } from './top-bar'
-import { AppSidebar } from './app-sidebar'
-import { InspectorPanel } from './inspector-panel'
+import { ChatSidebar } from './chat-sidebar'
+import { TracePanel } from './trace-panel'
 import { ShellProvider, useShell } from '@/contexts/shell-context'
-
-function OpenMenuIcon() {
-  return (
-    <svg data-slot="icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M2 6.75C2 6.33579 2.33579 6 2.75 6H17.25C17.6642 6 18 6.33579 18 6.75C18 7.16421 17.6642 7.5 17.25 7.5H2.75C2.33579 7.5 2 7.16421 2 6.75ZM2 13.25C2 12.8358 2.33579 12.5 2.75 12.5H17.25C17.6642 12.5 18 12.8358 18 13.25C18 13.6642 17.6642 14 17.25 14H2.75C2.33579 14 2 13.6642 2 13.25Z" />
-    </svg>
-  )
-}
+import { useChat } from '@/contexts/chat-context'
 
 function CloseMenuIcon() {
   return (
@@ -41,7 +33,7 @@ function MobileSidebar({ open, close }) {
               <CloseMenuIcon />
             </CloseButton>
           </div>
-          <AppSidebar />
+          <ChatSidebar />
         </div>
       </DialogPanel>
     </Dialog>
@@ -50,42 +42,57 @@ function MobileSidebar({ open, close }) {
 
 function ShellInner({ children }) {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
-  const { sidebarCollapsed } = useShell()
+  const { sidebarCollapsed, toggleSidebar } = useShell()
+  const { handleNewSession, toggleTrace } = useChat()
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    function onKeyDown(e) {
+      const isMod = e.metaKey || e.ctrlKey
+      if (!isMod) return
+      // Cmd+N — new chat
+      if (e.key === 'n' && !e.shiftKey) {
+        e.preventDefault()
+        handleNewSession()
+      }
+      // Cmd+B — toggle sidebar
+      if (e.key === 'b' && !e.shiftKey) {
+        e.preventDefault()
+        toggleSidebar()
+      }
+      // Cmd+Shift+T — toggle trace panel
+      if (e.key === 't' && e.shiftKey) {
+        e.preventDefault()
+        toggleTrace()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleNewSession, toggleSidebar, toggleTrace])
 
   return (
-    <div className="flex min-h-svh flex-col bg-white dark:bg-zinc-950">
-      {/* Top bar */}
-      <TopBar />
-
-      {/* Mobile menu button */}
-      <div className="flex items-center px-4 py-2 lg:hidden">
-        <NavbarItem onClick={() => setShowMobileSidebar(true)} aria-label="Open navigation">
-          <OpenMenuIcon />
-        </NavbarItem>
-      </div>
-
+    <div className="flex h-svh overflow-hidden bg-white dark:bg-zinc-950">
       {/* Mobile sidebar */}
       <MobileSidebar open={showMobileSidebar} close={() => setShowMobileSidebar(false)} />
 
-      {/* Main layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Desktop sidebar */}
-        <div className={`hidden shrink-0 overflow-y-auto lg:block ${sidebarCollapsed ? 'w-16' : 'w-64'} transition-[width] duration-200`}>
-          <AppSidebar />
+      {/* Desktop sidebar */}
+      <div
+        className={`hidden shrink-0 overflow-hidden border-r border-zinc-200 lg:block dark:border-zinc-800 transition-[width] duration-200 ${
+          sidebarCollapsed ? 'w-0' : 'w-[280px]'
+        }`}
+      >
+        <div className="h-full w-[280px]">
+          <ChatSidebar />
         </div>
-
-        {/* Content area */}
-        <main className="flex flex-1 flex-col overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
-          <div className="flex-1 p-6 lg:p-8">
-            <div className="mx-auto max-w-7xl">
-              {children}
-            </div>
-          </div>
-        </main>
-
-        {/* Inspector panel */}
-        <InspectorPanel />
       </div>
+
+      {/* Main content */}
+      <main className="flex flex-1 flex-col overflow-hidden">
+        {children}
+      </main>
+
+      {/* Trace panel */}
+      <TracePanel />
     </div>
   )
 }

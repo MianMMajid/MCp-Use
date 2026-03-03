@@ -1,5 +1,5 @@
-import MapleWorkspace from './maple-workspace'
+import ChatWorkspace from './chat-workspace'
 
 export default function Home() {
-  return <MapleWorkspace />
+  return <ChatWorkspace />
 }

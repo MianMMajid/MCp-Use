@@ -70,7 +70,8 @@ export default function RunsPage() {
   }
 
   return (
-    <>
+    <div className="flex-1 overflow-y-auto p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl">
       <div className="flex items-end justify-between gap-4">
         <Heading>Runs</Heading>
         <Button className="-my-0.5" onClick={() => fetchRuns()}>Refresh</Button>
@@ -169,6 +170,7 @@ export default function RunsPage() {
           </Table>
         </>
       )}
-    </>
+      </div>
+    </div>
   )
 }
