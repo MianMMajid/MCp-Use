@@ -113,12 +113,12 @@
                 "MAPLE_BUSINESS_API_CERT": "/etc/maple/tls/tls.crt",
                 "MAPLE_BUSINESS_API_KEY": "/etc/maple/tls/tls.key",
                 "CONTEXT_WALL_ADDRESS": "context-wall:9000",
-                "MODEL_ROUTER_ADDRESS": "model-router:9100",
                 "MCP_PROXY_ADDRESS": "mcp-proxy:9200",
                 "TOOL_RUNNER_ADDRESS": "tool-runner:9250",
                 "CYBER_PROXY_ADDRESS": "cyber-proxy:8080",
-                "SECRETS_BROKER_ADDRESS": "secrets-broker:9300",
                 "AUDIT_WRITER_ADDRESS": "audit-writer:9400",
+                "MAPLE_MODEL_ROUTER_RETIRED": "1",
+                "MAPLE_SECRETS_BROKER_RETIRED": "1",
                 "MAPLE_BUSINESS_API_BASE_URL": "https://business-api:9550",
                 "OPENCLAW_BRIDGE_MODE": "gateway",
                 "OPENCLAW_BRIDGE_URL": "http://openclaw-bridge:8787",
@@ -343,36 +343,6 @@
         {
           "kind": "DeploymentService",
           "spec": {
-            "name": "model-router",
-            "projectId": "${refs.project.id}",
-            "billing": {
-              "deploymentPlan": "${args.deploymentPlan}"
-            },
-            "deployment": {
-              "instances": 1,
-              "internal": {
-                "id": "${refs.runtimeBuild.id}",
-                "branch": "${args.repoBranch}",
-                "buildSHA": "latest"
-              },
-              "docker": {
-                "configType": "customCommand",
-                "customCommand": "node backend/backendB-core-services/model-router/service/dist/main.js"
-              }
-            },
-            "ports": [
-              {
-                "name": "p01",
-                "internalPort": 9100,
-                "public": false,
-                "protocol": "HTTP/2"
-              }
-            ]
-          }
-        },
-        {
-          "kind": "DeploymentService",
-          "spec": {
             "name": "mcp-proxy",
             "projectId": "${refs.project.id}",
             "billing": {
@@ -454,36 +424,6 @@
               {
                 "name": "p01",
                 "internalPort": 9250,
-                "public": false,
-                "protocol": "HTTP/2"
-              }
-            ]
-          }
-        },
-        {
-          "kind": "DeploymentService",
-          "spec": {
-            "name": "secrets-broker",
-            "projectId": "${refs.project.id}",
-            "billing": {
-              "deploymentPlan": "${args.deploymentPlan}"
-            },
-            "deployment": {
-              "instances": 1,
-              "internal": {
-                "id": "${refs.runtimeBuild.id}",
-                "branch": "${args.repoBranch}",
-                "buildSHA": "latest"
-              },
-              "docker": {
-                "configType": "customCommand",
-                "customCommand": "node backend/backendB-core-services/secrets-broker/service/dist/main.js"
-              }
-            },
-            "ports": [
-              {
-                "name": "p01",
-                "internalPort": 9300,
                 "public": false,
                 "protocol": "HTTP/2"
               }

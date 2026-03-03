@@ -60,6 +60,9 @@ jobs:
       - name: Deprecated Command Alias Guard
         run: npm run check:deprecated-command-aliases
 
+      - name: Command Surface Guard
+        run: npm run check:command-surface
+
       - name: Frontend test flow
         env:
           COVERAGE_POLICY: advisory

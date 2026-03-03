@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 const publicPaths = ['/login', '/health']
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl
 
   // Allow Next.js internals, API routes, and static assets through

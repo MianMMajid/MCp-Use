@@ -45,14 +45,12 @@ DNS.2 = *.maple.svc.cluster.local
 DNS.3 = gateway-api.maple.svc.cluster.local
 DNS.4 = admin-console-api.maple.svc.cluster.local
 DNS.5 = context-wall.maple.svc.cluster.local
-DNS.6 = model-router.maple.svc.cluster.local
-DNS.7 = mcp-proxy.maple.svc.cluster.local
-DNS.8 = cyber-proxy.maple.svc.cluster.local
-DNS.9 = tool-runner.maple.svc.cluster.local
-DNS.10 = audit-writer.maple.svc.cluster.local
-DNS.11 = secrets-broker.maple.svc.cluster.local
-DNS.12 = postgres.maple.svc.cluster.local
-DNS.13 = business-api.maple.svc.cluster.local
+DNS.6 = mcp-proxy.maple.svc.cluster.local
+DNS.7 = cyber-proxy.maple.svc.cluster.local
+DNS.8 = tool-runner.maple.svc.cluster.local
+DNS.9 = audit-writer.maple.svc.cluster.local
+DNS.10 = postgres.maple.svc.cluster.local
+DNS.11 = business-api.maple.svc.cluster.local
 IP.1 = 127.0.0.1
 EOT
 

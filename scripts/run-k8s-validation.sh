@@ -43,6 +43,23 @@ now_utc() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+json_array_from_bash_array() {
+  node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)));' -- "$@"
+}
+
+validate_json_file() {
+  local file="$1"
+  local label="$2"
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq '.' "$file" >/dev/null; then
+      echo "[k8s-validation] Invalid JSON in ${label}: ${file}" >&2
+      return 1
+    fi
+    return 0
+  fi
+  node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));' "$file" >/dev/null
+}
+
 PORT_FORWARD_PID=""
 cleanup() {
   if [ -n "${PORT_FORWARD_PID}" ] && kill -0 "${PORT_FORWARD_PID}" >/dev/null 2>&1; then
@@ -163,6 +180,7 @@ fi
 
 {
   probe "gateway-health" "https://127.0.0.1:3000/health" "GET" "strict200"
+  probe "admin-console-health" "https://127.0.0.1:4001/health" "GET" "endpoint"
   probe "runtime-dependencies" "https://127.0.0.1:3000/api/runtime/dependencies" "GET" "endpoint"
   probe "chat-capabilities" "https://127.0.0.1:3000/api/chat/capabilities" "GET" "endpoint"
   probe "firewall-chat-synthetic" "https://127.0.0.1:3000/api/firewall/chat" "POST" "endpoint" '{"message":"k8s validation synthetic service journey"}'
@@ -229,17 +247,22 @@ fi
 
 cat >"${SUMMARY_FILE}" <<EOF
 {
+  "artifactSchemaVersion": 2,
   "ok": ${OVERALL_OK},
   "generatedAt": "$(now_utc)",
   "namespace": "${NAMESPACE}",
+  "runtimeEvidenceMode": "k8s_live",
+  "policyMode": "conditional_strict",
   "skipUp": $([[ "${SKIP_UP}" -eq 1 ]] && echo true || echo false),
   "skipPortForward": $([[ "${SKIP_PORT_FORWARD}" -eq 1 ]] && echo true || echo false),
-  "k8sUpArgs": [$(printf '"%s"' "${UP_ARGS[@]}" | paste -sd, -)],
+  "k8sUpArgs": $(json_array_from_bash_array "${UP_ARGS[@]}"),
   "serviceUtilizationSummaryFile": "${K8S_UTILIZATION_SUMMARY_FILE}",
   "retiredServices": ${RETIRED_SERVICES_JSON},
   "checks": ${CHECKS_JSON}
 }
 EOF
+
+validate_json_file "${SUMMARY_FILE}" "k8s validation summary"
 
 echo "[k8s-validation] Summary written to ${SUMMARY_FILE}"
 

@@ -1,10 +1,27 @@
 import { spawnSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const args = new Set(process.argv.slice(2));
 const quick = args.has("--quick");
 const ci = args.has("--ci");
 const skipBrowserInstall = args.has("--skip-browser-install");
 const coveragePolicy = String(process.env.COVERAGE_POLICY || "advisory").toLowerCase();
+const warningBudgetEnabled = ci || String(process.env.FRONTEND_WARNING_BUDGET || "0") === "1";
+const flowLogPath = resolve(process.cwd(), "artifacts/matrix/frontend-flow.log");
+const flowLogChunks = [];
+
+function cleanupNextDevLocks() {
+  const lockFiles = [
+    "frontend/frontendA-it-console/template-runtime/.next/dev/lock",
+    "frontend/frontendB-desktop-app/template-runtime/.next/dev/lock",
+    "frontend/frontendC-marketing-download-site/template-runtime/.next/dev/lock",
+  ];
+  for (const relativePath of lockFiles) {
+    const absolutePath = resolve(process.cwd(), relativePath);
+    rmSync(absolutePath, { force: true });
+  }
+}
 
 const steps = [];
 
@@ -33,12 +50,37 @@ if (!quick) {
 
 steps.push({ label: "Run frontend e2e tests", cmd: "npm", args: ["run", "test:frontend:e2e"], required: true });
 
+if (warningBudgetEnabled) {
+  steps.push({
+    label: "Check frontend warning budget",
+    cmd: "node",
+    args: ["scripts/check-frontend-warning-budget.mjs", "--log", flowLogPath],
+    required: true,
+  });
+}
+
 for (const [index, step] of steps.entries()) {
   process.stdout.write(`\n[frontend-flow ${index + 1}/${steps.length}] ${step.label}\n`);
+  if (step.label.toLowerCase().includes("e2e")) {
+    cleanupNextDevLocks();
+  }
+  const stepEnv = { ...process.env };
+  delete stepEnv.NO_COLOR;
   const result = spawnSync(step.cmd, step.args, {
-    stdio: "inherit",
-    env: process.env,
+    stdio: "pipe",
+    env: stepEnv,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024 * 32,
   });
+  const stdout = String(result.stdout ?? "");
+  const stderr = String(result.stderr ?? "");
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
+  flowLogChunks.push(`\n# ${step.label}\n`);
+  if (stdout) flowLogChunks.push(stdout);
+  if (stderr) flowLogChunks.push(stderr);
+  mkdirSync(resolve(process.cwd(), "artifacts/matrix"), { recursive: true });
+  writeFileSync(flowLogPath, flowLogChunks.join(""), "utf8");
 
   if (result.status !== 0) {
     const code = result.status ?? 1;

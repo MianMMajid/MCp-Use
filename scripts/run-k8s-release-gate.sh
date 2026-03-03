@@ -20,6 +20,19 @@ now_utc() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+validate_json_file() {
+  local file="$1"
+  local label="$2"
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq '.' "$file" >/dev/null; then
+      echo "[k8s-release-gate] Invalid JSON in ${label}: ${file}" >&2
+      return 1
+    fi
+    return 0
+  fi
+  node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));' "$file" >/dev/null
+}
+
 STAGE_RETRY_LIMIT="${K8S_RELEASE_GATE_STAGE_RETRIES:-0}"
 if ! [[ "${STAGE_RETRY_LIMIT}" =~ ^[0-9]+$ ]]; then
   echo "[k8s-release-gate] K8S_RELEASE_GATE_STAGE_RETRIES must be a non-negative integer." >&2
@@ -78,9 +91,11 @@ flake_marker=false
 write_summary() {
   cat >"${SUMMARY_FILE}" <<EOF
 {
+  "artifactSchemaVersion": 2,
   "ok": ${overall_ok},
   "generatedAt": "$(now_utc)",
   "namespace": "${NAMESPACE}",
+  "policyMode": "conditional_strict",
   "stageRetryLimit": ${STAGE_RETRY_LIMIT},
   "flakeMarker": ${flake_marker},
   "stages": {
@@ -100,6 +115,7 @@ write_summary() {
   "k8sValidationSummaryFile": "${ARTIFACT_DIR}/k8s-validation-summary.json"
 }
 EOF
+  validate_json_file "${SUMMARY_FILE}" "k8s release gate summary"
 }
 
 fail_stage() {

@@ -29,8 +29,13 @@ This folder defines frontend ownership boundaries for collaboration.
 Runtime note:
 - `npm run sync:runtime-assets` copies frontend assets into `backend/backendA-platform-infra/runtime-assets/`.
 
-## Template Runtime Commands
-- Install all template runtime dependencies: `npm run template:install`
-- Run A template runtime (default): `npm run dev:frontendA`
-- Run B template runtime (default): `npm run dev:frontendB`
-- Run C template runtime (default): `npm run dev:frontendC`
+## Runtime Commands
+
+Canonical root commands:
+
+- Fast local loop (A/B/C + backend services): `npm run dev`
+- Fast local loop with OpenClaw profile: `npm run dev:fast:openclaw`
+- K8s validation loop: `npm run validate:k8s`
+- K8s release gate: `npm run gate:k8s`
+
+Direct per-surface dev commands are intentionally not part of the canonical root script surface.

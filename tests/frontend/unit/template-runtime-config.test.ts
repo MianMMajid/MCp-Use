@@ -29,10 +29,12 @@ describe("template runtime config wiring", () => {
     expect(electronMain).toContain("window.loadURL(defaultDesktopUiUrl)");
   });
 
-  it("root dev scripts default to template runtimes for A/B/C", () => {
+  it("root command surface uses three-loop defaults", () => {
     const rootPackageJson = read("package.json");
-    expect(rootPackageJson).toContain('"dev:frontendA": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101"');
-    expect(rootPackageJson).toContain('"dev:frontendB": "npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102"');
-    expect(rootPackageJson).toContain('"dev:frontendC": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103"');
+    expect(rootPackageJson).toContain('"dev": "bash backend/backendA-platform-infra/scripts/dev-fast.sh"');
+    expect(rootPackageJson).toContain('"start": "bash backend/backendA-platform-infra/scripts/dev-fast.sh"');
+    expect(rootPackageJson).toContain('"dev:k8s": "bash backend/backendA-platform-infra/scripts/k8s-local-all.sh"');
+    expect(rootPackageJson).toContain('"validate:k8s": "bash scripts/run-k8s-validation.sh"');
+    expect(rootPackageJson).toContain('"gate:k8s": "bash scripts/run-k8s-release-gate.sh"');
   });
 });

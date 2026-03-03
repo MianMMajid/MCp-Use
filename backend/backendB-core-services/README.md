@@ -7,13 +7,16 @@ This shell represents logical service boundaries for core logic.
 Service shells:
 - `gateway-api`
 - `context-wall`
-- `model-router`
 - `mcp-proxy`
 - `cyber-proxy`
 - `tool-runner`
 - `audit-writer`
-- `secrets-broker`
 - `admin-console-api`
+- `business-api` (from `backend/backendC-saas-services/business-api`)
+
+Archived retired services:
+- `backend/legacy/retired-services/model-router`
+- `backend/legacy/retired-services/secrets-broker`
 
 Canonical implementation locations:
 - `<service-name>/service/src/` (canonical source for mesh services)

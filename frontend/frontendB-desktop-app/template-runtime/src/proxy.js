@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 // Routes that do not require authentication
 const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password']
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl
 
   // Allow public auth routes without session

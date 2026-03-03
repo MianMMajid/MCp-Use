@@ -159,11 +159,15 @@ function toMarkdown(report) {
   lines.push(`Generated: ${report.generatedAt}`);
   lines.push(`Window: ${report.windowDays} days`);
   lines.push("");
-  lines.push("| Service | Required | Lifecycle | Necessity | Utilization | Runtime Calls | Decision |");
-  lines.push("|---|---:|---:|---:|---:|---:|---|");
+  lines.push("| Service | Required | Lifecycle | Runtime Evidence Mode | Necessity | Utilization | Runtime Calls | Decision |");
+  lines.push("|---|---:|---:|---|---:|---:|---:|---|");
   for (const row of report.services) {
+    const runtimeCalls =
+      row.evidence.runtimeCalls14d === null || row.evidence.runtimeCalls14d === undefined
+        ? "n/a"
+        : String(row.evidence.runtimeCalls14d);
     lines.push(
-      `| ${row.service} | ${row.required ? "yes" : "no"} | ${row.lifecycle} | ${row.necessityScore} | ${row.utilizationScore} | ${row.evidence.runtimeCalls14d} | ${row.decision} |`,
+      `| ${row.service} | ${row.required ? "yes" : "no"} | ${row.lifecycle} | ${row.runtimeEvidenceMode} | ${row.necessityScore} | ${row.utilizationScore} | ${runtimeCalls} | ${row.decision} |`,
     );
   }
   lines.push("");
@@ -204,6 +208,7 @@ export function buildServiceUtilizationReport(options = {}) {
     options.runtimeSnapshotFile ? resolve(ROOT_DIR, options.runtimeSnapshotFile) : "",
     windowStartMs,
   );
+  const hasRuntimeSnapshotInput = Boolean(options.runtimeSnapshotFile);
 
   const services = [];
   const runtimeEventTotal = [...runtimeFromEvents.values()].reduce((sum, value) => sum + Number(value ?? 0), 0);
@@ -240,8 +245,21 @@ export function buildServiceUtilizationReport(options = {}) {
       Number(runtimeFromSnapshot.get(service) ?? 0),
     );
     const runtimeEvidenceSource = catalogRow.runtimeEvidenceSource ?? "gateway";
+    let runtimeEvidenceMode;
+    if (runtimeEvidenceSource === "external") {
+      runtimeEvidenceMode = "external";
+    } else if (hasRuntimeSnapshotInput) {
+      runtimeEvidenceMode = "k8s_live";
+    } else if (runtimeEventTotal > 0) {
+      runtimeEvidenceMode = "matrix";
+    } else {
+      runtimeEvidenceMode = "none";
+    }
     if (service === "gateway-api") {
       runtimeCalls14d = Math.max(runtimeCalls14d, runtimeAggregateTotal);
+    }
+    if (runtimeEvidenceMode === "none") {
+      runtimeCalls14d = null;
     }
     const testsHitCount = countTestCoverageHits(service);
     let activeCallPathCoverage = coverage?.routeCount > 0 ? 100 : 0;
@@ -252,7 +270,13 @@ export function buildServiceUtilizationReport(options = {}) {
       activeCallPathCoverage = entry?.presentIn?.k8sDeployment || entry?.presentIn?.meshManifest ? 100 : activeCallPathCoverage;
     }
     const runtimeInvocationVolume =
-      runtimeEvidenceSource === "external" ? (runtimeCalls14d > 0 ? 100 : 50) : runtimeCalls14d > 0 ? 100 : 0;
+      runtimeEvidenceSource === "external"
+        ? Number(runtimeCalls14d ?? 0) > 0
+          ? 100
+          : 50
+        : Number(runtimeCalls14d ?? 0) > 0
+          ? 100
+          : 0;
     const testCoverage = testsHitCount > 0 ? 100 : 0;
     const featureAlignment = toNumber(catalogRow.featureAlignment, 80);
 
@@ -274,6 +298,7 @@ export function buildServiceUtilizationReport(options = {}) {
       lifecycle,
       retired,
       runtimeEvidenceSource,
+      runtimeEvidenceMode,
       necessityScore: necessity.score,
       utilizationScore,
       decision,
@@ -306,6 +331,7 @@ export function buildServiceUtilizationReport(options = {}) {
   const zeroUseRetained = retained.filter((row) => Number(row.evidence.runtimeCalls14d) === 0);
 
   return {
+    artifactSchemaVersion: 2,
     ok: true,
     generatedAt: nowIso(),
     windowDays,

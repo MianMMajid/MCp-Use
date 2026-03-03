@@ -74,12 +74,12 @@ export function registerFirewallChatRoutes() {
             mode: openclaw.enabled
                 ? "openclaw-agent"
                 : chatOrchestration.enabled
-                    ? "model-router"
+                    ? "context-wall-local-provider"
                     : "unavailable",
             primaryProvider: firewallChatPrimaryProvider,
             strictChatMode: firewallChatStrictMode,
             contextWallAvailable: report.checks.find((check) => check.id === "grpc.context_wall")?.ok === true,
-            modelRouterAvailable: report.checks.find((check) => check.id === "grpc.model_router")?.ok === true,
+            localProviderRoutingEnabled: chatOrchestration.enabled,
             openclawAgent: openclaw,
             chatOrchestration,
             strictDependencies: report.strict,

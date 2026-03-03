@@ -30,15 +30,13 @@ DNS.1 = localhost
 DNS.2 = gateway-api
 DNS.3 = admin-console-api
 DNS.4 = context-wall
-DNS.5 = model-router
-DNS.6 = mcp-proxy
-DNS.7 = cyber-proxy
-DNS.8 = tool-runner
-DNS.9 = audit-writer
-DNS.10 = secrets-broker
-DNS.11 = business-api
-DNS.12 = openclaw-bridge
-DNS.13 = openclaw-gateway
+DNS.5 = mcp-proxy
+DNS.6 = cyber-proxy
+DNS.7 = tool-runner
+DNS.8 = audit-writer
+DNS.9 = business-api
+DNS.10 = openclaw-bridge
+DNS.11 = openclaw-gateway
 EOT
 
 openssl req -newkey rsa:4096 -nodes \

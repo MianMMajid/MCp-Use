@@ -34,6 +34,8 @@ export function buildServiceInventory() {
         owner: catalogRow?.owner ?? "unassigned",
         tier: catalogRow?.tier ?? "unknown",
         lifecycle: String(catalogRow?.lifecycle ?? "active"),
+        archiveStatus: String(catalogRow?.archiveStatus ?? "active"),
+        archivePath: String(catalogRow?.archivePath ?? ""),
         retired: String(catalogRow?.lifecycle ?? "").toLowerCase() === "retired",
         required: catalogRow?.required === true,
         criticalFlows: Array.isArray(catalogRow?.criticalFlows) ? catalogRow.criticalFlows : [],
@@ -48,6 +50,7 @@ export function buildServiceInventory() {
     });
 
   return {
+    artifactSchemaVersion: 2,
     ok: true,
     generatedAt: nowIso(),
     sourcePrecedence: ["meshManifest", "k8sDeployment", "railwayEntrypoint"],

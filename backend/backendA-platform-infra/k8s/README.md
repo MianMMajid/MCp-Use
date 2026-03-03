@@ -12,7 +12,7 @@ Included manifests:
 - `kind-config.yaml`
 
 Recommended flow:
-1. `npm run k8s:all`
+1. `npm run dev:k8s` or `npm run validate:k8s`
 2. Open:
    - `https://localhost:3000` (gateway-api / judge / inspector)
    - `http://localhost:3100` (frontendA-it-console)
@@ -25,17 +25,17 @@ Recommended flow:
    - `ws://localhost:4011` (openclaw-gateway)
 
 TLS:
-- Local certs are generated automatically during `k8s:up`/`k8s:all`.
-- Manual regenerate: `npm run k8s:certs`.
+- Local certs are generated automatically during K8s up scripts.
+- Manual regenerate: `bash backend/backendA-platform-infra/scripts/generate-local-certs.sh`.
 
 Teardown:
-- Workloads only: `npm run k8s:down`
-- Workloads + cluster: `npm run k8s:down -- --destroy-cluster`
+- Workloads only: `bash backend/backendA-platform-infra/scripts/k8s-local-down.sh`
+- Workloads + cluster: `bash backend/backendA-platform-infra/scripts/k8s-local-down.sh --destroy-cluster`
 
 Defaults:
-- `npm run dev` now runs the full Kubernetes stack flow (`k8s:all`).
-- `npm run start` now runs the full Kubernetes stack flow (`k8s:all`).
+- `npm run dev` / `npm run start` run the fast local loop (non-K8s).
+- `npm run dev:k8s` runs the full local Kubernetes stack flow.
 
 Aggregated logs (full Maple stack):
-- `npm run k8s:logs`
+- `bash backend/backendA-platform-infra/scripts/k8s-logs-aggregate.sh`
 - Default output file: `backend/backendA-platform-infra/logs/frontend-backend-stream.log`

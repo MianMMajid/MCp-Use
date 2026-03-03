@@ -76,9 +76,13 @@ jobs:
       - name: Deprecated Command Alias Guard
         run: npm run check:deprecated-command-aliases
 
+      - name: Command Surface Guard
+        run: npm run check:command-surface
+
       - name: Tests
         env:
           FULL_MATRIX_STAGE_RETRIES: "1"
+          FULL_MATRIX_FORCE_LIVE: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'requires-live') && '1' || '0' }}
           SERVICE_AUDIT_POLICY: advisory
           SERVICE_UTILIZATION_RUNTIME_REQUIRED: "0"
           # ── Database ──

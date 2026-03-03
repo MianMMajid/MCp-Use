@@ -10,12 +10,12 @@ const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 const scripts = pkg.scripts ?? {};
 
 const deprecatedAliasMap = {
-  "dev:frontendA:template": "dev:frontendA",
-  "dev:frontendB:template": "dev:frontendB",
-  "dev:frontendC:template": "dev:frontendC",
-  "build:frontendA:template": "build:frontendA",
-  "build:frontendB:template": "build:frontendB",
-  "build:frontendC:template": "build:frontendC",
+  "dev:frontendA:template": "dev",
+  "dev:frontendB:template": "dev",
+  "dev:frontendC:template": "dev",
+  "build:frontendA:template": "build",
+  "build:frontendB:template": "build",
+  "build:frontendC:template": "build",
 };
 
 const deprecatedAliasPattern = /^(dev|build):frontend[ABC]:template$/;

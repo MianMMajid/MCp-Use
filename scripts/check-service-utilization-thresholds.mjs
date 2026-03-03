@@ -37,12 +37,17 @@ function run() {
     const utilization = Number(row.utilizationScore ?? 0);
     const runtimeCalls = Number(row?.evidence?.runtimeCalls14d ?? 0);
     const runtimeSource = String(row.runtimeEvidenceSource ?? "gateway");
+    const runtimeMode = String(row.runtimeEvidenceMode ?? "none");
     if (utilization < 60) {
       violations.push(`${row.service}: required service utilization ${utilization} < 60.`);
     }
-    if (runtimeRequired && runtimeSource !== "external" && runtimeCalls <= 0) {
+    if (
+      runtimeRequired &&
+      runtimeSource !== "external" &&
+      (runtimeMode === "none" || runtimeCalls <= 0)
+    ) {
       violations.push(
-        `${row.service}: required service has zero runtime invocation evidence in window.`,
+        `${row.service}: required service has no runtime invocation evidence (mode=${runtimeMode}).`,
       );
     }
   }

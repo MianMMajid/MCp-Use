@@ -50,4 +50,4 @@ Backend runtime files are consumed directly from shell folders:
 
 Use:
 1. `npm run sync:runtime-assets`
-2. `npm run dev:frontendA` / `npm run dev:frontendB` / `npm run dev:frontendC` / `npm run dev:widgets`
+2. `npm run dev` (fast local loop) or `npm run validate:k8s` (integration realism)

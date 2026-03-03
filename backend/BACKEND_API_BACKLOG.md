@@ -10,7 +10,7 @@ For long-range product-complete targets, see:
 
 - External client entrypoint: `gateway-api` (`/api/*`, `/admin/api/*`, `/gpt/*`).
 - SaaS system-of-record: `business-api` (`/api/business/*`).
-- Core orchestration: context-wall/model-router/mcp-proxy/cyber-proxy/tool-runner (gRPC plane).
+- Core orchestration: context-wall/mcp-proxy/cyber-proxy/tool-runner (gRPC plane).
 - Desktop runtime bridge (`backendD`) remains local runtime control (not HTTP API).
 
 ## Priority Model

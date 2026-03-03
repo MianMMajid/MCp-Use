@@ -10,5 +10,6 @@ Canonical implementation:
 - `template-runtime/src/app/` for landing/auth routes
 - `template-runtime/src/components/` for marketing sections
 
-Run locally:
-- `npm run dev:frontendC`
+Run locally through canonical root loops:
+- Fast local: `npm run dev`
+- K8s validation: `npm run validate:k8s`

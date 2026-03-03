@@ -55,6 +55,68 @@ now_utc() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+as_bool() {
+  local raw
+  raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  [[ "$raw" == "1" || "$raw" == "true" || "$raw" == "yes" || "$raw" == "on" ]]
+}
+
+FORCE_LIVE=0
+if as_bool "${FULL_MATRIX_FORCE_LIVE:-0}"; then
+  FORCE_LIVE=1
+fi
+
+validate_json_file() {
+  local file="$1"
+  local label="$2"
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq '.' "$file" >/dev/null; then
+      printf '[full-matrix] Invalid JSON in %s: %s\n' "$label" "$file" >&2
+      return 1
+    fi
+    return 0
+  fi
+  node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));' "$file" >/dev/null
+}
+
+write_live_skip_file() {
+  local reason="$1"
+  shift
+  local missing=("$@")
+  {
+    printf '{\n'
+    printf '  "artifactSchemaVersion": 2,\n'
+    printf '  "ok": true,\n'
+    printf '  "skipped": true,\n'
+    printf '  "policyMode": "conditional_strict",\n'
+    printf '  "reason": "%s",\n' "$reason"
+    printf '  "generatedAt": "%s",\n' "$(now_utc)"
+    printf '  "missingEnv": ['
+    for i in "${!missing[@]}"; do
+      [[ "$i" -gt 0 ]] && printf ', '
+      printf '"%s"' "${missing[$i]}"
+    done
+    printf ']\n'
+    printf '}\n'
+  } >"$LIVE_SKIP_FILE"
+  validate_json_file "$LIVE_SKIP_FILE" "live-suite skip artifact"
+  if command -v jq >/dev/null 2>&1; then
+    if ! jq -e '.generatedAt and .reason and (.missingEnv|type=="array") and .policyMode' "$LIVE_SKIP_FILE" >/dev/null 2>&1; then
+      printf '[full-matrix] Invalid live skip artifact contract: %s\n' "$LIVE_SKIP_FILE" >&2
+      return 1
+    fi
+  else
+    node -e '
+      const fs = require("node:fs");
+      const parsed = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      if (!parsed?.generatedAt || !parsed?.reason || !Array.isArray(parsed?.missingEnv) || !parsed?.policyMode) {
+        process.exit(1);
+      }
+    ' "$LIVE_SKIP_FILE"
+  fi
+  printf '[full-matrix] Live matrix skipped; wrote %s\n' "$LIVE_SKIP_FILE"
+}
+
 LAST_STAGE_ATTEMPTS=0
 run_stage() {
   local label="$1"
@@ -100,6 +162,11 @@ deprecated_alias_status="skipped"
 deprecated_alias_started_at=""
 deprecated_alias_finished_at=""
 deprecated_alias_attempts=0
+
+command_surface_status="skipped"
+command_surface_started_at=""
+command_surface_finished_at=""
+command_surface_attempts=0
 
 inventory_status="skipped"
 inventory_started_at=""
@@ -167,12 +234,14 @@ flake_marker=false
 write_summary() {
   cat >"$SUMMARY_FILE" <<EOF
 {
+  "artifactSchemaVersion": 2,
   "ok": $overall_ok,
   "generatedAt": "$(now_utc)",
   "scope": {
     "backend": $([[ "$RUN_BACKEND" -eq 1 ]] && echo true || echo false),
     "frontend": $([[ "$RUN_FRONTEND" -eq 1 ]] && echo true || echo false),
-    "live": $([[ "$RUN_LIVE" -eq 1 ]] && echo true || echo false)
+    "live": $([[ "$RUN_LIVE" -eq 1 ]] && echo true || echo false),
+    "forcedLive": $([[ "$FORCE_LIVE" -eq 1 ]] && echo true || echo false)
   },
   "coveragePolicy": "${COVERAGE_POLICY:-advisory}",
   "stageRetryLimit": $STAGE_RETRY_LIMIT,
@@ -183,6 +252,7 @@ write_summary() {
     "repoHygiene": "$repo_hygiene_status",
     "lockfilePolicy": "$lockfile_policy_status",
     "deprecatedCommandAliases": "$deprecated_alias_status",
+    "commandSurface": "$command_surface_status",
     "inventory": "$inventory_status",
     "staticCallgraph": "$static_callgraph_status",
     "topologyParity": "$topology_parity_status",
@@ -202,6 +272,7 @@ write_summary() {
     "repoHygiene": { "startedAt": "$repo_hygiene_started_at", "finishedAt": "$repo_hygiene_finished_at", "attempts": $repo_hygiene_attempts },
     "lockfilePolicy": { "startedAt": "$lockfile_policy_started_at", "finishedAt": "$lockfile_policy_finished_at", "attempts": $lockfile_policy_attempts },
     "deprecatedCommandAliases": { "startedAt": "$deprecated_alias_started_at", "finishedAt": "$deprecated_alias_finished_at", "attempts": $deprecated_alias_attempts },
+    "commandSurface": { "startedAt": "$command_surface_started_at", "finishedAt": "$command_surface_finished_at", "attempts": $command_surface_attempts },
     "inventory": { "startedAt": "$inventory_started_at", "finishedAt": "$inventory_finished_at", "attempts": $inventory_attempts },
     "staticCallgraph": { "startedAt": "$static_callgraph_started_at", "finishedAt": "$static_callgraph_finished_at", "attempts": $static_callgraph_attempts },
     "topologyParity": { "startedAt": "$topology_parity_started_at", "finishedAt": "$topology_parity_finished_at", "attempts": $topology_parity_attempts },
@@ -217,6 +288,7 @@ write_summary() {
   }
 }
 EOF
+  validate_json_file "$SUMMARY_FILE" "full matrix summary"
 }
 
 fail_stage() {
@@ -308,6 +380,21 @@ else
   fail_stage "deprecated_aliases"
 fi
 deprecated_alias_finished_at="$(now_utc)"
+
+command_surface_status="running"
+command_surface_started_at="$(now_utc)"
+if run_stage "Guard: root command surface budget" \
+  node "$ROOT_DIR/scripts/check-command-surface.mjs"; then
+  command_surface_status="passed"
+  command_surface_attempts="$LAST_STAGE_ATTEMPTS"
+  (( command_surface_attempts > 1 )) && flake_marker=true
+else
+  command_surface_status="failed"
+  command_surface_attempts="$LAST_STAGE_ATTEMPTS"
+  command_surface_finished_at="$(now_utc)"
+  fail_stage "command_surface"
+fi
+command_surface_finished_at="$(now_utc)"
 
 inventory_status="running"
 inventory_started_at="$(now_utc)"
@@ -483,27 +570,30 @@ if (( RUN_BACKEND == 1 )); then
         fail_stage "live_provider_matrix"
       fi
     else
-      live_status="skipped"
-      {
-        printf '{\n'
-        printf '  "ok": true,\n'
-        printf '  "skipped": true,\n'
-        printf '  "reason": "Missing required live-suite secrets.",\n'
-        printf '  "generatedAt": "%s",\n' "$(now_utc)"
-        printf '  "missingEnv": ['
-        for i in "${!missing_live_env[@]}"; do
-          [[ "$i" -gt 0 ]] && printf ', '
-          printf '"%s"' "${missing_live_env[$i]}"
-        done
-        printf ']\n'
-        printf '}\n'
-      } >"$LIVE_SKIP_FILE"
-      printf '[full-matrix] Live matrix skipped; wrote %s\n' "$LIVE_SKIP_FILE"
+      if (( FORCE_LIVE == 1 )); then
+        live_status="failed"
+        write_live_skip_file "Missing required live-suite secrets while force-live is enabled." "${missing_live_env[@]}"
+        live_finished_at="$(now_utc)"
+        fail_stage "live_provider_matrix_force_live_missing_secrets"
+      else
+        live_status="skipped"
+        write_live_skip_file "Missing required live-suite secrets." "${missing_live_env[@]}"
+      fi
     fi
     live_finished_at="$(now_utc)"
   else
     live_status="skipped"
+    live_started_at="$(now_utc)"
+    write_live_skip_file "Live suite disabled by --no-live flag."
+    live_finished_at="$(now_utc)"
   fi
+fi
+
+if (( RUN_BACKEND == 0 && RUN_LIVE == 1 )); then
+  live_status="skipped"
+  live_started_at="$(now_utc)"
+  write_live_skip_file "Live suite skipped because backend scope is disabled."
+  live_finished_at="$(now_utc)"
 fi
 
 if (( RUN_FRONTEND == 1 )); then

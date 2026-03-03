@@ -1,0 +1,10 @@
+{
+  "name": "@maple/model-router-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../../../../backend/backendA-platform-infra/scripts/build-service.mjs backend/legacy/retired-services/model-router/service",
+    "typecheck": "node --check src/main.js",
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}

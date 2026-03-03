@@ -133,7 +133,7 @@ runLiveTest("live dependency matrix: gateway runtime endpoints are healthy", asy
   });
   assert.equal(chatCapabilities.response.status, 200);
   assert.equal(
-    ["openclaw-agent", "model-router", "unavailable"].includes(
+    ["openclaw-agent", "context-wall-local-provider", "unavailable"].includes(
       String(chatCapabilities.payload.mode)
     ),
     true

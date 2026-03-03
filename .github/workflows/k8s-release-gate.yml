@@ -66,9 +66,13 @@ jobs:
       - name: Deprecated Command Alias Guard
         run: npm run check:deprecated-command-aliases
 
+      - name: Command Surface Guard
+        run: npm run check:command-surface
+
       - name: K8s release gate
         env:
           FULL_MATRIX_STAGE_RETRIES: "1"
+          FULL_MATRIX_FORCE_LIVE: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'requires-live') && '1' || '0' }}
           COVERAGE_POLICY: advisory
         run: bash scripts/run-k8s-release-gate.sh
 

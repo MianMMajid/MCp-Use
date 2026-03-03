@@ -6,11 +6,16 @@ Use this checklist before merging to `main` for the cutover hardening stream.
 
 - [ ] `bash scripts/run-full-matrix.sh --all` passes.
 - [ ] `artifacts/matrix/full-matrix-summary.json` reports `"ok": true`.
+- [ ] `artifacts/matrix/full-matrix-summary.json` is valid JSON (`jq .`).
+- [ ] `artifacts/matrix/k8s-validation-summary.json` is valid JSON (`jq .`).
+- [ ] `artifacts/matrix/k8s-release-gate-summary.json` is valid JSON (`jq .`).
+- [ ] Any present `artifacts/matrix/live-suite-skip.json` is valid JSON and includes `generatedAt`, `reason`, `missingEnv[]`, `policyMode`.
 - [ ] `scripts/check-no-legacy-modifier-endpoints.sh` passes.
 - [ ] `scripts/check-source-backed-packages.sh` passes.
 - [ ] `scripts/check-repo-hygiene.sh` passes.
 - [ ] `scripts/check-lockfile-policy.sh` passes.
 - [ ] `scripts/check-deprecated-command-aliases.mjs` passes.
+- [ ] `scripts/check-command-surface.mjs` passes (`<=60` root scripts).
 - [ ] Frontend B surface guard (`npm run check:frontendB:surface`) passes.
 - [ ] No direct `@maple/*/src/...` runtime imports remain.
 - [ ] No transient artifact pollution appears in `git status` (for example `ERROR`, `.next.bak.*`, `dist 2`).

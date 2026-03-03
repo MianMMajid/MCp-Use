@@ -56,6 +56,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, '../../../'),
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'mdx'],
   onDemandEntries: {
     maxInactiveAge: 15 * 60 * 1000,

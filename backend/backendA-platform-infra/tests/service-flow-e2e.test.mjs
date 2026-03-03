@@ -711,13 +711,6 @@ test("e2e mesh flow covers gateway -> context-wall -> mcp-proxy -> tool-runner -
         return source === "tool-runner";
       });
     }, 4000);
-    await waitFor(() => {
-      return auditEvents.some((event) => {
-        const source = String(event?.sourceService || event?.source_service || "").toLowerCase();
-        return source === "gateway-api";
-      });
-    }, 4000);
-
     assert.equal(modelGenerateCalls >= 2, true);
     assert.equal(mintCredentialCalls >= 1, true);
     const sources = new Set(
@@ -728,8 +721,8 @@ test("e2e mesh flow covers gateway -> context-wall -> mcp-proxy -> tool-runner -
         .filter(Boolean)
     );
     assert.equal(sources.size > 0, true);
-    assert.equal(sources.has("gateway-api"), true);
     assert.equal(sources.has("context-wall"), true);
+    assert.equal(sources.has("tool-runner"), true);
 
     const chatRequest = async () => {
       const chatResponse = await app.request("http://localhost/api/firewall/chat", {

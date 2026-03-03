@@ -1,79 +1,30 @@
 # Maple
 
-Unified MCP server for agent observability, safety control, and behavior evolution.
+Maple is a multi-surface platform for agent orchestration, observability, and safeguards.
 
-Maple is the "Sentry + Git" layer for high-agency agents:
-- Observe every step
-- Replay/fork risky branches
-- Audit and intervene with guardrails
-- Learn from anonymized traces to evolve safer skills
+## Surface Ownership (A/B/C)
 
-Built with `mcp-use` + Apps SDK widgets.
+- `frontendB-desktop-app` (Catalyst): orchestration control plane.
+- `frontendA-it-console` (Protocol): observability, audit, compliance, safeguards.
+- `frontendC-marketing-download-site` (Salient): marketing, onboarding, download CTA.
 
-## What Is Implemented
+## Active Service Topology
 
-### 1) Observability + Control
-- `observe_session`: capture and render timeline widget
-- `replay_fork`: branch from any step and replay forward
-- `audit_risk`: rule + anomaly risk dashboard
-- `guard_action`: allow/block/pending with quarantine support
-- `ingest_session_event`: stream external bridge events into active trace
+Active runtime services:
 
-### 2) ML Anomaly Detection (Simple Embeddings)
-- `ml_anomaly_report`: embedding-based behavior outlier detection
-- Lightweight hash embeddings + cosine similarity baseline
-- Supports community baseline from anonymized shared traces
+- `gateway-api`
+- `admin-console-api`
+- `context-wall`
+- `mcp-proxy`
+- `tool-runner`
+- `cyber-proxy`
+- `audit-writer`
+- `business-api`
 
-### 3) Network Effects
-- `share_trace_anon`: anonymize and publish trace patterns to shared pool
-- `suggest_evolved_skills`: generate evolved skill suggestions from shared traces
-- Behavior signatures + shared dataset create compound data advantage
+Archived retired services:
 
-### 4) YC App Layer (Moat / Traction / Revenue)
-- `yc_app_brief`: live YC-ready narrative generated from product metrics
-- Emphasizes:
-  - Moat: trace + fork + risk label data flywheel
-  - Traction: OpenClaw integration and safety intervention activity
-  - Revenue: freemium ladder (Free, Pro $9, Team $29, Enterprise $99)
-
-## MCP Tools
-
-- `observe_session`
-- `replay_fork`
-- `audit_risk`
-- `ml_anomaly_report`
-- `guard_action`
-- `ingest_session_event`
-- `share_trace_anon`
-- `suggest_evolved_skills`
-- `yc_app_brief`
-- `list_traces`
-- `export_trace`
-
-## API Endpoints
-
-- `GET /health`
-- `GET /judge` (judge standalone page)
-- `GET /api/traces`
-- `GET /api/traces/:traceId`
-- `GET /api/community/stats`
-- `GET /api/community/traces`
-- `GET /api/yc/brief?focus=full|moat|traction|revenue`
-- `GET /api/firewall/state`
-- `POST /api/firewall/chat`
-- `POST /api/firewall/decision` (strict pre-execution allow/block gate)
-
-## Key Project Files
-
-- `backend/backendB-core-services/gateway-api/service/src/`: public API and orchestration entrypoint
-- `backend/backendB-core-services/context-wall/service/src/`: semantic policy authority and HITL coordination
-- `backend/backendB-core-services/mcp-proxy/service/src/`: tool dispatch/proxy and scoped execution path
-- `backend/backendB-core-services/cyber-proxy/service/src/`: outbound safety checks and network mediation
-- `backend/backendB-core-services/tool-runner/service/src/`: isolated tool execution runtime
-- `backend/backendC-saas-services/business-api/service/src/`: SaaS auth/user/billing APIs
-- `frontend/frontendD-mcp-widgets/resources/trace-timeline/widget.tsx`
-- `frontend/frontendD-mcp-widgets/resources/replay-review/widget.tsx`
-- `frontend/frontendD-mcp-widgets/resources/risk-dashboard/widget.tsx`
+- `backend/legacy/retired-services/model-router`
+- `backend/legacy/retired-services/secrets-broker`
 
 ## Quick Start
 
@@ -82,148 +33,88 @@ npm install
 npm run dev
 ```
 
-`dev/start` now default to the **fast local loop**:
-- runs preflight + runtime sync + mesh build
-- starts local dependencies (PostgreSQL/Redis if missing)
-- launches gateway + core services + frontend A/B/C as local processes
-- keeps logs and PID state in `.maple/dev-fast/`
+Fast local loop (`npm run dev`) starts local dependencies plus gateway, core services, and A/B/C surfaces.
 
-Authoritative source folders:
-- `backend/`
-- `frontend/`
+Default local URLs:
 
-Primary endpoints after `npm run dev`:
-- `http://localhost:3000` (gateway-api / judge / inspector / API)
-- `http://localhost:4101` (frontendA-it-console)
-- `http://localhost:4102` (frontendB desktop web shell)
-- `http://localhost:4103` (frontendC-marketing-site)
+- `http://127.0.0.1:3000` (gateway-api)
+- `http://127.0.0.1:4101` (frontend A)
+- `http://127.0.0.1:4102` (frontend B)
+- `http://127.0.0.1:4103` (frontend C)
 
-Fast loop controls:
+Stop fast-loop processes:
 
 ```bash
+npm run local:down
+```
+
+## Three-Loop Development Model
+
+### 1) Fast Local Loop (daily coding)
+
+```bash
+npm run dev
 npm run dev:fast
-npm run dev:fast:openclaw   # opt-in OpenClaw gateway + bridge
-npm run local:down          # stop fast-loop processes
+npm run dev:fast:openclaw
 ```
 
-OpenClaw is optional in the fast loop by default.
+`dev:fast:openclaw` enables OpenClaw profile validation and startup helpers.
 
-## Canonical Command Surface
-
-Use these grouped commands as the stable interface:
+### 2) K8s Validation Loop (integration realism)
 
 ```bash
-npm run dev                 # fast local loop (default)
-npm run validate:k8s        # K8s validation loop
-npm run gate:k8s            # K8s release gate
-npm run test:matrix         # full matrix (backend+frontend)
-npm run check:repo-hygiene  # artifact/import/topology hygiene
+npm run validate:k8s
+npm run validate:k8s -- --full
 ```
 
-Deprecated aliases with `:template` suffix are kept temporarily for compatibility and are frozen by CI guard (`check:deprecated-command-aliases`).
+Validation artifacts:
 
-## Northflank Deployment
+- `artifacts/matrix/k8s-validation-summary.json`
+- `artifacts/matrix/k8s-service-utilization-summary.json`
 
-Northflank template + setup helpers live at:
-
-- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.json`
-- `backend/backendA-platform-infra/deploy/northflank/README.md`
-
-This includes a full stack template (backend mesh + OpenClaw + static frontend surfaces), plus scripts to generate TLS and argument payloads.
-
-Fast path:
-
-```bash
-npm run northflank:oneclick
-```
-
-This generates `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.one-click.local.json` ready to import in Northflank.
-
-Frontend surface helpers:
-
-```bash
-npm run dev:frontendA
-npm run dev:frontendB
-npm run dev:frontendC
-npm run dev:widgets
-```
-
-Desktop native app commands (`.dmg/.exe` pipeline):
-
-```bash
-npm run desktop:install
-npm run desktop:dev
-npm run desktop:dist:mac
-npm run desktop:dist:win
-```
-
-Desktop artifacts output:
-- `frontend/frontendB-desktop-app/installers/dist/`
-- CI workflow: `.github/workflows/desktop-packaging.yml` (builds macOS `.dmg` + Windows `.exe` on tag `desktop-v*`)
-
-## Local Kubernetes (kind)
-
-You can run the stack on this laptop in a local Kubernetes cluster.
-
-Prerequisites:
-- Docker Desktop running
-- `kubectl` installed
-- `kind` installed (for example: `brew install kind`)
-
-Commands:
-
-```bash
-npm run dev:k8s
-# same as:
-npm run k8s:all
-# optional: regenerate local TLS cert bundle
-npm run k8s:certs
-```
-
-Fast re-validation options:
-
-```bash
-npm run validate:k8s                     # default: skip build/load/restart
-npm run validate:k8s -- --full           # full K8s cycle
-bash backend/backendA-platform-infra/scripts/k8s-local-up.sh --wait-only
-```
-
-Open:
-- `https://localhost:3000` (gateway-api)
-- `http://localhost:3100` (frontendA-it-console)
-- `http://localhost:3200` (frontendB desktop web shell)
-- `http://localhost:3300` (frontendC-marketing-site)
-- `http://localhost:3400` (frontendD-mcp-widgets)
-- `https://localhost:4001` (admin-console-api)
-- `http://localhost:4010/health` (openclaw-bridge)
-- `ws://localhost:4011` (openclaw-gateway)
-
-Cleanup:
-
-```bash
-npm run k8s:down
-npm run k8s:down -- --destroy-cluster
-```
-
-## K8s Release Gate
-
-Kubernetes full-matrix validation is a required pre-merge/cutover gate:
+### 3) K8s Release Gate (required before merge/cutover)
 
 ```bash
 npm run gate:k8s
 ```
 
-This runs:
-- backend matrix (`scripts/run-full-matrix.sh --backend`)
-- full K8s deploy and readiness
-- canonical K8s API/UI validation probes
-- Playwright E2E against K8s A/B/C surfaces
+Release-gate artifact:
 
-Artifacts are written to `artifacts/matrix/`.
+- `artifacts/matrix/k8s-release-gate-summary.json`
 
-## Service Audit And Utilization
+## Matrix, Guards, and CI
 
-Service necessity/utilization artifacts and checks:
+Run full matrix locally:
+
+```bash
+npm run test:matrix
+# equivalent: bash scripts/run-full-matrix.sh --all
+```
+
+Primary guards:
+
+```bash
+npm run check:repo-hygiene
+npm run check:command-surface
+npm run check:no-legacy-modifier-endpoints
+npm run check:service-topology-parity
+```
+
+Branch protection required checks:
+
+- `backend-checks`
+- `frontend-tests`
+- `k8s-release-gate`
+
+## Live Provider Policy
+
+Policy is conditional-strict:
+
+- If required secrets are present, live-provider matrix runs and gates.
+- If secrets are missing, matrix writes `artifacts/matrix/live-suite-skip.json` and continues (unless force-live is enabled).
+- PR label `requires-live` forces strict live run behavior in CI.
+
+## Service Audit Commands
 
 ```bash
 npm run service:audit:inventory
@@ -234,313 +125,33 @@ npm run check:service-necessity
 npm run check:service-utilization
 ```
 
-Outputs:
+Audit outputs:
+
 - `artifacts/service-audit/service-inventory.json`
 - `artifacts/service-audit/static-callgraph.json`
 - `artifacts/service-audit/utilization-report.json`
 - `artifacts/service-audit/utilization-report.md`
 
-Automation:
-- Weekly CI workflow `service-utilization-weekly` runs the same inventory/callgraph/report/threshold pipeline and uploads `artifacts/service-audit`.
+## Deployment
 
-Retired services:
-- `model-router`
-- `secrets-broker`
+### Railway
 
-They are excluded from retained-service threshold gates and remain documented only as decommissioned catalog entries.
+Multi-service dispatch entrypoint:
 
-## Troubleshooting (Three-Loop Model)
+- `backend/backendA-platform-infra/deploy/railway-entrypoint.sh`
 
-- Use **fast local loop** for daily coding and feature iteration.
-- Switch to **K8s validation loop** for service-boundary realism and observability checks.
-- Use **K8s release gate** before merge/cutover.
-- If fast loop does not start due stale state: run `npm run local:down`.
-- If local dependencies are missing: start Docker Desktop (fast loop auto-provisions postgres/redis).
+Railway topology is parity-checked against mesh and K8s via:
 
-## Hardcoded Demo Stack (OpenClaw + Maple)
+- `npm run check:service-topology-parity`
 
-This repo now includes a one-command hardcoded demo setup:
+### Northflank
 
-- OpenClaw gateway on `ws://127.0.0.1:19001`
-- OpenClaw bridge adapter on `http://127.0.0.1:8787`
-- Maple API key generated at startup (or provided via env)
-- Bridge token generated at startup (or provided via env)
+- `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.json`
+- `backend/backendA-platform-infra/deploy/northflank/README.md`
 
-```bash
-OPENCLAW_VERSION=<pin-a-version> npm run demo:install-openclaw
-npm run demo:up
-```
+## Additional Docs
 
-Then open:
-
-- Judge GUI: `http://localhost:3000/judge`
-- Inspector: `http://localhost:3000/inspector`
-
-### Guided Demo Mode (No Manual JSON)
-
-The Judge GUI now has **Guided Demo Controls** so you can run the full flow without Inspector copy/paste:
-
-1. Enter API key and click `Connect`
-2. Click `Run Full Flow`
-
-Or step through:
-
-1. `1) Start`
-2. `2) Audit`
-3. `3) Block`
-4. `4) Fork`
-
-Judge page now includes **Firewall Chat** in Control view:
-- Ask natural-language questions ("status update", "why blocked?", "what should we do next?")
-- Chat replies are generated from live firewall context (`/api/firewall/state`)
-
-This uses internal demo APIs:
-
-- `POST /api/demo/start`
-- `POST /api/demo/audit`
-- `POST /api/demo/block`
-- `POST /api/demo/fork`
-- `POST /api/demo/full`
-
-`demo:up` also auto-opens both pages on macOS (set `DEMO_OPEN_BROWSER=0` to disable).
-
-### Single-Trace Agent Action Logging (Hackathon)
-
-For a reliable judge demo, run one stable trace and append every action to it.
-
-```bash
-MAPLE_API_KEY=local-demo-key npm run trace:demo
-```
-
-What this does:
-
-- Starts (or reuses) one trace for a stable `sessionId`
-- Logs all agent actions through `POST /api/openclaw/events` using the same `traceId`
-- Includes `type`, `actor`, `prompt/message`, `command`, `url`, `toolName`, and unique `eventId`
-- Runs a preflight firewall preview and logs Maple's block/allow message into the same trace
-
-Open `http://localhost:3000/judge`, then select the printed trace ID to see `#0, #1, #2...`.
-
-If you want to integrate this into your own runtime, use:
-
-- `backend/backendA-platform-infra/scripts/maple-trace-logger.mjs`
-- `logAction(...)` for generic events
-- `logWebGet(...)` for URL-driven events
-
-Example:
-
-```js
-import { createMapleTraceLogger } from "./backend/backendA-platform-infra/scripts/maple-trace-logger.mjs";
-
-const logger = createMapleTraceLogger({
-  baseUrl: "http://localhost:3000",
-  apiKey: process.env.MAPLE_API_KEY,
-  sessionId: "maple-live",
-});
-
-await logger.startRun({ reuseLatest: true });
-await logger.logAction({
-  type: "tool_call",
-  actor: "agent",
-  toolName: "web_get",
-  prompt: "Fetch OpenClaw integration docs",
-  url: "https://github.com/openclaw/openclaw",
-});
-```
-
-### Hackathon Gateway Mode (9 Curated MCP Tools)
-
-Canonical startup now uses the full local Kubernetes mesh stack:
-
-```bash
-npm run hackathon:up
-```
-
-This boots the same stack as `npm run k8s:all`, then you can run hackathon smoke checks with:
-
-```bash
-npm run hackathon:verify
-```
-
-Stop services:
-
-```bash
-npm run hackathon:down
-```
-
-Implementation files:
-
-- `backend/backendA-platform-infra/scripts/hackathon-start.sh` (mesh runtime wrapper)
-- `backend/backendA-platform-infra/scripts/hackathon-verify.sh` (smoke tests through gateway APIs)
-- `backend/backendA-platform-infra/scripts/hackathon-down.sh` (mesh runtime teardown wrapper)
-
-Stop local demo processes:
-
-```bash
-npm run demo:down
-```
-
-## Environment
-
-```bash
-MCP_URL=http://localhost:3000
-OPENCLAW_BRIDGE_URL=http://localhost:8787
-OPENCLAW_BRIDGE_TOKEN=your_token
-MAPLE_API_KEY=your_long_random_key
-MAPLE_LOCK_BRIDGE_TARGET=true
-```
-
-`observe_session` falls back to mock only when `source=auto`.
-For `source=openclaw`, bridge failures are returned as errors (no silent mock downgrade).
-
-### API Key Auth
-
-- Auth methods: `x-api-key: <key>` or `Authorization: Bearer <key>`
-- Protected surfaces: MCP endpoints (`/mcp`, `/sse`) and internal APIs (`/api/*`)
-- Auth is fail-closed by default. Set `MAPLE_API_KEY` or `MAPLE_API_KEYS`.
-- Optional local-only bypass: `MAPLE_ALLOW_NO_AUTH=true` (not recommended).
-- `GET /health` remains public for deployment health checks
-
-### Bridge Lockdown (Maple-First Routing)
-
-- Set `MAPLE_LOCK_BRIDGE_TARGET=true` to deny per-request `bridgeUrl` / `token` overrides.
-- Bridge override is denied by default.
-- Optional local-only override: `MAPLE_ALLOW_BRIDGE_OVERRIDE=true`.
-- In production, bridge override lock is enabled automatically.
-- In production, `OPENCLAW_BRIDGE_URL` and `OPENCLAW_BRIDGE_TOKEN` must be explicitly set.
-- This forces all OpenClaw bridge traffic through configured `OPENCLAW_BRIDGE_URL` + `OPENCLAW_BRIDGE_TOKEN`.
-- Override attempts return `403 Bridge override denied`.
-
-### Pre-Execution Firewall Decision API
-
-- `POST /api/firewall/decision` evaluates a candidate action before execution.
-- `enforce=true` (default): persist decision into trace and quarantine on deny.
-- `enforce=false`: preview mode (no trace mutation), useful for dry-run checks.
-
-### Firewall Status Chat API
-
-- `GET /api/firewall/state` returns normalized live firewall context for a trace/session.
-- `POST /api/firewall/chat` answers status questions using that context.
-- Body accepts `message`, optional `traceId` / `sessionId`, and `includeContext`.
-- `POST /api/chat/stream` powers the Judge UI chatbot and can use AI with provider fallback.
-- If `OPENAI_API_KEY` and/or `ANTHROPIC_API_KEY` are set, Maple enables AI mode with automatic fallback.
-- If both model providers fail, Maple falls back to deterministic rules-based firewall answers.
-
-Optional chat model environment variables:
-
-```bash
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-MAPLE_FIREWALL_CHAT_PRIMARY=openai   # openai | anthropic
-MAPLE_FIREWALL_CHAT_OPENAI_MODEL=gpt-4o-mini
-MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL=claude-sonnet-4-6
-MAPLE_FIREWALL_CHAT_TIMEOUT_MS=15000
-```
-
-### Firewall Hardening (mcpwall-inspired)
-
-Maple now enforces deterministic firewall policy checks on every trace step before risk scoring:
-
-- First-match rules for high-risk behavior (`pipe-to-shell`, destructive commands, credential/secret access)
-- Secret scanning + in-place redaction with marker: `[REDACTED BY MAPLE]`
-- Automatic quarantine (`guardStatus=block`) when deny rules hit
-- JSONL firewall audit logs at `~/.maple/firewall-logs/YYYY-MM-DD.jsonl`
-
-Optional environment variables:
-
-```bash
-MAPLE_FIREWALL_ENABLED=true
-MAPLE_FIREWALL_DEFAULT_ACTION=allow   # allow | deny | log_only
-MAPLE_FIREWALL_LOG_DIR=~/.maple/firewall-logs
-```
-
-## Demo Script (2-3 min)
-
-1. `observe_session` on an OpenClaw session
-2. `audit_risk` to surface risky steps
-3. `ml_anomaly_report` to show embedding anomalies
-4. `guard_action` block a risky step
-5. `replay_fork` from blocked step with safe edits
-6. `share_trace_anon` to publish anonymized pattern
-7. `suggest_evolved_skills` from community data
-8. `yc_app_brief` to show moat/traction/revenue narrative
-
-## Example Calls
-
-```json
-{
-  "tool": "ml_anomaly_report",
-  "input": {
-    "traceId": "<trace-id>",
-    "useCommunityBaseline": true,
-    "threshold": 0.58,
-    "topAnomalies": 5
-  }
-}
-```
-
-```json
-{
-  "tool": "share_trace_anon",
-  "input": {
-    "traceId": "<trace-id>",
-    "taskLabel": "Inbox triage",
-    "objective": "Safely automate inbound support triage",
-    "tags": ["support", "email", "guarded"]
-  }
-}
-```
-
-```json
-{
-  "tool": "suggest_evolved_skills",
-  "input": {
-    "query": "safe inbox triage automation",
-    "limit": 3,
-    "minConfidence": 0.4
-  }
-}
-```
-
-## Current Limits
-
-- Persistence is in-memory for hackathon speed
-- Embedding model is intentionally simple (fast + local)
-- External model providers are optional for firewall chat; rules mode works without them
-
-## Deploy
-
-```bash
-npm run deploy
-```
-
-### Railway Deployment (Recommended)
-
-Yes, Maple can run on Railway with production safeguards.
-
-This repo now includes `railway.json`, so Railway can use canonical settings automatically:
-
-- Build command: `npm run build`
-- Start command: `npm run start`
-- Health check path: `/health`
-
-Required environment variables:
-
-```bash
-NODE_ENV=production
-HOST=0.0.0.0
-MCP_URL=https://mayple.cloud
-MAPLE_API_KEY=<long-random-key>
-MAPLE_LOCK_BRIDGE_TARGET=true
-OPENCLAW_BRIDGE_URL=<bridge-url-reachable-from-railway>
-OPENCLAW_BRIDGE_TOKEN=<bridge-token>
-MAPLE_FIREWALL_ENABLED=true
-```
-
-Important notes:
-
-- Railway provides `PORT` automatically; do not hardcode it.
-- `backend/backendA-platform-infra/scripts/hackathon-start.sh` is Railway-safe and no longer requires a local `.env` file to boot.
-- In production, Maple enforces API key auth and requires explicit `OPENCLAW_BRIDGE_URL` + `OPENCLAW_BRIDGE_TOKEN`.
-- Do not use `localhost` for `OPENCLAW_BRIDGE_URL` unless the bridge runs in the same container.
-- If bridge connectivity is unavailable during demo, use `source=mock` to keep UI + guardrail flow live.
+- `docs/repo-topology.md`
+- `docs/command-surface.md`
+- `docs/release-readiness-checklist.md`
+- `docs/lockfile-policy.md`
