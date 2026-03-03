@@ -43,9 +43,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pre-built OpenClaw CLI from build stage (avoids needing python3/make/g++)
+# Copy pre-built OpenClaw CLI from build stage.
+# Only copy the package dir — Docker COPY dereferences symlinks, which breaks
+# the bin script's import.meta.url path resolution for dist/entry.(m)js.
 COPY --from=build /usr/local/lib/node_modules/openclaw /usr/local/lib/node_modules/openclaw
-COPY --from=build /usr/local/bin/openclaw /usr/local/bin/openclaw
+RUN set -e; \
+    BIN_ENTRY=$(node -p " \
+      const p=JSON.parse(require('fs').readFileSync('/usr/local/lib/node_modules/openclaw/package.json','utf8')); \
+      typeof p.bin==='string'?p.bin:(p.bin&&p.bin.openclaw)||''"); \
+    if [ -n "$BIN_ENTRY" ]; then \
+      ln -sf "/usr/local/lib/node_modules/openclaw/$BIN_ENTRY" /usr/local/bin/openclaw; \
+    else \
+      cd /usr/local/lib/node_modules/openclaw && npm link; \
+    fi; \
+    chmod +x /usr/local/bin/openclaw; \
+    openclaw --version
 
 # Copy pre-built native modules from build stage (avoids needing python3/make/g++ at runtime)
 COPY --from=build /app/package.json ./package.json
@@ -67,7 +79,7 @@ ENV HACKATHON_TOOLHUB_HOST=127.0.0.1
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD node -e "fetch('https://localhost:3000/health',{method:'GET',headers:{}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 USER 1000:1000

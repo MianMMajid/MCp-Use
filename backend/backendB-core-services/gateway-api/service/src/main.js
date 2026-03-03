@@ -5,19 +5,33 @@ import { createApp } from "./app.js";
 import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, } from "./config.js";
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus, server } from "./state.js";
-import { healthRoutes } from "./routes/health.js";
 const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
 async function main() {
     mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost, tls: !disableTls });
-    // Register health routes EARLY so /health is reachable during initialization.
-    // Without this, Railway healthchecks fail because createApp() blocks for
-    // 30-60+ seconds on dependency checks, DB init, and OpenClaw bootstrap.
-    // We use the Hono app's fetch handler directly instead of server.getHandler()
-    // because getHandler() mounts widgets, MCP endpoints, and inspector — all
-    // slow async ops. Those are set up later after createApp() completes.
-    server.app.route("/", healthRoutes);
+    // Use a lightweight fetch wrapper so Railway healthchecks pass immediately
+    // while createApp() registers routes and initializes services.
+    // Hono throws "Can not add a route since the matcher is already built"
+    // if routes are added after the first app.fetch() call, so we must keep
+    // all requests away from Hono until route registration is complete.
+    let appReady = false;
+    const fetch = (req, env) => {
+        if (!appReady) {
+            const url = new URL(req.url);
+            if (url.pathname === "/health" || url.pathname === "/healthz") {
+                return new Response(JSON.stringify({ ok: true, initializing: true }), {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                });
+            }
+            return new Response(JSON.stringify({ error: "Service initializing" }), {
+                status: 503,
+                headers: { "Content-Type": "application/json" },
+            });
+        }
+        return server.app.fetch(req, env);
+    };
     const serveOptions = {
-        fetch: server.app.fetch.bind(server.app),
+        fetch,
         hostname: gatewayHost,
         port: gatewayPort,
     };
@@ -42,10 +56,12 @@ async function main() {
             protocol,
         });
     });
-    // Full app initialization runs AFTER the server is listening.
-    // Routes registered by createApp() and getHandler() are picked up dynamically by Hono.
+    // Full app initialization: register all routes + async init.
+    // appReady gates requests to Hono until route registration is complete.
     const { shutdown } = await createApp();
     await server.getHandler();
+    appReady = true;
+    mapleLog("info", "gateway_api.ready", { message: "All routes registered, accepting traffic" });
     const runtimeStatus = buildRuntimeStatus();
     mapleLog("info", "gateway_api.runtime_status", {
         routeMode: runtimeStatus.routeMode,
