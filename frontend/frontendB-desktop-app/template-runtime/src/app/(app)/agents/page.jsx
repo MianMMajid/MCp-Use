@@ -8,12 +8,14 @@ import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import { ChatHeader } from '@/components/chat-header'
 import { statusColor, riskColor, riskLabel } from '@/lib/format'
+import { postJson } from '@/lib/api'
 import { CpuChipIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 
 export default function AgentsPage() {
   const router = useRouter()
   const { agents, selectAgent } = useChat()
   const [search, setSearch] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const filtered = useMemo(() => {
     if (!search) return agents
@@ -24,6 +26,22 @@ export default function AgentsPage() {
       (a.agentId ?? a.id ?? '').toLowerCase().includes(q)
     )
   }, [agents, search])
+
+  const handleCreate = async () => {
+    setCreating(true)
+    try {
+      const res = await postJson('/api/agents', { name: 'New Agent' })
+      if (res.ok) {
+        const agent = await res.json()
+        selectAgent(agent.id)
+        router.push('/')
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const handleSelectAgent = (agentId) => {
     selectAgent(agentId)
@@ -42,9 +60,9 @@ export default function AgentsPage() {
               <h1 className="text-lg font-semibold text-zinc-900 dark:text-white">Agents</h1>
               <p className="mt-1 text-sm text-zinc-500">Browse and manage your agents</p>
             </div>
-            <Button href="/agents/create" color="orange">
+            <Button color="orange" onClick={handleCreate} disabled={creating}>
               <PlusIcon className="h-4 w-4" />
-              Create Agent
+              {creating ? 'Creating...' : 'Create Agent'}
             </Button>
           </div>
 
