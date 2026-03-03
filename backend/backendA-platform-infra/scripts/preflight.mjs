@@ -362,8 +362,6 @@ async function run() {
   if (checkReachability) {
     const contextWallAddress =
       process.env.CONTEXT_WALL_ADDRESS || "context-wall.maple.svc.cluster.local:9000";
-    const modelRouterAddress =
-      process.env.MODEL_ROUTER_ADDRESS || "model-router.maple.svc.cluster.local:9100";
     const mcpProxyAddress =
       process.env.MCP_PROXY_ADDRESS || "mcp-proxy.maple.svc.cluster.local:9200";
 
@@ -374,15 +372,6 @@ async function run() {
         required: strict,
         expected: contextWallAddress,
         result: await checkTcpReachability(contextWallAddress),
-      })
-    );
-    checks.push(
-      createCheck({
-        id: "reach.model_router",
-        label: "Model-router reachability",
-        required: strict,
-        expected: modelRouterAddress,
-        result: await checkTcpReachability(modelRouterAddress),
       })
     );
     checks.push(

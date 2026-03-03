@@ -9,6 +9,37 @@ CLUSTER_NAME="${MAPLE_KIND_CLUSTER:-maple-local}"
 NAMESPACE="${MAPLE_K8S_NAMESPACE:-maple}"
 IMAGE_TAG="${MAPLE_IMAGE_TAG:-maple-local:dev}"
 
+SKIP_BUILD=0
+SKIP_LOAD=0
+SKIP_RESTART=0
+WAIT_ONLY=0
+
+while (( $# > 0 )); do
+  case "$1" in
+    --skip-build)
+      SKIP_BUILD=1
+      ;;
+    --skip-load)
+      SKIP_LOAD=1
+      ;;
+    --skip-restart)
+      SKIP_RESTART=1
+      ;;
+    --wait-only)
+      WAIT_ONLY=1
+      SKIP_BUILD=1
+      SKIP_LOAD=1
+      SKIP_RESTART=1
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      echo "Usage: bash backend/backendA-platform-infra/scripts/k8s-local-up.sh [--skip-build] [--skip-load] [--skip-restart] [--wait-only]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
 require_cmd() {
   local name="$1"
   if ! command -v "${name}" >/dev/null 2>&1; then
@@ -35,50 +66,74 @@ else
   echo "Reusing existing kind cluster: ${CLUSTER_NAME}"
 fi
 
-bash "${SCRIPT_DIR}/k8s-local-build-image.sh"
-bash "${SCRIPT_DIR}/k8s-local-load-image.sh"
+if (( WAIT_ONLY == 0 )); then
+  if (( SKIP_BUILD == 0 )); then
+    bash "${SCRIPT_DIR}/k8s-local-build-image.sh"
+  else
+    echo "Skipping docker image build (--skip-build)"
+  fi
 
-echo "Generating local TLS certificates"
-bash "${ROOT_DIR}/backend/backendA-platform-infra/scripts/generate-local-certs.sh" >/dev/null
+  if (( SKIP_LOAD == 0 )); then
+    bash "${SCRIPT_DIR}/k8s-local-load-image.sh"
+  else
+    echo "Skipping kind image load (--skip-load)"
+  fi
 
-echo "Ensuring namespace exists"
-kubectl apply -f "${K8S_DIR}/namespace.yaml" >/dev/null
+  echo "Generating local TLS certificates"
+  bash "${ROOT_DIR}/backend/backendA-platform-infra/scripts/generate-local-certs.sh" >/dev/null
 
-echo "Applying TLS secret"
-kubectl -n "${NAMESPACE}" create secret generic maple-tls \
-  --from-file=tls.crt="${CERT_DIR}/tls.crt" \
-  --from-file=tls.key="${CERT_DIR}/tls.key" \
-  --from-file=ca.crt="${CERT_DIR}/ca.crt" \
-  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "Ensuring namespace exists"
+  kubectl apply -f "${K8S_DIR}/namespace.yaml" >/dev/null
 
-echo "Applying Kubernetes manifests"
-kubectl apply -k "${K8S_DIR}" >/dev/null
+  echo "Applying TLS secret"
+  kubectl -n "${NAMESPACE}" create secret generic maple-tls \
+    --from-file=tls.crt="${CERT_DIR}/tls.crt" \
+    --from-file=tls.key="${CERT_DIR}/tls.key" \
+    --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
-DEPLOYMENTS="$(kubectl -n "${NAMESPACE}" get deployment -l app.kubernetes.io/part-of=maple-stack -o jsonpath='{.items[*].metadata.name}')"
+  echo "Applying Kubernetes manifests"
+  kubectl apply -k "${K8S_DIR}" >/dev/null
+
+  DEPLOYMENTS="$(kubectl -n "${NAMESPACE}" get deployment -l app.kubernetes.io/part-of=maple-stack -o jsonpath='{.items[*].metadata.name}')"
+  if [ -z "${DEPLOYMENTS}" ]; then
+    echo "No deployments found with label app.kubernetes.io/part-of=maple-stack"
+    exit 1
+  fi
+
+  echo "Setting deployment images"
+  for deployment in ${DEPLOYMENTS}; do
+    if [ "${deployment}" = "postgres" ]; then
+      continue
+    fi
+    if [ "${deployment}" = "openclaw-gateway" ]; then
+      continue
+    fi
+    if [ "${deployment}" = "gateway-api" ]; then
+      kubectl -n "${NAMESPACE}" set image "deployment/${deployment}" \
+        app="${IMAGE_TAG}" \
+        openclaw-bridge="${IMAGE_TAG}" >/dev/null
+    else
+      kubectl -n "${NAMESPACE}" set image "deployment/${deployment}" app="${IMAGE_TAG}" >/dev/null
+    fi
+  done
+
+  if (( SKIP_RESTART == 0 )); then
+    echo "Restarting deployments"
+    kubectl -n "${NAMESPACE}" rollout restart deployment -l app.kubernetes.io/part-of=maple-stack >/dev/null
+  else
+    echo "Skipping rollout restart (--skip-restart)"
+  fi
+fi
+
+if [ -z "${DEPLOYMENTS:-}" ]; then
+  DEPLOYMENTS="$(kubectl -n "${NAMESPACE}" get deployment -l app.kubernetes.io/part-of=maple-stack -o jsonpath='{.items[*].metadata.name}')"
+fi
+
 if [ -z "${DEPLOYMENTS}" ]; then
   echo "No deployments found with label app.kubernetes.io/part-of=maple-stack"
   exit 1
 fi
-
-echo "Setting deployment images"
-for deployment in ${DEPLOYMENTS}; do
-  if [ "${deployment}" = "postgres" ]; then
-    continue
-  fi
-  if [ "${deployment}" = "openclaw-gateway" ]; then
-    continue
-  fi
-  if [ "${deployment}" = "gateway-api" ]; then
-    kubectl -n "${NAMESPACE}" set image "deployment/${deployment}" \
-      app="${IMAGE_TAG}" \
-      openclaw-bridge="${IMAGE_TAG}" >/dev/null
-  else
-    kubectl -n "${NAMESPACE}" set image "deployment/${deployment}" app="${IMAGE_TAG}" >/dev/null
-  fi
-done
-
-echo "Restarting deployments"
-kubectl -n "${NAMESPACE}" rollout restart deployment -l app.kubernetes.io/part-of=maple-stack >/dev/null
 
 echo "Waiting for deployment rollout"
 for deployment in ${DEPLOYMENTS}; do

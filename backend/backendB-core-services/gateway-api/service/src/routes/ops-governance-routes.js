@@ -18,6 +18,7 @@ import { ToolGovernanceStore } from "../core/tool-governance-store.js";
 import { evaluateGatewayRuntimeDependencies } from "../core/runtime-dependencies.js";
 import { downstreamAppRegistry } from "../config.js";
 import { listDownstreamApps } from "../control/downstream-proxy.js";
+import { getServiceUtilizationSnapshot } from "../core/service-utilization.js";
 import {
   listToolsFromDownstreamCached,
   resolveDownstreamApp,
@@ -123,6 +124,17 @@ function parseSchemaPayload(value) {
     return value;
   }
   return parseSchemaBytes(value);
+}
+
+function readJsonArtifact(filePath) {
+  if (!existsSync(filePath)) {
+    return null;
+  }
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 async function hydrateToolRegistryFromContextWall() {
@@ -476,5 +488,73 @@ export function registerOpsGovernanceRoutes(app) {
       return c.json({ error: "Execution not found." }, 404);
     }
     return c.json({ ok: true, execution });
+  });
+
+  app.get("/api/operations/services/inventory", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const inventoryFile = resolve(process.cwd(), "artifacts/service-audit/service-inventory.json");
+    const inventory = readJsonArtifact(inventoryFile);
+    if (!inventory) {
+      return c.json(
+        {
+          ok: false,
+          error: "Service inventory artifact not found.",
+          hint: "Run node scripts/service-inventory.mjs",
+        },
+        404,
+      );
+    }
+    return c.json({
+      ok: true,
+      source: inventoryFile,
+      inventory,
+    });
+  });
+
+  app.get("/api/operations/services/utilization", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const snapshot = getServiceUtilizationSnapshot();
+    return c.json({
+      ok: true,
+      snapshot,
+    });
+  });
+
+  app.get("/api/operations/services/decisions", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const reportFile = resolve(process.cwd(), "artifacts/service-audit/utilization-report.json");
+    const report = readJsonArtifact(reportFile);
+    if (!report) {
+      return c.json(
+        {
+          ok: false,
+          error: "Service utilization report not found.",
+          hint: "Run node scripts/build-service-utilization-report.mjs",
+        },
+        404,
+      );
+    }
+    return c.json({
+      ok: true,
+      source: reportFile,
+      decisions: report.services?.map((row) => ({
+        service: row.service,
+        required: row.required,
+        necessityScore: row.necessityScore,
+        utilizationScore: row.utilizationScore,
+        decision: row.decision,
+        deadline: row.deadline,
+      })) ?? [],
+      summary: report.summary ?? {},
+    });
   });
 }

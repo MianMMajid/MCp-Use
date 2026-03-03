@@ -29,15 +29,16 @@ export function formatDateShort(dateStr) {
 const GREEN_KEYWORDS = new Set([
   'active', 'approved', 'allow', 'allowed', 'success', 'pass', 'passed',
   'compliant', 'valid', 'enabled', 'completed', 'connected', 'healthy',
-  'running', 'resolved', 'verified',
+  'running', 'resolved', 'verified', 'integrity_ok',
 ])
 const RED_KEYWORDS = new Set([
   'error', 'failed', 'denied', 'block', 'blocked', 'rejected', 'disabled',
   'expired', 'revoked', 'critical', 'unhealthy', 'broken', 'disconnected', 'archived',
+  'tampered', 'integrity_failed', 'break_glass',
 ])
 const ORANGE_KEYWORDS = new Set([
   'pending', 'draft', 'review', 'warning', 'partial', 'suspended',
-  'queued', 'waiting', 'paused',
+  'queued', 'waiting', 'paused', 'escalated', 'step_up_required',
 ])
 
 export function statusColor(status) {

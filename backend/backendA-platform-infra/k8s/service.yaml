@@ -71,20 +71,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: model-router
-  namespace: maple
-spec:
-  type: ClusterIP
-  selector:
-    app: model-router
-  ports:
-    - name: grpc
-      port: 9100
-      targetPort: 9100
----
-apiVersion: v1
-kind: Service
-metadata:
   name: mcp-proxy
   namespace: maple
 spec:
@@ -140,20 +126,6 @@ spec:
     - name: ingest
       port: 9401
       targetPort: 9401
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: secrets-broker
-  namespace: maple
-spec:
-  type: ClusterIP
-  selector:
-    app: secrets-broker
-  ports:
-    - name: grpc
-      port: 9300
-      targetPort: 9300
 ---
 apiVersion: v1
 kind: Service

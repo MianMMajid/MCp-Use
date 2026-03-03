@@ -2,7 +2,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # deploy-all-railway.sh — Deploy all Maple services to Railway
 #
-# Creates 11 services + PostgreSQL in the existing Railway project.
+# Creates 10 services + PostgreSQL in the existing Railway project.
 # Each service uses the same Dockerfile but a different MAPLE_SERVICE env var.
 #
 # Prerequisites:
@@ -48,14 +48,13 @@ echo ""
 # Internal networking addresses (Railway private DNS)
 # Format: <service-name>.railway.internal:<grpc-port>
 CW_ADDR="maple-context-wall.railway.internal:9000"
-MR_ADDR="maple-model-router.railway.internal:9100"
 MP_ADDR="maple-mcp-proxy.railway.internal:9200"
 TR_ADDR="maple-tool-runner.railway.internal:9250"
 CP_ADDR="maple-cyber-proxy.railway.internal:8080"
-SB_ADDR="maple-secrets-broker.railway.internal:9300"
 AW_ADDR="maple-audit-writer.railway.internal:9400"
 GW_ADDR="maple-gateway.railway.internal:3000"
 AC_ADDR="maple-admin-console.railway.internal:9443"
+BA_ADDR="maple-business-api.railway.internal:9550"
 
 # ── Helper: create service, set vars, deploy ──────────────────────────────────
 deploy_service() {
@@ -128,12 +127,14 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "gateway" || "${FILTER}" == "backen
 
   deploy_service "maple-gateway" "gateway-api" \
     "CONTEXT_WALL_ADDRESS=${CW_ADDR}" \
-    "MODEL_ROUTER_ADDRESS=${MR_ADDR}" \
     "MCP_PROXY_ADDRESS=${MP_ADDR}" \
     "TOOL_RUNNER_ADDRESS=${TR_ADDR}" \
     "CYBER_PROXY_ADDRESS=${CP_ADDR}" \
-    "SECRETS_BROKER_ADDRESS=${SB_ADDR}" \
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
+    "MAPLE_MODEL_ROUTER_RETIRED=true" \
+    "MAPLE_SECRETS_BROKER_RETIRED=true" \
+    "MAPLE_BUSINESS_API_BASE_URL=https://${BA_ADDR}" \
+    "MAPLE_BUSINESS_API_REQUIRED=true" \
     "CORS_ORIGIN=*" \
     "MAPLE_ALLOW_NO_AUTH=true" \
     "MAPLE_ENABLE_DEMO_ROUTES=true" \
@@ -147,6 +148,9 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "backends" ]]; then
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
     "MAPLE_ADMIN_ALLOW_NO_AUTH=true" \
     "GATEWAY_API_URL=http://${GW_ADDR}"
+
+  deploy_service "maple-business-api" "business-api" \
+    "MAPLE_BUSINESS_API_ALLOW_NO_AUTH=true"
 fi
 
 # ── gRPC Microservices ───────────────────────────────────────────────────────
@@ -154,16 +158,13 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "grpc" || "${FILTER}" == "backends"
 
   deploy_service "maple-context-wall" "context-wall" \
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
-    "MODEL_ROUTER_ADDRESS=${MR_ADDR}" \
+    "MAPLE_MODEL_ROUTER_RETIRED=true" \
     "MCP_PROXY_ADDRESS=${MP_ADDR}"
-
-  deploy_service "maple-model-router" "model-router" \
-    "AUDIT_WRITER_ADDRESS=${AW_ADDR}"
 
   deploy_service "maple-mcp-proxy" "mcp-proxy" \
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
     "CONTEXT_WALL_ADDRESS=${CW_ADDR}" \
-    "SECRETS_BROKER_ADDRESS=${SB_ADDR}" \
+    "MAPLE_SECRETS_BROKER_RETIRED=true" \
     "TOOL_RUNNER_ADDRESS=${TR_ADDR}" \
     "CYBER_PROXY_ADDRESS=${CP_ADDR}"
 
@@ -172,9 +173,6 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "grpc" || "${FILTER}" == "backends"
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}"
 
   deploy_service "maple-cyber-proxy" "cyber-proxy" \
-    "AUDIT_WRITER_ADDRESS=${AW_ADDR}"
-
-  deploy_service "maple-secrets-broker" "secrets-broker" \
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}"
 
   deploy_service "maple-audit-writer" "audit-writer"
@@ -219,9 +217,9 @@ echo -e "${GREEN}  All deployments triggered!${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════════════${NC}"
 echo ""
 echo "  Services deployed:"
-echo "    Backend:   maple-gateway, maple-admin-console"
-echo "    gRPC:      maple-context-wall, maple-model-router, maple-mcp-proxy,"
-echo "               maple-tool-runner, maple-cyber-proxy, maple-secrets-broker,"
+echo "    Backend:   maple-gateway, maple-admin-console, maple-business-api"
+echo "    gRPC:      maple-context-wall, maple-mcp-proxy,"
+echo "               maple-tool-runner, maple-cyber-proxy,"
 echo "               maple-audit-writer"
 echo "    Frontend:  maple-frontend-a, maple-frontend-b"
 echo "    Database:  PostgreSQL (Railway plugin)"

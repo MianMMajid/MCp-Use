@@ -17,11 +17,11 @@ import { formatDate, statusColor } from '@/lib/format'
 import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
 
 export default function ComplianceContent() {
-  const _cbg = getCached('/api/openclaw/modifier/ops/break-glass')
-  const _cac = getCached('/api/openclaw/modifier/ops/audit-chain/events')
-  const _crt = getCached('/api/openclaw/modifier/ops/retention')
-  const _cwh = getCached('/api/openclaw/modifier/ops/alert-webhooks')
-  const _ccs = getCached('/api/openclaw/modifier/ops/compliance/summary')
+  const _cbg = getCached('/api/operations/orchestrations/break-glass')
+  const _cac = getCached('/api/operations/orchestrations/audit-chain/events')
+  const _crt = getCached('/api/operations/orchestrations/retention')
+  const _cwh = getCached('/api/operations/orchestrations/alert-webhooks')
+  const _ccs = getCached('/api/operations/orchestrations/compliance/summary')
   const _hasCached = !!(_cbg || _cac || _crt || _cwh || _ccs)
   const [loading, setLoading] = useState(!_hasCached)
   const [error, setError] = useState('')
@@ -76,11 +76,11 @@ export default function ComplianceContent() {
     ;(async () => {
       try {
         const [bgData, auditData, retData, whData, compData] = await Promise.all([
-          loadJson('/api/openclaw/modifier/ops/break-glass').catch(() => null),
-          loadJson('/api/openclaw/modifier/ops/audit-chain/events').catch(() => null),
-          loadJson('/api/openclaw/modifier/ops/retention').catch(() => null),
-          loadJson('/api/openclaw/modifier/ops/alert-webhooks').catch(() => null),
-          loadJson('/api/openclaw/modifier/ops/compliance/summary').catch(() => null),
+          loadJson('/api/operations/orchestrations/break-glass').catch(() => null),
+          loadJson('/api/operations/orchestrations/audit-chain/events').catch(() => null),
+          loadJson('/api/operations/orchestrations/retention').catch(() => null),
+          loadJson('/api/operations/orchestrations/alert-webhooks').catch(() => null),
+          loadJson('/api/operations/orchestrations/compliance/summary').catch(() => null),
         ])
         if (cancelled) return
         setBreakGlassLog(Array.isArray(bgData?.entries) ? bgData.entries : Array.isArray(bgData) ? bgData : [])
@@ -106,8 +106,8 @@ export default function ComplianceContent() {
     try {
       let body = {}
       if (executePayload.trim()) { try { body = JSON.parse(executePayload) } catch { body = { raw: executePayload } } }
-      const res = await postJson('/api/openclaw/modifier/ops/break-glass/execute', body)
-      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Break-glass executed.'); setMessageType('success'); setShowExecute(false); fetchAll() }
+      const res = await postJson('/api/operations/orchestrations/break-glass/execute', body)
+      if (res.ok) { invalidateCache('/api/operations/orchestrations'); setMessage('Break-glass executed.'); setMessageType('success'); setShowExecute(false); fetchAll() }
       else { setMessage('Break-glass execution failed.'); setMessageType('error') }
     } catch { setMessage('Break-glass execution failed.'); setMessageType('error') }
     finally { setExecuteLoading(false) }
@@ -116,8 +116,8 @@ export default function ComplianceContent() {
   async function handleBreakGlassReview() {
     setReviewLoading(true)
     try {
-      const res = await postJson(`/api/openclaw/modifier/ops/break-glass/${reviewId}/review`, { action: reviewAction })
-      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Review submitted.'); setMessageType('success'); setShowReview(false); fetchAll() }
+      const res = await postJson(`/api/operations/orchestrations/break-glass/${reviewId}/review`, { action: reviewAction })
+      if (res.ok) { invalidateCache('/api/operations/orchestrations'); setMessage('Review submitted.'); setMessageType('success'); setShowReview(false); fetchAll() }
       else { setMessage('Review failed.'); setMessageType('error') }
     } catch { setMessage('Review failed.'); setMessageType('error') }
     finally { setReviewLoading(false) }
@@ -125,8 +125,8 @@ export default function ComplianceContent() {
 
   async function handleVerifyChain() {
     try {
-      const res = await postJson('/api/openclaw/modifier/ops/audit-chain/verify', {})
-      invalidateCache('/api/openclaw/modifier/ops')
+      const res = await postJson('/api/operations/orchestrations/audit-chain/verify', {})
+      invalidateCache('/api/operations/orchestrations')
       const data = await res.json().catch(() => ({}))
       setVerifyResult(data)
       setMessage(data.valid ? 'Chain verified.' : 'Chain verification failed.')
@@ -138,16 +138,16 @@ export default function ComplianceContent() {
     try {
       let body = {}
       if (retentionPayload.trim()) { try { body = JSON.parse(retentionPayload) } catch { body = { raw: retentionPayload } } }
-      const res = await postJson('/api/openclaw/modifier/ops/retention', body)
-      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Retention updated.'); setMessageType('success'); fetchAll() }
+      const res = await postJson('/api/operations/orchestrations/retention', body)
+      if (res.ok) { invalidateCache('/api/operations/orchestrations'); setMessage('Retention updated.'); setMessageType('success'); fetchAll() }
       else { setMessage('Retention update failed.'); setMessageType('error') }
     } catch { setMessage('Retention update failed.'); setMessageType('error') }
   }
 
   async function handleRetentionEnforce() {
     try {
-      const res = await postJson('/api/openclaw/modifier/ops/retention/enforce', {})
-      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Retention enforced.'); setMessageType('success') }
+      const res = await postJson('/api/operations/orchestrations/retention/enforce', {})
+      if (res.ok) { invalidateCache('/api/operations/orchestrations'); setMessage('Retention enforced.'); setMessageType('success') }
       else { setMessage('Enforcement failed.'); setMessageType('error') }
     } catch { setMessage('Enforcement failed.'); setMessageType('error') }
   }
@@ -157,8 +157,8 @@ export default function ComplianceContent() {
     try {
       let body = {}
       if (webhookPayload.trim()) { try { body = JSON.parse(webhookPayload) } catch { body = { raw: webhookPayload } } }
-      const res = await postJson('/api/openclaw/modifier/ops/alert-webhooks', body)
-      if (res.ok) { invalidateCache('/api/openclaw/modifier/ops'); setMessage('Webhook registered.'); setMessageType('success'); setShowRegisterWebhook(false); fetchAll() }
+      const res = await postJson('/api/operations/orchestrations/alert-webhooks', body)
+      if (res.ok) { invalidateCache('/api/operations/orchestrations'); setMessage('Webhook registered.'); setMessageType('success'); setShowRegisterWebhook(false); fetchAll() }
       else { setMessage('Registration failed.'); setMessageType('error') }
     } catch { setMessage('Registration failed.'); setMessageType('error') }
     finally { setWebhookLoading(false) }
@@ -166,8 +166,8 @@ export default function ComplianceContent() {
 
   async function handleDeleteWebhook(whId) {
     try {
-      await deleteJson(`/api/openclaw/modifier/ops/alert-webhooks/${whId}`)
-      invalidateCache('/api/openclaw/modifier/ops')
+      await deleteJson(`/api/operations/orchestrations/alert-webhooks/${whId}`)
+      invalidateCache('/api/operations/orchestrations')
       setMessage('Webhook deleted.'); setMessageType('success')
       fetchAll()
     } catch { setMessage('Failed to delete webhook.'); setMessageType('error') }
@@ -177,7 +177,7 @@ export default function ComplianceContent() {
     if (expandedWebhook === whId) { setExpandedWebhook(null); setDeliveries(null); return }
     setExpandedWebhook(whId)
     try {
-      const data = await loadJson(`/api/openclaw/modifier/ops/alert-webhooks/${whId}/deliveries`)
+      const data = await loadJson(`/api/operations/orchestrations/alert-webhooks/${whId}/deliveries`)
       setDeliveries(Array.isArray(data?.deliveries) ? data.deliveries : Array.isArray(data) ? data : [])
     } catch { setDeliveries([]) }
   }
@@ -186,8 +186,8 @@ export default function ComplianceContent() {
     setReportLoading(true)
     setReportResult(null)
     try {
-      const res = await postJson('/api/openclaw/modifier/ops/compliance/report', { format: reportFormat })
-      invalidateCache('/api/openclaw/modifier/ops')
+      const res = await postJson('/api/operations/orchestrations/compliance/report', { format: reportFormat })
+      invalidateCache('/api/operations/orchestrations')
       const data = await res.json().catch(() => ({}))
       setReportResult(data)
       if (res.ok) { setMessage('Report generated.'); setMessageType('success') }

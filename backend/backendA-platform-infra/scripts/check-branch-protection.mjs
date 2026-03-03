@@ -48,6 +48,24 @@ function selectRuleForBranch(rules, branch) {
   return matching.sort((a, b) => String(b.pattern).length - String(a.pattern).length)[0];
 }
 
+function hasRequiredContext(contexts, required) {
+  if (!Array.isArray(contexts) || !required) {
+    return false;
+  }
+  const normalizedRequired = String(required).trim();
+  return contexts.some((context) => {
+    const normalizedContext = String(context || "").trim();
+    return (
+      normalizedContext === normalizedRequired ||
+      normalizedContext.startsWith(`${normalizedRequired} / `) ||
+      normalizedContext.endsWith(` / ${normalizedRequired}`) ||
+      normalizedContext.endsWith(`/${normalizedRequired}`) ||
+      normalizedContext.includes(`/${normalizedRequired} /`) ||
+      normalizedContext.includes(` / ${normalizedRequired} /`)
+    );
+  });
+}
+
 async function queryBranchProtectionRules({ owner, repo, token }) {
   const query = `
     query BranchProtectionRules($owner: String!, $repo: String!, $after: String) {
@@ -122,11 +140,16 @@ async function main() {
   const token = process.env.GITHUB_TOKEN?.trim();
   const repoSlug = (args.repo || process.env.GITHUB_REPOSITORY || "").trim();
   const branch = (args.branch || process.env.MAPLE_BRANCH_PROTECTION_BRANCH || "main").trim();
-  const requiredCheck = (
+  const requiredChecksRaw =
+    args["required-checks"] ||
+    process.env.MAPLE_BRANCH_PROTECTION_REQUIRED_CHECKS ||
     args["required-check"] ||
     process.env.MAPLE_BRANCH_PROTECTION_REQUIRED_CHECK ||
-    "backend-checks"
-  ).trim();
+    "backend-checks";
+  const requiredChecks = String(requiredChecksRaw)
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 
   if (!token) {
     fail("GITHUB_TOKEN is required.");
@@ -152,16 +175,18 @@ async function main() {
   }
   if (!selected.requiresStatusChecks) {
     errors.push("requiresStatusChecks must be true.");
-  } else if (
-    requiredCheck &&
-    (!Array.isArray(selected.requiredStatusCheckContexts) ||
-      !selected.requiredStatusCheckContexts.includes(requiredCheck))
-  ) {
-    errors.push(
-      `requiredStatusCheckContexts must include '${requiredCheck}' (actual: ${(
-        selected.requiredStatusCheckContexts || []
-      ).join(", ")}).`
-    );
+  } else {
+    for (const requiredCheck of requiredChecks) {
+      if (
+        !hasRequiredContext(selected.requiredStatusCheckContexts, requiredCheck)
+      ) {
+        errors.push(
+          `requiredStatusCheckContexts must include '${requiredCheck}' (actual: ${(
+            selected.requiredStatusCheckContexts || []
+          ).join(", ")}).`
+        );
+      }
+    }
   }
   if (!selected.requiresStrictStatusChecks) {
     errors.push("requiresStrictStatusChecks must be true.");
@@ -185,7 +210,7 @@ async function main() {
   }
 
   console.log(
-    `[ok] Branch protection verified for '${branch}' (pattern '${selected.pattern}') with required check '${requiredCheck}'.`
+    `[ok] Branch protection verified for '${branch}' (pattern '${selected.pattern}') with required checks '${requiredChecks.join(", ")}'.`
   );
 }
 

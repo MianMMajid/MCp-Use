@@ -16,7 +16,6 @@ import {
   gatewayTlsKeyPath,
   googleClientId,
   mcpProxyAddress,
-  modelRouterAddress,
   openclawAgentRequired,
   stripeSecretKey,
   toolRunnerAddress,
@@ -525,22 +524,6 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
             ok: false,
             reason: "GOOGLE_CLIENT_ID is missing.",
           }
-    )
-  );
-
-  const resolvedModelRouterAddress = String(
-    process.env.MODEL_ROUTER_ADDRESS ?? modelRouterAddress
-  ).trim();
-  const modelRouterRequired = resolveFeatureRequired(
-    "MAPLE_DEP_REQUIRE_MODEL_ROUTER",
-    strict
-  );
-  checks.push(
-    buildCheckRecord(
-      "grpc.model_router",
-      "Model-router TCP reachability",
-      modelRouterRequired,
-      await checkTcpAddress(resolvedModelRouterAddress)
     )
   );
 

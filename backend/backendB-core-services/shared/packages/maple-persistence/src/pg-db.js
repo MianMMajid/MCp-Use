@@ -78,6 +78,33 @@ function toOrchestrationRecord(row) {
         updatedAt: row.updated_at,
     };
 }
+function toOrchestrationVersionRecord(row) {
+    return {
+        id: row.id,
+        orchestrationId: row.orchestration_id,
+        version: row.version,
+        definition: parsePayload(row.definition_json) ?? { nodes: [], edges: [] },
+        createdBy: row.created_by,
+        createdAt: row.created_at,
+    };
+}
+function toOrchestrationExecutionRecord(row) {
+    return {
+        id: row.id,
+        orchestrationId: row.orchestration_id,
+        versionId: row.version_id,
+        status: row.status,
+        mode: row.mode,
+        requestedBy: row.requested_by,
+        input: parsePayload(row.input_json) ?? {},
+        context: parsePayload(row.context_json) ?? {},
+        runLineage: parsePayload(row.run_lineage_json) ?? [],
+        createdAt: row.created_at,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        updatedAt: row.updated_at,
+    };
+}
 function toNotificationRecord(row) {
     return {
         id: row.id,
@@ -351,6 +378,97 @@ export class MaplePostgresDatabase {
           ON orchestrations(owner_id, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_orchestrations_status
           ON orchestrations(status, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS orchestration_versions (
+          id TEXT PRIMARY KEY,
+          orchestration_id TEXT NOT NULL,
+          version TEXT NOT NULL,
+          definition_json TEXT NOT NULL DEFAULT '{}',
+          created_by TEXT,
+          created_at TEXT NOT NULL,
+          UNIQUE (orchestration_id, version),
+          FOREIGN KEY (orchestration_id) REFERENCES orchestrations(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_versions_orchestration
+          ON orchestration_versions(orchestration_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS orchestration_executions (
+          id TEXT PRIMARY KEY,
+          orchestration_id TEXT NOT NULL,
+          version_id TEXT,
+          status TEXT NOT NULL DEFAULT 'queued',
+          mode TEXT NOT NULL DEFAULT 'live',
+          requested_by TEXT NOT NULL DEFAULT 'operator',
+          input_json TEXT NOT NULL DEFAULT '{}',
+          context_json TEXT NOT NULL DEFAULT '{}',
+          run_lineage_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          started_at TEXT,
+          completed_at TEXT,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (orchestration_id) REFERENCES orchestrations(id) ON DELETE CASCADE,
+          FOREIGN KEY (version_id) REFERENCES orchestration_versions(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_executions_lookup
+          ON orchestration_executions(orchestration_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_orchestration_executions_status
+          ON orchestration_executions(status, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS orchestration_execution_nodes (
+          id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          node_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          started_at TEXT,
+          completed_at TEXT,
+          error_text TEXT NOT NULL DEFAULT '',
+          output_preview TEXT NOT NULL DEFAULT '',
+          cost_json TEXT NOT NULL DEFAULT '{}',
+          FOREIGN KEY (execution_id) REFERENCES orchestration_executions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_execution_nodes_exec
+          ON orchestration_execution_nodes(execution_id, node_id);
+
+        CREATE TABLE IF NOT EXISTS orchestration_execution_edges (
+          id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          edge_id TEXT NOT NULL,
+          source_node_id TEXT NOT NULL,
+          target_node_id TEXT NOT NULL,
+          active BOOLEAN NOT NULL DEFAULT TRUE,
+          delegation_policy_json TEXT NOT NULL DEFAULT '{}',
+          rewired_at TEXT,
+          FOREIGN KEY (execution_id) REFERENCES orchestration_executions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_execution_edges_exec
+          ON orchestration_execution_edges(execution_id, edge_id);
+
+        CREATE TABLE IF NOT EXISTS orchestration_mutations (
+          id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          op TEXT NOT NULL,
+          payload_json TEXT NOT NULL DEFAULT '{}',
+          runtime_graph_version INTEGER NOT NULL DEFAULT 1,
+          applied_at TEXT NOT NULL,
+          FOREIGN KEY (execution_id) REFERENCES orchestration_executions(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_mutations_exec
+          ON orchestration_mutations(execution_id, applied_at DESC);
+
+        CREATE TABLE IF NOT EXISTS orchestration_timeline_events (
+          id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          orchestration_id TEXT NOT NULL,
+          sequence BIGINT NOT NULL,
+          event_type TEXT NOT NULL,
+          payload_json TEXT NOT NULL DEFAULT '{}',
+          event_ts TEXT NOT NULL,
+          FOREIGN KEY (execution_id) REFERENCES orchestration_executions(id) ON DELETE CASCADE,
+          FOREIGN KEY (orchestration_id) REFERENCES orchestrations(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_timeline_exec
+          ON orchestration_timeline_events(execution_id, sequence ASC);
       `);
         }
         finally {
@@ -776,6 +894,186 @@ export class MaplePostgresDatabase {
         );
         if (result.rows.length === 0) return undefined;
         return toOrchestrationRecord(result.rows[0]);
+    }
+    async listOrchestrationVersions(orchestrationId, limit = 50) {
+        const bounded = Math.min(Math.max(Number(limit) || 50, 1), 200);
+        const result = await this.pool.query(
+            `SELECT *
+               FROM orchestration_versions
+              WHERE orchestration_id = $1
+              ORDER BY created_at DESC
+              LIMIT $2`,
+            [orchestrationId, bounded]
+        );
+        return result.rows.map(toOrchestrationVersionRecord);
+    }
+    async findOrchestrationVersion(orchestrationId, version) {
+        const result = await this.pool.query(
+            `SELECT *
+               FROM orchestration_versions
+              WHERE orchestration_id = $1
+                AND version = $2
+              LIMIT 1`,
+            [orchestrationId, version]
+        );
+        if (result.rows.length === 0) return undefined;
+        return toOrchestrationVersionRecord(result.rows[0]);
+    }
+    async findLatestOrchestrationVersion(orchestrationId) {
+        const result = await this.pool.query(
+            `SELECT *
+               FROM orchestration_versions
+              WHERE orchestration_id = $1
+              ORDER BY created_at DESC
+              LIMIT 1`,
+            [orchestrationId]
+        );
+        if (result.rows.length === 0) return undefined;
+        return toOrchestrationVersionRecord(result.rows[0]);
+    }
+    async createOrchestrationVersion(input) {
+        const now = new Date().toISOString();
+        const id = randomUUID();
+        let version = input.version;
+        if (!version) {
+            const result = await this.pool.query(
+                `SELECT COUNT(*)::int AS count
+                   FROM orchestration_versions
+                  WHERE orchestration_id = $1`,
+                [input.orchestrationId]
+            );
+            const count = Number(result.rows[0]?.count ?? 0);
+            version = `v${count + 1}`;
+        }
+        const definition = input.definition ?? { nodes: [], edges: [] };
+        const inserted = await this.pool.query(
+            `INSERT INTO orchestration_versions (id, orchestration_id, version, definition_json, created_by, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (orchestration_id, version) DO UPDATE
+             SET definition_json = EXCLUDED.definition_json,
+                 created_by = EXCLUDED.created_by,
+                 created_at = EXCLUDED.created_at
+             RETURNING *`,
+            [
+                id,
+                input.orchestrationId,
+                version,
+                JSON.stringify(definition),
+                input.createdBy ?? null,
+                now,
+            ]
+        );
+        return toOrchestrationVersionRecord(inserted.rows[0]);
+    }
+    async createOrchestrationExecutionRecord(input) {
+        const now = new Date().toISOString();
+        const id = input.id ?? randomUUID();
+        const result = await this.pool.query(
+            `INSERT INTO orchestration_executions (
+              id,
+              orchestration_id,
+              version_id,
+              status,
+              mode,
+              requested_by,
+              input_json,
+              context_json,
+              run_lineage_json,
+              created_at,
+              started_at,
+              completed_at,
+              updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $10)
+            ON CONFLICT (id) DO UPDATE
+            SET status = EXCLUDED.status,
+                mode = EXCLUDED.mode,
+                requested_by = EXCLUDED.requested_by,
+                input_json = EXCLUDED.input_json,
+                context_json = EXCLUDED.context_json,
+                run_lineage_json = EXCLUDED.run_lineage_json,
+                started_at = EXCLUDED.started_at,
+                completed_at = EXCLUDED.completed_at,
+                updated_at = EXCLUDED.updated_at
+            RETURNING *`,
+            [
+                id,
+                input.orchestrationId,
+                input.versionId ?? null,
+                input.status ?? "queued",
+                input.mode ?? "live",
+                input.requestedBy ?? "operator",
+                JSON.stringify(input.input ?? {}),
+                JSON.stringify(input.context ?? {}),
+                JSON.stringify(input.runLineage ?? []),
+                input.createdAt ?? now,
+                input.startedAt ?? null,
+                input.completedAt ?? null,
+            ]
+        );
+        return toOrchestrationExecutionRecord(result.rows[0]);
+    }
+    async updateOrchestrationExecutionRecord(id, updates = {}) {
+        const sets = [];
+        const params = [];
+        let idx = 1;
+        if (updates.status !== undefined) { sets.push(`status = $${idx++}`); params.push(updates.status); }
+        if (updates.mode !== undefined) { sets.push(`mode = $${idx++}`); params.push(updates.mode); }
+        if (updates.versionId !== undefined) { sets.push(`version_id = $${idx++}`); params.push(updates.versionId); }
+        if (updates.requestedBy !== undefined) { sets.push(`requested_by = $${idx++}`); params.push(updates.requestedBy); }
+        if (updates.input !== undefined) { sets.push(`input_json = $${idx++}`); params.push(JSON.stringify(updates.input)); }
+        if (updates.context !== undefined) { sets.push(`context_json = $${idx++}`); params.push(JSON.stringify(updates.context)); }
+        if (updates.runLineage !== undefined) { sets.push(`run_lineage_json = $${idx++}`); params.push(JSON.stringify(updates.runLineage)); }
+        if (updates.startedAt !== undefined) { sets.push(`started_at = $${idx++}`); params.push(updates.startedAt); }
+        if (updates.completedAt !== undefined) { sets.push(`completed_at = $${idx++}`); params.push(updates.completedAt); }
+        if (sets.length === 0) {
+            const existing = await this.pool.query(`SELECT * FROM orchestration_executions WHERE id = $1`, [id]);
+            if (existing.rows.length === 0) return undefined;
+            return toOrchestrationExecutionRecord(existing.rows[0]);
+        }
+        sets.push(`updated_at = $${idx++}`);
+        params.push(new Date().toISOString());
+        params.push(id);
+        const result = await this.pool.query(
+            `UPDATE orchestration_executions
+                SET ${sets.join(", ")}
+              WHERE id = $${idx++}
+              RETURNING *`,
+            params
+        );
+        if (result.rows.length === 0) return undefined;
+        return toOrchestrationExecutionRecord(result.rows[0]);
+    }
+    async appendOrchestrationTimelineEvents(executionId, orchestrationId, events = []) {
+        if (!Array.isArray(events) || events.length === 0) return 0;
+        let inserted = 0;
+        for (const event of events) {
+            const eventId = event.id ?? randomUUID();
+            await this.pool.query(
+                `INSERT INTO orchestration_timeline_events (
+                  id,
+                  execution_id,
+                  orchestration_id,
+                  sequence,
+                  event_type,
+                  payload_json,
+                  event_ts
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (id) DO NOTHING`,
+                [
+                    eventId,
+                    executionId,
+                    orchestrationId,
+                    Number(event.sequence ?? 0),
+                    event.eventType ?? event.type ?? "event",
+                    JSON.stringify(event.payload ?? event),
+                    event.timestamp ?? new Date().toISOString(),
+                ]
+            );
+            inserted += 1;
+        }
+        return inserted;
     }
     async archiveOrchestration(id) {
         return this.updateOrchestration(id, { status: "archived" });

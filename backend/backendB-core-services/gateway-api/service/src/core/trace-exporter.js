@@ -11,6 +11,16 @@ let _buffer = [];
 let _flushTimer = null;
 let _flushing = false;
 
+// Test-only helper to force deterministic state across test files/processes.
+export function __resetTraceExporterForTests() {
+  if (_flushTimer) {
+    clearInterval(_flushTimer);
+    _flushTimer = null;
+  }
+  _buffer = [];
+  _flushing = false;
+}
+
 function requireTraceEnv(key) {
   const val = process.env[key]?.trim();
   if (!val) throw new Error(`Missing required environment variable: ${key}`);

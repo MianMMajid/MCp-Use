@@ -171,8 +171,9 @@ describe("landing.js", () => {
   it("submits login, sanitizes saved username, and redirects to safe next route", async () => {
     renderLandingDom();
     window.history.pushState({}, "", "/landing?next=/judge");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const setItemSpy = vi.spyOn(localStorage, "setItem");
     const fetchMock = installFetchRoutes({
       "GET /api/auth/google/client-id": () => jsonResponse({ clientId: "" }),
       "POST /api/auth/login": () => jsonResponse({ ok: true }),
@@ -197,8 +198,9 @@ describe("landing.js", () => {
   it("rejects unsafe next redirects and falls back to /judge", async () => {
     renderLandingDom();
     window.history.pushState({}, "", "/landing?next=//evil.example");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const setItemSpy = vi.spyOn(localStorage, "setItem");
     installFetchRoutes({
       "GET /api/auth/google/client-id": () => jsonResponse({ clientId: "" }),
       "POST /api/auth/login": () => jsonResponse({ ok: true }),
@@ -397,8 +399,9 @@ describe("landing.js", () => {
   it("submits valid signup payload and redirects on success", async () => {
     renderLandingDom();
     window.history.pushState({}, "", "/landing?next=/judge");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const setItemSpy = vi.spyOn(localStorage, "setItem");
     const fetchMock = installFetchRoutes({
       "GET /api/auth/google/client-id": () => jsonResponse({ clientId: "" }),
       "POST /api/auth/register": () => jsonResponse({ ok: true }),

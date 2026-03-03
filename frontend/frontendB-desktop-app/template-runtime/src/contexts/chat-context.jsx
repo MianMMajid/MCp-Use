@@ -222,7 +222,8 @@ export function ChatProvider({ children }) {
 
     try {
       const sessionData = await loadJson(`/api/openclaw/agent/sessions/${sid}`)
-      const sessionRuns = sessionData.runs ?? []
+      const session = sessionData?.session ?? sessionData
+      const sessionRuns = session?.runs ?? []
       setRuns(sessionRuns)
 
       const reconstructed = []
@@ -238,7 +239,7 @@ export function ChatProvider({ children }) {
         } catch { /* skip */ }
       }
       setMessages(reconstructed)
-      if (sessionData.status === 'running') connectToSession(sid)
+      if (session?.status === 'running') connectToSession(sid)
     } catch {
       setMessages([])
     }

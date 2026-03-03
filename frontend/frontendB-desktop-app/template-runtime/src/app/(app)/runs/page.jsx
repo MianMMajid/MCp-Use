@@ -1,175 +1,183 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import { Heading, Subheading } from '@/components/heading'
-import { Divider } from '@/components/divider'
+import { Heading } from '@/components/heading'
+import { Link } from '@/components/link'
+import { Select } from '@/components/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { loadJson, getCached } from '@/lib/api'
+import { loadJson } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 import { SkeletonRows } from '@/components/skeleton'
 
-export default function RunsPage() {
-  const _c = getCached('/api/runs')
-  const [runs, setRuns] = useState(() => _c ? (Array.isArray(_c?.runs) ? _c.runs : Array.isArray(_c?.items) ? _c.items : Array.isArray(_c) ? _c : []) : null)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(!_c)
-  const [expanded, setExpanded] = useState(null)
-  const [detail, setDetail] = useState(null)
-  const [timeline, setTimeline] = useState(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+function asItems(data) {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.items)) return data.items
+  return []
+}
 
-  function fetchRuns() {
-    let cancelled = false
+function shortId(value) {
+  if (!value) return '--'
+  const text = String(value)
+  return text.length <= 12 ? text : text.slice(0, 12)
+}
+
+export default function RunsPage() {
+  const [runs, setRuns] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [expandedId, setExpandedId] = useState('')
+  const [expandedGraph, setExpandedGraph] = useState(null)
+  const [expandedTimeline, setExpandedTimeline] = useState(null)
+  const [expandedLoading, setExpandedLoading] = useState(false)
+
+  async function fetchRuns() {
     setLoading(true)
     setError('')
-    ;(async () => {
-      try {
-        const data = await loadJson('/api/runs')
-        if (cancelled) return
-        setRuns(Array.isArray(data?.runs) ? data.runs : Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [])
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err))
-          setRuns([])
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
+    try {
+      const data = await loadJson('/api/orchestrations/executions?limit=100')
+      setRuns(asItems(data))
+    } catch (err) {
+      setRuns([])
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    return fetchRuns()
+    fetchRuns().catch(() => {})
   }, [])
 
-  async function toggleExpand(runId) {
-    if (expanded === runId) {
-      setExpanded(null)
-      setDetail(null)
-      setTimeline(null)
+  async function toggleExpanded(executionId) {
+    if (expandedId === executionId) {
+      setExpandedId('')
+      setExpandedGraph(null)
+      setExpandedTimeline(null)
       return
     }
-    setExpanded(runId)
-    setDetailLoading(true)
+    setExpandedId(executionId)
+    setExpandedLoading(true)
     try {
-      const [d, t] = await Promise.all([
-        loadJson(`/api/runs/${runId}`).catch(() => null),
-        loadJson(`/api/runs/${runId}/timeline`).catch(() => null),
+      const [graphData, timelineData] = await Promise.all([
+        loadJson(`/api/orchestrations/executions/${executionId}/graph`).catch(() => null),
+        loadJson(`/api/orchestrations/executions/${executionId}/timeline?limit=30`).catch(() => null),
       ])
-      setDetail(d)
-      setTimeline(Array.isArray(t?.events) ? t.events : Array.isArray(t) ? t : [])
-    } catch {
-      setDetail(null)
-      setTimeline([])
+      setExpandedGraph(graphData?.nodes ? graphData : null)
+      setExpandedTimeline(asItems(timelineData?.timeline ? timelineData.timeline : timelineData))
     } finally {
-      setDetailLoading(false)
+      setExpandedLoading(false)
     }
   }
+
+  const filteredRuns = (runs || []).filter((run) => {
+    if (statusFilter === 'all') return true
+    return String(run.status || '').toLowerCase() === statusFilter
+  })
 
   return (
     <div className="flex-1 overflow-y-auto p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
-      <div className="flex items-end justify-between gap-4">
-        <Heading>Runs</Heading>
-        <Button className="-my-0.5" onClick={() => fetchRuns()}>Refresh</Button>
-      </div>
-
-      {error && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/40">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Some data could not be loaded</p>
-          <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">The gateway may be starting up or temporarily unavailable.</p>
+        <div className="flex items-end justify-between gap-4">
+          <Heading>Orchestration Executions</Heading>
+          <Button onClick={fetchRuns}>Refresh</Button>
         </div>
-      )}
 
-      {loading && <SkeletonRows />}
+        {error && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/40">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Unable to load execution list</p>
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{error}</p>
+          </div>
+        )}
 
-      {!loading && runs && runs.length === 0 && !error && (
-        <div className="mt-8 rounded-2xl border border-zinc-950/10 bg-white p-8 text-center dark:border-white/10 dark:bg-zinc-900">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">No runs yet</p>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">When agent runs are created, they will appear here.</p>
+        <div className="mt-4 flex items-center gap-2">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">Status:</span>
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-40">
+            <option value="all">All</option>
+            <option value="queued">Queued</option>
+            <option value="running">Running</option>
+            <option value="waiting_approval">Waiting Approval</option>
+            <option value="paused">Paused</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="canceled">Canceled</option>
+          </Select>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+            {filteredRuns.length} execution{filteredRuns.length === 1 ? '' : 's'}
+          </span>
         </div>
-      )}
 
-      {!loading && runs && runs.length > 0 && (
-        <>
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{runs.length} run{runs.length !== 1 ? 's' : ''}</p>
+        {loading && <SkeletonRows />}
+
+        {!loading && filteredRuns.length === 0 && (
+          <div className="mt-6 rounded-xl border border-zinc-200 bg-white px-4 py-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No executions yet.</p>
+          </div>
+        )}
+
+        {!loading && filteredRuns.length > 0 && (
           <Table className="mt-4 [--gutter:--spacing(6)] lg:[--gutter:--spacing(10)]">
             <TableHead>
               <TableRow>
-                <TableHeader>Run ID</TableHeader>
+                <TableHeader>Execution ID</TableHeader>
+                <TableHeader>Orchestration</TableHeader>
                 <TableHeader>Status</TableHeader>
+                <TableHeader>Mode</TableHeader>
                 <TableHeader>Started</TableHeader>
-                <TableHeader>Agent</TableHeader>
-                <TableHeader>Duration</TableHeader>
+                <TableHeader>Completed</TableHeader>
+                <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
-              {runs.map((run) => {
-                const runId = run.runId || run.id || ''
-                const shortId = typeof runId === 'string' ? runId.substring(0, 12) : String(runId)
-                const status = run.status || 'unknown'
-                const isExpanded = expanded === runId
-
+              {filteredRuns.map((run) => {
+                const executionId = run.executionId || run.id || ''
+                const expanded = executionId === expandedId
                 return (
-                  <>
-                    <TableRow
-                      key={runId}
-                      className="cursor-pointer"
-                      onClick={() => toggleExpand(runId)}
-                      title={`Run ${shortId}`}
-                    >
-                      <TableCell className="font-mono text-xs">{shortId}</TableCell>
-                      <TableCell><Badge color={statusColor(status)}>{status}</Badge></TableCell>
+                  <Fragment key={executionId}>
+                    <TableRow key={executionId} className="cursor-pointer" onClick={() => toggleExpanded(executionId)}>
+                      <TableCell className="font-mono text-xs">{shortId(executionId)}</TableCell>
+                      <TableCell className="font-mono text-xs">{shortId(run.orchestrationId)}</TableCell>
+                      <TableCell><Badge color={statusColor(run.status || 'unknown')}>{run.status || 'unknown'}</Badge></TableCell>
+                      <TableCell>{run.mode || '--'}</TableCell>
                       <TableCell className="text-zinc-500">{formatDate(run.startedAt || run.createdAt)}</TableCell>
-                      <TableCell>{run.agentName || run.agent || '--'}</TableCell>
-                      <TableCell>{run.duration || '--'}</TableCell>
+                      <TableCell className="text-zinc-500">{formatDate(run.completedAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/runs/${executionId}`} className="text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+                          View
+                        </Link>
+                      </TableCell>
                     </TableRow>
-                    {isExpanded && (
-                      <TableRow key={`${runId}-detail`}>
-                        <TableCell colSpan={5}>
-                          {detailLoading ? (
-                            <p className="animate-pulse text-sm text-zinc-500">Loading details...</p>
+                    {expanded && (
+                      <TableRow key={`${executionId}-expanded`}>
+                        <TableCell colSpan={7}>
+                          {expandedLoading ? (
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading execution snapshot...</p>
                           ) : (
-                            <div className="space-y-4 py-2">
-                              {detail && (
-                                <div>
-                                  <Subheading>Run Detail</Subheading>
-                                  <pre className="mt-2 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                                    {JSON.stringify(detail, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                              {timeline && timeline.length > 0 && (
-                                <div>
-                                  <Subheading>Timeline</Subheading>
-                                  <ul className="mt-2 space-y-2">
-                                    {timeline.map((evt, i) => (
-                                      <li key={i} className="flex items-start gap-2 text-xs">
-                                        <Badge color={statusColor(evt.type || evt.status)}>{evt.type || evt.event || 'event'}</Badge>
-                                        <span className="text-zinc-600 dark:text-zinc-400">
-                                          {evt.message || evt.description || evt.name || JSON.stringify(evt)}
-                                        </span>
-                                        <span className="ml-auto text-zinc-400">{formatDate(evt.timestamp || evt.at)}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                            <div className="space-y-3 py-2">
+                              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Runtime graph: {(expandedGraph?.nodes || []).length} nodes, {(expandedGraph?.edges || []).length} edges
+                              </p>
+                              <div className="max-h-40 space-y-1 overflow-auto">
+                                {(expandedTimeline || []).map((event, idx) => (
+                                  <div key={event.id || idx} className="flex items-center gap-2 text-xs">
+                                    <Badge color={statusColor(event.eventType || 'unknown')}>{event.eventType || 'event'}</Badge>
+                                    <span className="text-zinc-500">{formatDate(event.timestamp)}</span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </TableBody>
           </Table>
-        </>
-      )}
+        )}
       </div>
     </div>
   )

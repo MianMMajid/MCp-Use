@@ -12,6 +12,7 @@ import {
 } from "../config.js";
 import { mapleLog } from "../logging.js";
 import { apiErrorPayload } from "../api-error.js";
+import { recordServiceCall } from "./service-utilization.js";
 
 const FORWARDED_HEADERS = [
   "cookie",
@@ -281,10 +282,22 @@ export function businessApiUnavailableResponse(c, proxiedResponse, operation) {
 }
 
 export async function proxyBusinessApiRequest(c, path, options = {}) {
+  const startedAtMs = Date.now();
+  const method = options.method ?? "GET";
   const resolvedBaseUrl = asString(
     options.baseUrl ?? currentBusinessApiBaseUrl(businessApiBaseUrl)
   );
   if (!resolvedBaseUrl) {
+    recordServiceCall({
+      caller: "gateway-api",
+      service: "business-api",
+      operation: `${method} ${path}`,
+      status: "error",
+      latencyMs: Date.now() - startedAtMs,
+      routeId: `${c.req.method} ${c.req.path}`,
+      traceId: asString(c.req.header("x-maple-trace-id") ?? c.req.header("x-trace-id")) ?? "",
+      tenantId: asString(c.req.header("x-maple-tenant-id") ?? c.req.header("x-tenant-id")) ?? "",
+    });
     return {
       proxied: false,
       reason: "not_configured",
@@ -328,6 +341,17 @@ export async function proxyBusinessApiRequest(c, path, options = {}) {
       keyPem: tlsMaterial.keyPem,
     });
 
+    recordServiceCall({
+      caller: "gateway-api",
+      service: "business-api",
+      operation: `${method} ${path}`,
+      status: response.statusCode >= 200 && response.statusCode < 500 ? "ok" : "error",
+      latencyMs: Date.now() - startedAtMs,
+      routeId: `${c.req.method} ${c.req.path}`,
+      traceId: asString(c.req.header("x-maple-trace-id") ?? c.req.header("x-trace-id")) ?? "",
+      tenantId: asString(c.req.header("x-maple-tenant-id") ?? c.req.header("x-tenant-id")) ?? "",
+    });
+
     return {
       proxied: true,
       status: response.statusCode,
@@ -335,9 +359,19 @@ export async function proxyBusinessApiRequest(c, path, options = {}) {
       headers: response.headers,
     };
   } catch (err) {
+    recordServiceCall({
+      caller: "gateway-api",
+      service: "business-api",
+      operation: `${method} ${path}`,
+      status: "error",
+      latencyMs: Date.now() - startedAtMs,
+      routeId: `${c.req.method} ${c.req.path}`,
+      traceId: asString(c.req.header("x-maple-trace-id") ?? c.req.header("x-trace-id")) ?? "",
+      tenantId: asString(c.req.header("x-maple-tenant-id") ?? c.req.header("x-tenant-id")) ?? "",
+    });
     mapleLog("warn", "gateway.business_api_proxy_failed", {
       target: target.toString(),
-      method: options.method ?? "GET",
+      method,
       error: errorMessage(err),
     });
 

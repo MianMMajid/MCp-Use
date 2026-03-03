@@ -2,12 +2,27 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
+import { Badge } from '@/components/badge'
 import { statusColor } from '@/lib/format'
 import { ArrowLeftIcon } from '@heroicons/react/20/solid'
 
-export function CanvasToolbar({ orchestration, saving, dirty, onSave, onUpdateName, onUpdateStatus }) {
+function withConsolePath(path) {
+  const base = (process.env.NEXT_PUBLIC_PROTOCOL_CONSOLE_URL || '').trim().replace(/\/+$/, '')
+  return base ? `${base}${path}` : path
+}
+
+export function CanvasToolbar({
+  orchestration,
+  saving,
+  dirty,
+  onSave,
+  onUpdateName,
+  onUpdateStatus,
+  onPublishVersion,
+  onExecuteVersion,
+  runtimeBusyAction,
+}) {
   const router = useRouter()
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue] = useState('')
@@ -38,6 +53,9 @@ export function CanvasToolbar({ orchestration, saving, dirty, onSave, onUpdateNa
     : dirty
       ? 'Unsaved changes'
       : 'Saved'
+
+  const observabilityHref = withConsolePath('/maple/observability')
+  const busy = Boolean(runtimeBusyAction)
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -89,8 +107,17 @@ export function CanvasToolbar({ orchestration, saving, dirty, onSave, onUpdateNa
       </span>
 
       {/* Save button */}
-      <Button color="orange" onClick={onSave} disabled={saving || !dirty} className="h-7 text-xs">
-        Save
+      <Button outline onClick={onSave} disabled={saving || !dirty || busy} className="h-7 text-xs">
+        Save Draft
+      </Button>
+      <Button color="orange" onClick={onPublishVersion} disabled={saving || busy} className="h-7 text-xs">
+        Publish
+      </Button>
+      <Button color="orange" onClick={() => onExecuteVersion?.('live')} disabled={saving || busy} className="h-7 text-xs">
+        Execute Version
+      </Button>
+      <Button outline href={observabilityHref} target="_blank" rel="noreferrer" className="h-7 text-xs">
+        Observability
       </Button>
     </div>
   )

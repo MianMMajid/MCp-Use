@@ -7,6 +7,7 @@
 import { requireApiKeyResponse } from "../auth.js";
 import { database, server } from "../state.js";
 import { getOutboxHealth } from "../core/audit-outbox.js";
+import { buildServiceUtilizationPrometheusLines } from "../core/service-utilization.js";
 
 server.app.get("/metrics/modifier", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
@@ -125,6 +126,9 @@ server.app.get("/metrics/modifier", async (c) => {
   lines.push("# HELP maple_modifier_uptime_seconds Gateway uptime in seconds");
   lines.push("# TYPE maple_modifier_uptime_seconds gauge");
   lines.push(`maple_modifier_uptime_seconds ${Math.floor(process.uptime())}`);
+
+  // Cross-service utilization metrics (A/B/C cutover aftercare)
+  lines.push(...buildServiceUtilizationPrometheusLines());
 
   lines.push("");
 

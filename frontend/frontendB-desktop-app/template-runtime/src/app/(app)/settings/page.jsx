@@ -8,21 +8,27 @@ import { TabBar, TabPanel } from '@/components/tab-bar'
 import { SkeletonList } from '@/components/skeleton'
 
 const AccountTab = dynamic(() => import('./account-tab'), { loading: () => <SkeletonList /> })
+const OrganizationTab = dynamic(() => import('../../(app)/organization/page'), { loading: () => <SkeletonList /> })
 const BillingTab = dynamic(() => import('../../(app)/billing/page'), { loading: () => <SkeletonList /> })
 const UsageTab = dynamic(() => import('../../(app)/usage/page'), { loading: () => <SkeletonList /> })
 const IntegrationsTab = dynamic(() => import('../../(app)/integrations/page'), { loading: () => <SkeletonList /> })
 const ApiKeysTab = dynamic(() => import('../../(app)/api-keys/page'), { loading: () => <SkeletonList /> })
 const ServiceAccountsTab = dynamic(() => import('../../(app)/service-accounts/page'), { loading: () => <SkeletonList /> })
+const ToolRegistryTab = dynamic(() => import('../../(app)/tool-registry/page'), { loading: () => <SkeletonList /> })
+const CliToolsTab = dynamic(() => import('../../(app)/cli-tools/page'), { loading: () => <SkeletonList /> })
+const NotificationsTab = dynamic(() => import('./notifications-tab'), { loading: () => <SkeletonList /> })
 const DiagnosticsTab = dynamic(() => import('../../(app)/diagnostics/page'), { loading: () => <SkeletonList /> })
 
 const TAB_NAMES = [
-  'Account', 'Billing', 'Usage', 'Integrations',
-  'API Keys', 'Service Accounts', 'Developer', 'Diagnostics',
+  'Account', 'Organization', 'Billing', 'Usage', 'Integrations',
+  'API Keys', 'Service Accounts', 'Tool Registry', 'CLI Tools',
+  'Notifications', 'Developer', 'Diagnostics',
 ]
 
 const TAB_KEYS = [
-  'account', 'billing', 'usage', 'integrations',
-  'api-keys', 'service-accounts', 'developer', 'diagnostics',
+  'account', 'organization', 'billing', 'usage', 'integrations',
+  'api-keys', 'service-accounts', 'tool-registry', 'cli-tools',
+  'notifications', 'developer', 'diagnostics',
 ]
 
 function SettingsInner() {
@@ -40,11 +46,15 @@ function SettingsInner() {
       <div className="mt-6">
         <TabBar tabs={TAB_NAMES} defaultIndex={defaultIndex}>
           <TabPanel><AccountTab /></TabPanel>
+          <TabPanel><OrganizationTab /></TabPanel>
           <TabPanel><BillingTab /></TabPanel>
           <TabPanel><UsageTab /></TabPanel>
           <TabPanel><IntegrationsTab /></TabPanel>
           <TabPanel><ApiKeysTab /></TabPanel>
           <TabPanel><ServiceAccountsTab /></TabPanel>
+          <TabPanel><ToolRegistryTab /></TabPanel>
+          <TabPanel><CliToolsTab /></TabPanel>
+          <TabPanel><NotificationsTab /></TabPanel>
           <TabPanel>
             <div className="space-y-4">
               <p className="text-sm text-zinc-500 dark:text-zinc-400">

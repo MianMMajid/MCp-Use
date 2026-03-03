@@ -67,7 +67,6 @@ Built with `mcp-use` + Apps SDK widgets.
 
 - `backend/backendB-core-services/gateway-api/service/src/`: public API and orchestration entrypoint
 - `backend/backendB-core-services/context-wall/service/src/`: semantic policy authority and HITL coordination
-- `backend/backendB-core-services/model-router/service/src/`: model provider routing layer
 - `backend/backendB-core-services/mcp-proxy/service/src/`: tool dispatch/proxy and scoped execution path
 - `backend/backendB-core-services/cyber-proxy/service/src/`: outbound safety checks and network mediation
 - `backend/backendB-core-services/tool-runner/service/src/`: isolated tool execution runtime
@@ -83,26 +82,45 @@ npm install
 npm run dev
 ```
 
-`dev/start` now default to the full local Kubernetes stack flow (`k8s:all`):
-- build + deploy all workloads
-- start all service port-forwards
-- stream full-stack logs into one file
+`dev/start` now default to the **fast local loop**:
+- runs preflight + runtime sync + mesh build
+- starts local dependencies (PostgreSQL/Redis if missing)
+- launches gateway + core services + frontend A/B/C as local processes
+- keeps logs and PID state in `.maple/dev-fast/`
 
 Authoritative source folders:
 - `backend/`
 - `frontend/`
 
 Primary endpoints after `npm run dev`:
-- `https://localhost:3000` (gateway-api / judge / inspector / API)
-- `http://localhost:3100` (frontendA-it-console)
-- `http://localhost:3200` (frontendB desktop web shell)
-- `http://localhost:3300` (frontendC-marketing-site)
-- `http://localhost:3400` (frontendD-mcp-widgets)
-- `https://localhost:4001` (admin-console-api)
-- `http://localhost:4010/health` (openclaw-bridge)
-- `ws://localhost:4011` (openclaw-gateway)
+- `http://localhost:3000` (gateway-api / judge / inspector / API)
+- `http://localhost:4101` (frontendA-it-console)
+- `http://localhost:4102` (frontendB desktop web shell)
+- `http://localhost:4103` (frontendC-marketing-site)
 
-Note: local K8s uses a generated self-signed cert (`npm run k8s:certs`), so browser/curl trust prompts are expected.
+Fast loop controls:
+
+```bash
+npm run dev:fast
+npm run dev:fast:openclaw   # opt-in OpenClaw gateway + bridge
+npm run local:down          # stop fast-loop processes
+```
+
+OpenClaw is optional in the fast loop by default.
+
+## Canonical Command Surface
+
+Use these grouped commands as the stable interface:
+
+```bash
+npm run dev                 # fast local loop (default)
+npm run validate:k8s        # K8s validation loop
+npm run gate:k8s            # K8s release gate
+npm run test:matrix         # full matrix (backend+frontend)
+npm run check:repo-hygiene  # artifact/import/topology hygiene
+```
+
+Deprecated aliases with `:template` suffix are kept temporarily for compatibility and are frozen by CI guard (`check:deprecated-command-aliases`).
 
 ## Northflank Deployment
 
@@ -155,15 +173,19 @@ Prerequisites:
 Commands:
 
 ```bash
+npm run dev:k8s
+# same as:
 npm run k8s:all
 # optional: regenerate local TLS cert bundle
 npm run k8s:certs
 ```
 
-Equivalent full default:
+Fast re-validation options:
 
 ```bash
-npm run dev
+npm run validate:k8s                     # default: skip build/load/restart
+npm run validate:k8s -- --full           # full K8s cycle
+bash backend/backendA-platform-infra/scripts/k8s-local-up.sh --wait-only
 ```
 
 Open:
@@ -182,6 +204,58 @@ Cleanup:
 npm run k8s:down
 npm run k8s:down -- --destroy-cluster
 ```
+
+## K8s Release Gate
+
+Kubernetes full-matrix validation is a required pre-merge/cutover gate:
+
+```bash
+npm run gate:k8s
+```
+
+This runs:
+- backend matrix (`scripts/run-full-matrix.sh --backend`)
+- full K8s deploy and readiness
+- canonical K8s API/UI validation probes
+- Playwright E2E against K8s A/B/C surfaces
+
+Artifacts are written to `artifacts/matrix/`.
+
+## Service Audit And Utilization
+
+Service necessity/utilization artifacts and checks:
+
+```bash
+npm run service:audit:inventory
+npm run service:audit:callgraph
+npm run service:audit:report
+npm run check:service-route-coverage
+npm run check:service-necessity
+npm run check:service-utilization
+```
+
+Outputs:
+- `artifacts/service-audit/service-inventory.json`
+- `artifacts/service-audit/static-callgraph.json`
+- `artifacts/service-audit/utilization-report.json`
+- `artifacts/service-audit/utilization-report.md`
+
+Automation:
+- Weekly CI workflow `service-utilization-weekly` runs the same inventory/callgraph/report/threshold pipeline and uploads `artifacts/service-audit`.
+
+Retired services:
+- `model-router`
+- `secrets-broker`
+
+They are excluded from retained-service threshold gates and remain documented only as decommissioned catalog entries.
+
+## Troubleshooting (Three-Loop Model)
+
+- Use **fast local loop** for daily coding and feature iteration.
+- Switch to **K8s validation loop** for service-boundary realism and observability checks.
+- Use **K8s release gate** before merge/cutover.
+- If fast loop does not start due stale state: run `npm run local:down`.
+- If local dependencies are missing: start Docker Desktop (fast loop auto-provisions postgres/redis).
 
 ## Hardcoded Demo Stack (OpenClaw + Maple)
 

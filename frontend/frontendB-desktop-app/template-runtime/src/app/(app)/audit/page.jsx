@@ -1,1 +1,2 @@
-export { default } from '../modifier-observability/page'
+import { redirect } from 'next/navigation'
+export default function AuditPage() { redirect('/governance?tab=audit') }

@@ -138,7 +138,7 @@ describe("judges-auth.js", () => {
 
   it("emitAuthEvent swallows storage write failures", async () => {
     const auth = await loadMapleAuth();
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    const setItemSpy = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new Error("quota exceeded");
     });
 

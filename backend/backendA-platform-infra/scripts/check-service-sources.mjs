@@ -202,6 +202,9 @@ if (onlyService && !SERVICE_MESH_SERVICES.includes(onlyService)) {
   process.exit(1);
 }
 
-for (const packageName of SHARED_SOURCE_PACKAGES) {
-  validateSourceBackedPackage(packageName);
+// In single-service mode, only validate the requested service tree.
+if (!onlyService) {
+  for (const packageName of SHARED_SOURCE_PACKAGES) {
+    validateSourceBackedPackage(packageName);
+  }
 }

@@ -10,27 +10,31 @@ function read(relativePath: string): string {
 
 describe("template runtime content coverage", () => {
   it("frontend A includes gateway and policy endpoint references", () => {
-    const gatewayDoc = read("frontend/frontendA-it-console/template-runtime/src/app/maple/gateway/page.mdx");
-    const policyDoc = read("frontend/frontendA-it-console/template-runtime/src/app/maple/policies/page.mdx");
+    const gatewayDoc = read("frontend/frontendA-it-console/template-runtime/src/app/maple/gateway/page.jsx");
+    const policiesPage = read("frontend/frontendA-it-console/template-runtime/src/app/maple/policies/page.jsx");
+    const auditPage = read("frontend/frontendA-it-console/template-runtime/src/app/maple/audit/page.jsx");
 
-    expect(gatewayDoc).toContain("/api/auth/*");
-    expect(gatewayDoc).toContain("/api/openclaw/agent/*");
     expect(gatewayDoc).toContain("/api/runtime/feature-capabilities");
-    expect(policyDoc).toContain("POST /api/firewall/decision");
+    expect(gatewayDoc).toContain("/api/firewall/decision");
+    expect(policiesPage).toContain("redirect('/maple/audit')");
+    expect(auditPage).toContain("/api/observability/orchestrations/audit-log");
   });
 
   it("frontend B workspace binds to runtime and HITL endpoints", () => {
     const workspace = read("frontend/frontendB-desktop-app/template-runtime/src/app/(app)/maple-workspace.jsx");
     expect(workspace).toContain("/api/runtime/feature-capabilities");
-    expect(workspace).toContain("/api/firewall/status");
-    expect(workspace).toContain("/api/hitl/list");
-    expect(workspace).toContain("Agent Orchestration Workspace");
+    expect(workspace).toContain("/api/firewall/state");
+    expect(workspace).toContain("/api/hitl/approvals");
+    expect(workspace).toContain("Agent Orchestration Console");
   });
 
   it("frontend C landing includes lifecycle and desktop download actions", () => {
     const landing = read("frontend/frontendC-marketing-download-site/template-runtime/src/app/page.jsx");
-    expect(landing).toContain("End-to-end journey");
-    expect(landing).toContain("/download/maple-desktop.dmg");
-    expect(landing).toContain("/download/maple-desktop.exe");
+    const downloadSection = read(
+      "frontend/frontendC-marketing-download-site/template-runtime/src/components/DownloadSection.jsx"
+    );
+    expect(landing).toContain("A/B/C operating journey");
+    expect(downloadSection).toContain("/api/downloads/mac");
+    expect(downloadSection).toContain("/api/downloads/win");
   });
 });

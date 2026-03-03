@@ -1,0 +1,50 @@
+name: service-utilization-weekly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 14 * * 1"
+
+jobs:
+  service-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build Service Inventory
+        run: npm run service:audit:inventory
+
+      - name: Build Static Service Callgraph
+        run: npm run service:audit:callgraph
+
+      - name: Build Service Utilization Report
+        run: npm run service:audit:report
+
+      - name: Evaluate Service Thresholds (Advisory)
+        env:
+          SERVICE_AUDIT_POLICY: advisory
+          SERVICE_UTILIZATION_RUNTIME_REQUIRED: "0"
+        run: |
+          npm run check:service-route-coverage
+          npm run check:service-necessity
+          npm run check:service-utilization
+
+      - name: Upload Service Audit Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-utilization-weekly-artifacts
+          path: artifacts/service-audit
+          if-no-files-found: warn

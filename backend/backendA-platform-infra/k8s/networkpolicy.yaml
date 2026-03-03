@@ -11,11 +11,9 @@ spec:
         values:
           - gateway-api
           - context-wall
-          - model-router
           - mcp-proxy
           - cyber-proxy
           - tool-runner
-          - secrets-broker
           - audit-writer
           - admin-console-api
           - business-api
@@ -38,11 +36,9 @@ spec:
         values:
           - gateway-api
           - context-wall
-          - model-router
           - mcp-proxy
           - cyber-proxy
           - tool-runner
-          - secrets-broker
           - audit-writer
           - admin-console-api
           - business-api
@@ -92,13 +88,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
-    - to:
-        - podSelector:
-            matchLabels:
-              app: secrets-broker
-      ports:
-        - protocol: TCP
-          port: 9300
     - to:
         - podSelector:
             matchLabels:
@@ -161,13 +150,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: model-router
-      ports:
-        - protocol: TCP
-          port: 9100
-    - to:
-        - podSelector:
-            matchLabels:
               app: mcp-proxy
       ports:
         - protocol: TCP
@@ -179,41 +161,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9400
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: model-router-network
-  namespace: maple
-spec:
-  podSelector:
-    matchLabels:
-      app: model-router
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: context-wall
-      ports:
-        - protocol: TCP
-          port: 9100
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -243,13 +190,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9250
-    - to:
-        - podSelector:
-            matchLabels:
-              app: secrets-broker
-      ports:
-        - protocol: TCP
-          port: 9300
     - to:
         - podSelector:
             matchLabels:
@@ -334,38 +274,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: secrets-broker-network
-  namespace: maple
-spec:
-  podSelector:
-    matchLabels:
-      app: secrets-broker
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: mcp-proxy
-        - podSelector:
-            matchLabels:
-              app: gateway-api
-      ports:
-        - protocol: TCP
-          port: 9300
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: audit-writer-network
   namespace: maple
 spec:
@@ -384,11 +292,9 @@ spec:
                 values:
                   - gateway-api
                   - context-wall
-                  - model-router
                   - mcp-proxy
                   - cyber-proxy
                   - tool-runner
-                  - secrets-broker
                   - admin-console-api
                   - business-api
       ports:

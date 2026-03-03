@@ -111,10 +111,6 @@ run_service "context-wall" "19090" \
   "${ROOT_DIR}/backend/backendB-core-services/context-wall/service/src/main.js" \
   "CONTEXT_WALL_PORT=19090"
 
-run_service "model-router" "19100" \
-  "${ROOT_DIR}/backend/backendB-core-services/model-router/service/src/main.js" \
-  "MODEL_ROUTER_PORT=19100"
-
 run_service "mcp-proxy" "19200" \
   "${ROOT_DIR}/backend/backendB-core-services/mcp-proxy/service/src/main.js" \
   "MCP_PROXY_PORT=19200"
@@ -126,10 +122,6 @@ run_service "cyber-proxy" "19300" \
 run_service "tool-runner" "19400" \
   "${ROOT_DIR}/backend/backendB-core-services/tool-runner/service/src/main.js" \
   "TOOL_RUNNER_PORT=19400"
-
-run_service "secrets-broker" "19500" \
-  "${ROOT_DIR}/backend/backendB-core-services/secrets-broker/service/src/main.js" \
-  "SECRETS_BROKER_PORT=19500"
 
 run_service "admin-console-api" "19600" \
   "${ROOT_DIR}/backend/backendB-core-services/admin-console-api/service/src/main.js" \

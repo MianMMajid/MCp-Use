@@ -10,7 +10,7 @@ export default function TenantScope() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    try { setTenantScope(await loadJson('/api/openclaw/modifier/ops/tenant-scope')) }
+    try { setTenantScope(await loadJson('/api/operations/orchestrations/tenant-scope')) }
     catch { /* non-critical */ }
     finally { setLoading(false) }
   }, [])

@@ -21,9 +21,12 @@ export default defineConfig({
         branches: 70,
       },
       include: [
-        "tests/frontend/unit/**/*.test.ts",
+        "frontend/frontendA-it-console/public/judges-auth.js",
+        "frontend/frontendA-it-console/public/judges-http.js",
+        "frontend/frontendB-desktop-app/app/desktop-ui.js",
+        "frontend/frontendC-marketing-download-site/public/landing.js",
       ],
-      exclude: ["**/*.d.ts"],
+      exclude: ["**/*.d.ts", "**/*.test.*", "**/__tests__/**"],
     },
   },
 });

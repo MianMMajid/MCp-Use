@@ -92,10 +92,6 @@ export const allSections = {
   ],
   '/maple/audit': [
     { title: 'Audit events', id: 'audit-events' },
-    { title: 'Trace browser', id: 'trace-browser' },
-    { title: 'Trace search', id: 'trace-search' },
-    { title: 'Compliance', id: 'compliance' },
-    { title: 'Runs', id: 'runs' },
     { title: 'Audit chain', id: 'audit-chain' },
     { title: 'Retention', id: 'retention' },
     { title: 'Dead letter', id: 'dead-letter' },

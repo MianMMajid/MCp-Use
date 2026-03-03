@@ -16,7 +16,7 @@ export default function TenantBindings() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await loadJson('/api/openclaw/modifier/ops/tenant-bindings')
+      const data = await loadJson('/api/operations/orchestrations/tenant-bindings')
       setBindings(Array.isArray(data) ? data : data.bindings ?? data.items ?? [])
     } catch { /* non-critical */ }
     finally { setLoading(false) }
@@ -34,7 +34,7 @@ export default function TenantBindings() {
     setBindingMsg(null)
     try {
       const body = bindingInput.trim() ? JSON.parse(bindingInput) : {}
-      await postJson('/api/openclaw/modifier/ops/tenant-bindings', body)
+      await postJson('/api/operations/orchestrations/tenant-bindings', body)
       setBindingMsg('Binding created.')
       setBindingInput('')
       setShowBindingForm(false)
@@ -43,7 +43,7 @@ export default function TenantBindings() {
   }
 
   async function handleRemoveBinding() {
-    try { await deleteJson('/api/openclaw/modifier/ops/tenant-bindings'); fetchData() }
+    try { await deleteJson('/api/operations/orchestrations/tenant-bindings'); fetchData() }
     catch (err) { setBindingMsg(`Remove failed: ${err.message}`) }
   }
 

@@ -82,7 +82,7 @@ function suppressExpectedRuntimeLogs() {
   };
 }
 
-test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy -> tool-runner -> cyber-proxy", async () => {
+test("e2e mesh flow covers gateway -> context-wall -> mcp-proxy -> tool-runner -> cyber-proxy", async () => {
   const restoreLogs = suppressExpectedRuntimeLogs();
   const ports = {
     contextWall: await getFreePort(),
@@ -125,6 +125,8 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
     "MAPLE_TOOL_RUNNER_MODE",
     "MAPLE_DOWNSTREAM_APPS",
     "MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW",
+    "MAPLE_MODEL_ROUTER_RETIRED",
+    "MAPLE_SECRETS_BROKER_RETIRED",
     "CONTEXT_WALL_HITL_TIMEOUT_MS",
     "CONTEXT_WALL_PORT",
     "CONTEXT_WALL_HOST",
@@ -267,6 +269,8 @@ test("e2e mesh flow covers gateway -> context-wall -> model-router -> mcp-proxy 
   process.env.CYBER_PROXY_ADDRESS = `localhost:${ports.cyberProxy}`;
   process.env.SECRETS_BROKER_ADDRESS = `localhost:${ports.secretsBroker}`;
   process.env.AUDIT_WRITER_ADDRESS = `localhost:${ports.auditWriter}`;
+  process.env.MAPLE_MODEL_ROUTER_RETIRED = "0";
+  process.env.MAPLE_SECRETS_BROKER_RETIRED = "0";
   // Service ports (required by each service's config.js)
   process.env.CONTEXT_WALL_PORT = String(ports.contextWall);
   process.env.CONTEXT_WALL_HOST = "0.0.0.0";

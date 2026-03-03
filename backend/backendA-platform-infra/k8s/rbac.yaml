@@ -47,24 +47,6 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: secrets-broker-sa
-  namespace: maple
-  labels:
-    app: secrets-broker
-    app.kubernetes.io/part-of: maple-stack
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: model-router-sa
-  namespace: maple
-  labels:
-    app: model-router
-    app.kubernetes.io/part-of: maple-stack
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
   name: tool-runner-sa
   namespace: maple
   labels:

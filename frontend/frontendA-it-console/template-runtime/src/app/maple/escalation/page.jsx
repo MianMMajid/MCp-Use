@@ -137,9 +137,9 @@ export default function EscalationPage() {
     setError(null)
     try {
       const [c, bg, su] = await Promise.allSettled([
-        loadJson('/api/openclaw/modifier/ops/escalation'),
-        loadJson('/api/openclaw/modifier/ops/break-glass'),
-        loadJson('/api/openclaw/modifier/ops/step-up/status'),
+        loadJson('/api/operations/orchestrations/escalation'),
+        loadJson('/api/operations/orchestrations/break-glass'),
+        loadJson('/api/operations/orchestrations/step-up/status'),
       ])
 
       if (c.status === 'fulfilled') setChain(c.value)
@@ -176,7 +176,7 @@ export default function EscalationPage() {
     try {
       const body = chainInput.trim() ? JSON.parse(chainInput) : {}
       const result = await postJson(
-        '/api/openclaw/modifier/ops/escalation',
+        '/api/operations/orchestrations/escalation',
         body,
       )
       setChainMsg(result.message ?? 'Chain updated.')
@@ -194,7 +194,7 @@ export default function EscalationPage() {
     try {
       const body = escalateInput.trim() ? JSON.parse(escalateInput) : {}
       const result = await postJson(
-        '/api/openclaw/modifier/ops/escalation/escalate',
+        '/api/operations/orchestrations/escalation/escalate',
         body,
       )
       setChainMsg(result.message ?? 'Escalation triggered.')
@@ -215,7 +215,7 @@ export default function EscalationPage() {
     setExpandedApprovalId(approvalId)
     try {
       const data = await loadJson(
-        `/api/openclaw/modifier/ops/escalation/${approvalId}/history`,
+        `/api/operations/orchestrations/escalation/${approvalId}/history`,
       )
       setApprovalHistory(
         Array.isArray(data) ? data : data.history ?? data.events ?? [],
@@ -231,7 +231,7 @@ export default function EscalationPage() {
     try {
       const body = breakGlassInput.trim() ? JSON.parse(breakGlassInput) : {}
       const result = await postJson(
-        '/api/openclaw/modifier/ops/break-glass',
+        '/api/operations/orchestrations/break-glass',
         body,
       )
       setBreakGlassMsg(result.message ?? 'Break-glass executed.')
@@ -248,7 +248,7 @@ export default function EscalationPage() {
     try {
       const body = reviewInput.trim() ? JSON.parse(reviewInput) : {}
       const result = await postJson(
-        `/api/openclaw/modifier/ops/break-glass/${id}/review`,
+        `/api/operations/orchestrations/break-glass/${id}/review`,
         body,
       )
       setBreakGlassMsg(result.message ?? 'Review submitted.')
@@ -266,7 +266,7 @@ export default function EscalationPage() {
     try {
       const body = challengeInput.trim() ? JSON.parse(challengeInput) : {}
       const result = await postJson(
-        '/api/openclaw/modifier/ops/step-up/challenge',
+        '/api/operations/orchestrations/step-up/challenge',
         body,
       )
       setChallengeResult(result)
@@ -280,7 +280,7 @@ export default function EscalationPage() {
     try {
       const body = verifyInput.trim() ? JSON.parse(verifyInput) : {}
       const result = await postJson(
-        '/api/openclaw/modifier/ops/step-up/verify',
+        '/api/operations/orchestrations/step-up/verify',
         body,
       )
       setVerifyResult(result)

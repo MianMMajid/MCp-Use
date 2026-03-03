@@ -24,8 +24,8 @@ const REQUIRED_SURFACE_ENDPOINTS = {
     "/api/runtime/feature-capabilities",
     "/api/openclaw/agent/status",
     "/api/firewall/decision",
-    "/admin/api/policies",
-    "/admin/api/audit",
+    "/api/observability/orchestrations/audit-log",
+    "/api/operations/orchestrations/step-up/challenge",
   ],
   frontendB: [
     "/api/runtime/feature-capabilities",

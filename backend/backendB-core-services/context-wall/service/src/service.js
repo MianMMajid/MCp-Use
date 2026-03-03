@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
 import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII } from "@maple/security";
 import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
+import { generateOpenAI } from "../../../model-router/service/src/providers/openai.js";
+import { generateAnthropic } from "../../../model-router/service/src/providers/anthropic.js";
 import { config } from "./config.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const PROTO_PATH = resolve(PROTO_ROOT, "maple/context/v1/context_wall.proto");
@@ -47,6 +49,12 @@ function closeGrpcClient(client) {
     }
 }
 function getModelRouter() {
+    if (config.modelRouterRetired) {
+        throw new Error("model-router has been retired. Replacement: context-wall local provider routing");
+    }
+    if (!String(config.modelRouterAddress || "").trim()) {
+        throw new Error("model-router address not configured. Replacement: context-wall local provider routing");
+    }
     if (!modelRouterClient) {
         modelRouterClient = loadServiceClient("maple/model/v1/model_router.proto", "maple.model.v1.ModelRouterService", config.modelRouterAddress);
     }
@@ -63,6 +71,130 @@ function getAuditWriter() {
         auditWriterClient = loadServiceClient("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
     }
     return auditWriterClient;
+}
+function getPreferredProvider() {
+    const raw = String(process.env.MAPLE_FIREWALL_CHAT_PRIMARY || "openai").trim().toLowerCase();
+    return raw === "anthropic" ? "anthropic" : "openai";
+}
+function providerModelName(provider) {
+    return provider === "anthropic"
+        ? String(process.env.MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL || "claude-sonnet-4-6")
+        : String(process.env.MAPLE_FIREWALL_CHAT_OPENAI_MODEL || "gpt-4o-mini");
+}
+function providerApiKey(provider) {
+    return provider === "anthropic"
+        ? String(process.env.ANTHROPIC_API_KEY || "").trim()
+        : String(process.env.OPENAI_API_KEY || "").trim();
+}
+function protoRoleToChatRole(role) {
+    const normalized = String(role || "").trim();
+    if (normalized === "CHAT_ROLE_SYSTEM")
+        return "system";
+    if (normalized === "CHAT_ROLE_ASSISTANT")
+        return "assistant";
+    if (normalized === "CHAT_ROLE_TOOL")
+        return "tool";
+    return "user";
+}
+function toModelTools(protoTools) {
+    return (Array.isArray(protoTools) ? protoTools : [])
+        .map((tool) => {
+        const name = String(tool?.name || "").trim();
+        if (!name)
+            return null;
+        const description = String(tool?.description || "");
+        const parameters = parseJsonValue(tool?.parametersJson, { type: "object", properties: {} });
+        return {
+            type: "function",
+            function: {
+                name,
+                description,
+                parameters: parameters && typeof parameters === "object" && !Array.isArray(parameters)
+                    ? parameters
+                    : { type: "object", properties: {} },
+            },
+        };
+    })
+        .filter(Boolean);
+}
+function toProviderMessages(messages) {
+    return (Array.isArray(messages) ? messages : []).map((message) => {
+        const payload = {
+            role: protoRoleToChatRole(message?.role),
+            content: String(message?.content || ""),
+        };
+        if (message?.name)
+            payload.name = String(message.name);
+        if (message?.toolCallId)
+            payload.tool_call_id = String(message.toolCallId);
+        return payload;
+    });
+}
+async function generateViaLocalProviders(request) {
+    const providerOrder = (() => {
+        const primary = getPreferredProvider();
+        return primary === "anthropic" ? ["anthropic", "openai"] : ["openai", "anthropic"];
+    })();
+    const messages = toProviderMessages(request.messages);
+    const tools = toModelTools(request.tools);
+    let lastError;
+    for (const provider of providerOrder) {
+        const apiKey = providerApiKey(provider);
+        if (!apiKey)
+            continue;
+        const model = request.model || providerModelName(provider);
+        const commonOptions = {
+            model,
+            messages,
+            tools: tools.length > 0 ? tools : undefined,
+            maxTokens: request.maxTokens || undefined,
+            temperature: request.temperature || undefined,
+            timeoutMs: Number(process.env.MAPLE_FIREWALL_CHAT_TIMEOUT_MS || 15000),
+        };
+        try {
+            const result = provider === "anthropic"
+                ? await generateAnthropic(apiKey, commonOptions)
+                : await generateOpenAI(apiKey, commonOptions);
+            const toolCalls = (result.toolCalls ?? []).map((toolCall) => ({
+                id: toolCall.id || randomUUID(),
+                name: toolCall.function?.name || "",
+                argumentsJson: Buffer.from(String(toolCall.function?.arguments || "{}")),
+            }));
+            return {
+                message: {
+                    role: "CHAT_ROLE_ASSISTANT",
+                    content: result.content || "",
+                },
+                toolCalls,
+                model: result.model || model,
+            };
+        }
+        catch (err) {
+            lastError = err;
+            mapleLog("warn", "context_wall.local_model_provider_failed", {
+                provider,
+                model,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+    const reason = lastError instanceof Error ? lastError.message : "No model providers available.";
+    throw new Error(`Local provider routing failed: ${reason}`);
+}
+async function generateChatModelResponse(request) {
+    if (config.modelRouterRetired) {
+        return generateViaLocalProviders(request);
+    }
+    try {
+        return await grpcUnary(getModelRouter(), "generate", request);
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!config.modelRouterRetired) {
+            throw err;
+        }
+        throw new Error(`Model router path failed after retirement: ${message}`);
+    }
 }
 export function closeContextWallClients() {
     closeGrpcClient(modelRouterClient);
@@ -935,7 +1067,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 let toolCallCount = 0;
                 const maxToolRounds = 4;
                 for (let round = 0; round <= maxToolRounds; round += 1) {
-                    const response = await grpcUnary(getModelRouter(), "generate", {
+                    const response = await generateChatModelResponse({
                         context: requestContext,
                         messages: modelMessages,
                         tools: modelTools,

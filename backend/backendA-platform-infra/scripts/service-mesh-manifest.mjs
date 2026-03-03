@@ -24,14 +24,6 @@ export const SERVICE_MESH_TARGETS = [
     servicePath: "backend/backendB-core-services/mcp-proxy/service",
   },
   {
-    name: "model-router",
-    servicePath: "backend/backendB-core-services/model-router/service",
-  },
-  {
-    name: "secrets-broker",
-    servicePath: "backend/backendB-core-services/secrets-broker/service",
-  },
-  {
     name: "tool-runner",
     servicePath: "backend/backendB-core-services/tool-runner/service",
   },

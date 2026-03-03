@@ -5,11 +5,13 @@ test.describe("frontend C template runtime", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { name: /Build your agent workforce with governed AI execution/i })
+      page.getByRole("heading", { name: /Build and operate your agent orchestration/i })
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: /End-to-end journey/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Download macOS/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Download Windows/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /A\/B\/C operating journey/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Download for macOS/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Download for Windows/i })).toBeVisible();
+    await expect(page.getByText(/Runtime Control Plane/i)).toHaveCount(0);
+    await expect(page.getByText(/Observability & Alerts/i)).toHaveCount(0);
   });
 
   test("login route renders sign-in form controls", async ({ page }) => {

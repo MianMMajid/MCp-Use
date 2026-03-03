@@ -145,7 +145,7 @@ server.app.post("/api/openclaw/modifier/approvals/:approvalId/decision", async (
         ok: false,
         error: "Step-up authentication required for approval decisions. Complete a step-up challenge first.",
         stepUpRequired: true,
-        challengeEndpoint: "/api/openclaw/modifier/ops/step-up/challenge",
+        challengeEndpoint: "/api/operations/orchestrations/step-up/challenge",
       }, 403);
     }
     // Consume step-up after successful decision below
@@ -208,7 +208,7 @@ server.app.post("/api/openclaw/modifier/approvals/step-up-decide", async (c) => 
       error: "Step-up challenge verification failed.",
       reason: stepUpResult.reason,
       stepUpRequired: true,
-      challengeEndpoint: "/api/openclaw/modifier/ops/step-up/challenge",
+      challengeEndpoint: "/api/operations/orchestrations/step-up/challenge",
     }, 403);
   }
 

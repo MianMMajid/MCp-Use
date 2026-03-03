@@ -1,0 +1,170 @@
+version: 1
+zeroUseWindowDays: 14
+services:
+  - service: gateway-api
+    owner: backendB-core
+    tier: edge
+    required: true
+    requiresActiveRouteCoverage: false
+    featureAlignment: 100
+    criticalFlows:
+      - B orchestration execution controls
+      - A observability API ingress
+      - C auth and entrypoint routing
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 100
+      uniqueCapability: 95
+      complianceSecurity: 90
+      operationalEfficiency: 75
+
+  - service: admin-console-api
+    owner: backendB-core
+    tier: operations
+    required: true
+    requiresActiveRouteCoverage: false
+    runtimeEvidenceSource: external
+    featureAlignment: 95
+    criticalFlows:
+      - A audit and operations administration
+    replacement: gateway-api
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 70
+      uniqueCapability: 65
+      complianceSecurity: 80
+      operationalEfficiency: 70
+
+  - service: context-wall
+    owner: backendB-core
+    tier: policy
+    required: true
+    requiresActiveRouteCoverage: true
+    featureAlignment: 100
+    criticalFlows:
+      - Firewall policy decisions
+      - HITL approvals
+      - Orchestrated downstream tool dispatch
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 100
+      uniqueCapability: 95
+      complianceSecurity: 100
+      operationalEfficiency: 70
+
+  - service: model-router
+    owner: backendB-core
+    tier: execution-support
+    lifecycle: retired
+    required: false
+    requiresActiveRouteCoverage: false
+    featureAlignment: 70
+    criticalFlows:
+      - Context-wall orchestration model delegation
+    replacement: context-wall local provider routing
+    decommissionAfter: "2026-03-03T00:00:00Z"
+    necessity:
+      criticalPath: 35
+      uniqueCapability: 30
+      complianceSecurity: 35
+      operationalEfficiency: 45
+
+  - service: mcp-proxy
+    owner: backendB-core
+    tier: execution
+    required: true
+    requiresActiveRouteCoverage: false
+    featureAlignment: 100
+    criticalFlows:
+      - Tool protocol dispatch under policy
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 80
+      uniqueCapability: 80
+      complianceSecurity: 70
+      operationalEfficiency: 70
+
+  - service: tool-runner
+    owner: backendB-core
+    tier: execution
+    required: true
+    requiresActiveRouteCoverage: false
+    featureAlignment: 100
+    criticalFlows:
+      - Tool execution runtime
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 80
+      uniqueCapability: 75
+      complianceSecurity: 70
+      operationalEfficiency: 70
+
+  - service: cyber-proxy
+    owner: backendB-core
+    tier: security
+    required: true
+    requiresActiveRouteCoverage: false
+    featureAlignment: 95
+    criticalFlows:
+      - Network egress guardrails for tool execution
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 75
+      uniqueCapability: 70
+      complianceSecurity: 90
+      operationalEfficiency: 65
+
+  - service: secrets-broker
+    owner: backendB-core
+    tier: security
+    lifecycle: retired
+    required: false
+    requiresActiveRouteCoverage: false
+    featureAlignment: 55
+    criticalFlows:
+      - Secret retrieval for isolated execution
+    replacement: context-wall scoped credential delegation
+    decommissionAfter: "2026-03-03T00:00:00Z"
+    necessity:
+      criticalPath: 30
+      uniqueCapability: 35
+      complianceSecurity: 65
+      operationalEfficiency: 45
+
+  - service: audit-writer
+    owner: backendB-core
+    tier: observability
+    required: true
+    requiresActiveRouteCoverage: true
+    featureAlignment: 100
+    criticalFlows:
+      - Durable audit append pipeline
+      - A observability exports and chain verification
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 90
+      uniqueCapability: 90
+      complianceSecurity: 100
+      operationalEfficiency: 70
+
+  - service: business-api
+    owner: backendC-saas
+    tier: business
+    required: true
+    requiresActiveRouteCoverage: true
+    featureAlignment: 100
+    criticalFlows:
+      - Auth, billing, org, entitlement source of truth
+    replacement: ""
+    decommissionAfter: ""
+    necessity:
+      criticalPath: 95
+      uniqueCapability: 95
+      complianceSecurity: 85
+      operationalEfficiency: 75

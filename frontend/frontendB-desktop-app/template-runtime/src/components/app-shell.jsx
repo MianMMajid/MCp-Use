@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { CloseButton, Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
 import { NavbarItem } from './navbar'
 import { ChatSidebar } from './chat-sidebar'
+import { CommandPalette } from './command-palette'
 import { TracePanel } from './trace-panel'
 import { ShellProvider, useShell } from '@/contexts/shell-context'
 import { useChat } from '@/contexts/chat-context'
@@ -42,6 +43,7 @@ function MobileSidebar({ open, close }) {
 
 function ShellInner({ children }) {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const { sidebarCollapsed, toggleSidebar } = useShell()
   const { handleNewSession, toggleTrace } = useChat()
 
@@ -64,6 +66,11 @@ function ShellInner({ children }) {
       if (e.key === 't' && e.shiftKey) {
         e.preventDefault()
         toggleTrace()
+      }
+      // Cmd+K — command palette
+      if (e.key === 'k' && !e.shiftKey) {
+        e.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -90,6 +97,9 @@ function ShellInner({ children }) {
       <main className="flex flex-1 flex-col overflow-hidden">
         {children}
       </main>
+
+      {/* Command palette */}
+      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
 
       {/* Trace panel */}
       <TracePanel />

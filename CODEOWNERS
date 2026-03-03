@@ -14,3 +14,19 @@
 /COLLABORATION_STRUCTURE.md @omar2001ramadan @MianMMajid
 /package.json @omar2001ramadan @MianMMajid
 /tsconfig.json @omar2001ramadan @MianMMajid
+/scripts/run-full-matrix.sh @omar2001ramadan @MianMMajid
+/scripts/check-no-legacy-modifier-endpoints.sh @omar2001ramadan @MianMMajid
+/scripts/check-source-backed-packages.sh @omar2001ramadan @MianMMajid
+/scripts/check-repo-hygiene.sh @omar2001ramadan @MianMMajid
+/scripts/check-lockfile-policy.sh @omar2001ramadan @MianMMajid
+/scripts/check-deprecated-command-aliases.mjs @omar2001ramadan @MianMMajid
+/.github/workflows/backend-service-mesh-ci.yml @omar2001ramadan @MianMMajid
+/.github/workflows/frontend-tests.yml @omar2001ramadan @MianMMajid
+/.github/workflows/k8s-release-gate.yml @omar2001ramadan @MianMMajid
+/.github/workflows/service-utilization-weekly.yml @omar2001ramadan @MianMMajid
+
+# Canonical orchestration routing and surface guardrails
+/backend/backendB-core-services/gateway-api/service/src/routes/orchestration-routes.js @omar2001ramadan @MianMMajid
+/backend/backendB-core-services/gateway-api/service/src/routes/orchestration-observability-routes.js @omar2001ramadan @MianMMajid
+/backend/backendB-core-services/gateway-api/service/src/routes/orchestration-operations-routes.js @omar2001ramadan @MianMMajid
+/frontend/frontendB-desktop-app/template-runtime/scripts/check-orchestration-surface.js @omar2001ramadan @MianMMajid

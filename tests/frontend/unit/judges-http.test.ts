@@ -74,6 +74,7 @@ describe("judges-http.js", () => {
   });
 
   it("fetchJson returns empty object when success payload is not valid JSON", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -86,6 +87,7 @@ describe("judges-http.js", () => {
 
     const http = await loadMapleHttp();
     await expect(http.fetchJson("/api/non-json")).resolves.toEqual({});
+    expect(warnSpy).toHaveBeenCalled();
   });
 
   it("postJson sends JSON payload, credentials, and API key header", async () => {

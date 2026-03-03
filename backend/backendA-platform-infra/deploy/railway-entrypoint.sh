@@ -7,8 +7,8 @@ set -euo pipefail
 # env vars, and starts the service specified by MAPLE_SERVICE.
 #
 # Supported MAPLE_SERVICE values:
-#   gateway-api (default), admin-console-api, context-wall, model-router,
-#   mcp-proxy, tool-runner, cyber-proxy, secrets-broker, audit-writer,
+#   gateway-api (default), admin-console-api, context-wall, mcp-proxy,
+#   tool-runner, cyber-proxy, audit-writer, business-api,
 #   frontendA, frontendB, frontendC
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -104,13 +104,13 @@ export MAPLE_FIREWALL_CHAT_STRICT_MODE="${MAPLE_FIREWALL_CHAT_STRICT_MODE:-false
 
 # ── gRPC service addresses (overridden per-service in Railway) ───────────────
 export CONTEXT_WALL_ADDRESS="${CONTEXT_WALL_ADDRESS:-localhost:9000}"
-export MODEL_ROUTER_ADDRESS="${MODEL_ROUTER_ADDRESS:-localhost:9100}"
 export MCP_PROXY_ADDRESS="${MCP_PROXY_ADDRESS:-localhost:9200}"
 export TOOL_RUNNER_ADDRESS="${TOOL_RUNNER_ADDRESS:-localhost:9250}"
 export CYBER_PROXY_ADDRESS="${CYBER_PROXY_ADDRESS:-localhost:8090}"
 # Note: cyber-proxy defaults to port 8090 to avoid conflict with Railway's PORT (8080)
-export SECRETS_BROKER_ADDRESS="${SECRETS_BROKER_ADDRESS:-localhost:9300}"
 export AUDIT_WRITER_ADDRESS="${AUDIT_WRITER_ADDRESS:-localhost:9400}"
+export MAPLE_MODEL_ROUTER_RETIRED="${MAPLE_MODEL_ROUTER_RETIRED:-true}"
+export MAPLE_SECRETS_BROKER_RETIRED="${MAPLE_SECRETS_BROKER_RETIRED:-true}"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SERVICE DISPATCH
@@ -227,9 +227,9 @@ case "${MAPLE_SERVICE}" in
     export STRIPE_PRICE_ENTERPRISE="${STRIPE_PRICE_ENTERPRISE:-price_not_configured}"
     export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-pk_test_not_configured}"
 
-    # Business API (disabled by default — no business-api service deployed)
-    export MAPLE_BUSINESS_API_BASE_URL="${MAPLE_BUSINESS_API_BASE_URL:-}"
-    export MAPLE_BUSINESS_API_REQUIRED="${MAPLE_BUSINESS_API_REQUIRED:-false}"
+    # Business API (deployed in Railway for topology parity)
+    export MAPLE_BUSINESS_API_BASE_URL="${MAPLE_BUSINESS_API_BASE_URL:-https://business-api.railway.internal:9550}"
+    export MAPLE_BUSINESS_API_REQUIRED="${MAPLE_BUSINESS_API_REQUIRED:-true}"
     export MAPLE_BUSINESS_API_CA="${MAPLE_BUSINESS_API_CA:-${TLS_DIR}/ca.crt}"
     export MAPLE_BUSINESS_API_CERT="${MAPLE_BUSINESS_API_CERT:-${TLS_DIR}/tls.crt}"
     export MAPLE_BUSINESS_API_KEY="${MAPLE_BUSINESS_API_KEY:-${TLS_DIR}/tls.key}"
@@ -262,18 +262,6 @@ case "${MAPLE_SERVICE}" in
     start_health_sidecar "${PORT:-3000}"
     echo "[railway-entrypoint] Starting context-wall (gRPC=${CONTEXT_WALL_PORT}, health=${PORT:-3000})..."
     exec node backend/backendB-core-services/context-wall/service/src/main.js
-    ;;
-
-  # ────────────────────────────────────────────────────────────────────────────
-  model-router)
-  # ────────────────────────────────────────────────────────────────────────────
-    export MODEL_ROUTER_PORT="${MODEL_ROUTER_PORT:-9100}"
-    export MODEL_ROUTER_HOST="${MODEL_ROUTER_HOST:-0.0.0.0}"
-    export DEFAULT_MODEL="${DEFAULT_MODEL:-gpt-4o-mini}"
-
-    start_health_sidecar "${PORT:-3000}"
-    echo "[railway-entrypoint] Starting model-router (gRPC=${MODEL_ROUTER_PORT}, health=${PORT:-3000})..."
-    exec node backend/backendB-core-services/model-router/service/src/main.js
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -319,18 +307,6 @@ case "${MAPLE_SERVICE}" in
     exec node backend/backendB-core-services/cyber-proxy/service/src/main.js
     ;;
 
-  # ────────────────────────────────────────────────────────────────────────────
-  secrets-broker)
-  # ────────────────────────────────────────────────────────────────────────────
-    export SECRETS_BROKER_PORT="${SECRETS_BROKER_PORT:-9300}"
-    export SECRETS_BROKER_HOST="${SECRETS_BROKER_HOST:-0.0.0.0}"
-
-    start_health_sidecar "${PORT:-3000}"
-    echo "[railway-entrypoint] Starting secrets-broker (gRPC=${SECRETS_BROKER_PORT}, health=${PORT:-3000})..."
-    exec node backend/backendB-core-services/secrets-broker/service/src/main.js
-    ;;
-
-  # ────────────────────────────────────────────────────────────────────────────
   audit-writer)
   # ────────────────────────────────────────────────────────────────────────────
     export AUDIT_WRITER_PORT="${AUDIT_WRITER_PORT:-9400}"
@@ -341,6 +317,22 @@ case "${MAPLE_SERVICE}" in
     echo "[railway-entrypoint] Starting audit-writer (gRPC=${AUDIT_WRITER_PORT}, health=${PORT:-3000})..."
     echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."
     exec node backend/backendB-core-services/audit-writer/service/src/main.js
+    ;;
+
+  # ────────────────────────────────────────────────────────────────────────────
+  business-api)
+  # ────────────────────────────────────────────────────────────────────────────
+    export BUSINESS_API_PORT="${PORT:-${BUSINESS_API_PORT:-9550}}"
+    export BUSINESS_API_HOST="${BUSINESS_API_HOST:-0.0.0.0}"
+    export MAPLE_BUSINESS_API_MTLS_REQUIRED="${MAPLE_BUSINESS_API_MTLS_REQUIRED:-true}"
+    export MAPLE_BUSINESS_API_TLS_CERT="${MAPLE_BUSINESS_API_TLS_CERT:-${TLS_DIR}/tls.crt}"
+    export MAPLE_BUSINESS_API_TLS_KEY="${MAPLE_BUSINESS_API_TLS_KEY:-${TLS_DIR}/tls.key}"
+    export MAPLE_BUSINESS_API_TLS_CA="${MAPLE_BUSINESS_API_TLS_CA:-${TLS_DIR}/ca.crt}"
+    export MAPLE_BUSINESS_API_SKIP_DB_INIT="${MAPLE_BUSINESS_API_SKIP_DB_INIT:-false}"
+
+    echo "[railway-entrypoint] Starting business-api on port ${BUSINESS_API_PORT}..."
+    echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."
+    exec node backend/backendC-saas-services/business-api/service/src/main.js
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -395,8 +387,8 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
   *)
     echo "[railway-entrypoint] ERROR: Unknown MAPLE_SERVICE='${MAPLE_SERVICE}'"
-    echo "Valid values: gateway-api, admin-console-api, context-wall, model-router,"
-    echo "  mcp-proxy, tool-runner, cyber-proxy, secrets-broker, audit-writer,"
+    echo "Valid values: gateway-api, admin-console-api, context-wall,"
+    echo "  mcp-proxy, tool-runner, cyber-proxy, audit-writer, business-api,"
     echo "  frontendA, frontendB, frontendC"
     exit 1
     ;;

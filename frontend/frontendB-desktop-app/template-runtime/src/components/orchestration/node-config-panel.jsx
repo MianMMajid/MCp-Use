@@ -7,7 +7,6 @@ import { Button } from '@/components/button'
 import { Field, Label, Description } from '@/components/fieldset'
 import { statusColor, riskColor, riskLabel } from '@/lib/format'
 import { XMarkIcon } from '@heroicons/react/20/solid'
-import { AnimatePresence, motion } from 'motion/react'
 
 export function NodeConfigPanel({ node, edges, nodes, onClose, onRemoveNode }) {
   const router = useRouter()
@@ -38,14 +37,7 @@ export function NodeConfigPanel({ node, edges, nodes, onClose, onRemoveNode }) {
   }
 
   return (
-    <AnimatePresence>
-      <motion.aside
-        initial={{ width: 0, opacity: 0 }}
-        animate={{ width: 384, opacity: 1 }}
-        exit={{ width: 0, opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="shrink-0 overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
-      >
+      <aside className="shrink-0 overflow-hidden border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex h-full w-96 flex-col">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
@@ -137,7 +129,6 @@ export function NodeConfigPanel({ node, edges, nodes, onClose, onRemoveNode }) {
             </Button>
           </div>
         </div>
-      </motion.aside>
-    </AnimatePresence>
+      </aside>
   )
 }

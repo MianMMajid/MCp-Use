@@ -73,6 +73,9 @@ function closeGrpcClient(client) {
     }
 }
 function getSecretsBroker() {
+    if (config.secretsBrokerRetired || !String(config.secretsBrokerAddress || "").trim()) {
+        throw new Error("secrets-broker has been retired. Replacement: context-wall scoped credential delegation.");
+    }
     if (!secretsBrokerClient) {
         secretsBrokerClient = loadServiceClient("maple/secrets/v1/secrets_broker.proto", "maple.secrets.v1.SecretsBrokerService", config.secretsBrokerAddress);
     }
@@ -104,6 +107,17 @@ class CredentialMintError extends Error {
         this.name = "CredentialMintError";
     }
 }
+function createRetiredCredential(toolName, appId, scopes) {
+    const credentialId = `retired-${randomUUID()}`;
+    const token = `retired:${appId}:${toolName}:${Date.now()}`;
+    mapleLog("info", "credential_mint_retired_fallback", {
+        appId,
+        toolName,
+        credentialId,
+        replacement: "context-wall scoped credential delegation",
+    });
+    return { credentialId, token, scopes };
+}
 function scopeToCredentialScopes(scope) {
     const scopes = ["execute"];
     if (scope?.allowedDomains && Array.isArray(scope.allowedDomains) && scope.allowedDomains.length > 0) {
@@ -120,6 +134,9 @@ function scopeToCredentialScopes(scope) {
     return [...new Set(scopes)];
 }
 async function mintCredentialForToolWithScopes(toolName, appId, scopes) {
+    if (config.secretsBrokerRetired || !String(config.secretsBrokerAddress || "").trim()) {
+        return createRetiredCredential(toolName, appId, scopes);
+    }
     try {
         const response = await grpcUnary(getSecretsBroker(), "mintCredential", {
             toolName,

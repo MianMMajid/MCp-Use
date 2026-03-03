@@ -34,7 +34,7 @@ export default function OrgHierarchy() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    try { setOrgTree(await loadJson('/api/openclaw/modifier/ops/org/tree')) }
+    try { setOrgTree(await loadJson('/api/operations/orchestrations/org/tree')) }
     catch { /* non-critical */ }
     finally { setLoading(false) }
   }, [])
@@ -52,8 +52,8 @@ export default function OrgHierarchy() {
     setOrgDetailLoading(true)
     try {
       const [d, l] = await Promise.allSettled([
-        loadJson(`/api/openclaw/modifier/ops/org/${orgId}`),
-        loadJson(`/api/openclaw/modifier/ops/org/${orgId}/lifecycle`),
+        loadJson(`/api/operations/orchestrations/org/${orgId}`),
+        loadJson(`/api/operations/orchestrations/org/${orgId}/lifecycle`),
       ])
       if (d.status === 'fulfilled') setOrgDetail(d.value)
       if (l.status === 'fulfilled') {
@@ -68,7 +68,7 @@ export default function OrgHierarchy() {
     setOrgMsg(null)
     try {
       const body = orgInput.trim() ? JSON.parse(orgInput) : {}
-      await postJson('/api/openclaw/modifier/ops/org', body)
+      await postJson('/api/operations/orchestrations/org', body)
       setOrgMsg('Org created/updated.')
       setOrgInput('')
       setShowOrgForm(false)
@@ -78,7 +78,7 @@ export default function OrgHierarchy() {
 
   async function handleDeactivateOrg(orgId) {
     try {
-      await deleteJson(`/api/openclaw/modifier/ops/org/${orgId}`)
+      await deleteJson(`/api/operations/orchestrations/org/${orgId}`)
       setOrgMsg(`Org ${orgId} deactivated.`)
       setSelectedOrgId(null)
       setOrgDetail(null)

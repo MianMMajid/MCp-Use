@@ -12,7 +12,7 @@ export function StopButton({ sessionId, onStopped }) {
     if (!sessionId) return
     setStopping(true)
     try {
-      await postJson(`/api/openclaw/sessions/${sessionId}/cancel`, {})
+      await postJson(`/api/openclaw/agent/sessions/${sessionId}/cancel`, {})
       onStopped?.()
     } catch {
       // Ignore stop failures

@@ -27,7 +27,7 @@ interface StepUpAuthActions {
 
 export type UseStepUpAuthReturn = StepUpAuthState & StepUpAuthActions;
 
-const API_BASE = "/api/openclaw/modifier/ops/step-up";
+const API_BASE = "/api/operations/orchestrations/step-up";
 const APPROVAL_API = "/api/openclaw/modifier/approvals/step-up-decide";
 
 function getSessionToken(): string | null {

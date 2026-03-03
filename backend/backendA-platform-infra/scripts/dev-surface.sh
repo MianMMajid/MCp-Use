@@ -28,9 +28,14 @@ case "${SURFACE}" in
     ;;
   frontendD)
     echo "Starting dev for Frontend D (MCP Widgets)"
-    echo "Source: frontend/frontendD-mcp-widgets"
+    echo "Source: frontend/frontendD-mcp-widgets/resources"
+    echo "Serving on :3400 via static-server with /api proxy to gateway :3000"
     cd "${ROOT_DIR}"
-    exec npm run dev
+    exec node backend/backendA-platform-infra/scripts/static-server.mjs \
+      --root "${ROOT_DIR}/frontend/frontendD-mcp-widgets/resources" \
+      --port 3400 \
+      --proxy-target "http://127.0.0.1:3000" \
+      --proxy-prefix /api
     ;;
   *)
     echo "Unknown surface: ${SURFACE}"

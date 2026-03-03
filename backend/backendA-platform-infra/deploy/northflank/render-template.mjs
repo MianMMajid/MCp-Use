@@ -90,12 +90,12 @@ const runtimeVariables = {
   MAPLE_BUSINESS_API_KEY: "/etc/maple/tls/tls.key",
 
   CONTEXT_WALL_ADDRESS: "context-wall:9000",
-  MODEL_ROUTER_ADDRESS: "model-router:9100",
   MCP_PROXY_ADDRESS: "mcp-proxy:9200",
   TOOL_RUNNER_ADDRESS: "tool-runner:9250",
   CYBER_PROXY_ADDRESS: "cyber-proxy:8080",
-  SECRETS_BROKER_ADDRESS: "secrets-broker:9300",
   AUDIT_WRITER_ADDRESS: "audit-writer:9400",
+  MAPLE_MODEL_ROUTER_RETIRED: "1",
+  MAPLE_SECRETS_BROKER_RETIRED: "1",
   MAPLE_BUSINESS_API_BASE_URL: "https://business-api:9550",
 
   OPENCLAW_BRIDGE_MODE: "gateway",
@@ -385,11 +385,6 @@ const template = {
           ports: [{ number: 9000, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
-          name: "model-router",
-          command: "node backend/backendB-core-services/model-router/service/dist/main.js",
-          ports: [{ number: 9100, protocol: "HTTP/2" }]
-        }),
-        deploymentFromInternal({
           name: "mcp-proxy",
           command: "node backend/backendB-core-services/mcp-proxy/service/dist/main.js",
           ports: [{ number: 9200, protocol: "HTTP/2" }]
@@ -403,11 +398,6 @@ const template = {
           name: "tool-runner",
           command: "node backend/backendB-core-services/tool-runner/service/dist/main.js",
           ports: [{ number: 9250, protocol: "HTTP/2" }]
-        }),
-        deploymentFromInternal({
-          name: "secrets-broker",
-          command: "node backend/backendB-core-services/secrets-broker/service/dist/main.js",
-          ports: [{ number: 9300, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "audit-writer",

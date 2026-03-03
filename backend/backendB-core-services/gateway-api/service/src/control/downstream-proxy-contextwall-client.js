@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { asObject, asString } from "./downstream-proxy-utils.js";
 import { buildGatewayRequestContext, getContextWallClient, grpcUnary, } from "./downstream-proxy-contextwall-grpc.js";
 import { normalizeToolsListFromPayload, parseForwardPayload, parseJsonFromUnknown, } from "./downstream-proxy-contextwall-parsers.js";
+import { recordServiceCall } from "../core/service-utilization.js";
+import { currentRequestContext } from "../logging.js";
 function buildJsonRpcPayload(requestId, method, params) {
     return {
         jsonrpc: "2.0",
@@ -32,6 +34,17 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
         assertForwardAllowed(response, `${app.id}.tools/list`);
         const forwardPayload = parseForwardPayload(response?.responseJson);
         const normalizedTools = normalizeToolsListFromPayload(forwardPayload);
+        const ctx = currentRequestContext();
+        recordServiceCall({
+            caller: "gateway-api",
+            service: "mcp-proxy",
+            operation: "tools/list (mediated)",
+            status: "ok",
+            latencyMs: Date.now() - startedAt,
+            routeId: ctx ? `${ctx.method} ${ctx.path}` : "",
+            traceId: ctx?.traceId ?? gatewayRequestContext.traceId,
+            tenantId: ctx?.tenantId ?? gatewayRequestContext.tenantId,
+        });
         return {
             requestId,
             durationMs: Date.now() - startedAt,
@@ -55,6 +68,41 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
             traceId: gatewayRequestContext.traceId,
         });
         assertForwardAllowed(response, `${app.id}.${toolName}`);
+        const ctx = currentRequestContext();
+        const latencyMs = Date.now() - startedAt;
+        const routeId = ctx ? `${ctx.method} ${ctx.path}` : "";
+        const traceId = ctx?.traceId ?? gatewayRequestContext.traceId;
+        const tenantId = ctx?.tenantId ?? gatewayRequestContext.tenantId;
+        recordServiceCall({
+            caller: "gateway-api",
+            service: "mcp-proxy",
+            operation: `tools/call ${toolName} (mediated)`,
+            status: "ok",
+            latencyMs,
+            routeId,
+            traceId,
+            tenantId,
+        });
+        recordServiceCall({
+            caller: "gateway-api",
+            service: "tool-runner",
+            operation: `tools/call ${toolName} (mediated)`,
+            status: "ok",
+            latencyMs,
+            routeId,
+            traceId,
+            tenantId,
+        });
+        recordServiceCall({
+            caller: "gateway-api",
+            service: "cyber-proxy",
+            operation: `tools/call ${toolName} (mediated)`,
+            status: "ok",
+            latencyMs,
+            routeId,
+            traceId,
+            tenantId,
+        });
         return {
             requestId,
             durationMs: Date.now() - startedAt,
@@ -70,6 +118,17 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
     });
     assertForwardAllowed(response, `${app.id}.${method}`);
     const forwardPayload = parseForwardPayload(response?.responseJson);
+    const ctx = currentRequestContext();
+    recordServiceCall({
+        caller: "gateway-api",
+        service: "mcp-proxy",
+        operation: `${method} (mediated)`,
+        status: "ok",
+        latencyMs: Date.now() - startedAt,
+        routeId: ctx ? `${ctx.method} ${ctx.path}` : "",
+        traceId: ctx?.traceId ?? gatewayRequestContext.traceId,
+        tenantId: ctx?.tenantId ?? gatewayRequestContext.tenantId,
+    });
     return {
         requestId,
         durationMs: Date.now() - startedAt,

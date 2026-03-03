@@ -20,6 +20,7 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+/ERROR
 
 # OS
 .DS_Store
@@ -52,6 +53,11 @@ mcp-firewall-reference/
 /tests/frontend/artifacts/
 /tests/frontend/tests/frontend/artifacts/
 /playwright-report/
+/artifacts/
+/frontend/frontendB-desktop-app/template-runtime/.next.bak.*/
+
+# Stray package artifact aliases
+**/dist 2
 
 # Northflank generated artifacts (can contain secrets)
 /backend/backendA-platform-infra/deploy/northflank/certs/

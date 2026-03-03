@@ -30,16 +30,17 @@ export default function SessionDetailPage() {
       try {
         const data = await loadJson(`/api/openclaw/agent/sessions/${sessionId}`)
         if (cancelled) return
-        setSession(data)
+        const sessionData = data?.session ?? data
+        setSession(sessionData)
 
         // If session has runs, fetch artifacts for first run
-        const runs = Array.isArray(data?.runs) ? data.runs : []
+        const runs = Array.isArray(sessionData?.runs) ? sessionData.runs : []
         if (runs.length > 0) {
           const runId = runs[0].runId || runs[0].id
           if (runId) {
             try {
               const artifactData = await loadJson(`/api/openclaw/agent/runs/${runId}/artifacts`)
-              if (!cancelled) setArtifacts(artifactData)
+              if (!cancelled) setArtifacts(artifactData?.run ?? artifactData)
             } catch {
               // artifacts are optional
             }

@@ -1,0 +1,99 @@
+name: k8s-release-gate
+
+on:
+  pull_request:
+    branches:
+      - main
+      - backend
+      - s1
+      - s2
+      - s3
+      - s4
+      - s5
+      - s6
+      - a6
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k8s-release-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  k8s-release-gate:
+    name: k8s-release-gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install kubectl
+        run: |
+          curl -fsSL -o kubectl "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client --output=yaml
+
+      - name: Install kind
+        run: |
+          curl -fsSL -o kind "https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64"
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+          kind version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Repo Hygiene Guard
+        run: npm run check:repo-hygiene
+
+      - name: Lockfile Policy Guard
+        run: npm run check:lockfile-policy
+
+      - name: Deprecated Command Alias Guard
+        run: npm run check:deprecated-command-aliases
+
+      - name: K8s release gate
+        env:
+          FULL_MATRIX_STAGE_RETRIES: "1"
+          COVERAGE_POLICY: advisory
+        run: bash scripts/run-k8s-release-gate.sh
+
+      - name: Upload matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-release-gate-matrix-artifacts
+          path: artifacts/matrix
+          if-no-files-found: ignore
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-release-gate-playwright-artifacts
+          path: tests/frontend/artifacts/playwright
+          if-no-files-found: ignore
+
+      - name: Upload k8s logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-release-gate-k8s-logs
+          path: |
+            /tmp/maple-k8s-release-gate-port-forward.log
+            /tmp/maple-pf-*.log
+          if-no-files-found: ignore

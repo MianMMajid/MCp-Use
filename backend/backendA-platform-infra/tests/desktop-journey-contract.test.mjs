@@ -50,7 +50,7 @@ function endpointRegex(method, pathTemplate) {
 test("desktop template workspace includes core journey views and endpoints", () => {
   const source = readFileSync(DESKTOP_WORKSPACE, "utf8");
   const requiredStrings = [
-    "Agent Orchestration Workspace",
+    "Agent Orchestration Console",
     "/api/runtime/feature-capabilities",
     "/api/firewall/state",
     "/api/hitl/approvals",

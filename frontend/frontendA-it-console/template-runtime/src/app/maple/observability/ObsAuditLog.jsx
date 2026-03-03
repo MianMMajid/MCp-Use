@@ -8,7 +8,7 @@ import { SkeletonList } from '@/components/Skeleton'
 export default function ObsAuditLog() {
   const [auditLog, setAuditLog] = useState(null)
   const [auditLogLoading, setAuditLogLoading] = useState(true)
-  const [auditLogCursor, setAuditLogCursor] = useState(null)
+  const [auditLogNextOffset, setAuditLogNextOffset] = useState(null)
   const [siemFormat, setSiemFormat] = useState('json')
   const [siemMsg, setSiemMsg] = useState(null)
   const [siemExporting, setSiemExporting] = useState(false)
@@ -17,9 +17,9 @@ export default function ObsAuditLog() {
   const fetchData = useCallback(async () => {
     setAuditLogLoading(true)
     try {
-      const data = await loadJson('/api/openclaw/modifier/observability/audit-log')
+      const data = await loadJson('/api/observability/orchestrations/audit-log?offset=0&limit=100')
       setAuditLog(Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? [])
-      setAuditLogCursor(data.nextCursor ?? data.cursor ?? null)
+      setAuditLogNextOffset(data.nextOffset ?? null)
     } catch { /* non-critical */ }
     finally { setAuditLogLoading(false) }
   }, [])
@@ -33,13 +33,13 @@ export default function ObsAuditLog() {
   }, [siemMsg])
 
   async function loadMoreAuditLog() {
-    if (!auditLogCursor) return
+    if (auditLogNextOffset == null) return
     setAuditLogLoading(true)
     try {
-      const data = await loadJson(`/api/openclaw/modifier/observability/audit-log?cursor=${auditLogCursor}`)
+      const data = await loadJson(`/api/observability/orchestrations/audit-log?offset=${auditLogNextOffset}&limit=100`)
       const entries = Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? []
       setAuditLog((prev) => (prev ? [...prev, ...entries] : entries))
-      setAuditLogCursor(data.nextCursor ?? data.cursor ?? null)
+      setAuditLogNextOffset(data.nextOffset ?? null)
     } catch { /* non-critical */ }
     finally { setAuditLogLoading(false) }
   }
@@ -48,8 +48,21 @@ export default function ObsAuditLog() {
     setSiemExporting(true)
     setSiemMsg(null)
     try {
-      const result = await postJson('/api/openclaw/modifier/observability/siem-export', { format: siemFormat })
-      setSiemMsg(result.message ?? result.status ?? 'SIEM export triggered.')
+      const response = await fetch('/api/observability/orchestrations/export', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: siemFormat }),
+      })
+      if (!response.ok) throw new Error(`/api/observability/orchestrations/export -> ${response.status}`)
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const payload = await response.json()
+        setSiemMsg(payload.message ?? `Exported ${payload.items?.length ?? payload.total ?? 0} events.`)
+      } else {
+        const payload = await response.text()
+        setSiemMsg(`Export ready (${siemFormat}). ${payload.split('\n').filter(Boolean).length} lines.`)
+      }
     } catch (err) { setSiemMsg(`Export failed: ${err.message}`) }
     finally { setSiemExporting(false) }
   }
@@ -58,7 +71,7 @@ export default function ObsAuditLog() {
     setFlushing(true)
     setSiemMsg(null)
     try {
-      const result = await postJson('/api/openclaw/modifier/observability/flush', {})
+      const result = await postJson('/api/observability/orchestrations/flush', {})
       setSiemMsg(result.message ?? result.status ?? 'Outbox flushed.')
     } catch (err) { setSiemMsg(`Flush failed: ${err.message}`) }
     finally { setFlushing(false) }
@@ -93,7 +106,7 @@ export default function ObsAuditLog() {
                 </tbody>
               </table>
             </div>
-            {auditLogCursor && (
+            {auditLogNextOffset != null && (
               <div className="mt-4 flex justify-center">
                 <Button variant="secondary" onClick={loadMoreAuditLog} disabled={auditLogLoading}>{auditLogLoading ? 'Loading...' : 'Load more'}</Button>
               </div>
@@ -111,6 +124,7 @@ export default function ObsAuditLog() {
         <div className="mt-4 flex items-center gap-3">
           <select value={siemFormat} onChange={(e) => setSiemFormat(e.target.value)} className="rounded-lg border border-zinc-950/10 bg-white px-3 py-1.5 text-sm text-zinc-950 dark:border-white/10 dark:bg-zinc-900 dark:text-white">
             <option value="json">JSON</option>
+            <option value="ndjson">NDJSON</option>
             <option value="cef">CEF</option>
             <option value="syslog">Syslog</option>
           </select>

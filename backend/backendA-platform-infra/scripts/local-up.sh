@@ -58,4 +58,4 @@ if [ "${LOCAL_OPEN_BROWSER}" = "1" ]; then
   ) &
 fi
 
-npm run dev
+exec bash "${SCRIPT_DIR}/dev-fast.sh"

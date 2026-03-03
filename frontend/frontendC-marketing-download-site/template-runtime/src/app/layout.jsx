@@ -9,7 +9,7 @@ export const metadata = {
     default: 'Mayple - Agentic Workforce Platform',
   },
   description:
-    'Mayple gives businesses an agentic workforce with policy, HITL approvals, observability, and desktop orchestration.',
+    'Mayple split surfaces: Catalyst Desktop (B) for orchestration, Protocol Console (A) for observability, and Salient (C) for onboarding and download.',
 }
 
 const inter = Inter({

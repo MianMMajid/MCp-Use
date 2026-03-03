@@ -21,7 +21,7 @@ export default function ObsWebhooks() {
   const fetchData = useCallback(async () => {
     setWebhooksLoading(true)
     try {
-      const data = await loadJson('/api/openclaw/modifier/ops/alert-webhooks')
+      const data = await loadJson('/api/observability/orchestrations/alert-webhooks')
       setWebhooks(Array.isArray(data) ? data : data.webhooks ?? data.items ?? [])
     } catch { /* non-critical */ }
     finally { setWebhooksLoading(false) }
@@ -39,7 +39,7 @@ export default function ObsWebhooks() {
     setWebhookMsg(null)
     try {
       const body = webhookInput.trim() ? JSON.parse(webhookInput) : {}
-      await postJson('/api/openclaw/modifier/ops/alert-webhooks', body)
+      await postJson('/api/observability/orchestrations/alert-webhooks', body)
       setWebhookMsg('Webhook registered.')
       setWebhookInput('')
       setShowWebhookForm(false)
@@ -48,7 +48,7 @@ export default function ObsWebhooks() {
   }
 
   async function handleDeleteWebhook(id) {
-    try { await deleteJson(`/api/openclaw/modifier/ops/alert-webhooks/${id}`); fetchData() }
+    try { await deleteJson(`/api/observability/orchestrations/alert-webhooks/${id}`); fetchData() }
     catch (err) { setWebhookMsg(`Delete failed: ${err.message}`) }
   }
 
@@ -57,7 +57,7 @@ export default function ObsWebhooks() {
     setExpandedWebhookId(id)
     setDeliveriesLoading(true)
     try {
-      const data = await loadJson(`/api/openclaw/modifier/ops/alert-webhooks/${id}/deliveries`)
+      const data = await loadJson(`/api/observability/orchestrations/alert-webhooks/${id}/deliveries`)
       setDeliveries(Array.isArray(data) ? data : data.deliveries ?? data.items ?? [])
     } catch { setDeliveries(null) }
     finally { setDeliveriesLoading(false) }

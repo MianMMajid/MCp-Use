@@ -38,7 +38,6 @@ export class ForkDispatcher {
             config: {
                 contextWallAddress: process.env.CONTEXT_WALL_ADDRESS || "localhost:9000",
                 auditWriterAddress: process.env.AUDIT_WRITER_ADDRESS || "localhost:9400",
-                secretsBrokerAddress: process.env.SECRETS_BROKER_ADDRESS || "localhost:9300",
                 stepTimeoutMs: options.stepTimeoutMs || 30000,
                 totalTimeoutMs: options.totalTimeoutMs || 120000,
             },
@@ -241,7 +240,6 @@ function buildForkJobSpec(jobId, configMapName, namespace, image, config) {
                             env: [
                                 { name: "CONTEXT_WALL_ADDRESS", value: config.contextWallAddress || "context-wall.maple.svc:9000" },
                                 { name: "AUDIT_WRITER_ADDRESS", value: config.auditWriterAddress || "audit-writer.maple.svc:9400" },
-                                { name: "SECRETS_BROKER_ADDRESS", value: config.secretsBrokerAddress || "secrets-broker.maple.svc:9300" },
                                 { name: "MAPLE_FORK_INPUT_PATH", value: "/fork-input/request.json" },
                                 { name: "MAPLE_GRPC_TLS_CERT", value: "/etc/maple/grpc-tls/tls.crt" },
                                 { name: "MAPLE_GRPC_TLS_KEY", value: "/etc/maple/grpc-tls/tls.key" },

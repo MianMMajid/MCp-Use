@@ -24,6 +24,7 @@ import {
   Cog6ToothIcon,
   ChatBubbleLeftRightIcon,
   ShareIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline'
 import {
   BellIcon,
@@ -121,6 +122,7 @@ export function ChatSidebar() {
     { href: '/agents', label: 'Agents', icon: CpuChipIcon },
     { href: '/runs', label: 'Runs', icon: PlayCircleIcon },
     { href: '/orchestrate', label: 'Orchestrate', icon: ShareIcon },
+    { href: '/governance', label: 'Observability', icon: EyeIcon },
     { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
   ]
 
@@ -129,7 +131,7 @@ export function ChatSidebar() {
       {/* Logo header */}
       <div className="flex items-center gap-2 px-4 py-3">
         <Avatar src="/teams/maple.svg" className="size-6" />
-        <span className="text-sm font-semibold text-zinc-900 dark:text-white">Mayple</span>
+        <span className="text-sm font-semibold text-zinc-900 dark:text-white">Maple</span>
       </div>
 
       {/* New Chat button */}
@@ -238,12 +240,12 @@ export function ChatSidebar() {
                 onClick={() => router.push(href)}
                 title={label}
                 className={clsx(
-                  'rounded-lg p-2 transition-colors',
+                  'relative rounded-lg p-2 transition-colors',
                   isActive
                     ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white'
                     : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'
                 )}
-              >
+                >
                 <Icon className="h-5 w-5" />
               </button>
             )

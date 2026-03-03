@@ -14,27 +14,27 @@ import screenshotVatReturns from '@/images/screenshots/vat-returns.png'
 
 const features = [
   {
-    title: 'Agent orchestration',
+    title: 'Desktop orchestration (B)',
     description:
-      'Run OpenClaw-backed agents through a governed workflow with explicit execution traces.',
+      'Design, publish, execute, mutate, and approve OpenClaw orchestration runs from the Catalyst desktop control plane.',
     image: screenshotPayroll,
   },
   {
-    title: 'Policy firewall',
+    title: 'Runtime graph mutation',
     description:
-      'Control tool usage, destinations, and prompt flow with context-wall policy enforcement.',
+      'Insert nodes, spawn agents, rewire edges, and replay failed branches during active execution with governed runtime controls.',
     image: screenshotExpenses,
   },
   {
-    title: 'HITL approvals',
+    title: 'Human-in-the-loop approvals',
     description:
-      'Block risky steps and route approvals to operators before actions execute.',
+      'Route runtime decisions to operators with explicit approve/reject flows and step-up verification.',
     image: screenshotVatReturns,
   },
   {
-    title: 'Audit observability',
+    title: 'Console observability (A)',
     description:
-      'Track runtime capabilities, traces, and audit events across the full agent lifecycle.',
+      'Monitor SLOs, audit chains, retention, dead-letter replay, and webhook alerts in Protocol console.',
     image: screenshotReporting,
   },
 ]
@@ -74,11 +74,11 @@ export function PrimaryFeatures() {
       <Container className="relative">
         <div className="max-w-2xl md:mx-auto md:text-center xl:max-w-none">
           <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">
-            Everything you need to run agent workers safely.
+            Purpose-built split: orchestrate in B, observe in A.
           </h2>
           <p className="mt-6 text-lg tracking-tight text-orange-100">
-            Deploy autonomous task execution without giving up control,
-            approval gates, or auditability.
+            Frontend C markets and routes. Frontend B executes orchestration.
+            Frontend A handles observability, governance, and compliance.
           </p>
         </div>
         <TabGroup

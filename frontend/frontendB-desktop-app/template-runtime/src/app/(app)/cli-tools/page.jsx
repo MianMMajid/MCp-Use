@@ -12,6 +12,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { loadJson, postJson, getCached } from '@/lib/api'
 import { SkeletonRows } from '@/components/skeleton'
 
+const TOOL_CATEGORIES = {
+  'Setup & Config': ['setup', 'config', 'init', 'configure', 'install'],
+  'Models & AI': ['model', 'ai', 'llm', 'inference', 'predict', 'generate'],
+  'Channels & Integrations': ['channel', 'integration', 'slack', 'discord', 'webhook', 'connect'],
+  'Infrastructure': ['deploy', 'infra', 'cluster', 'node', 'scale', 'migrate'],
+  'Security': ['security', 'auth', 'encrypt', 'key', 'cert', 'token', 'secret'],
+  'Advanced': [],
+}
+
+function categorize(tool) {
+  const name = (tool.name || tool.tool || '').toLowerCase()
+  const desc = (tool.description || '').toLowerCase()
+  const text = `${name} ${desc}`
+  for (const [category, keywords] of Object.entries(TOOL_CATEGORIES)) {
+    if (category === 'Advanced') continue
+    if (keywords.some((kw) => text.includes(kw))) return category
+  }
+  return 'Advanced'
+}
+
 export default function CliToolsPage() {
   const _cc = getCached('/api/openclaw/cli/catalog')
   const _ct = getCached('/api/openclaw/cli/tools')
@@ -36,6 +56,9 @@ export default function CliToolsPage() {
 
   // Tools list (separate from catalog)
   const [toolsList, setToolsList] = useState(() => _ct ? (Array.isArray(_ct?.tools) ? _ct.tools : Array.isArray(_ct) ? _ct : null) : null)
+
+  // Collapsed categories
+  const [collapsedCategories, setCollapsedCategories] = useState(new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -105,6 +128,27 @@ export default function CliToolsPage() {
     }
   }
 
+  function toggleCategory(cat) {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
+
+  // Group catalog by category
+  const categorized = {}
+  if (catalog) {
+    for (const tool of catalog) {
+      const cat = categorize(tool)
+      if (!categorized[cat]) categorized[cat] = []
+      categorized[cat].push(tool)
+    }
+  }
+
+  const categoryOrder = Object.keys(TOOL_CATEGORIES)
+
   return (
     <>
       <div className="flex items-end justify-between gap-4">
@@ -135,54 +179,67 @@ export default function CliToolsPage() {
         </>
       )}
 
-      {/* Catalog Table */}
+      {/* Categorized Tool Catalog */}
       {!loading && catalog && catalog.length > 0 && (
         <>
-          <Subheading className="mt-6">Tool Catalog</Subheading>
-          <Table className="mt-4 [--gutter:--spacing(6)] lg:[--gutter:--spacing(10)]">
-            <TableHead>
-              <TableRow>
-                <TableHeader>Tool Name</TableHeader>
-                <TableHeader>Description</TableHeader>
-                <TableHeader>Sample Command</TableHeader>
-                <TableHeader className="text-right">Actions</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {catalog.map((tool, idx) => {
-                const toolName = tool.name || tool.tool || `tool-${idx}`
-                const isHelpExpanded = expandedHelp === toolName
-                return (
-                  <>
-                    <TableRow key={toolName}>
-                      <TableCell className="font-mono text-xs font-medium">{toolName}</TableCell>
-                      <TableCell className="text-zinc-500">{tool.description || '--'}</TableCell>
-                      <TableCell className="font-mono text-xs">{tool.sample || tool.example || '--'}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button plain onClick={() => toggleHelp(toolName)}>
-                            {isHelpExpanded ? 'Hide' : 'Help'}
-                          </Button>
-                          <Button onClick={() => { setExecTool(tool); setExecArgs(''); setExecResult(null) }}>
-                            Execute
-                          </Button>
-                        </div>
-                      </TableCell>
+          {categoryOrder.filter((cat) => categorized[cat]?.length > 0).map((cat) => (
+            <div key={cat} className="mt-6">
+              <button
+                onClick={() => toggleCategory(cat)}
+                className="flex items-center gap-2 text-left"
+              >
+                <span className="text-xs text-zinc-400">{collapsedCategories.has(cat) ? '▶' : '▼'}</span>
+                <Subheading>{cat}</Subheading>
+                <Badge color="zinc">{categorized[cat].length}</Badge>
+              </button>
+              {!collapsedCategories.has(cat) && (
+                <Table className="mt-3 [--gutter:--spacing(6)] lg:[--gutter:--spacing(10)]">
+                  <TableHead>
+                    <TableRow>
+                      <TableHeader>Tool Name</TableHeader>
+                      <TableHeader>Description</TableHeader>
+                      <TableHeader>Sample Command</TableHeader>
+                      <TableHeader className="text-right">Actions</TableHeader>
                     </TableRow>
-                    {isHelpExpanded && helpContent && (
-                      <TableRow key={`${toolName}-help`}>
-                        <TableCell colSpan={4}>
-                          <pre className="overflow-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            {helpContent}
-                          </pre>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                )
-              })}
-            </TableBody>
-          </Table>
+                  </TableHead>
+                  <TableBody>
+                    {categorized[cat].map((tool, idx) => {
+                      const toolName = tool.name || tool.tool || `tool-${idx}`
+                      const isHelpExpanded = expandedHelp === toolName
+                      return (
+                        <>
+                          <TableRow key={toolName}>
+                            <TableCell className="font-mono text-xs font-medium">{toolName}</TableCell>
+                            <TableCell className="text-zinc-500">{tool.description || '--'}</TableCell>
+                            <TableCell className="font-mono text-xs">{tool.sample || tool.example || '--'}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button plain onClick={() => toggleHelp(toolName)}>
+                                  {isHelpExpanded ? 'Hide' : 'Help'}
+                                </Button>
+                                <Button onClick={() => { setExecTool(tool); setExecArgs(''); setExecResult(null) }}>
+                                  Execute
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isHelpExpanded && helpContent && (
+                            <TableRow key={`${toolName}-help`}>
+                              <TableCell colSpan={4}>
+                                <pre className="overflow-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                  {helpContent}
+                                </pre>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          ))}
         </>
       )}
 
@@ -200,7 +257,13 @@ export default function CliToolsPage() {
           <div className="space-y-4">
             <Field><Label>Arguments (JSON or text)</Label><Textarea rows={4} value={execArgs} onChange={(e) => setExecArgs(e.target.value)} placeholder='{"flag": "value"}' /></Field>
             {execResult && (
-              <pre className="overflow-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs dark:bg-zinc-800">{JSON.stringify(execResult, null, 2)}</pre>
+              <div className="overflow-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs dark:bg-zinc-800">
+                {JSON.stringify(execResult, null, 2).split('\n').map((line, i) => (
+                  <div key={i} className={i % 2 === 0 ? 'bg-zinc-50 dark:bg-zinc-800' : 'bg-zinc-100 dark:bg-zinc-750'}>
+                    {line}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </DialogBody>
@@ -218,7 +281,13 @@ export default function CliToolsPage() {
           <div className="space-y-4">
             <Field><Label>Command (JSON or text)</Label><Textarea rows={4} value={genericArgs} onChange={(e) => setGenericArgs(e.target.value)} placeholder='{"command": "..."}' /></Field>
             {genericResult && (
-              <pre className="overflow-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs dark:bg-zinc-800">{JSON.stringify(genericResult, null, 2)}</pre>
+              <div className="overflow-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs dark:bg-zinc-800">
+                {JSON.stringify(genericResult, null, 2).split('\n').map((line, i) => (
+                  <div key={i} className={i % 2 === 0 ? 'bg-zinc-50 dark:bg-zinc-800' : 'bg-zinc-100 dark:bg-zinc-750'}>
+                    {line}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </DialogBody>

@@ -24,6 +24,21 @@ function requireEnvInt(key, { min, max } = {}) {
     }
     return parsed;
 }
+function optionalEnv(key, fallback = "") {
+    const raw = (process.env[key] ?? "").trim();
+    return raw.length > 0 ? raw : fallback;
+}
+function optionalEnvBool(key, fallback) {
+    const raw = (process.env[key] ?? "").trim().toLowerCase();
+    if (!raw) {
+        return fallback;
+    }
+    if (raw === "1" || raw === "true" || raw === "yes")
+        return true;
+    if (raw === "0" || raw === "false" || raw === "no")
+        return false;
+    throw new Error(`Invalid boolean for ${key}: "${raw}" (must be 0/1/true/false/yes/no)`);
+}
 function requireCsvList(key) {
     const raw = requireEnv(key);
     const normalized = raw
@@ -185,11 +200,13 @@ export const gatewayTlsCaPath = requireEnv("MAPLE_GATEWAY_TLS_CA");
 export const databaseUrl = requireEnv("DATABASE_URL");
 export const contextWallAddress = requireEnv("CONTEXT_WALL_ADDRESS");
 /** @deprecated Gateway no longer calls model-router directly; all LLM calls route through context-wall */
-export const modelRouterAddress = requireEnv("MODEL_ROUTER_ADDRESS");
+export const modelRouterAddress = optionalEnv("MODEL_ROUTER_ADDRESS");
 export const mcpProxyAddress = requireEnv("MCP_PROXY_ADDRESS");
 export const toolRunnerAddress = requireEnv("TOOL_RUNNER_ADDRESS");
 export const cyberProxyAddress = requireEnv("CYBER_PROXY_ADDRESS");
-export const secretsBrokerAddress = requireEnv("SECRETS_BROKER_ADDRESS");
+export const secretsBrokerAddress = optionalEnv("SECRETS_BROKER_ADDRESS");
+export const modelRouterRetired = optionalEnvBool("MAPLE_MODEL_ROUTER_RETIRED", true);
+export const secretsBrokerRetired = optionalEnvBool("MAPLE_SECRETS_BROKER_RETIRED", true);
 export const auditWriterAddress = requireEnv("AUDIT_WRITER_ADDRESS");
 export const businessApiBaseUrl = (process.env.MAPLE_BUSINESS_API_BASE_URL ?? "").trim() || "";
 export const businessApiRequired = requireEnvBool("MAPLE_BUSINESS_API_REQUIRED");
