@@ -105,6 +105,10 @@ export MAPLE_GATEWAY_TLS_CA="${MAPLE_GATEWAY_TLS_CA:-${TLS_DIR}/ca.crt}"
 export MAPLE_ADMIN_TLS_CERT="${MAPLE_ADMIN_TLS_CERT:-${TLS_DIR}/tls.crt}"
 export MAPLE_ADMIN_TLS_KEY="${MAPLE_ADMIN_TLS_KEY:-${TLS_DIR}/tls.key}"
 export MAPLE_ADMIN_TLS_CA="${MAPLE_ADMIN_TLS_CA:-${TLS_DIR}/ca.crt}"
+# gRPC TLS material defaults (used by runtime dependency checks).
+export MAPLE_GRPC_TLS_CERT="${MAPLE_GRPC_TLS_CERT:-${TLS_DIR}/tls.crt}"
+export MAPLE_GRPC_TLS_KEY="${MAPLE_GRPC_TLS_KEY:-${TLS_DIR}/tls.key}"
+export MAPLE_GRPC_TLS_CA="${MAPLE_GRPC_TLS_CA:-${TLS_DIR}/ca.crt}"
 
 # ── Database (Railway injects DATABASE_URL from Postgres plugin) ─────────────
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/railway}"
@@ -147,6 +151,10 @@ case "${MAPLE_SERVICE}" in
     export GATEWAY_PORT="${PORT:-${GATEWAY_PORT:-3000}}"
     export GATEWAY_HOST="${GATEWAY_HOST:-0.0.0.0}"
     export CORS_ORIGIN="${CORS_ORIGIN:-*}"
+    # Railway may schedule dependent services asynchronously; do not crash-loop
+    # gateway startup on dependency probes.
+    export MAPLE_RUNTIME_STRICT_DEPENDENCIES="${MAPLE_RUNTIME_STRICT_DEPENDENCIES:-false}"
+    export MAPLE_ENFORCE_STARTUP_DEPENDENCIES="${MAPLE_ENFORCE_STARTUP_DEPENDENCIES:-false}"
 
     # Admin bootstrap
     export MAPLE_ADMIN_USERNAME="${MAPLE_ADMIN_USERNAME:-admin}"
@@ -251,7 +259,9 @@ case "${MAPLE_SERVICE}" in
     export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-pk_test_not_configured}"
 
     # Business API (deployed in Railway for topology parity)
-    export MAPLE_BUSINESS_API_BASE_URL="${MAPLE_BUSINESS_API_BASE_URL:-https://business-api.railway.internal:9550}"
+    if [ -z "$(printf '%s' "${MAPLE_BUSINESS_API_BASE_URL:-}" | tr -d '[:space:]')" ]; then
+      export MAPLE_BUSINESS_API_BASE_URL="https://business-api.railway.internal:9550"
+    fi
     export MAPLE_BUSINESS_API_REQUIRED="${MAPLE_BUSINESS_API_REQUIRED:-true}"
     export MAPLE_BUSINESS_API_CA="${MAPLE_BUSINESS_API_CA:-${TLS_DIR}/ca.crt}"
     export MAPLE_BUSINESS_API_CERT="${MAPLE_BUSINESS_API_CERT:-${TLS_DIR}/tls.crt}"
