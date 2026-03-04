@@ -28,6 +28,25 @@ start_health_sidecar() {
   " &
 }
 
+# ── Retired service compatibility shim ────────────────────────────────────────
+# Some Railway services may still reference retired MAPLE_SERVICE values
+# (model-router, secrets-broker). Keep those deployments healthy while the
+# services are removed from Railway topology.
+run_retired_service_stub() {
+  local service_name="${1}"
+  local replacement_hint="${2}"
+  local hp="${PORT:-3000}"
+  start_health_sidecar "${hp}"
+  echo "[railway-entrypoint] Service '${service_name}' is retired."
+  echo "[railway-entrypoint] Replacement: ${replacement_hint}"
+  echo "[railway-entrypoint] Running compatibility health stub on ${hp}."
+  exec node -e "
+    setInterval(() => {
+      console.log('[railway-entrypoint] retired service stub alive: ${service_name}');
+    }, 60000);
+  "
+}
+
 TLS_DIR="/tmp/tls"
 mkdir -p "${TLS_DIR}"
 
@@ -389,11 +408,23 @@ case "${MAPLE_SERVICE}" in
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
+  model-router)
+  # ────────────────────────────────────────────────────────────────────────────
+    run_retired_service_stub "model-router" "context-wall"
+    ;;
+
+  # ────────────────────────────────────────────────────────────────────────────
+  secrets-broker)
+  # ────────────────────────────────────────────────────────────────────────────
+    run_retired_service_stub "secrets-broker" "gateway-managed secret flows"
+    ;;
+
+  # ────────────────────────────────────────────────────────────────────────────
   *)
     echo "[railway-entrypoint] ERROR: Unknown MAPLE_SERVICE='${MAPLE_SERVICE}'"
     echo "Valid values: gateway-api, admin-console-api, context-wall,"
     echo "  mcp-proxy, tool-runner, cyber-proxy, audit-writer, business-api,"
-    echo "  frontendA, frontendB, frontendC"
+    echo "  frontendA, frontendB, frontendC, model-router(retired), secrets-broker(retired)"
     exit 1
     ;;
 esac
