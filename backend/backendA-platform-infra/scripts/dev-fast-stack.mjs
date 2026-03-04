@@ -170,6 +170,11 @@ const openClawEnabled =
   String(process.env.DEV_FAST_OPENCLAW || "").trim() === "1" ||
   String(process.env.MAPLE_OPENCLAW_AGENT_ENABLED || "").trim() === "1";
 
+const gatewayPort = Number(process.env.GATEWAY_PORT || "3000");
+const frontendAPort = Number(process.env.FRONTEND_A_PORT || "4101");
+const frontendBPort = Number(process.env.FRONTEND_B_PORT || "4102");
+const frontendCPort = Number(process.env.FRONTEND_C_PORT || "4103");
+
 const processes = [
   { name: "audit-writer", command: "node backend/backendB-core-services/audit-writer/service/src/main.js", port: Number(process.env.AUDIT_WRITER_PORT || "19400") },
   { name: "context-wall", command: "node backend/backendB-core-services/context-wall/service/src/main.js", port: Number(process.env.CONTEXT_WALL_PORT || "19000") },
@@ -178,14 +183,14 @@ const processes = [
   { name: "cyber-proxy", command: "node backend/backendB-core-services/cyber-proxy/service/src/main.js", port: Number(process.env.CYBER_PROXY_PORT || "18080") },
   { name: "admin-console-api", command: "node backend/backendB-core-services/admin-console-api/service/src/main.js", port: Number(process.env.ADMIN_CONSOLE_PORT || "19443") },
   { name: "business-api", command: "node backend/backendC-saas-services/business-api/service/src/main.js", port: Number(process.env.BUSINESS_API_PORT || "19550") },
-  { name: "gateway-api", command: "node backend/backendB-core-services/gateway-api/service/src/main.js", port: Number(process.env.GATEWAY_PORT || "3000") },
-  { name: "frontendA", command: "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101", port: 4101 },
+  { name: "gateway-api", command: "node backend/backendB-core-services/gateway-api/service/src/main.js", port: gatewayPort },
+  { name: "frontendA", command: `npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port ${frontendAPort}`, port: frontendAPort },
   {
     name: "frontendB",
-    command: "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
-    port: 4102,
+    command: `NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port ${frontendBPort}`,
+    port: frontendBPort,
   },
-  { name: "frontendC", command: "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103", port: 4103 },
+  { name: "frontendC", command: `npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port ${frontendCPort}`, port: frontendCPort },
 ];
 
 if (openClawEnabled) {
@@ -220,10 +225,10 @@ if (openClawEnabled) {
 
     console.log("");
     console.log("[dev-fast] Local fast loop is ready.");
-    console.log("  Gateway:   http://127.0.0.1:3000");
-    console.log("  FrontendA: http://127.0.0.1:4101");
-    console.log("  FrontendB: http://127.0.0.1:4102");
-    console.log("  FrontendC: http://127.0.0.1:4103");
+    console.log(`  Gateway:   http://127.0.0.1:${gatewayPort}`);
+    console.log(`  FrontendA: http://127.0.0.1:${frontendAPort}`);
+    console.log(`  FrontendB: http://127.0.0.1:${frontendBPort}`);
+    console.log(`  FrontendC: http://127.0.0.1:${frontendCPort}`);
     if (openClawEnabled) {
       console.log(`  OpenClaw gateway: ws://127.0.0.1:${process.env.MAPLE_OPENCLAW_AGENT_GATEWAY_PORT || "19001"}`);
       console.log(`  OpenClaw bridge:  http://127.0.0.1:${process.env.OPENCLAW_BRIDGE_PORT || "8787"}/health`);
