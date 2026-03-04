@@ -368,6 +368,29 @@ export function parseOpenClawAgentOutput(stdoutRaw, stderrRaw) {
   };
 }
 
+function looksLikeUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value ?? "").trim()
+  );
+}
+
+function resolveTargetAgentId(options = {}) {
+  const explicitTarget =
+    asString(options.targetAgentId) ??
+    asString(options.openclawAgentId);
+  if (explicitTarget) {
+    return explicitTarget;
+  }
+
+  // Legacy compatibility: historically `agentId` was forwarded to `--agent`.
+  // Skip UUID-shaped IDs so DB record IDs are not treated as OpenClaw agent keys.
+  const legacyAgentId = asString(options.agentId);
+  if (!legacyAgentId || looksLikeUuid(legacyAgentId)) {
+    return "";
+  }
+  return legacyAgentId;
+}
+
 export function buildOpenClawAgentArgs(options = {}) {
   const mode = options.mode === "local" ? "local" : "gateway";
   const devProfile = options.devProfile === true;
@@ -392,8 +415,9 @@ export function buildOpenClawAgentArgs(options = {}) {
   if (sessionId) {
     args.push("--session-id", sessionId);
   }
-  if (asString(options.agentId)) {
-    args.push("--agent", String(options.agentId));
+  const targetAgentId = resolveTargetAgentId(options);
+  if (targetAgentId) {
+    args.push("--agent", targetAgentId);
   }
   if (asString(options.to)) {
     args.push("--to", String(options.to));

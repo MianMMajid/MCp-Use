@@ -138,6 +138,32 @@ test("buildOpenClawAgentArgs builds local mode command with expected flags", () 
   assert.equal(args.includes("summarize logs"), true);
 });
 
+test("buildOpenClawAgentArgs does not forward UUID-shaped legacy agentId", () => {
+  const args = buildOpenClawAgentArgs({
+    mode: "local",
+    devProfile: true,
+    sessionId: "agent:dev:test",
+    message: "summarize logs",
+    agentId: "709a31b6-6744-4dd1-a2b4-4b23d970d35d",
+  });
+
+  assert.equal(args.includes("--agent"), false);
+});
+
+test("buildOpenClawAgentArgs forwards explicit targetAgentId", () => {
+  const args = buildOpenClawAgentArgs({
+    mode: "local",
+    devProfile: true,
+    sessionId: "agent:dev:test",
+    message: "summarize logs",
+    agentId: "709a31b6-6744-4dd1-a2b4-4b23d970d35d",
+    targetAgentId: "ops",
+  });
+
+  assert.equal(args.includes("--agent"), true);
+  assert.equal(args.includes("ops"), true);
+});
+
 test("parseOpenClawAgentOutput extracts structured reply from JSON output", () => {
   const payload = {
     sessionId: "agent:dev:test",

@@ -4,6 +4,17 @@ import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { runOpenClawTurn, runOpenClawLongform, listSessionsForAgent } from "../core/openclaw-agent-runtime.js";
 
+function resolveOpenClawTargetFromAgent(agent) {
+    const config = agent && typeof agent.config === "object" ? agent.config : {};
+    return (
+        asString(config.openclawAgentId) ??
+        asString(config.targetAgentId) ??
+        asString(config.runtimeAgentId) ??
+        asString(config.agentId) ??
+        null
+    );
+}
+
 export function registerAgentManagementRoutes(app) {
     // POST /api/agents — create agent definition
     app.post("/api/agents", async (c) => {
@@ -155,6 +166,7 @@ export function registerAgentManagementRoutes(app) {
         const message = asString(body.message) ?? "";
         const objective = asString(body.objective) ?? "";
         const mode = asString(body.mode) ?? "turn";
+        const targetAgentId = resolveOpenClawTargetFromAgent(agent);
 
         if (!message && !objective) {
             return c.json({ error: "message (for turn) or objective (for longform) is required" }, 400);
@@ -169,6 +181,7 @@ export function registerAgentManagementRoutes(app) {
                     objective,
                     sessionId: body.sessionId,
                     agentId,
+                    targetAgentId,
                     maxTurns: body.maxTurns,
                     parentRunId,
                 });
@@ -177,6 +190,7 @@ export function registerAgentManagementRoutes(app) {
                     message: message || objective,
                     sessionId: body.sessionId,
                     agentId,
+                    targetAgentId,
                     parentRunId,
                 });
             }

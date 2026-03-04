@@ -261,10 +261,12 @@ server.app.post("/api/openclaw/agent/turn", async (c) => {
   }
 
   try {
+    const requestedAgentId = asString(body.agentId);
     const result = await runOpenClawTurn({
       message,
       sessionId: asString(body.sessionId),
-      agentId: asString(body.agentId),
+      agentId: requestedAgentId,
+      targetAgentId: requestedAgentId,
       to: asString(body.to),
       thinking: asString(body.thinking),
       timeoutSeconds: asBoundedInteger(body.timeoutSeconds, 120, 15, 1200),
@@ -300,10 +302,12 @@ server.app.post("/api/openclaw/agent/longform", async (c) => {
   }
 
   try {
+    const requestedAgentId = asString(body.agentId);
     const result = await runOpenClawLongform({
       objective,
       sessionId: asString(body.sessionId),
-      agentId: asString(body.agentId),
+      agentId: requestedAgentId,
+      targetAgentId: requestedAgentId,
       to: asString(body.to),
       thinking: asString(body.thinking),
       timeoutSeconds: asBoundedInteger(body.timeoutSeconds, 120, 15, 1200),
