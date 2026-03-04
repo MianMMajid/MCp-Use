@@ -173,13 +173,13 @@ function FeaturesDesktop() {
                   static
                   key={feature.summary}
                   className={clsx(
-                    'px-5 transition duration-500 ease-in-out data-selected:not-data-focus:outline-hidden',
+                    'w-full shrink-0 px-5 transition duration-500 ease-in-out data-selected:not-data-focus:outline-hidden',
                     featureIndex !== selectedIndex && 'opacity-60',
                   )}
-                  style={{ transform: `tranzincX(-${selectedIndex * 100}%)` }}
+                  style={{ transform: `translateX(-${selectedIndex * 100}%)` }}
                   aria-hidden={featureIndex !== selectedIndex}
                 >
-                  <div className="w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+                  <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
                     <div className="flex flex-col items-center justify-center p-12 text-center">
                       <h4 className="font-display text-xl text-white">
                         {feature.name}
