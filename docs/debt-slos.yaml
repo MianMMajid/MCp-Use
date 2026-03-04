@@ -1,0 +1,17 @@
+version: 1
+updatedAt: 2026-03-03
+slo:
+  maxRootScripts: 60
+  warningBudget:
+    maxNonAllowlistedWarnings: 0
+  flakeBudget:
+    minRuns: 5
+    maxFailedRuns: 0
+    maxFlakeMarkerRuns: 0
+  matrixDuration:
+    maxMinutes: 75
+    regressionThresholdPct: 20
+  utilization:
+    requiredRuntimeEvidenceMode: k8s_live
+    retainedServiceMinCalls: 1
+    enforceInGate: true

@@ -3,16 +3,14 @@
 import { Link } from '@/components/link'
 import {
   PlusCircleIcon,
-  ShieldCheckIcon,
   PlayCircleIcon,
-  ShieldExclamationIcon,
+  ShareIcon,
 } from '@heroicons/react/20/solid'
 
 const ACTIONS = [
-  { href: '/agents', icon: PlusCircleIcon, label: 'New Task', description: 'Start a new agent run' },
-  { href: '/approvals', icon: ShieldCheckIcon, label: 'Review Approvals', description: 'Check pending decisions' },
-  { href: '/runs', icon: PlayCircleIcon, label: 'View Runs', description: 'Monitor active runs' },
-  { href: '/policies', icon: ShieldExclamationIcon, label: 'Check Policies', description: 'Review firewall rules' },
+  { href: '/agents', icon: PlusCircleIcon, label: 'New Agent', description: 'Create or select orchestration agents' },
+  { href: '/orchestrate', icon: ShareIcon, label: 'Build Orchestration', description: 'Author and publish orchestration flows' },
+  { href: '/runs', icon: PlayCircleIcon, label: 'Execution Runs', description: 'Monitor active orchestration runs' },
 ]
 
 export function QuickActions() {

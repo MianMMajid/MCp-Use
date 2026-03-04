@@ -6,7 +6,7 @@ import { AppShell } from '@/components/app-shell'
 import { ChatProvider } from '@/contexts/chat-context'
 import { useEffect } from 'react'
 
-const ALL_SIDEBAR_ROUTES = ['/', '/agents', '/runs', '/orchestrate', '/governance', '/settings']
+const ALL_SIDEBAR_ROUTES = ['/', '/agents', '/runs', '/orchestrate', '/settings']
 
 function useRoutePrefetch() {
   const router = useRouter()

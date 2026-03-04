@@ -16,9 +16,13 @@ Use this checklist before merging to `main` for the cutover hardening stream.
 - [ ] `scripts/check-lockfile-policy.sh` passes.
 - [ ] `scripts/check-deprecated-command-aliases.mjs` passes.
 - [ ] `scripts/check-command-surface.mjs` passes (`<=60` root scripts).
+- [ ] `scripts/check-docs-architecture-drift.mjs` passes.
+- [ ] `scripts/dependency-security-pass.mjs` passes with zero High/Critical violations (or valid, unexpired allowlist exceptions).
 - [ ] Frontend B surface guard (`npm run check:frontendB:surface`) passes.
 - [ ] No direct `@maple/*/src/...` runtime imports remain.
 - [ ] No transient artifact pollution appears in `git status` (for example `ERROR`, `.next.bak.*`, `dist 2`).
+- [ ] Debt SLO status generated and reviewed (`artifacts/debt/debt-slo-status.json`).
+- [ ] Debt register report generated and reviewed (`artifacts/debt/debt-register-report.json`).
 
 ## PR Slice Policy
 

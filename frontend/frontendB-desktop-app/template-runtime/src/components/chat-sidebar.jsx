@@ -24,7 +24,6 @@ import {
   Cog6ToothIcon,
   ChatBubbleLeftRightIcon,
   ShareIcon,
-  EyeIcon,
 } from '@heroicons/react/24/outline'
 import {
   BellIcon,
@@ -122,7 +121,6 @@ export function ChatSidebar() {
     { href: '/agents', label: 'Agents', icon: CpuChipIcon },
     { href: '/runs', label: 'Runs', icon: PlayCircleIcon },
     { href: '/orchestrate', label: 'Orchestrate', icon: ShareIcon },
-    { href: '/governance', label: 'Observability', icon: EyeIcon },
     { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
   ]
 

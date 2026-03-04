@@ -8,27 +8,25 @@ import { TabBar, TabPanel } from '@/components/tab-bar'
 import { SkeletonList } from '@/components/skeleton'
 
 const AccountTab = dynamic(() => import('./account-tab'), { loading: () => <SkeletonList /> })
-const OrganizationTab = dynamic(() => import('../../(app)/organization/page'), { loading: () => <SkeletonList /> })
-const BillingTab = dynamic(() => import('../../(app)/billing/page'), { loading: () => <SkeletonList /> })
-const UsageTab = dynamic(() => import('../../(app)/usage/page'), { loading: () => <SkeletonList /> })
-const IntegrationsTab = dynamic(() => import('../../(app)/integrations/page'), { loading: () => <SkeletonList /> })
 const ApiKeysTab = dynamic(() => import('../../(app)/api-keys/page'), { loading: () => <SkeletonList /> })
 const ServiceAccountsTab = dynamic(() => import('../../(app)/service-accounts/page'), { loading: () => <SkeletonList /> })
-const ToolRegistryTab = dynamic(() => import('../../(app)/tool-registry/page'), { loading: () => <SkeletonList /> })
-const CliToolsTab = dynamic(() => import('../../(app)/cli-tools/page'), { loading: () => <SkeletonList /> })
+const SessionsTab = dynamic(() => import('../../(app)/sessions/page'), { loading: () => <SkeletonList /> })
 const NotificationsTab = dynamic(() => import('./notifications-tab'), { loading: () => <SkeletonList /> })
-const DiagnosticsTab = dynamic(() => import('../../(app)/diagnostics/page'), { loading: () => <SkeletonList /> })
 
 const TAB_NAMES = [
-  'Account', 'Organization', 'Billing', 'Usage', 'Integrations',
-  'API Keys', 'Service Accounts', 'Tool Registry', 'CLI Tools',
-  'Notifications', 'Developer', 'Diagnostics',
+  'Account',
+  'API Keys',
+  'Service Accounts',
+  'Sessions',
+  'Notifications',
 ]
 
 const TAB_KEYS = [
-  'account', 'organization', 'billing', 'usage', 'integrations',
-  'api-keys', 'service-accounts', 'tool-registry', 'cli-tools',
-  'notifications', 'developer', 'diagnostics',
+  'account',
+  'api-keys',
+  'service-accounts',
+  'sessions',
+  'notifications',
 ]
 
 function SettingsInner() {
@@ -46,41 +44,10 @@ function SettingsInner() {
       <div className="mt-6">
         <TabBar tabs={TAB_NAMES} defaultIndex={defaultIndex}>
           <TabPanel><AccountTab /></TabPanel>
-          <TabPanel><OrganizationTab /></TabPanel>
-          <TabPanel><BillingTab /></TabPanel>
-          <TabPanel><UsageTab /></TabPanel>
-          <TabPanel><IntegrationsTab /></TabPanel>
           <TabPanel><ApiKeysTab /></TabPanel>
           <TabPanel><ServiceAccountsTab /></TabPanel>
-          <TabPanel><ToolRegistryTab /></TabPanel>
-          <TabPanel><CliToolsTab /></TabPanel>
+          <TabPanel><SessionsTab /></TabPanel>
           <TabPanel><NotificationsTab /></TabPanel>
-          <TabPanel>
-            <div className="space-y-4">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Developer tools: Agent Chat, CLI Tools, Community, and Demo Playground are available here.
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <a href="/agent-chat" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
-                  <p className="font-medium text-zinc-900 dark:text-white">Agent Chat</p>
-                  <p className="text-xs text-zinc-500">Interactive agent conversation</p>
-                </a>
-                <a href="/cli-tools" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
-                  <p className="font-medium text-zinc-900 dark:text-white">CLI Tools</p>
-                  <p className="text-xs text-zinc-500">Command line utilities</p>
-                </a>
-                <a href="/community" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
-                  <p className="font-medium text-zinc-900 dark:text-white">Community</p>
-                  <p className="text-xs text-zinc-500">Shared traces and playbooks</p>
-                </a>
-                <a href="/demo" className="rounded-lg border border-zinc-200 p-4 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
-                  <p className="font-medium text-zinc-900 dark:text-white">Demo Playground</p>
-                  <p className="text-xs text-zinc-500">Try out agent capabilities</p>
-                </a>
-              </div>
-            </div>
-          </TabPanel>
-          <TabPanel><DiagnosticsTab /></TabPanel>
         </TabBar>
       </div>
       </div>

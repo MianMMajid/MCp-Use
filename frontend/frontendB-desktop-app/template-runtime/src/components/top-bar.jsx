@@ -117,7 +117,7 @@ function GlobalSearch() {
           {results.slice(0, 8).map((r) => (
             <a
               key={`${r.type}-${r.id}`}
-              href={r.type === 'agent' ? `/agents/${r.id}` : r.type === 'run' ? `/runs/${r.id}` : `/audit`}
+              href={r.type === 'agent' ? `/agents/${r.id}` : r.type === 'run' ? `/runs/${r.id}` : `/orchestrate`}
               className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-700"
               onClick={() => setSearchOpen(false)}
             >
@@ -185,9 +185,9 @@ export function TopBar() {
               <UserCircleIcon />
               <DropdownLabel>My account</DropdownLabel>
             </DropdownItem>
-            <DropdownItem href="/settings?tab=billing">
+            <DropdownItem href="/settings?tab=sessions">
               <CreditCardIcon />
-              <DropdownLabel>Billing</DropdownLabel>
+              <DropdownLabel>Sessions</DropdownLabel>
             </DropdownItem>
             <DropdownItem href="/settings?tab=api-keys">
               <KeyIcon />

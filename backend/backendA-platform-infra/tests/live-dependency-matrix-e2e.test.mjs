@@ -5,6 +5,8 @@ const LIVE_MATRIX_ENABLED =
   String(process.env.MAPLE_LIVE_DEP_MATRIX_E2E ?? "0").trim() === "1";
 const LIVE_MATRIX_INSECURE_TLS =
   String(process.env.MAPLE_LIVE_DEP_MATRIX_INSECURE_TLS ?? "0").trim() === "1";
+const LIVE_MATRIX_STRICT =
+  String(process.env.MAPLE_LIVE_DEP_MATRIX_STRICT ?? "0").trim() === "1";
 const LOCAL_GATEWAY_URL_DEFAULT = "http://127.0.0.1:3000";
 
 if (LIVE_MATRIX_INSECURE_TLS) {
@@ -61,6 +63,13 @@ function connectionErrorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function unreachableBehavior(t, message) {
+  if (LIVE_MATRIX_STRICT) {
+    assert.fail(message);
+  }
+  t.skip(message);
+}
+
 function resolveGatewayUrl() {
   return firstEnv([
     "MAPLE_LIVE_GATEWAY_URL",
@@ -88,7 +97,8 @@ runLiveTest("live dependency matrix: gateway runtime endpoints are healthy", asy
       },
     });
   } catch (error) {
-    t.skip(
+    unreachableBehavior(
+      t,
       `Gateway live endpoint unreachable (${gatewayUrl}): ${connectionErrorMessage(error)}`
     );
     return;
@@ -156,9 +166,11 @@ runLiveTest(
           headers: { accept: "application/json" },
         });
       } catch (error) {
-        t.diagnostic(
-          `Business live endpoint unreachable (${businessUrl}): ${connectionErrorMessage(error)}`
-        );
+        const message = `Business live endpoint unreachable (${businessUrl}): ${connectionErrorMessage(error)}`;
+        if (LIVE_MATRIX_STRICT) {
+          assert.fail(message);
+        }
+        t.diagnostic(message);
         ready = null;
       }
       if (ready) {
@@ -169,9 +181,11 @@ runLiveTest(
       const health = await fetchJson(`${businessUrl}/health`, {
         headers: { accept: "application/json" },
       }).catch((error) => {
-        t.diagnostic(
-          `Business health endpoint unreachable (${businessUrl}): ${connectionErrorMessage(error)}`
-        );
+        const message = `Business health endpoint unreachable (${businessUrl}): ${connectionErrorMessage(error)}`;
+        if (LIVE_MATRIX_STRICT) {
+          assert.fail(message);
+        }
+        t.diagnostic(message);
         return null;
       });
       if (health) {
@@ -199,7 +213,8 @@ runLiveTest(
       try {
         result = await fetchJson(`${gatewayUrl}${check.path}`, { headers });
       } catch (error) {
-        t.skip(
+        unreachableBehavior(
+          t,
           `Gateway live endpoint unreachable (${gatewayUrl}): ${connectionErrorMessage(error)}`
         );
         return;

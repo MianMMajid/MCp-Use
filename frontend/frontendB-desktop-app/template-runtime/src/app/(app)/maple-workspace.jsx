@@ -50,7 +50,7 @@ export default function MapleWorkspace() {
           loadJson('/api/firewall/state').catch(() => null),
           loadJson('/api/hitl/approvals').catch(() => ({ approvals: [] })),
           loadJson('/api/agents?pinned=true').catch(() => null),
-          loadJson('/api/openclaw/runs').catch(() => null),
+          loadJson('/api/runs').catch(() => null),
           loadJson('/api/notifications').catch(() => null),
         ])
         if (cancelled) return
@@ -262,10 +262,9 @@ export default function MapleWorkspace() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Button color="orange" href="/agents">Open agent catalog</Button>
-        <Button color="orange" href="/approvals">Review approvals</Button>
+        <Button color="orange" href="/orchestrate">Open orchestrations</Button>
         <Button outline href="/settings">Manage account</Button>
       </div>
     </>
   )
 }
-

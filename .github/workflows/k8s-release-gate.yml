@@ -76,6 +76,21 @@ jobs:
           COVERAGE_POLICY: advisory
         run: bash scripts/run-k8s-release-gate.sh
 
+      - name: Dependency/Security Debt Report
+        run: node scripts/dependency-security-pass.mjs
+
+      - name: Debt SLO Status
+        env:
+          DEBT_SLO_POLICY: required
+          DEBT_SLO_FLAKE_MIN_RUNS: "1"
+          DEBT_SLO_REQUIRE_UTILIZATION: "1"
+        run: node scripts/check-debt-slos.mjs
+
+      - name: Debt Register Report
+        env:
+          DEBT_REGISTER_POLICY: advisory
+        run: node scripts/build-debt-register-report.mjs
+
       - name: Upload matrix artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,6 +105,14 @@ jobs:
         with:
           name: k8s-release-gate-playwright-artifacts
           path: tests/frontend/artifacts/playwright
+          if-no-files-found: ignore
+
+      - name: Upload debt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-release-gate-debt-artifacts
+          path: artifacts/debt
           if-no-files-found: ignore
 
       - name: Upload k8s logs

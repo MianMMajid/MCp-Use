@@ -53,6 +53,31 @@ require_cmd kubectl
 require_cmd kind
 require_cmd openssl
 
+apply_manifests() {
+  local use_service_monitor=1
+  if ! kubectl api-resources --api-group=monitoring.coreos.com 2>/dev/null | awk '{print $1}' | grep -Fxq "servicemonitors"; then
+    use_service_monitor=0
+  fi
+
+  if (( use_service_monitor == 1 )); then
+    kubectl apply -k "${K8S_DIR}" >/dev/null
+    return 0
+  fi
+
+  echo "ServiceMonitor CRD not found; applying core manifests without servicemonitor.yaml"
+  kubectl apply -f "${K8S_DIR}/namespace.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/configmap.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/secret.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/pvc.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/deployment.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/service.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/networkpolicy.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/rbac.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/hpa.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/pdb.yaml" >/dev/null
+  kubectl apply -f "${K8S_DIR}/ingress.yaml" >/dev/null
+}
+
 if ! docker info >/dev/null 2>&1; then
   echo "Docker daemon is not running."
   echo "Start Docker Desktop, then run this command again."
@@ -93,7 +118,7 @@ if (( WAIT_ONLY == 0 )); then
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
   echo "Applying Kubernetes manifests"
-  kubectl apply -k "${K8S_DIR}" >/dev/null
+  apply_manifests
 
   DEPLOYMENTS="$(kubectl -n "${NAMESPACE}" get deployment -l app.kubernetes.io/part-of=maple-stack -o jsonpath='{.items[*].metadata.name}')"
   if [ -z "${DEPLOYMENTS}" ]; then
@@ -137,6 +162,10 @@ fi
 
 echo "Waiting for deployment rollout"
 for deployment in ${DEPLOYMENTS}; do
+  if [ "${deployment}" = "openclaw-gateway" ] && [ "${MAPLE_OPENCLAW_AGENT_REQUIRED:-false}" != "true" ]; then
+    echo "Skipping rollout wait for optional deployment: ${deployment}"
+    continue
+  fi
   kubectl -n "${NAMESPACE}" rollout status "deployment/${deployment}" --timeout=300s
 done
 
@@ -145,7 +174,7 @@ echo "Cluster status:"
 kubectl -n "${NAMESPACE}" get deploy,svc,pods
 echo ""
 echo "Next step:"
-echo "  npm run k8s:pf"
+echo "  bash backend/backendA-platform-infra/scripts/k8s-local-port-forward.sh"
 echo ""
 echo "Primary app endpoints:"
 echo "  https://localhost:3000/judge"

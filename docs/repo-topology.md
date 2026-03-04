@@ -36,6 +36,10 @@ Retired services are preserved for audit/rollback context but excluded from acti
 - `backend/legacy/retired-services/model-router`
 - `backend/legacy/retired-services/secrets-broker`
 
+Legacy frontend fragments are also archived and excluded from active wiring checks:
+
+- `frontend/legacy/frontendA-it-console/app`
+
 ## Source-of-Truth Topology Contracts
 
 - Service mesh manifest: `backend/backendA-platform-infra/scripts/service-mesh-manifest.mjs`

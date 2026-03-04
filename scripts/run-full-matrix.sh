@@ -168,6 +168,16 @@ command_surface_started_at=""
 command_surface_finished_at=""
 command_surface_attempts=0
 
+docs_drift_status="skipped"
+docs_drift_started_at=""
+docs_drift_finished_at=""
+docs_drift_attempts=0
+
+dependency_security_status="skipped"
+dependency_security_started_at=""
+dependency_security_finished_at=""
+dependency_security_attempts=0
+
 inventory_status="skipped"
 inventory_started_at=""
 inventory_finished_at=""
@@ -253,6 +263,8 @@ write_summary() {
     "lockfilePolicy": "$lockfile_policy_status",
     "deprecatedCommandAliases": "$deprecated_alias_status",
     "commandSurface": "$command_surface_status",
+    "docsDrift": "$docs_drift_status",
+    "dependencySecurity": "$dependency_security_status",
     "inventory": "$inventory_status",
     "staticCallgraph": "$static_callgraph_status",
     "topologyParity": "$topology_parity_status",
@@ -273,6 +285,8 @@ write_summary() {
     "lockfilePolicy": { "startedAt": "$lockfile_policy_started_at", "finishedAt": "$lockfile_policy_finished_at", "attempts": $lockfile_policy_attempts },
     "deprecatedCommandAliases": { "startedAt": "$deprecated_alias_started_at", "finishedAt": "$deprecated_alias_finished_at", "attempts": $deprecated_alias_attempts },
     "commandSurface": { "startedAt": "$command_surface_started_at", "finishedAt": "$command_surface_finished_at", "attempts": $command_surface_attempts },
+    "docsDrift": { "startedAt": "$docs_drift_started_at", "finishedAt": "$docs_drift_finished_at", "attempts": $docs_drift_attempts },
+    "dependencySecurity": { "startedAt": "$dependency_security_started_at", "finishedAt": "$dependency_security_finished_at", "attempts": $dependency_security_attempts },
     "inventory": { "startedAt": "$inventory_started_at", "finishedAt": "$inventory_finished_at", "attempts": $inventory_attempts },
     "staticCallgraph": { "startedAt": "$static_callgraph_started_at", "finishedAt": "$static_callgraph_finished_at", "attempts": $static_callgraph_attempts },
     "topologyParity": { "startedAt": "$topology_parity_started_at", "finishedAt": "$topology_parity_finished_at", "attempts": $topology_parity_attempts },
@@ -395,6 +409,36 @@ else
   fail_stage "command_surface"
 fi
 command_surface_finished_at="$(now_utc)"
+
+docs_drift_status="running"
+docs_drift_started_at="$(now_utc)"
+if run_stage "Guard: docs and architecture drift" \
+  node "$ROOT_DIR/scripts/check-docs-architecture-drift.mjs"; then
+  docs_drift_status="passed"
+  docs_drift_attempts="$LAST_STAGE_ATTEMPTS"
+  (( docs_drift_attempts > 1 )) && flake_marker=true
+else
+  docs_drift_status="failed"
+  docs_drift_attempts="$LAST_STAGE_ATTEMPTS"
+  docs_drift_finished_at="$(now_utc)"
+  fail_stage "docs_drift"
+fi
+docs_drift_finished_at="$(now_utc)"
+
+dependency_security_status="running"
+dependency_security_started_at="$(now_utc)"
+if run_stage "Guard: dependency/security high+critical policy" \
+  node "$ROOT_DIR/scripts/dependency-security-pass.mjs"; then
+  dependency_security_status="passed"
+  dependency_security_attempts="$LAST_STAGE_ATTEMPTS"
+  (( dependency_security_attempts > 1 )) && flake_marker=true
+else
+  dependency_security_status="failed"
+  dependency_security_attempts="$LAST_STAGE_ATTEMPTS"
+  dependency_security_finished_at="$(now_utc)"
+  fail_stage "dependency_security"
+fi
+dependency_security_finished_at="$(now_utc)"
 
 inventory_status="running"
 inventory_started_at="$(now_utc)"
@@ -559,7 +603,7 @@ if (( RUN_BACKEND == 1 )); then
     if (( ${#missing_live_env[@]} == 0 )); then
       live_status="running"
       rm -f "$LIVE_SKIP_FILE"
-      if run_stage "Backend: live provider matrix (strict)" npm run test:providers-live:matrix; then
+      if run_stage "Backend: live provider matrix (strict)" env MAPLE_LIVE_DEP_MATRIX_STRICT=1 npm run test:providers-live:matrix; then
         live_status="passed"
         live_attempts="$LAST_STAGE_ATTEMPTS"
         (( live_attempts > 1 )) && flake_marker=true
@@ -596,21 +640,21 @@ if (( RUN_BACKEND == 0 && RUN_LIVE == 1 )); then
   live_finished_at="$(now_utc)"
 fi
 
-if (( RUN_FRONTEND == 1 )); then
-  frontend_b_surface_status="running"
-  frontend_b_surface_started_at="$(now_utc)"
-  if run_stage "Frontend B: orchestration surface guard" npm run check:frontendB:surface; then
-    frontend_b_surface_status="passed"
-    frontend_b_surface_attempts="$LAST_STAGE_ATTEMPTS"
-    (( frontend_b_surface_attempts > 1 )) && flake_marker=true
-  else
-    frontend_b_surface_status="failed"
-    frontend_b_surface_attempts="$LAST_STAGE_ATTEMPTS"
-    frontend_b_surface_finished_at="$(now_utc)"
-    fail_stage "frontend_b_surface"
-  fi
+frontend_b_surface_status="running"
+frontend_b_surface_started_at="$(now_utc)"
+if run_stage "Frontend B: orchestration surface guard" npm run check:frontendB:surface; then
+  frontend_b_surface_status="passed"
+  frontend_b_surface_attempts="$LAST_STAGE_ATTEMPTS"
+  (( frontend_b_surface_attempts > 1 )) && flake_marker=true
+else
+  frontend_b_surface_status="failed"
+  frontend_b_surface_attempts="$LAST_STAGE_ATTEMPTS"
   frontend_b_surface_finished_at="$(now_utc)"
+  fail_stage "frontend_b_surface"
+fi
+frontend_b_surface_finished_at="$(now_utc)"
 
+if (( RUN_FRONTEND == 1 )); then
   frontend_flow_status="running"
   frontend_flow_started_at="$(now_utc)"
   if run_stage "Frontend: flow CI suite" npm run test:frontend:flow:ci; then

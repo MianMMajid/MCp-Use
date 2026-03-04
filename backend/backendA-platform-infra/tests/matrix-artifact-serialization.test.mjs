@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 
 const ROOT_DIR = resolve(import.meta.dirname, "../../..");
 const VALIDATION_SCRIPT = resolve(ROOT_DIR, "scripts/run-k8s-validation.sh");
-const SUMMARY_FILE = resolve(ROOT_DIR, "artifacts/matrix/k8s-validation-summary.json");
+const SUMMARY_FILE = resolve(ROOT_DIR, "artifacts/matrix/k8s-validation-summary.test.json");
 
 test("k8s validation summary is always valid JSON with serialized k8sUpArgs", () => {
   const run = spawnSync(
@@ -17,6 +17,7 @@ test("k8s validation summary is always valid JSON with serialized k8sUpArgs", ()
       env: {
         ...process.env,
         MAPLE_K8S_NAMESPACE: "maple-test",
+        MAPLE_K8S_VALIDATION_SUMMARY_FILE: SUMMARY_FILE,
       },
       encoding: "utf8",
       stdio: "pipe",
@@ -30,5 +31,5 @@ test("k8s validation summary is always valid JSON with serialized k8sUpArgs", ()
   assert.equal(parsed.artifactSchemaVersion, 2);
   assert.equal(typeof parsed.generatedAt, "string");
   assert.equal(Array.isArray(parsed.k8sUpArgs), true);
-  assert.deepEqual(parsed.k8sUpArgs, ["--skip-build", "--skip-load", "--skip-restart"]);
+  assert.deepEqual(parsed.k8sUpArgs, ["--skip-build", "--skip-load"]);
 });

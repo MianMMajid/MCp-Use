@@ -1,0 +1,78 @@
+name: live-provider-nightly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  live-provider-matrix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify live-provider secrets are present
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRICE_PRO: ${{ secrets.STRIPE_PRICE_PRO }}
+          STRIPE_PRICE_TEAM: ${{ secrets.STRIPE_PRICE_TEAM }}
+          STRIPE_PRICE_ENTERPRISE: ${{ secrets.STRIPE_PRICE_ENTERPRISE }}
+          OPENCLAW_BRIDGE_URL: ${{ secrets.OPENCLAW_BRIDGE_URL }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for key in GOOGLE_CLIENT_ID STRIPE_SECRET_KEY STRIPE_PRICE_PRO STRIPE_PRICE_TEAM STRIPE_PRICE_ENTERPRISE OPENCLAW_BRIDGE_URL; do
+            val="${!key:-}"
+            if [ -z "${val}" ]; then
+              missing+=("${key}")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "[live-provider-nightly] Missing required secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Run backend matrix with forced live-provider stage
+        env:
+          FULL_MATRIX_FORCE_LIVE: "1"
+          FULL_MATRIX_STAGE_RETRIES: "1"
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRICE_PRO: ${{ secrets.STRIPE_PRICE_PRO }}
+          STRIPE_PRICE_TEAM: ${{ secrets.STRIPE_PRICE_TEAM }}
+          STRIPE_PRICE_ENTERPRISE: ${{ secrets.STRIPE_PRICE_ENTERPRISE }}
+          OPENCLAW_BRIDGE_URL: ${{ secrets.OPENCLAW_BRIDGE_URL }}
+          OPENCLAW_BRIDGE_TOKEN: ${{ secrets.OPENCLAW_BRIDGE_TOKEN }}
+        run: bash scripts/run-full-matrix.sh --backend
+
+      - name: Upload matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-provider-nightly-matrix-artifacts
+          path: artifacts/matrix
+          if-no-files-found: warn
+
+      - name: Upload debt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-provider-nightly-debt-artifacts
+          path: artifacts/debt
+          if-no-files-found: ignore

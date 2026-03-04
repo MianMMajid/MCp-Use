@@ -2,11 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PATTERN='openclaw/modifier/(ops|observability)'
+PATTERN='openclaw/modifier/(ops|observability|approvals)'
 
 ALLOWLIST=(
   "$ROOT_DIR/backend/backendB-core-services/gateway-api/service/src/routes/openclaw-modifier-observability-routes.js"
   "$ROOT_DIR/backend/backendB-core-services/gateway-api/service/src/routes/openclaw-modifier-ops-routes.js"
+  "$ROOT_DIR/backend/backendB-core-services/gateway-api/service/src/routes/openclaw-modifier-routes.js"
+  "$ROOT_DIR/backend/backendB-core-services/gateway-api/service/src/routes/modifier-approval-watch.js"
   "$ROOT_DIR/frontend/frontendB-desktop-app/template-runtime/scripts/check-orchestration-surface.js"
 )
 

@@ -9,7 +9,21 @@ import { requireApiKeyResponse } from "../auth.js";
 import { subscribeModifierApprovals } from "../modifier-approval-broker.js";
 import { server } from "../state.js";
 
-server.app.get("/api/openclaw/modifier/approvals/watch", async (c) => {
+const CANONICAL_APPROVAL_STREAM_PATH = "/api/operations/orchestrations/approvals/stream";
+const LEGACY_APPROVAL_STREAM_PATH = "/api/openclaw/modifier/approvals/watch";
+
+function endpointRemoved(c, replacement) {
+  return c.json(
+    {
+      ok: false,
+      error: "Endpoint removed",
+      replacement,
+    },
+    410,
+  );
+}
+
+server.app.get("/api/operations/orchestrations/approvals/stream", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) {
     return unauthorized;
@@ -45,3 +59,7 @@ server.app.get("/api/openclaw/modifier/approvals/watch", async (c) => {
     },
   });
 });
+
+server.app.get(LEGACY_APPROVAL_STREAM_PATH, async (c) =>
+  endpointRemoved(c, CANONICAL_APPROVAL_STREAM_PATH),
+);

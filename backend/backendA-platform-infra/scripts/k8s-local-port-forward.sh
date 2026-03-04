@@ -2,9 +2,10 @@
 set -euo pipefail
 
 NAMESPACE="${MAPLE_K8S_NAMESPACE:-maple}"
+GATEWAY_LOCAL_PORT="${MAPLE_K8S_GATEWAY_LOCAL_PORT:-3000}"
 
 FORWARDS=(
-  "gateway-api:3000:3000"
+  "gateway-api:${GATEWAY_LOCAL_PORT}:3000"
   "frontend-a-it-console:3100:8080"
   "frontend-b-desktop-app:3200:8080"
   "frontend-c-marketing-site:3300:8080"
@@ -65,7 +66,7 @@ done
 
 echo ""
 echo "Frontend endpoints:"
-echo "  https://localhost:3000 -> gateway-api (judge/inspector/API)"
+echo "  https://localhost:${GATEWAY_LOCAL_PORT} -> gateway-api (judge/inspector/API)"
 echo "  http://localhost:3100  -> frontendA-it-console"
 echo "  http://localhost:3200  -> frontendB-desktop-app"
 echo "  http://localhost:3300  -> frontendC-marketing-site"

@@ -271,6 +271,29 @@ jobs:
           path: artifacts/matrix
           if-no-files-found: ignore
 
+      - name: Dependency/Security Debt Report
+        run: node scripts/dependency-security-pass.mjs
+
+      - name: Debt SLO Status (Advisory)
+        env:
+          DEBT_SLO_POLICY: advisory
+          DEBT_SLO_FLAKE_MIN_RUNS: "1"
+          DEBT_SLO_REQUIRE_UTILIZATION: "0"
+        run: node scripts/check-debt-slos.mjs
+
+      - name: Debt Register Report (Advisory)
+        env:
+          DEBT_REGISTER_POLICY: advisory
+        run: node scripts/build-debt-register-report.mjs
+
+      - name: Upload Debt Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-debt-artifacts
+          path: artifacts/debt
+          if-no-files-found: ignore
+
       - name: Contract Sync Gate
         run: |
           npm run contracts:generate
