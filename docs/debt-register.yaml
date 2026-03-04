@@ -1,0 +1,51 @@
+version: 1
+updatedAt: 2026-03-03
+items:
+  - id: matrix-flake-risk
+    title: Matrix flake risk in non-live loop
+    severity: high
+    owner: platform-reliability
+    dueDate: 2026-03-10
+    rollbackRisk: medium
+    ciGuard: scripts/run-flake-repetition.sh
+    status: open
+  - id: stateful-suite-instability
+    title: Stateful test suite intermittent failures
+    severity: high
+    owner: gateway-runtime
+    dueDate: 2026-03-10
+    rollbackRisk: high
+    ciGuard: scripts/run-stateful-suite-loops.sh
+    status: open
+  - id: live-provider-realism
+    title: Live provider path under-validated in PR flows
+    severity: medium
+    owner: platform-reliability
+    dueDate: 2026-03-17
+    rollbackRisk: medium
+    ciGuard: FULL_MATRIX_FORCE_LIVE + requires-live policy
+    status: open
+  - id: dependency-security-debt
+    title: Dependency vulnerabilities and deprecated transitive packages
+    severity: high
+    owner: surface-owners
+    dueDate: 2026-03-17
+    rollbackRisk: medium
+    ciGuard: scripts/dependency-security-pass.mjs
+    status: open
+  - id: docs-architecture-drift
+    title: Docs/command/topology drift risk
+    severity: medium
+    owner: platform-reliability
+    dueDate: 2026-03-10
+    rollbackRisk: low
+    ciGuard: scripts/check-docs-architecture-drift.mjs
+    status: open
+  - id: utilization-fidelity
+    title: Retained services require non-zero runtime evidence in k8s gate mode
+    severity: high
+    owner: service-owners
+    dueDate: 2026-03-10
+    rollbackRisk: high
+    ciGuard: scripts/check-service-utilization-thresholds.mjs
+    status: open

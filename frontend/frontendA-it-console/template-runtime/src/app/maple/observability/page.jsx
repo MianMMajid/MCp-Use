@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useEffect } from 'react'
 import { SkeletonCard, SkeletonList } from '@/components/Skeleton'
 
 export const sections = [
@@ -20,6 +21,18 @@ const ObsAuditLog = dynamic(() => import('./ObsAuditLog'), { loading: () => list
 const ObsWebhooks = dynamic(() => import('./ObsWebhooks'), { loading: () => listFallback })
 
 export default function ObservabilityPage() {
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/observability/orchestrations/audit-log?offset=0&limit=1', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    }).catch(() => {
+      // Non-blocking preload for deterministic observability wiring.
+    })
+    return () => controller.abort()
+  }, [])
+
   return (
     <article className="flex h-full flex-col pt-16 pb-10">
       <div className="flex-auto">

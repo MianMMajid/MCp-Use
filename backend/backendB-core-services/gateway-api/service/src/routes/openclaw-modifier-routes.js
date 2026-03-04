@@ -11,6 +11,20 @@ import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 import { hasValidStepUp, consumeStepUpForApproval, verifyStepUpChallenge } from "../core/step-up-auth.js";
 import { database, server } from "../state.js";
 
+const CANONICAL_APPROVALS_BASE = "/api/operations/orchestrations/approvals";
+const LEGACY_APPROVALS_BASE = "/api/openclaw/modifier/approvals";
+
+function endpointRemoved(c, replacement) {
+  return c.json(
+    {
+      ok: false,
+      error: "Endpoint removed",
+      replacement,
+    },
+    410,
+  );
+}
+
 // A2: Replace raw header trust with verified tenant scope resolution
 async function actorFromRequest(c) {
   const authContext = authContextStorage.getStore();
@@ -46,15 +60,15 @@ server.app.get("/api/openclaw/modifier/capabilities", async (c) => {
     ok: true,
     ...(await getOpenClawModifierPolicy()),
     approvalsApi: {
-      list: "/api/openclaw/modifier/approvals",
-      detail: "/api/openclaw/modifier/approvals/:approvalId",
-      decision: "/api/openclaw/modifier/approvals/:approvalId/decision",
+      list: `${CANONICAL_APPROVALS_BASE}`,
+      detail: `${CANONICAL_APPROVALS_BASE}/:approvalId`,
+      decision: `${CANONICAL_APPROVALS_BASE}/:approvalId/decision`,
     },
     execApi: "/api/openclaw/modifier/exec",
   });
 });
 
-server.app.get("/api/openclaw/modifier/approvals", async (c) => {
+server.app.get("/api/operations/orchestrations/approvals", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) {
     return unauthorized;
@@ -72,7 +86,7 @@ server.app.get("/api/openclaw/modifier/approvals", async (c) => {
   });
 });
 
-server.app.get("/api/openclaw/modifier/approvals/:approvalId", async (c) => {
+server.app.get("/api/operations/orchestrations/approvals/:approvalId", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) {
     return unauthorized;
@@ -103,7 +117,7 @@ server.app.get("/api/openclaw/modifier/approvals/:approvalId", async (c) => {
   });
 });
 
-server.app.post("/api/openclaw/modifier/approvals/:approvalId/decision", async (c) => {
+server.app.post("/api/operations/orchestrations/approvals/:approvalId/decision", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) {
     return unauthorized;
@@ -119,8 +133,9 @@ server.app.post("/api/openclaw/modifier/approvals/:approvalId/decision", async (
       403
     );
   }
-  const approvalId = asString(c.req.param("approvalId"));
-  if (!approvalId) {
+  const body = await readJsonBody(c);
+  const approvalId = asString(c.req.param("approvalId")) ?? asString(body.approvalId);
+  if (!approvalId || approvalId.trim().length === 0) {
     return c.json(
       {
         ok: false,
@@ -129,27 +144,45 @@ server.app.post("/api/openclaw/modifier/approvals/:approvalId/decision", async (
       400
     );
   }
-  const body = await readJsonBody(c);
+  const challengeToken = asString(body.challengeToken) ?? "";
   const actor = await actorFromRequest(c);
 
   // A3: Step-up auth for dangerous approval decisions
   const stepUpRequiredEnv = String(process.env.MAPLE_STEP_UP_REQUIRED_FOR_APPROVALS ?? "0").trim().toLowerCase();
   const stepUpRequired = stepUpRequiredEnv === "1" || stepUpRequiredEnv === "true";
+  let stepUpId = "";
   if (stepUpRequired) {
-    const stepUp = await hasValidStepUp(authContext.userId, {
-      tenantId: actor.tenantId,
-      orgId: actor.orgId,
-    });
-    if (!stepUp.valid) {
-      return c.json({
-        ok: false,
-        error: "Step-up authentication required for approval decisions. Complete a step-up challenge first.",
-        stepUpRequired: true,
-        challengeEndpoint: "/api/operations/orchestrations/step-up/challenge",
-      }, 403);
+    if (challengeToken) {
+      const stepUp = await verifyStepUpChallenge(actor.userId, challengeToken, { database });
+      if (!stepUp.verified) {
+        return c.json(
+          {
+            ok: false,
+            error: "Step-up challenge verification failed.",
+            reason: stepUp.reason,
+            stepUpRequired: true,
+            challengeEndpoint: "/api/operations/orchestrations/step-up/challenge",
+          },
+          403,
+        );
+      }
+      stepUpId = stepUp.stepUpId;
+    } else {
+      const stepUp = await hasValidStepUp(actor.userId, {
+        tenantId: actor.tenantId,
+        orgId: actor.orgId,
+        database,
+      });
+      if (!stepUp.valid) {
+        return c.json({
+          ok: false,
+          error: "Step-up authentication required for approval decisions. Complete a step-up challenge first.",
+          stepUpRequired: true,
+          challengeEndpoint: "/api/operations/orchestrations/step-up/challenge",
+        }, 403);
+      }
+      stepUpId = stepUp.stepUpId ?? "";
     }
-    // Consume step-up after successful decision below
-    var stepUpId = stepUp.stepUpId;
   }
 
   const action = asString(body.action) ?? "";
@@ -167,7 +200,7 @@ server.app.post("/api/openclaw/modifier/approvals/:approvalId/decision", async (
   }
 
   // A3: Consume step-up verification after successful decision
-  if (stepUpRequired && stepUpId && approvalId) {
+  if (stepUpRequired && stepUpId) {
     await consumeStepUpForApproval(stepUpId, approvalId);
   }
 
@@ -177,53 +210,18 @@ server.app.post("/api/openclaw/modifier/approvals/:approvalId/decision", async (
   });
 });
 
-// Gap #6: Combined step-up challenge verification + approval decision in one request.
-// Accepts { approvalId, challengeToken, action, reason } and performs:
-// 1. Verify step-up challenge
-// 2. Submit approval decision
-// 3. Consume step-up verification
-server.app.post("/api/openclaw/modifier/approvals/step-up-decide", async (c) => {
-  const unauthorized = await requireApiKeyResponse(c, database);
-  if (unauthorized) return unauthorized;
-  const authContext = authContextStorage.getStore();
-  if (authContext?.method !== "session") {
-    return c.json({ ok: false, error: "Step-up decisions require interactive session auth." }, 403);
-  }
-
-  const body = await readJsonBody(c);
-  const approvalId = asString(body.approvalId) ?? "";
-  const challengeToken = asString(body.challengeToken) ?? "";
-  const action = asString(body.action) ?? "";
-  const reason = asString(body.reason) ?? "";
-
-  if (!approvalId) return c.json({ ok: false, error: "approvalId is required." }, 400);
-  if (!challengeToken) return c.json({ ok: false, error: "challengeToken is required." }, 400);
-  if (!action) return c.json({ ok: false, error: "action is required." }, 400);
-
-  // Step 1: Verify step-up challenge
-  const stepUpResult = await verifyStepUpChallenge(authContext.userId, challengeToken);
-  if (!stepUpResult.verified) {
-    return c.json({
-      ok: false,
-      error: "Step-up challenge verification failed.",
-      reason: stepUpResult.reason,
-      stepUpRequired: true,
-      challengeEndpoint: "/api/operations/orchestrations/step-up/challenge",
-    }, 403);
-  }
-
-  // Step 2: Submit approval decision
-  const actor = await actorFromRequest(c);
-  const result = await submitOpenClawModifierApprovalDecision(approvalId, action, reason, actor);
-  if (!result.ok) {
-    return c.json({ ok: false, error: result.error, approval: result.approval ?? null }, result.status);
-  }
-
-  // Step 3: Consume step-up
-  await consumeStepUpForApproval(stepUpResult.stepUpId, approvalId);
-
-  return c.json({ ok: true, approval: result.approval, stepUpConsumed: true });
-});
+server.app.get(LEGACY_APPROVALS_BASE, async (c) =>
+  endpointRemoved(c, CANONICAL_APPROVALS_BASE),
+);
+server.app.get(`${LEGACY_APPROVALS_BASE}/:approvalId`, async (c) =>
+  endpointRemoved(c, `${CANONICAL_APPROVALS_BASE}/:approvalId`),
+);
+server.app.post(`${LEGACY_APPROVALS_BASE}/:approvalId/decision`, async (c) =>
+  endpointRemoved(c, `${CANONICAL_APPROVALS_BASE}/:approvalId/decision`),
+);
+server.app.post(`${LEGACY_APPROVALS_BASE}/step-up-decide`, async (c) =>
+  endpointRemoved(c, `${CANONICAL_APPROVALS_BASE}/:approvalId/decision`),
+);
 
 server.app.post("/api/openclaw/modifier/exec", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);

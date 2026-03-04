@@ -21,7 +21,10 @@ while (( $# > 0 )); do
 done
 
 if [ -f "${STATE_FILE}" ]; then
-  mapfile -t FAST_LOOP_PIDS < <(node -e '
+  FAST_LOOP_PIDS=()
+  while IFS= read -r pid; do
+    [ -n "${pid}" ] && FAST_LOOP_PIDS+=("${pid}")
+  done < <(node -e '
 const fs = require("node:fs");
 const file = process.argv[1];
 const payload = JSON.parse(fs.readFileSync(file, "utf8"));

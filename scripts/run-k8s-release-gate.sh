@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="${ROOT_DIR}/artifacts/matrix"
 SUMMARY_FILE="${ARTIFACT_DIR}/k8s-release-gate-summary.json"
 NAMESPACE="${MAPLE_K8S_NAMESPACE:-maple}"
+GATEWAY_LOCAL_PORT="${MAPLE_K8S_GATEWAY_LOCAL_PORT:-3000}"
+REQUIRE_OPENCLAW_GATEWAY="${MAPLE_K8S_REQUIRE_OPENCLAW_GATEWAY:-1}"
 
 mkdir -p "${ARTIFACT_DIR}"
 
@@ -20,6 +22,15 @@ now_utc() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+port_in_use() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
+  return 1
+}
+
 validate_json_file() {
   local file="$1"
   local label="$2"
@@ -32,6 +43,17 @@ validate_json_file() {
   fi
   node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));' "$file" >/dev/null
 }
+
+as_bool() {
+  local raw
+  raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  [[ "${raw}" == "1" || "${raw}" == "true" || "${raw}" == "yes" || "${raw}" == "on" ]]
+}
+
+OPENCLAW_GATEWAY_REQUIRED_BOOL=false
+if as_bool "${REQUIRE_OPENCLAW_GATEWAY}"; then
+  OPENCLAW_GATEWAY_REQUIRED_BOOL=true
+fi
 
 STAGE_RETRY_LIMIT="${K8S_RELEASE_GATE_STAGE_RETRIES:-0}"
 if ! [[ "${STAGE_RETRY_LIMIT}" =~ ^[0-9]+$ ]]; then
@@ -70,6 +92,11 @@ k8s_up_started_at=""
 k8s_up_finished_at=""
 k8s_up_attempts=0
 
+openclaw_gateway_status="skipped"
+openclaw_gateway_started_at=""
+openclaw_gateway_finished_at=""
+openclaw_gateway_attempts=0
+
 port_forward_status="skipped"
 port_forward_started_at=""
 port_forward_finished_at=""
@@ -95,12 +122,15 @@ write_summary() {
   "ok": ${overall_ok},
   "generatedAt": "$(now_utc)",
   "namespace": "${NAMESPACE}",
+  "gatewayLocalPort": ${GATEWAY_LOCAL_PORT},
+  "openclawGatewayRequired": ${OPENCLAW_GATEWAY_REQUIRED_BOOL},
   "policyMode": "conditional_strict",
   "stageRetryLimit": ${STAGE_RETRY_LIMIT},
   "flakeMarker": ${flake_marker},
   "stages": {
     "backendMatrix": "${backend_status}",
     "k8sUp": "${k8s_up_status}",
+    "openclawGateway": "${openclaw_gateway_status}",
     "portForward": "${port_forward_status}",
     "k8sValidation": "${k8s_validation_status}",
     "frontendE2EOnK8s": "${frontend_e2e_status}"
@@ -108,6 +138,7 @@ write_summary() {
   "stageDetails": {
     "backendMatrix": { "startedAt": "${backend_started_at}", "finishedAt": "${backend_finished_at}", "attempts": ${backend_attempts} },
     "k8sUp": { "startedAt": "${k8s_up_started_at}", "finishedAt": "${k8s_up_finished_at}", "attempts": ${k8s_up_attempts} },
+    "openclawGateway": { "startedAt": "${openclaw_gateway_started_at}", "finishedAt": "${openclaw_gateway_finished_at}", "attempts": ${openclaw_gateway_attempts} },
     "portForward": { "startedAt": "${port_forward_started_at}", "finishedAt": "${port_forward_finished_at}", "attempts": ${port_forward_attempts} },
     "k8sValidation": { "startedAt": "${k8s_validation_started_at}", "finishedAt": "${k8s_validation_finished_at}", "attempts": ${k8s_validation_attempts} },
     "frontendE2EOnK8s": { "startedAt": "${frontend_e2e_started_at}", "finishedAt": "${frontend_e2e_finished_at}", "attempts": ${frontend_e2e_attempts} }
@@ -127,6 +158,11 @@ fail_stage() {
 }
 
 cd "${ROOT_DIR}"
+
+if [ "${GATEWAY_LOCAL_PORT}" = "3000" ] && port_in_use 3000; then
+  GATEWAY_LOCAL_PORT="4300"
+  echo "[k8s-release-gate] Local port 3000 is busy; using gateway port-forward on ${GATEWAY_LOCAL_PORT}."
+fi
 
 backend_status="running"
 backend_started_at="$(now_utc)"
@@ -156,11 +192,33 @@ else
 fi
 k8s_up_finished_at="$(now_utc)"
 
+if ${OPENCLAW_GATEWAY_REQUIRED_BOOL}; then
+  openclaw_gateway_status="running"
+  openclaw_gateway_started_at="$(now_utc)"
+  if run_stage "OpenClaw gateway rollout readiness" \
+    kubectl -n "${NAMESPACE}" rollout status deployment/openclaw-gateway --timeout=120s; then
+    openclaw_gateway_status="passed"
+    openclaw_gateway_attempts="${LAST_STAGE_ATTEMPTS}"
+    (( openclaw_gateway_attempts > 1 )) && flake_marker=true
+  else
+    openclaw_gateway_status="failed"
+    openclaw_gateway_attempts="${LAST_STAGE_ATTEMPTS}"
+    openclaw_gateway_finished_at="$(now_utc)"
+    fail_stage "openclawGateway"
+  fi
+  openclaw_gateway_finished_at="$(now_utc)"
+else
+  openclaw_gateway_status="skipped"
+  openclaw_gateway_started_at="$(now_utc)"
+  openclaw_gateway_finished_at="${openclaw_gateway_started_at}"
+fi
+
 port_forward_status="running"
 port_forward_started_at="$(now_utc)"
 echo ""
 echo "[k8s-release-gate] K8s port-forward bootstrap"
-bash backend/backendA-platform-infra/scripts/k8s-local-port-forward.sh >/tmp/maple-k8s-release-gate-port-forward.log 2>&1 &
+MAPLE_K8S_GATEWAY_LOCAL_PORT="${GATEWAY_LOCAL_PORT}" \
+  bash backend/backendA-platform-infra/scripts/k8s-local-port-forward.sh >/tmp/maple-k8s-release-gate-port-forward.log 2>&1 &
 PORT_FORWARD_PID="$!"
 sleep 5
 if kill -0 "${PORT_FORWARD_PID}" >/dev/null 2>&1; then
@@ -177,7 +235,7 @@ port_forward_finished_at="$(now_utc)"
 
 k8s_validation_status="running"
 k8s_validation_started_at="$(now_utc)"
-if run_stage "K8s targeted validations" bash scripts/run-k8s-validation.sh --skip-up --skip-port-forward; then
+if run_stage "K8s targeted validations" env MAPLE_K8S_GATEWAY_LOCAL_PORT="${GATEWAY_LOCAL_PORT}" bash scripts/run-k8s-validation.sh --skip-up --skip-port-forward; then
   k8s_validation_status="passed"
   k8s_validation_attempts="${LAST_STAGE_ATTEMPTS}"
   (( k8s_validation_attempts > 1 )) && flake_marker=true

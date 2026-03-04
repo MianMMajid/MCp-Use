@@ -176,7 +176,7 @@ spec:
               scheme: HTTPS
             initialDelaySeconds: 15
             periodSeconds: 10
-            timeoutSeconds: 3
+            timeoutSeconds: 10
             failureThreshold: 6
           livenessProbe:
             httpGet:
@@ -185,7 +185,7 @@ spec:
               scheme: HTTPS
             initialDelaySeconds: 45
             periodSeconds: 15
-            timeoutSeconds: 3
+            timeoutSeconds: 10
             failureThreshold: 6
           resources:
             requests:
@@ -199,6 +199,8 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            - name: gateway-resources
+              mountPath: /app/backend/backendB-core-services/gateway-api/service/resources
         - name: openclaw-bridge
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
@@ -229,6 +231,8 @@ spec:
           secret:
             secretName: maple-tls
         - name: tmp
+          emptyDir: {}
+        - name: gateway-resources
           emptyDir: {}
 ---
 apiVersion: apps/v1
@@ -273,7 +277,7 @@ spec:
             - name: BUSINESS_API_PORT
               value: "9550"
             - name: MAPLE_BUSINESS_API_MTLS_REQUIRED
-              value: "true"
+              value: "false"
             - name: MAPLE_BUSINESS_API_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_BUSINESS_API_TLS_KEY
@@ -369,16 +373,13 @@ spec:
           image: ghcr.io/openclaw/openclaw:latest
           imagePullPolicy: IfNotPresent
           command:
-            - node
-            - openclaw.mjs
-            - --dev
-            - gateway
-            - run
-            - --port
-            - "19001"
-            - --bind
-            - lan
-            - --verbose
+            - /bin/sh
+            - -lc
+            - |
+              set -e
+              openclaw config set gateway.mode local >/tmp/openclaw-gateway-mode.log 2>&1 || true
+              openclaw config set gateway.controlUi.allowedOrigins '["http://localhost","http://127.0.0.1","https://localhost","https://127.0.0.1"]' >/tmp/openclaw-control-ui-origins.log 2>&1 || true
+              exec openclaw gateway run --dev --port 19001 --bind lan --verbose
           ports:
             - name: ws
               containerPort: 19001

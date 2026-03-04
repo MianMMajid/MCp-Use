@@ -132,6 +132,33 @@ Audit outputs:
 - `artifacts/service-audit/utilization-report.json`
 - `artifacts/service-audit/utilization-report.md`
 
+## Technical Debt Evaluation
+
+```bash
+bash scripts/run-flake-repetition.sh --iterations 5 --all
+bash scripts/run-stateful-suite-loops.sh --iterations 20
+node scripts/profile-build-test-hotspots.mjs
+node scripts/dependency-security-pass.mjs
+node scripts/check-docs-architecture-drift.mjs
+node scripts/check-debt-slos.mjs
+node scripts/build-debt-register-report.mjs
+```
+
+Debt artifacts:
+
+- `artifacts/debt/dependency-security-report.json`
+- `artifacts/debt/docs-architecture-drift.json`
+- `artifacts/debt/debt-slo-status.json`
+- `artifacts/debt/debt-register-report.json`
+- `artifacts/matrix/flake-repetition-summary.json`
+- `artifacts/matrix/stateful-suite-loop-summary.json`
+- `artifacts/matrix/build-test-hotspots.json`
+
+Dependency/security gate policy:
+
+- High/Critical vulnerabilities in active workspaces are merge-blocking.
+- Temporary exceptions must be declared in `docs/dependency-security-allowlist.json` with owner + expiry.
+
 ## Deployment
 
 ### Railway

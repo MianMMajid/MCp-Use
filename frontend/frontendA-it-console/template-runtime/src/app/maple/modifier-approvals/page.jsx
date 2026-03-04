@@ -11,6 +11,8 @@ export const sections = [
   { title: 'Execute', id: 'execute' },
 ]
 
+const APPROVALS_API_BASE = '/api/operations/orchestrations/approvals'
+
 async function loadJson(path) {
   const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
@@ -91,7 +93,7 @@ export default function ModifierApprovalsPage() {
     try {
       const [c, a] = await Promise.allSettled([
         loadJson('/api/openclaw/modifier/capabilities'),
-        loadJson('/api/openclaw/modifier/approvals'),
+        loadJson(APPROVALS_API_BASE),
       ])
       if (c.status === 'fulfilled') setCapabilities(c.value)
       if (a.status === 'fulfilled') setApprovals(Array.isArray(a.value?.approvals) ? a.value.approvals : Array.isArray(a.value) ? a.value : [])
@@ -107,7 +109,7 @@ export default function ModifierApprovalsPage() {
     let es
     function connect() {
       setSseStatus('reconnecting')
-      es = new EventSource('/api/openclaw/modifier/approvals/watch', { withCredentials: true })
+      es = new EventSource(`${APPROVALS_API_BASE}/stream`, { withCredentials: true })
       es.onopen = () => setSseStatus('connected')
       es.onmessage = (event) => {
         try {
@@ -134,7 +136,7 @@ export default function ModifierApprovalsPage() {
   async function handleDecision(approvalId, action, reason) {
     setDecidingIds((prev) => new Set(prev).add(approvalId))
     try {
-      await postJson(`/api/openclaw/modifier/approvals/${encodeURIComponent(approvalId)}/decision`, { action, ...(reason ? { reason } : {}) })
+      await postJson(`${APPROVALS_API_BASE}/${encodeURIComponent(approvalId)}/decision`, { action, ...(reason ? { reason } : {}) })
       setApprovals((prev) => prev ? prev.filter((a) => a.approvalId !== approvalId) : prev)
       setReasoningId(null)
       setMessage(`Decision submitted: ${action}`)
@@ -147,7 +149,7 @@ export default function ModifierApprovalsPage() {
   async function handleStepUpDecide(approvalId, action, reason, challengeToken) {
     setDecidingIds((prev) => new Set(prev).add(approvalId))
     try {
-      await postJson('/api/openclaw/modifier/approvals/step-up-decide', { approvalId, action, reason, challengeToken })
+      await postJson(`${APPROVALS_API_BASE}/${encodeURIComponent(approvalId)}/decision`, { action, reason, challengeToken })
       setApprovals((prev) => prev ? prev.filter((a) => a.approvalId !== approvalId) : prev)
       setReasoningId(null)
       setMessage('Step-up decision submitted')
@@ -161,7 +163,7 @@ export default function ModifierApprovalsPage() {
     if (expandedId === approvalId) { setExpandedId(null); setDetail(null); return }
     setExpandedId(approvalId)
     try {
-      const data = await loadJson(`/api/openclaw/modifier/approvals/${encodeURIComponent(approvalId)}`)
+      const data = await loadJson(`${APPROVALS_API_BASE}/${encodeURIComponent(approvalId)}`)
       setDetail(data)
     } catch { setDetail(null) }
   }

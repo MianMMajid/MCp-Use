@@ -87,8 +87,11 @@ function loadRuntimeCountsFromEvents(filePath, windowStartMs) {
 function loadRuntimeCountsFromSnapshot(snapshotFile, windowStartMs) {
   if (!snapshotFile || !existsSync(snapshotFile)) return new Map();
   const parsed = readJsonIfExists(snapshotFile, {});
+  const snapshot = parsed?.snapshot && typeof parsed.snapshot === "object"
+    ? parsed.snapshot
+    : parsed;
   const counts = new Map();
-  const byService = parsed?.callsByService;
+  const byService = snapshot?.callsByService;
   if (byService && typeof byService === "object") {
     for (const [service, value] of Object.entries(byService)) {
       if (!service) continue;
@@ -96,8 +99,8 @@ function loadRuntimeCountsFromSnapshot(snapshotFile, windowStartMs) {
     }
     return counts;
   }
-  if (Array.isArray(parsed?.events)) {
-    for (const row of parsed.events) {
+  if (Array.isArray(snapshot?.events)) {
+    for (const row of snapshot.events) {
       const service = String(row.service ?? row.callee ?? "").trim();
       if (!service) continue;
       const timestamp = Date.parse(String(row.timestamp ?? row.ts ?? ""));
@@ -246,12 +249,10 @@ export function buildServiceUtilizationReport(options = {}) {
     );
     const runtimeEvidenceSource = catalogRow.runtimeEvidenceSource ?? "gateway";
     let runtimeEvidenceMode;
-    if (runtimeEvidenceSource === "external") {
-      runtimeEvidenceMode = "external";
-    } else if (hasRuntimeSnapshotInput) {
+    if (hasRuntimeSnapshotInput) {
       runtimeEvidenceMode = "k8s_live";
     } else if (runtimeEventTotal > 0) {
-      runtimeEvidenceMode = "matrix";
+      runtimeEvidenceMode = runtimeEvidenceSource === "external" ? "external" : "matrix";
     } else {
       runtimeEvidenceMode = "none";
     }
@@ -270,13 +271,15 @@ export function buildServiceUtilizationReport(options = {}) {
       activeCallPathCoverage = entry?.presentIn?.k8sDeployment || entry?.presentIn?.meshManifest ? 100 : activeCallPathCoverage;
     }
     const runtimeInvocationVolume =
-      runtimeEvidenceSource === "external"
-        ? Number(runtimeCalls14d ?? 0) > 0
-          ? 100
-          : 50
-        : Number(runtimeCalls14d ?? 0) > 0
-          ? 100
-          : 0;
+      runtimeEvidenceMode === "none"
+        ? 0
+        : runtimeEvidenceSource === "external"
+          ? Number(runtimeCalls14d ?? 0) > 0
+            ? 100
+            : 50
+          : Number(runtimeCalls14d ?? 0) > 0
+            ? 100
+            : 0;
     const testCoverage = testsHitCount > 0 ? 100 : 0;
     const featureAlignment = toNumber(catalogRow.featureAlignment, 80);
 

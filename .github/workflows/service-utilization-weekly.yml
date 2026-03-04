@@ -41,10 +41,49 @@ jobs:
           npm run check:service-necessity
           npm run check:service-utilization
 
+      - name: Docs/Architecture Drift Check
+        run: node scripts/check-docs-architecture-drift.mjs
+
+      - name: Dependency/Security Debt Report
+        run: node scripts/dependency-security-pass.mjs
+
+      - name: Flake Risk Repetition (5x no-live)
+        run: bash scripts/run-flake-repetition.sh --iterations 5 --all
+
+      - name: Stateful Suite Loops
+        run: bash scripts/run-stateful-suite-loops.sh --iterations 20
+
+      - name: Debt SLO Status (Advisory)
+        env:
+          DEBT_SLO_POLICY: advisory
+          DEBT_SLO_REQUIRE_UTILIZATION: "0"
+        run: node scripts/check-debt-slos.mjs
+
+      - name: Debt Register Report
+        env:
+          DEBT_REGISTER_POLICY: advisory
+        run: node scripts/build-debt-register-report.mjs
+
       - name: Upload Service Audit Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: service-utilization-weekly-artifacts
           path: artifacts/service-audit
+          if-no-files-found: warn
+
+      - name: Upload Matrix Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-utilization-weekly-matrix-artifacts
+          path: artifacts/matrix
+          if-no-files-found: warn
+
+      - name: Upload Debt Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-utilization-weekly-debt-artifacts
+          path: artifacts/debt
           if-no-files-found: warn

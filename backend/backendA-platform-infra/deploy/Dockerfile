@@ -28,10 +28,15 @@ RUN for pkg in maple-common maple-persistence maple-security; do \
       ln -sfn src "backend/backendB-core-services/shared/packages/${pkg}/dist"; \
     done
 
-RUN npm run template:install
+# Install frontend runtime dependencies explicitly (root command aliases removed).
+RUN npm --prefix frontend/frontendA-it-console/template-runtime ci \
+    && npm --prefix frontend/frontendB-desktop-app/template-runtime ci \
+    && npm --prefix frontend/frontendC-marketing-download-site/template-runtime ci
 RUN npm run sync:runtime-assets
 RUN npm run build
-RUN npm run build:frontendA && npm run build:frontendB && npm run build:frontendC
+RUN npm --prefix frontend/frontendA-it-console/template-runtime run build \
+    && npm --prefix frontend/frontendB-desktop-app/template-runtime run build \
+    && npm --prefix frontend/frontendC-marketing-download-site/template-runtime run build
 
 ## ---- Production stage ----
 FROM node:22-slim
@@ -60,17 +65,16 @@ RUN set -e; \
     openclaw --version
 
 # Copy pre-built native modules from build stage (avoids needing python3/make/g++ at runtime)
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/package-lock.json ./package-lock.json
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/backend ./backend
-COPY --from=build /app/frontend ./frontend
-COPY --from=build /app/.mcp.json ./.mcp.json
-COPY --from=build /app/README.md ./README.md
+COPY --from=build --chown=1000:1000 /app/package.json ./package.json
+COPY --from=build --chown=1000:1000 /app/package-lock.json ./package-lock.json
+COPY --from=build --chown=1000:1000 /app/node_modules ./node_modules
+COPY --from=build --chown=1000:1000 /app/backend ./backend
+COPY --from=build --chown=1000:1000 /app/frontend ./frontend
+COPY --from=build --chown=1000:1000 /app/.mcp.json ./.mcp.json
+COPY --from=build --chown=1000:1000 /app/README.md ./README.md
 
 # Create non-root user (GID/UID 1000 may already exist in node:22-slim, so use -f to avoid errors)
-RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>/dev/null || true) \
-    && chown -R 1000:1000 /app
+RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>/dev/null || true)
 
 ENV NODE_ENV=production
 ENV MAPLE_ALLOW_NO_AUTH=false

@@ -55,7 +55,7 @@ test("desktop template workspace includes core journey views and endpoints", () 
     "/api/firewall/state",
     "/api/hitl/approvals",
     "Open agent catalog",
-    "Review approvals",
+    "Open orchestrations",
   ];
   for (const value of requiredStrings) {
     assert.equal(source.includes(value), true, `Desktop workspace missing: ${value}`);

@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { collectWarningViolations } from "./lib/frontend-warning-budget.mjs";
 
 function parseArgs(argv) {
   const map = new Map();
@@ -23,23 +24,7 @@ function parseArgs(argv) {
 const args = parseArgs(process.argv);
 const logPath = resolve(process.cwd(), args.get("log") ?? "artifacts/matrix/frontend-flow.log");
 const content = readFileSync(logPath, "utf8");
-const lines = content.split(/\r?\n/);
-
-const warningSignal = /warning|deprecated|⚠/i;
-const allowlist = [
-  /NO_COLOR.*FORCE_COLOR/i,
-  /MAPLE_GATEWAY_ORIGIN is not set/i,
-  /Cross origin request detected from 127\.0\.0\.1/i,
-];
-
-const violations = [];
-for (const line of lines) {
-  if (!warningSignal.test(line)) continue;
-  const allowed = allowlist.some((pattern) => pattern.test(line));
-  if (!allowed) {
-    violations.push(line.trim());
-  }
-}
+const violations = collectWarningViolations(content);
 
 if (violations.length > 0) {
   process.stderr.write("[frontend-warning-budget] non-allowlisted warnings found:\n");

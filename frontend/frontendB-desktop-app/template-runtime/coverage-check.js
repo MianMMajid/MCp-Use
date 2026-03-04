@@ -140,12 +140,11 @@ const backendEndpoints = [
   'POST /api/openclaw/cli/:tool/exec',
   // OpenClaw modifier
   'GET /api/openclaw/modifier/capabilities',
-  'GET /api/openclaw/modifier/approvals',
-  'GET /api/openclaw/modifier/approvals/:approvalId',
-  'POST /api/openclaw/modifier/approvals/:approvalId/decision',
-  'POST /api/openclaw/modifier/approvals/step-up-decide',
+  'GET /api/operations/orchestrations/approvals',
+  'GET /api/operations/orchestrations/approvals/:approvalId',
+  'POST /api/operations/orchestrations/approvals/:approvalId/decision',
+  'GET /api/operations/orchestrations/approvals/stream',
   'POST /api/openclaw/modifier/exec',
-  'GET /api/openclaw/modifier/approvals/watch',
   // OpenClaw modifier ops
   'GET /api/operations/orchestrations/tenant-bindings',
   'POST /api/operations/orchestrations/tenant-bindings',

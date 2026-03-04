@@ -9,7 +9,6 @@ const FRONTEND_SURFACES = {
   frontendA: [
     resolve(REPO_ROOT, "frontend/frontendA-it-console/template-runtime/src"),
     resolve(REPO_ROOT, "frontend/frontendA-it-console/public"),
-    resolve(REPO_ROOT, "frontend/frontendA-it-console/app"),
   ],
   frontendB: [resolve(REPO_ROOT, "frontend/frontendB-desktop-app/template-runtime/src")],
   frontendC: [

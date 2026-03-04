@@ -58,57 +58,48 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
             throw new Error("Downstream tools/call is missing tool name.");
         }
         const toolArgs = asObject(params.arguments);
-        const response = await grpcUnary(getContextWallClient(), "executeToolWithPolicy", {
-            context: gatewayRequestContext,
-            appId: app.id,
-            targetUrl: app.mcpUrl,
-            toolName,
-            argumentsJson: Buffer.from(JSON.stringify(toolArgs)),
-            sessionId: gatewayRequestContext.sessionId,
-            traceId: gatewayRequestContext.traceId,
-        });
-        assertForwardAllowed(response, `${app.id}.${toolName}`);
         const ctx = currentRequestContext();
-        const latencyMs = Date.now() - startedAt;
         const routeId = ctx ? `${ctx.method} ${ctx.path}` : "";
         const traceId = ctx?.traceId ?? gatewayRequestContext.traceId;
         const tenantId = ctx?.tenantId ?? gatewayRequestContext.tenantId;
-        recordServiceCall({
-            caller: "gateway-api",
-            service: "mcp-proxy",
-            operation: `tools/call ${toolName} (mediated)`,
-            status: "ok",
-            latencyMs,
-            routeId,
-            traceId,
-            tenantId,
-        });
-        recordServiceCall({
-            caller: "gateway-api",
-            service: "tool-runner",
-            operation: `tools/call ${toolName} (mediated)`,
-            status: "ok",
-            latencyMs,
-            routeId,
-            traceId,
-            tenantId,
-        });
-        recordServiceCall({
-            caller: "gateway-api",
-            service: "cyber-proxy",
-            operation: `tools/call ${toolName} (mediated)`,
-            status: "ok",
-            latencyMs,
-            routeId,
-            traceId,
-            tenantId,
-        });
-        return {
-            requestId,
-            durationMs: Date.now() - startedAt,
-            responseStatus: 200,
-            result: parseJsonFromUnknown(response?.resultJson) ?? {},
+        const recordMediatedToolCall = (status) => {
+            const latencyMs = Date.now() - startedAt;
+            for (const service of ["mcp-proxy", "tool-runner", "cyber-proxy"]) {
+                recordServiceCall({
+                    caller: "gateway-api",
+                    service,
+                    operation: `tools/call ${toolName} (mediated)`,
+                    status,
+                    latencyMs,
+                    routeId,
+                    traceId,
+                    tenantId,
+                });
+            }
         };
+        try {
+            const response = await grpcUnary(getContextWallClient(), "executeToolWithPolicy", {
+                context: gatewayRequestContext,
+                appId: app.id,
+                targetUrl: app.mcpUrl,
+                toolName,
+                argumentsJson: Buffer.from(JSON.stringify(toolArgs)),
+                sessionId: gatewayRequestContext.sessionId,
+                traceId: gatewayRequestContext.traceId,
+            });
+            assertForwardAllowed(response, `${app.id}.${toolName}`);
+            recordMediatedToolCall("ok");
+            return {
+                requestId,
+                durationMs: Date.now() - startedAt,
+                responseStatus: 200,
+                result: parseJsonFromUnknown(response?.resultJson) ?? {},
+            };
+        }
+        catch (error) {
+            recordMediatedToolCall("error");
+            throw error;
+        }
     }
     const response = await grpcUnary(getContextWallClient(), "forwardJsonRpcWithPolicy", {
         context: gatewayRequestContext,

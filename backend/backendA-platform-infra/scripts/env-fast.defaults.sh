@@ -96,7 +96,7 @@ set_default MAPLE_MCP_FIREWALL_DEFAULT_APP default
 set_default MAPLE_MCP_EXECUTION_ORDER default
 set_default MAPLE_DOWNSTREAM_TOOLS_CACHE_TTL_MS 15000
 set_default DOWNSTREAM_APPS none
-set_default MAPLE_DOWNSTREAM_APPS none
+set_default MAPLE_DOWNSTREAM_APPS "[]"
 set_default MAPLE_TOOL_RUNNER_MODE service
 set_default MAPLE_TOOL_RUNNER_IMAGE tool-runner:latest
 set_default MAPLE_TOOL_RUNNER_JOB_NAMESPACE maple-tools
