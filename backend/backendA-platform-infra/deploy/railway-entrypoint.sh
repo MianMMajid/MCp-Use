@@ -66,8 +66,12 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ── Core ─────────────────────────────────────────────────────────────────────
-export NODE_ENV="${MAPLE_NODE_ENV:-staging}"
+# Railway should run as production runtime by default so mcp-use mounts widgets
+# in production mode (no dev-time resources directory creation under /app).
+export NODE_ENV="${MAPLE_NODE_ENV:-production}"
 export MAPLE_DISABLE_TLS="${MAPLE_DISABLE_TLS:-true}"
+# In Railway, requests arrive through a trusted edge proxy.
+export MAPLE_BEHIND_TRUSTED_PROXY="${MAPLE_BEHIND_TRUSTED_PROXY:-true}"
 
 # ── Logging (maple-common/logging.js requires these) ─────────────────────────
 export MAPLE_LOG_LEVEL="${MAPLE_LOG_LEVEL:-info}"
