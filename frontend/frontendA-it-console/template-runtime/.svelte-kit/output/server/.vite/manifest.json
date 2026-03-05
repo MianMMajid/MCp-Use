@@ -222,6 +222,12 @@
       "_proxy.js"
     ]
   },
+  "src/routes/api/ui/[...path]/+server.js": {
+    "file": "entries/endpoints/api/ui/_...path_/_server.js",
+    "name": "entries/endpoints/api/ui/_...path_/_server",
+    "src": "src/routes/api/ui/[...path]/+server.js",
+    "isEntry": true
+  },
   "src/routes/attachments/+page.svelte": {
     "file": "entries/pages/attachments/_page.svelte.js",
     "name": "entries/pages/attachments/_page.svelte",

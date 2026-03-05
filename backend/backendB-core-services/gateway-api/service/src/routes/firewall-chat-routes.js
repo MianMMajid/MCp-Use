@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { server, database } from "../state.js";
-import { firewallChatPrimaryProvider, firewallChatStrictMode } from "../config.js";
+import { firewallChatPrimaryProvider, firewallChatStrictMode, dbChatTranscriptsEnabled } from "../config.js";
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, } from "../trace-helpers.js";
@@ -112,14 +113,40 @@ export function registerFirewallChatRoutes() {
             messages: normalizedHistory,
             requestContext,
         });
-        if (chatResult.mode === "unavailable") {
-            return c.json({
-                ok: false,
-                error: chatResult.reply,
-                mode: chatResult.mode,
-                provider: chatResult.provider,
-                attempts: chatResult.attempts,
-            }, 503);
+        const conversationId = asString(body.conversationId) ?? "global-default";
+        const canPersistChat = dbChatTranscriptsEnabled &&
+            typeof database.ensureChatConversation === "function" &&
+            typeof database.createChatMessage === "function" &&
+            typeof database.updateChatMessage === "function" &&
+            typeof database.appendChatStreamEvent === "function";
+        let assistantMessageId = "";
+        if (canPersistChat) {
+            await database.ensureChatConversation(conversationId, {
+                title: String(message ?? "").slice(0, 120),
+                metadata: { source: "chat-stream" },
+            });
+            const latestUser = userTurns[userTurns.length - 1];
+            if (latestUser?.content) {
+                await database.createChatMessage({
+                    id: asString(latestUser.id) ?? randomUUID(),
+                    conversationId,
+                    role: "user",
+                    content: String(latestUser.content),
+                    streamState: "done",
+                    metadata: { source: "chat-stream" },
+                    createdAt: new Date().toISOString(),
+                });
+            }
+            const assistantMessage = await database.createChatMessage({
+                id: randomUUID(),
+                conversationId,
+                role: "assistant",
+                content: "",
+                streamState: "streaming",
+                metadata: { source: "chat-stream" },
+                createdAt: new Date().toISOString(),
+            });
+            assistantMessageId = assistantMessage.id;
         }
         const reply = chatResult.reply;
         const encoder = new TextEncoder();
@@ -168,11 +195,33 @@ export function registerFirewallChatRoutes() {
                         return;
                     }
                     if (i >= words.length) {
+                        if (canPersistChat && assistantMessageId) {
+                            void database.updateChatMessage(assistantMessageId, {
+                                content: reply,
+                                streamState: "done",
+                            });
+                            void database.appendChatStreamEvent({
+                                conversationId,
+                                messageId: assistantMessageId,
+                                eventType: "done",
+                                payload: { done: true },
+                                timestamp: new Date().toISOString(),
+                            });
+                        }
                         safeEnqueue(encoder.encode("data: [DONE]\n\n"));
                         safeClose();
                         return;
                     }
                     const chunk = words.slice(i, i + chunkSize).join(" ") + (i + chunkSize < words.length ? " " : "");
+                    if (canPersistChat && assistantMessageId) {
+                        void database.appendChatStreamEvent({
+                            conversationId,
+                            messageId: assistantMessageId,
+                            eventType: "chunk",
+                            payload: { content: chunk },
+                            timestamp: new Date().toISOString(),
+                        });
+                    }
                     if (!safeEnqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`))) {
                         return;
                     }

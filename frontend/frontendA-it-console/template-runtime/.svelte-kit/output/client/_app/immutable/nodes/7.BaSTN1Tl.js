@@ -1,0 +1,1 @@
+import"../chunks/CBxUoMQf.js";import{i as s}from"../chunks/PQaj27Yw.js";import{p as a,a as p}from"../chunks/CazhmhZi.js";import{D as i}from"../chunks/BkhafTdk.js";import{d as m}from"../chunks/2rHXOVXQ.js";function g(o,t){a(t,!1);const r=m["/conversations"];s(),i(o,{get doc(){return r}}),p()}export{g as component};

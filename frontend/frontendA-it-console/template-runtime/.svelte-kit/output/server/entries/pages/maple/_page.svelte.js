@@ -344,6 +344,8 @@ function WorkspaceViewHost($$renderer, $$props) {
     let error = fallback($$props["error"], "");
     let showConfirmStop = fallback($$props["showConfirmStop"], false);
     let allEndpoints = fallback($$props["allEndpoints"], () => [], true);
+    let reloadWorkspace = fallback($$props["reloadWorkspace"], async () => {
+    });
     let setTraceQuery = fallback($$props["setTraceQuery"], () => {
     });
     let setSessionQuery = fallback($$props["setSessionQuery"], () => {
@@ -444,11 +446,15 @@ function WorkspaceViewHost($$renderer, $$props) {
     let userName = "";
     let userEmail = "";
     let userRole = "viewer";
-    let manualUserRows = [];
+    let usersBusy = false;
+    let apiUserRows = [];
     let userRows = [];
     const SEEDED_USER_PREFIX = "seed-user-";
     let marketplaceQuery = "";
     let marketplaceKind = "all";
+    let appliedMarketplaceQuery = "";
+    let appliedMarketplaceKind = "all";
+    let marketplaceBusy = false;
     function extractUserCandidates(record) {
       if (!record || typeof record !== "object") return [];
       const values = [
@@ -506,9 +512,9 @@ function WorkspaceViewHost($$renderer, $$props) {
     }));
     marketplaceRows = [...catalogRows, ...appRows, ...toolRows, ...openclawRows];
     filteredMarketplaceRows = marketplaceRows.filter((row) => {
-      const query = marketplaceQuery.trim().toLowerCase();
+      const query = appliedMarketplaceQuery.trim().toLowerCase();
       const matchesQuery = !query || row.app.toLowerCase().includes(query) || row.detail.toLowerCase().includes(query) || row.source.toLowerCase().includes(query);
-      const matchesKind = marketplaceKind === "all";
+      const matchesKind = appliedMarketplaceKind === "all";
       return matchesQuery && matchesKind;
     });
     chatPrompts = buildMonitoringQuickPrompts({
@@ -585,7 +591,7 @@ function WorkspaceViewHost($$renderer, $$props) {
       });
       return rows;
     })();
-    userRows = [...seededUsers, ...manualUserRows];
+    userRows = apiUserRows.length > 0 ? apiUserRows : seededUsers;
     if (panelOpen && state.category === "observe" && state.view === "live") {
       $$renderer2.push("<!--[0-->");
       $$renderer2.push(`<section class="view-panel live-view panel"><header class="mw-view-header"><h1>Observability &amp; Alerts</h1> <p>Monitor Frontend B orchestration runtime and intervene when risk escalates.</p></header> <article class="panel tree-panel"><div class="tree-shell"><div class="tree-legend"><span><i class="legend-dot legend-main"></i> Main</span> <span><i class="legend-dot legend-fork"></i> Fork</span> <span><i class="legend-dot legend-block"></i> Blocked</span></div> <div class="action-tree-wrap"><div${attr_class("action-tree-canvas", void 0, { "is-panning": livePanning })}><div class="canvas-zoom-controls" aria-label="Live canvas zoom controls"><button type="button" class="zoom-btn">−</button> <button type="button" class="zoom-btn">Reset</button> <button type="button" class="zoom-btn">+</button></div> <div class="canvas-zoom-layer"${attr_style(`transform: translate(${livePanX}px, ${livePanY}px) scale(${liveZoom});`)}><div class="monitor-step-stack"><!--[-->`);
@@ -706,7 +712,11 @@ function WorkspaceViewHost($$renderer, $$props) {
           $$renderer4.push(`OpenClaw`);
         });
       });
-      $$renderer2.push(`</div> <button type="button" class="action-btn primary">Filter</button></div> <div class="marketplace-section"><h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3></div> <div class="panel-head"><span class="chip">${escape_html(filteredMarketplaceRows.length)}</span></div> `);
+      $$renderer2.push(`</div> <button type="button" class="action-btn primary"${attr("disabled", marketplaceBusy, true)}>Filter</button></div> `);
+      {
+        $$renderer2.push("<!--[-1-->");
+      }
+      $$renderer2.push(`<!--]--> <div class="marketplace-section"><h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3></div> <div class="panel-head"><span class="chip">${escape_html(filteredMarketplaceRows.length)}</span></div> `);
       if (filteredMarketplaceRows.length === 0) {
         $$renderer2.push("<!--[0-->");
         $$renderer2.push(`<p class="empty-row">No integrated apps/tools returned.</p>`);
@@ -716,7 +726,7 @@ function WorkspaceViewHost($$renderer, $$props) {
         const each_array_4 = ensure_array_like(filteredMarketplaceRows);
         for (let $$index_4 = 0, $$length = each_array_4.length; $$index_4 < $$length; $$index_4++) {
           let row = each_array_4[$$index_4];
-          $$renderer2.push(`<tr><td class="mono">${escape_html(row.app)}</td><td>${escape_html(row.source.toLowerCase())}</td><td>${escape_html(row.detail || row.kind || "-")}</td><td><button type="button" class="action-btn">Dispatch</button></td></tr>`);
+          $$renderer2.push(`<tr><td class="mono">${escape_html(row.app)}</td><td>${escape_html(row.source.toLowerCase())}</td><td>${escape_html(row.detail || row.kind || "-")}</td><td><button type="button" class="action-btn"${attr("disabled", marketplaceBusy, true)}>Dispatch</button></td></tr>`);
         }
         $$renderer2.push(`<!--]--></tbody></table></div>`);
       }
@@ -860,21 +870,42 @@ function WorkspaceViewHost($$renderer, $$props) {
           $$renderer4.push(`Admin`);
         });
       });
-      $$renderer2.push(`</label></div> <div class="actions users-form-actions"><button type="button" class="action-btn primary">Add User</button></div> `);
+      $$renderer2.push(`</label></div> <div class="actions users-form-actions"><button type="button" class="action-btn primary"${attr("disabled", usersBusy, true)}>Add User</button></div> `);
       {
         $$renderer2.push("<!--[-1-->");
       }
-      $$renderer2.push(`<!--]--> <div class="table-wrap"><table class="timeline-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead><tbody>`);
+      $$renderer2.push(`<!--]--> <div class="table-wrap"><table class="timeline-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead><tbody>`);
       if (userRows.length === 0) {
         $$renderer2.push("<!--[0-->");
-        $$renderer2.push(`<tr><td colspan="3" class="empty-row">No users added yet.</td></tr>`);
+        $$renderer2.push(`<tr><td colspan="4" class="empty-row">No users added yet.</td></tr>`);
       } else {
         $$renderer2.push("<!--[-1-->");
         $$renderer2.push(`<!--[-->`);
         const each_array_9 = ensure_array_like(userRows);
         for (let $$index_9 = 0, $$length = each_array_9.length; $$index_9 < $$length; $$index_9++) {
           let user = each_array_9[$$index_9];
-          $$renderer2.push(`<tr><td>${escape_html(user.name)}</td><td class="mono">${escape_html(user.email)}</td><td>${escape_html(user.role)}</td></tr>`);
+          $$renderer2.push(`<tr><td>${escape_html(user.name)}</td><td class="mono">${escape_html(user.email)}</td><td>`);
+          $$renderer2.select({ class: "select", value: user.role }, ($$renderer3) => {
+            $$renderer3.option({ value: "viewer" }, ($$renderer4) => {
+              $$renderer4.push(`Viewer`);
+            });
+            $$renderer3.option({ value: "operator" }, ($$renderer4) => {
+              $$renderer4.push(`Operator`);
+            });
+            $$renderer3.option({ value: "security-admin" }, ($$renderer4) => {
+              $$renderer4.push(`Security Admin`);
+            });
+            $$renderer3.option({ value: "admin" }, ($$renderer4) => {
+              $$renderer4.push(`Admin`);
+            });
+            $$renderer3.option({ value: "owner" }, ($$renderer4) => {
+              $$renderer4.push(`Owner`);
+            });
+            $$renderer3.option({ value: "reviewer" }, ($$renderer4) => {
+              $$renderer4.push(`Reviewer`);
+            });
+          });
+          $$renderer2.push(`</td><td><div class="actions"><button type="button" class="action-btn"${attr("disabled", usersBusy, true)}>Save Role</button> <button type="button" class="action-btn danger"${attr("disabled", usersBusy, true)}>Delete</button></div></td></tr>`);
         }
         $$renderer2.push(`<!--]-->`);
       }
@@ -924,6 +955,7 @@ function WorkspaceViewHost($$renderer, $$props) {
       error,
       showConfirmStop,
       allEndpoints,
+      reloadWorkspace,
       setTraceQuery,
       setSessionQuery,
       selectExecution,
@@ -1034,27 +1066,18 @@ function interventionActionCatalog() {
     pauseExecution: {
       label: "Pause",
       destructive: false,
-      execute: ({ executionId, challengeToken }) => postJson(
-        `/api/orchestrations/executions/${encodeURIComponent(executionId)}/pause`,
-        withChallengeToken({}, challengeToken)
-      )
+      execute: ({ executionId, challengeToken }) => postJson("/api/ui/intervention/pause", withChallengeToken({ executionId }, challengeToken))
     },
     resumeExecution: {
       label: "Resume",
       destructive: false,
-      execute: ({ executionId, challengeToken }) => postJson(
-        `/api/orchestrations/executions/${encodeURIComponent(executionId)}/resume`,
-        withChallengeToken({}, challengeToken)
-      )
+      execute: ({ executionId, challengeToken }) => postJson("/api/ui/intervention/resume", withChallengeToken({ executionId }, challengeToken))
     },
     cancelExecution: {
       label: "Cancel",
       destructive: true,
       requiresReason: true,
-      execute: ({ executionId, reason, challengeToken }) => postJson(
-        `/api/orchestrations/executions/${encodeURIComponent(executionId)}/cancel`,
-        withChallengeToken({ reason }, challengeToken)
-      )
+      execute: ({ executionId, reason, challengeToken }) => postJson("/api/ui/intervention/cancel", withChallengeToken({ executionId, reason }, challengeToken))
     },
     retryNode: {
       label: "Retry Node",
@@ -1142,7 +1165,7 @@ function interventionActionCatalog() {
 function MapleShell($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     var $$store_subs;
-    let explicitState, panelOpen, analystOptions, selectedAnalystSet, filteredAuditEvents, filteredExecutions, filteredApprovals, activeExecution, topologyEndpoints, allEndpoints, categoryHrefById, viewHrefById;
+    let explicitState, panelOpen, derivedAnalystOptions, analystOptions, selectedAnalystSet, filteredAuditEvents, filteredExecutions, filteredApprovals, activeExecution, topologyEndpoints, allEndpoints, categoryHrefById, viewHrefById;
     const actions = interventionActionCatalog();
     const asArray = (value) => Array.isArray(value) ? value : [];
     const fallbackTopologyHosts = [
@@ -1184,6 +1207,7 @@ function MapleShell($$renderer, $$props) {
     let selectedAnalysts = [];
     let handoffPrompt = null;
     let fakeModeOn = false;
+    let analystOptionsFromApi = [];
     const quickPrompts = [
       "Give me a firewall status update.",
       "Why was this trace blocked?",
@@ -1302,78 +1326,33 @@ function MapleShell($$renderer, $$props) {
     }
     async function loadData() {
       try {
-        const [
-          summaryRes,
-          sloRes,
-          auditRes,
-          execRes,
-          approvalsRes,
-          runtimeCapabilitiesRes,
-          integrationCatalogRes,
-          connectedIntegrationsRes,
-          downstreamAppsRes,
-          downstreamToolsRes,
-          openclawCatalogRes,
-          authMeRes,
-          firewallRulesRes
-        ] = await Promise.allSettled([
-          fetch("/api/observability/orchestrations/summary").then((r) => r.json()),
-          fetch("/api/observability/orchestrations/slo").then((r) => r.json()),
-          fetch("/api/observability/orchestrations/audit-log?offset=0&limit=50").then((r) => r.json()),
-          fetch("/api/orchestrations/executions?limit=50").then((r) => r.json()),
-          fetch("/api/orchestrations/executions/approvals?status=pending&limit=50").then((r) => r.json()),
-          fetch("/api/runtime/feature-capabilities").then((r) => r.json()),
-          fetch("/api/integrations/catalog").then((r) => r.json()),
-          fetch("/api/integrations").then((r) => r.json()),
-          fetch("/api/downstream/apps").then((r) => r.json()),
-          fetch("/api/downstream/tools").then((r) => r.json()),
-          fetch("/api/openclaw/cli/catalog").then((r) => r.json()),
-          fetch("/api/auth/me").then((r) => r.json()),
-          fetch("/api/firewall/rules/effective").then((r) => r.json())
+        const [bootstrapRes, analystsRes] = await Promise.allSettled([
+          fetch("/api/ui/bootstrap").then((r) => r.json()),
+          fetch("/api/ui/analysts").then((r) => r.json())
         ]);
-        if (summaryRes.status === "fulfilled") summary = summaryRes.value;
-        if (sloRes.status === "fulfilled") slo = sloRes.value;
-        if (auditRes.status === "fulfilled") {
-          const events = auditRes.value?.items ?? auditRes.value?.entries ?? auditRes.value?.events ?? [];
-          rawAuditEvents = asArray(events);
+        if (bootstrapRes.status === "fulfilled") {
+          summary = bootstrapRes.value?.summary ?? null;
+          slo = bootstrapRes.value?.slo ?? null;
+          const events = asArray(bootstrapRes.value?.auditEvents);
+          rawAuditEvents = events;
           auditEvents = filterFrontendBOrigin(events);
           if (auditEvents.length === 0 && fakeModeOn) ;
-        }
-        if (execRes.status === "fulfilled") {
-          const items = execRes.value?.items ?? execRes.value?.executions ?? [];
-          rawExecutions = asArray(items);
-          executions = filterFrontendBOrigin(items);
+          const executionItems = asArray(bootstrapRes.value?.executions);
+          rawExecutions = executionItems;
+          executions = filterFrontendBOrigin(executionItems);
           if (executions.length === 0 && fakeModeOn) ;
-        }
-        if (approvalsRes.status === "fulfilled") {
-          const items = approvalsRes.value?.items ?? approvalsRes.value?.approvals ?? approvalsRes.value?.entries ?? [];
-          rawApprovals = asArray(items);
-          approvals = filterFrontendBOrigin(items);
+          const approvalItems = asArray(bootstrapRes.value?.approvals);
+          rawApprovals = approvalItems;
+          approvals = filterFrontendBOrigin(approvalItems);
           if (approvals.length === 0 && fakeModeOn) ;
-        }
-        if (runtimeCapabilitiesRes.status === "fulfilled") {
-          runtimeCapabilities = asArray(runtimeCapabilitiesRes.value?.items ?? runtimeCapabilitiesRes.value?.capabilities ?? runtimeCapabilitiesRes.value);
-        }
-        if (integrationCatalogRes.status === "fulfilled") {
-          integrationCatalog = asArray(integrationCatalogRes.value?.integrations ?? integrationCatalogRes.value?.items);
-        }
-        if (connectedIntegrationsRes.status === "fulfilled") {
-          connectedIntegrations = asArray(connectedIntegrationsRes.value?.integrations ?? connectedIntegrationsRes.value?.items);
-        }
-        if (downstreamAppsRes.status === "fulfilled") {
-          downstreamApps = asArray(downstreamAppsRes.value?.apps ?? downstreamAppsRes.value?.items);
-        }
-        if (downstreamToolsRes.status === "fulfilled") {
-          downstreamTools = asArray(downstreamToolsRes.value?.tools ?? downstreamToolsRes.value?.items);
-        }
-        if (openclawCatalogRes.status === "fulfilled") {
-          openclawCatalog = asArray(openclawCatalogRes.value?.catalog ?? openclawCatalogRes.value?.items);
-        }
-        if (authMeRes.status === "fulfilled") {
-          authMe = authMeRes.value?.user ?? null;
-        }
-        if (firewallRulesRes.status === "fulfilled") {
-          const entries = asArray(firewallRulesRes.value?.rules ?? firewallRulesRes.value?.items ?? firewallRulesRes.value?.effective ?? firewallRulesRes.value);
+          runtimeCapabilities = asArray(bootstrapRes.value?.runtimeCapabilities);
+          integrationCatalog = asArray(bootstrapRes.value?.integrationCatalog);
+          connectedIntegrations = asArray(bootstrapRes.value?.connectedIntegrations);
+          downstreamApps = asArray(bootstrapRes.value?.downstreamApps);
+          downstreamTools = asArray(bootstrapRes.value?.downstreamTools);
+          openclawCatalog = asArray(bootstrapRes.value?.openclawCatalog);
+          authMe = bootstrapRes.value?.authMe ?? null;
+          const entries = asArray(bootstrapRes.value?.firewallRules);
           if (entries.length > 0) {
             firewallRules = entries.map((rule, index) => ({
               id: String(rule.id ?? rule.ruleId ?? `rule-${index + 1}`),
@@ -1383,6 +1362,10 @@ function MapleShell($$renderer, $$props) {
               source: String(rule.source ?? "runtime")
             }));
           }
+        }
+        if (analystsRes.status === "fulfilled") {
+          const next = asArray(analystsRes.value?.analysts).filter(Boolean);
+          analystOptionsFromApi = next;
         }
         if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId;
         if (firewallRules.length === 0) firewallRules = defaultFirewallRules;
@@ -1459,11 +1442,12 @@ function MapleShell($$renderer, $$props) {
       error = "";
       notice = "";
       try {
-        const response = await fetch("/api/firewall/rules", {
+        const response = await fetch("/api/ui/intervention/block-rule", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            action: "block",
+            executionId: selectedExecutionId || activeExecution?.executionId || "",
+            sessionId: activeExecution?.sessionId || "",
             target,
             reason: reason.trim(),
             createdBy: authMe?.email ?? authMe?.username ?? "operator"
@@ -1484,7 +1468,7 @@ function MapleShell($$renderer, $$props) {
     });
     explicitState = ["category", "view", "route"].some((key) => store_get($$store_subs ??= {}, "$page", page).url.searchParams.has(key));
     panelOpen = explicitState && state.category !== "chat";
-    analystOptions = (() => {
+    derivedAnalystOptions = (() => {
       const fromAuth = authMe ? [authMe.username, authMe.email] : [];
       const fromAudit = rawAuditEvents.flatMap((event) => extractAnalystNames(event));
       const fromExecutions = rawExecutions.flatMap((execution) => extractAnalystNames(execution));
@@ -1498,6 +1482,7 @@ function MapleShell($$renderer, $$props) {
       if (options.length === 0 && fakeModeOn) ;
       return options;
     })();
+    analystOptions = analystOptionsFromApi.length > 0 ? analystOptionsFromApi : derivedAnalystOptions;
     selectedAnalystSet = new Set(selectedAnalysts.map((name) => normalizeAnalystName(name)));
     filteredAuditEvents = auditEvents.filter((event) => matchesSelectedAnalysts(event, selectedAnalystSet));
     filteredExecutions = executions.filter((execution) => matchesSelectedAnalysts(execution, selectedAnalystSet));
@@ -1591,6 +1576,7 @@ function MapleShell($$renderer, $$props) {
       error,
       showConfirmStop,
       allEndpoints,
+      reloadWorkspace: loadData,
       queueInterventionHandoff,
       setTraceQuery: (value) => traceQuery = value,
       setSessionQuery: (value) => sessionQuery = value,
@@ -1627,7 +1613,7 @@ function MapleShell($$renderer, $$props) {
     $$renderer2.push(`<!--]--> `);
     if (state.category === "chat") {
       $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<div class="chat-composer chat-composer-home"><div class="chat-input-wrap"><input${attr("value", chatInput)} placeholder="Ask Mayple to summarize runtime context..." aria-label="Mayple chat input"/> <button type="button" class="chat-send-btn" aria-label="Send">↑</button></div></div>`);
+      $$renderer2.push(`<form class="chat-composer chat-composer-home"><div class="chat-input-wrap"><input${attr("value", chatInput)} placeholder="Ask Mayple to summarize runtime context..." aria-label="Mayple chat input"/> <button type="submit" class="chat-send-btn" aria-label="Send">↑</button></div></form>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }

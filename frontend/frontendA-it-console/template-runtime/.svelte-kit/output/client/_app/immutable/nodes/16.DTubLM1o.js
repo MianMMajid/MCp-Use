@@ -1,0 +1,1 @@
+import"../chunks/CBxUoMQf.js";import{i as a}from"../chunks/PQaj27Yw.js";import{p,a as s}from"../chunks/CazhmhZi.js";import{D as i}from"../chunks/BkhafTdk.js";import{d as m}from"../chunks/2rHXOVXQ.js";function u(o,t){p(t,!1);const r=m["/quickstart"];a(),i(o,{get doc(){return r}}),s()}export{u as component};

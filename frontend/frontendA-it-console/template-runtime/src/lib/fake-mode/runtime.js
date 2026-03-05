@@ -4,6 +4,7 @@ import { createFakeEventSource, isFakeSsePath, FakeEventSource } from './sse.js'
 
 const STORAGE_ENABLED_KEY = 'maple_fake_mode_enabled'
 const STORAGE_SEED_KEY = 'maple_fake_mode_seed'
+const STORAGE_MUTATIONS_KEY = 'maple_fake_mode_mutations_v1'
 const CHANGE_EVENT = 'maple:fake-mode-changed'
 const RUNTIME_KEY = '__mapleFakeModeRuntime__'
 
@@ -38,6 +39,55 @@ function setEnabledStorage(enabled) {
 function setSeedStorage(seed) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(STORAGE_SEED_KEY, seed)
+}
+
+function readMutationSnapshot() {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(STORAGE_MUTATIONS_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function persistMutationSnapshot(state, seed) {
+  if (typeof window === 'undefined' || !state) return
+  const snapshot = {
+    seed,
+    rules: Array.isArray(state.firewall?.rules) ? state.firewall.rules : [],
+    users: Array.isArray(state.ui?.users) ? state.ui.users : [],
+    dispatchEvents: Array.isArray(state.ui?.dispatchEvents) ? state.ui.dispatchEvents : [],
+    leakageUploads: Array.isArray(state.ui?.leakageUploads) ? state.ui.leakageUploads : [],
+    updatedAt: new Date().toISOString(),
+  }
+  window.localStorage.setItem(STORAGE_MUTATIONS_KEY, JSON.stringify(snapshot))
+}
+
+function applyMutationSnapshot(state, snapshot) {
+  if (!state || !snapshot || typeof snapshot !== 'object') return
+  if (!state.ui || typeof state.ui !== 'object') {
+    state.ui = {
+      users: [],
+      dispatchEvents: [],
+      leakageUploads: [],
+    }
+  }
+  if (Array.isArray(snapshot.rules)) {
+    state.firewall.rules = snapshot.rules
+  }
+  if (Array.isArray(snapshot.users)) {
+    state.ui.users = snapshot.users
+  }
+  if (Array.isArray(snapshot.dispatchEvents)) {
+    state.ui.dispatchEvents = snapshot.dispatchEvents
+  }
+  if (Array.isArray(snapshot.leakageUploads)) {
+    state.ui.leakageUploads = snapshot.leakageUploads
+  }
 }
 
 function emitChange(runtime) {
@@ -88,18 +138,28 @@ function parseMethod(input, init) {
 async function readBody(input, init, method) {
   if (method === 'GET' || method === 'HEAD') return null
 
-  if (init && Object.prototype.hasOwnProperty.call(init, 'body')) {
-    const body = init.body
-    if (typeof body === 'string') return body
-    if (body == null) return null
-    if (typeof FormData !== 'undefined' && body instanceof FormData) {
-      const form = {}
-      for (const [key, value] of body.entries()) {
-        form[key] = value
+    if (init && Object.prototype.hasOwnProperty.call(init, 'body')) {
+      const body = init.body
+      if (typeof body === 'string') return body
+      if (body == null) return null
+      if (typeof FormData !== 'undefined' && body instanceof FormData) {
+        const form = {}
+        for (const [key, value] of body.entries()) {
+          if (Object.prototype.hasOwnProperty.call(form, key)) {
+            const prev = form[key]
+            if (Array.isArray(prev)) {
+              prev.push(value)
+              form[key] = prev
+            } else {
+              form[key] = [prev, value]
+            }
+          } else {
+            form[key] = value
+          }
+        }
+        return form
       }
-      return form
-    }
-    return body
+      return body
   }
 
   if (input instanceof Request) {
@@ -118,6 +178,7 @@ function ensureState(runtime, { forceRegenerate = false, seed } = {}) {
   if (!runtime.state || forceRegenerate || runtime.seed !== nextSeed) {
     runtime.seed = nextSeed
     runtime.state = createFakeState(nextSeed)
+    applyMutationSnapshot(runtime.state, readMutationSnapshot())
   }
   runtime.state.sessionActive = hasFakeSessionCookie()
   return runtime.state
@@ -159,6 +220,10 @@ function patchFetch(runtime) {
       body,
       state,
     })
+
+    if (method !== 'GET' && method !== 'HEAD') {
+      persistMutationSnapshot(state, runtime.seed)
+    }
 
     return response
   }
@@ -259,6 +324,14 @@ function ensureRuntime() {
       setRuntimeState(runtime, true, { seed, forceRegenerate: true })
     },
 
+    resetFakeMutations() {
+      if (typeof window === 'undefined') return
+      window.localStorage.removeItem(STORAGE_MUTATIONS_KEY)
+      if (runtime.enabled) {
+        ensureState(runtime, { forceRegenerate: true, seed: runtime.seed || readSeed() })
+      }
+    },
+
     isFakeModeEnabled() {
       return runtime.enabled
     },
@@ -310,11 +383,17 @@ export function isFakeModeEnabled() {
   return runtime.isFakeModeEnabled()
 }
 
+export function resetFakeMutations() {
+  const runtime = initializeFakeModeRuntime()
+  runtime.resetFakeMutations()
+}
+
 export const fakeModeRuntime = {
   enableFakeMode,
   disableFakeMode,
   regenerateFakeData,
+  resetFakeMutations,
   isFakeModeEnabled,
 }
 
-export { STORAGE_ENABLED_KEY, STORAGE_SEED_KEY, CHANGE_EVENT }
+export { STORAGE_ENABLED_KEY, STORAGE_SEED_KEY, STORAGE_MUTATIONS_KEY, CHANGE_EVENT }

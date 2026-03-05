@@ -59,6 +59,7 @@
   let selectedAnalysts = []
   let handoffPrompt = null
   let fakeModeOn = false
+  let analystOptionsFromApi = []
 
   const quickPrompts = [
     'Give me a firewall status update.',
@@ -148,7 +149,7 @@
     return names.some((name) => selectedSet.has(normalizeAnalystName(name)))
   }
 
-  $: analystOptions = (() => {
+  $: derivedAnalystOptions = (() => {
     const fromAuth = authMe ? [authMe.username, authMe.email] : []
     const fromAudit = rawAuditEvents.flatMap((event) => extractAnalystNames(event))
     const fromExecutions = rawExecutions.flatMap((execution) => extractAnalystNames(execution))
@@ -161,6 +162,7 @@
     }
     return options
   })()
+  $: analystOptions = analystOptionsFromApi.length > 0 ? analystOptionsFromApi : derivedAnalystOptions
   $: selectedAnalystSet = new Set(selectedAnalysts.map((name) => normalizeAnalystName(name)))
   $: filteredAuditEvents = auditEvents.filter((event) => matchesSelectedAnalysts(event, selectedAnalystSet))
   $: filteredExecutions = executions.filter((execution) => matchesSelectedAnalysts(execution, selectedAnalystSet))
@@ -172,6 +174,15 @@
   $: if (!targetInput && state.executionId) targetInput = state.executionId
   $: if (!targetInput && state.sessionId) targetInput = state.sessionId
   $: if (!targetInput && activeExecution?.executionId) targetInput = activeExecution.executionId
+
+  function buildAnalystQueryParams() {
+    const params = new URLSearchParams()
+    for (const analyst of selectedAnalysts) {
+      const value = String(analyst ?? '').trim()
+      if (value) params.append('analysts', value)
+    }
+    return params.toString()
+  }
 
   function parseHostFromEvent(event, index) {
     const candidates = [event?.url, event?.domain, event?.host, event?.destination, event?.target]
@@ -275,86 +286,41 @@
 
   async function loadData() {
     try {
-      const [
-        summaryRes,
-        sloRes,
-        auditRes,
-        execRes,
-        approvalsRes,
-        runtimeCapabilitiesRes,
-        integrationCatalogRes,
-        connectedIntegrationsRes,
-        downstreamAppsRes,
-        downstreamToolsRes,
-        openclawCatalogRes,
-        authMeRes,
-        firewallRulesRes,
-      ] = await Promise.allSettled([
-        fetch('/api/observability/orchestrations/summary').then((r) => r.json()),
-        fetch('/api/observability/orchestrations/slo').then((r) => r.json()),
-        fetch('/api/observability/orchestrations/audit-log?offset=0&limit=50').then((r) => r.json()),
-        fetch('/api/orchestrations/executions?limit=50').then((r) => r.json()),
-        fetch('/api/orchestrations/executions/approvals?status=pending&limit=50').then((r) => r.json()),
-        fetch('/api/runtime/feature-capabilities').then((r) => r.json()),
-        fetch('/api/integrations/catalog').then((r) => r.json()),
-        fetch('/api/integrations').then((r) => r.json()),
-        fetch('/api/downstream/apps').then((r) => r.json()),
-        fetch('/api/downstream/tools').then((r) => r.json()),
-        fetch('/api/openclaw/cli/catalog').then((r) => r.json()),
-        fetch('/api/auth/me').then((r) => r.json()),
-        fetch('/api/firewall/rules/effective').then((r) => r.json()),
+      const analystQuery = buildAnalystQueryParams()
+      const suffix = analystQuery ? `?${analystQuery}` : ''
+      const [bootstrapRes, analystsRes] = await Promise.allSettled([
+        fetch(`/api/ui/bootstrap${suffix}`).then((r) => r.json()),
+        fetch(`/api/ui/analysts${suffix}`).then((r) => r.json()),
       ])
 
-      if (summaryRes.status === 'fulfilled') summary = summaryRes.value
-      if (sloRes.status === 'fulfilled') slo = sloRes.value
-      if (auditRes.status === 'fulfilled') {
-        const events = auditRes.value?.items ?? auditRes.value?.entries ?? auditRes.value?.events ?? []
-        rawAuditEvents = asArray(events)
+      if (bootstrapRes.status === 'fulfilled') {
+        summary = bootstrapRes.value?.summary ?? null
+        slo = bootstrapRes.value?.slo ?? null
+
+        const events = asArray(bootstrapRes.value?.auditEvents)
+        rawAuditEvents = events
         auditEvents = filterFrontendBOrigin(events)
         if (auditEvents.length === 0 && fakeModeOn) auditEvents = rawAuditEvents
-      }
-      if (execRes.status === 'fulfilled') {
-        const items = execRes.value?.items ?? execRes.value?.executions ?? []
-        rawExecutions = asArray(items)
-        executions = filterFrontendBOrigin(items)
+
+        const executionItems = asArray(bootstrapRes.value?.executions)
+        rawExecutions = executionItems
+        executions = filterFrontendBOrigin(executionItems)
         if (executions.length === 0 && fakeModeOn) executions = rawExecutions
-      }
-      if (approvalsRes.status === 'fulfilled') {
-        const items = approvalsRes.value?.items ?? approvalsRes.value?.approvals ?? approvalsRes.value?.entries ?? []
-        rawApprovals = asArray(items)
-        approvals = filterFrontendBOrigin(items)
+
+        const approvalItems = asArray(bootstrapRes.value?.approvals)
+        rawApprovals = approvalItems
+        approvals = filterFrontendBOrigin(approvalItems)
         if (approvals.length === 0 && fakeModeOn) approvals = rawApprovals
-      }
-      if (runtimeCapabilitiesRes.status === 'fulfilled') {
-        runtimeCapabilities = asArray(runtimeCapabilitiesRes.value?.items
-          ?? runtimeCapabilitiesRes.value?.capabilities
-          ?? runtimeCapabilitiesRes.value)
-      }
-      if (integrationCatalogRes.status === 'fulfilled') {
-        integrationCatalog = asArray(integrationCatalogRes.value?.integrations ?? integrationCatalogRes.value?.items)
-      }
-      if (connectedIntegrationsRes.status === 'fulfilled') {
-        connectedIntegrations = asArray(connectedIntegrationsRes.value?.integrations ?? connectedIntegrationsRes.value?.items)
-      }
-      if (downstreamAppsRes.status === 'fulfilled') {
-        downstreamApps = asArray(downstreamAppsRes.value?.apps ?? downstreamAppsRes.value?.items)
-      }
-      if (downstreamToolsRes.status === 'fulfilled') {
-        downstreamTools = asArray(downstreamToolsRes.value?.tools ?? downstreamToolsRes.value?.items)
-      }
-      if (openclawCatalogRes.status === 'fulfilled') {
-        openclawCatalog = asArray(openclawCatalogRes.value?.catalog ?? openclawCatalogRes.value?.items)
-      }
-      if (authMeRes.status === 'fulfilled') {
-        authMe = authMeRes.value?.user ?? null
-      }
-      if (firewallRulesRes.status === 'fulfilled') {
-        const entries = asArray(
-          firewallRulesRes.value?.rules ??
-          firewallRulesRes.value?.items ??
-          firewallRulesRes.value?.effective ??
-          firewallRulesRes.value,
-        )
+
+        runtimeCapabilities = asArray(bootstrapRes.value?.runtimeCapabilities)
+        integrationCatalog = asArray(bootstrapRes.value?.integrationCatalog)
+        connectedIntegrations = asArray(bootstrapRes.value?.connectedIntegrations)
+        downstreamApps = asArray(bootstrapRes.value?.downstreamApps)
+        downstreamTools = asArray(bootstrapRes.value?.downstreamTools)
+        openclawCatalog = asArray(bootstrapRes.value?.openclawCatalog)
+        authMe = bootstrapRes.value?.authMe ?? null
+
+        const entries = asArray(bootstrapRes.value?.firewallRules)
         if (entries.length > 0) {
           firewallRules = entries.map((rule, index) => ({
             id: String(rule.id ?? rule.ruleId ?? `rule-${index + 1}`),
@@ -364,6 +330,11 @@
             source: String(rule.source ?? 'runtime'),
           }))
         }
+      }
+
+      if (analystsRes.status === 'fulfilled') {
+        const next = asArray(analystsRes.value?.analysts).filter(Boolean)
+        analystOptionsFromApi = next
       }
 
       if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId
@@ -443,10 +414,12 @@
     selectedAnalysts = exists
       ? selectedAnalysts.filter((item) => normalizeAnalystName(item) !== normalized)
       : [...selectedAnalysts, name]
+    void loadData()
   }
 
   function clearAnalysts() {
     selectedAnalysts = []
+    void loadData()
   }
 
   function queueInterventionHandoff(payload) {
@@ -502,11 +475,12 @@
     error = ''
     notice = ''
     try {
-      const response = await fetch('/api/firewall/rules', {
+      const response = await fetch('/api/ui/intervention/block-rule', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          action: 'block',
+          executionId: selectedExecutionId || activeExecution?.executionId || '',
+          sessionId: activeExecution?.sessionId || '',
           target,
           reason: reason.trim(),
           createdBy: authMe?.email ?? authMe?.username ?? 'operator',
@@ -527,6 +501,42 @@
     hasPrompted = true
   }
 
+  async function refreshWorkspace() {
+    try {
+      await fetch('/api/ui/refresh', { method: 'POST' })
+      await loadData()
+      notice = 'Workspace refreshed.'
+    } catch (refreshError) {
+      error = refreshError instanceof Error ? refreshError.message : 'Refresh failed.'
+    }
+  }
+
+  async function sendHomeChat() {
+    const prompt = String(chatInput ?? '').trim()
+    if (!prompt) return
+    hasPrompted = true
+    try {
+      await fetch('/api/ui/chat/send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: prompt }),
+      })
+      await goto(
+        buildWorkspaceHref({
+          category: 'chat',
+          view: 'chat',
+          routePath: state.routePath,
+          executionId: targetInput || (activeExecution?.executionId ?? ''),
+          sessionId: activeExecution?.sessionId ?? '',
+        }),
+        { noScroll: true, keepFocus: true },
+      )
+      chatInput = ''
+    } catch (chatError) {
+      error = chatError instanceof Error ? chatError.message : 'Unable to send chat prompt.'
+    }
+  }
+
 </script>
 
 <section class="workspace product-body" data-testid="maple-workspace-layout">
@@ -537,6 +547,7 @@
       {selectedAnalysts}
       on:toggleAnalyst={(event) => toggleAnalyst(event.detail.name)}
       on:clearAnalysts={clearAnalysts}
+      on:refreshWorkspace={refreshWorkspace}
     />
 
     <div class="main-area">
@@ -581,6 +592,7 @@
               {error}
               {showConfirmStop}
               {allEndpoints}
+              reloadWorkspace={loadData}
               queueInterventionHandoff={queueInterventionHandoff}
               setTraceQuery={(value) => (traceQuery = value)}
               setSessionQuery={(value) => (sessionQuery = value)}
@@ -616,12 +628,12 @@
         {/if}
 
         {#if state.category === 'chat'}
-          <div class="chat-composer chat-composer-home">
+          <form class="chat-composer chat-composer-home" on:submit|preventDefault={sendHomeChat}>
             <div class="chat-input-wrap">
               <input bind:value={chatInput} placeholder="Ask Mayple to summarize runtime context..." aria-label="Mayple chat input" />
-              <button type="button" class="chat-send-btn" aria-label="Send">↑</button>
+              <button type="submit" class="chat-send-btn" aria-label="Send">↑</button>
             </div>
-          </div>
+          </form>
         {/if}
       </div>
     </div>

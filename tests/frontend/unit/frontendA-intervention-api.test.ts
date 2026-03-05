@@ -16,7 +16,7 @@ describe('frontend A intervention api', () => {
     await actions.pauseExecution.execute({ executionId: 'exec-1' })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/orchestrations/executions/exec-1/pause',
+      '/api/ui/intervention/pause',
       expect.objectContaining({ method: 'POST' }),
     )
   })

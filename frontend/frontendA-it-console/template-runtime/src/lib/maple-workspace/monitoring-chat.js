@@ -23,7 +23,7 @@ function extractMessage(payload) {
 }
 
 async function postFirewallChat(prompt, signal) {
-  const response = await fetch('/api/firewall/chat', {
+  const response = await fetch('/api/ui/chat/send', {
     method: 'POST',
     credentials: 'same-origin',
     signal,
@@ -33,9 +33,7 @@ async function postFirewallChat(prompt, signal) {
     body: JSON.stringify({ message: prompt }),
   })
 
-  if (!response.ok) {
-    throw new Error(`/api/firewall/chat -> ${response.status}`)
-  }
+  if (!response.ok) throw new Error(`/api/ui/chat/send -> ${response.status}`)
 
   const payload = await response.json().catch(() => ({}))
   const extracted = extractMessage(payload)
@@ -128,4 +126,3 @@ export function buildMonitoringQuickPrompts({ executionId = '', sessionId = '', 
     `What intervention do you recommend next${targetSuffix}?`,
   ])
 }
-

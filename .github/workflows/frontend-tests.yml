@@ -63,6 +63,14 @@ jobs:
       - name: Command Surface Guard
         run: npm run check:command-surface
 
+      - name: Frontend B Button Coverage Audit (non-blocking)
+        continue-on-error: true
+        run: npm --prefix frontend/frontendB-desktop-app/template-runtime run check:button-coverage
+
+      - name: Frontend B Dataflow Coverage Audit (non-blocking)
+        continue-on-error: true
+        run: npm --prefix frontend/frontendB-desktop-app/template-runtime run audit:dataflow-coverage
+
       - name: Frontend test flow
         env:
           COVERAGE_POLICY: advisory

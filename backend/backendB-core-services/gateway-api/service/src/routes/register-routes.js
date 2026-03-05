@@ -30,6 +30,8 @@ const SIDE_EFFECT_ROUTE_MODULES = [
   "./prometheus-metrics.js",
   "./hitl-routes.js",
   "./demo-routes.js",
+  "./tasks-routes.js",
+  "./dataflow-durability-routes.js",
   "./platform-routes.js",
   "./ops-governance.js",
   "./gpt-adapter.js",

@@ -6,6 +6,7 @@ import {
   initializeFakeModeRuntime,
   regenerateFakeData,
   STORAGE_ENABLED_KEY,
+  STORAGE_MUTATIONS_KEY,
   STORAGE_SEED_KEY,
 } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/fake-mode/runtime.js'
 import {
@@ -183,6 +184,35 @@ describe('fake mode runtime', () => {
     expect(secondSeed).toBeTruthy()
     expect(secondSeed).not.toBe(firstSeed)
     expect(localStorage.getItem(STORAGE_ENABLED_KEY)).toBe('1')
+  })
+
+  it('persists api/ui fake mutations across runtime reinitialization', async () => {
+    initializeFakeModeRuntime()
+    enableFakeMode('seed-ui-persist')
+
+    const createRes = await fetch('/api/ui/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Persisted Analyst', email: 'persisted@mayple.dev', role: 'operator' }),
+    })
+    expect(createRes.ok).toBe(true)
+
+    const before = await fetch('/api/ui/users')
+    const beforePayload = await before.json()
+    expect(beforePayload.users.some((user: { email?: string }) => user.email === 'persisted@mayple.dev')).toBe(
+      true,
+    )
+    expect(localStorage.getItem(STORAGE_MUTATIONS_KEY)).toBeTruthy()
+
+    Reflect.deleteProperty(window as Record<string, unknown>, RUNTIME_KEY)
+    initializeFakeModeRuntime()
+    enableFakeMode('seed-ui-persist')
+
+    const after = await fetch('/api/ui/users')
+    const afterPayload = await after.json()
+    expect(afterPayload.users.some((user: { email?: string }) => user.email === 'persisted@mayple.dev')).toBe(
+      true,
+    )
   })
 
   it('frontend B runtime exposes the same fake fetch behavior', async () => {

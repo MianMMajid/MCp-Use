@@ -27,9 +27,10 @@ export {};
 
 declare module "$app/types" {
 	export interface AppTypes {
-		RouteId(): "/" | "/admin" | "/admin/api" | "/admin/api/[...path]" | "/api" | "/api/[...path]" | "/attachments" | "/authentication" | "/contacts" | "/conversations" | "/errors" | "/groups" | "/health" | "/legacy-docs" | "/login" | "/maple" | "/maple/[...legacy]" | "/messages" | "/pagination" | "/quickstart" | "/sdks" | "/webhooks" | "/[slug]";
+		RouteId(): "/" | "/admin" | "/admin/api" | "/admin/api/[...path]" | "/api" | "/api/ui" | "/api/ui/[...path]" | "/api/[...path]" | "/attachments" | "/authentication" | "/contacts" | "/conversations" | "/errors" | "/groups" | "/health" | "/legacy-docs" | "/login" | "/maple" | "/maple/[...legacy]" | "/messages" | "/pagination" | "/quickstart" | "/sdks" | "/webhooks" | "/[slug]";
 		RouteParams(): {
 			"/admin/api/[...path]": { path: string };
+			"/api/ui/[...path]": { path: string };
 			"/api/[...path]": { path: string };
 			"/maple/[...legacy]": { legacy: string };
 			"/[slug]": { slug: string }
@@ -40,6 +41,8 @@ declare module "$app/types" {
 			"/admin/api": { path?: string };
 			"/admin/api/[...path]": { path: string };
 			"/api": { path?: string };
+			"/api/ui": { path?: string };
+			"/api/ui/[...path]": { path: string };
 			"/api/[...path]": { path: string };
 			"/attachments": Record<string, never>;
 			"/authentication": Record<string, never>;
@@ -59,7 +62,7 @@ declare module "$app/types" {
 			"/webhooks": Record<string, never>;
 			"/[slug]": { slug: string }
 		};
-		Pathname(): "/" | `/admin/api/${string}` & {} | `/api/${string}` & {} | "/attachments" | "/authentication" | "/contacts" | "/conversations" | "/errors" | "/groups" | "/health" | "/legacy-docs" | "/login" | "/maple" | `/maple/${string}` & {} | "/messages" | "/pagination" | "/quickstart" | "/sdks" | "/webhooks" | `/${string}` & {};
+		Pathname(): "/" | `/admin/api/${string}` & {} | `/api/ui/${string}` & {} | `/api/${string}` & {} | "/attachments" | "/authentication" | "/contacts" | "/conversations" | "/errors" | "/groups" | "/health" | "/legacy-docs" | "/login" | "/maple" | `/maple/${string}` & {} | "/messages" | "/pagination" | "/quickstart" | "/sdks" | "/webhooks" | `/${string}` & {};
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): string & {};
 	}

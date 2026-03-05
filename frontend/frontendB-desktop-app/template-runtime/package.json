@@ -9,6 +9,10 @@
     "preview": "vite preview --port 3000",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "npm run check:ui-import-guards",
+    "audit:button-coverage": "node scripts/audit-button-coverage.js",
+    "check:button-coverage": "node scripts/audit-button-coverage.js --check",
+    "audit:dataflow-coverage": "node scripts/audit-dataflow-coverage.js",
+    "check:dataflow-coverage": "node scripts/audit-dataflow-coverage.js --check",
     "check:surface": "node scripts/check-orchestration-surface.js",
     "check:ui-import-guards": "node scripts/check-ui-import-guards.js"
   },

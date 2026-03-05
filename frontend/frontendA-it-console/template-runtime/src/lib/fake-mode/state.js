@@ -536,6 +536,15 @@ export function createFakeState(seedInput) {
         supportsStreaming: true,
       },
     },
+    ui: {
+      users: [
+        { id: 'user-1', userId: 'user-1', name: 'demo', email: 'demo@mayple.dev', role: 'owner', status: 'active', source: 'seed' },
+        { id: 'user-2', userId: 'user-2', name: 'ops', email: 'ops@mayple.dev', role: 'admin', status: 'active', source: 'seed' },
+        { id: 'user-3', userId: 'user-3', name: 'secops', email: 'secops@mayple.dev', role: 'reviewer', status: 'active', source: 'seed' },
+      ],
+      dispatchEvents: [],
+      leakageUploads: [],
+    },
     downstream: {
       apps: [
         { appId: 'github', id: 'github', name: 'GitHub', status: 'connected' },
@@ -566,8 +575,8 @@ export function createFakeState(seedInput) {
     },
     org: orgData,
     userApiKeys: [
-      { id: 'uak-1', keyId: 'uak-1', name: 'automation-key', fingerprint: 'mpk_47a1', createdAt: new Date(now - 14 * DAY_MS).toISOString(), expiresAt: new Date(now + 60 * DAY_MS).toISOString() },
-      { id: 'uak-2', keyId: 'uak-2', name: 'analyst-key', fingerprint: 'mpk_8bc2', createdAt: new Date(now - 6 * DAY_MS).toISOString(), expiresAt: null },
+      { id: 'seed-uak-1', keyId: 'seed-uak-1', name: 'automation-key', fingerprint: 'mpk_47a1', createdAt: new Date(now - 14 * DAY_MS).toISOString(), expiresAt: new Date(now + 60 * DAY_MS).toISOString() },
+      { id: 'seed-uak-2', keyId: 'seed-uak-2', name: 'analyst-key', fingerprint: 'mpk_8bc2', createdAt: new Date(now - 6 * DAY_MS).toISOString(), expiresAt: null },
     ],
     agents,
     runs,

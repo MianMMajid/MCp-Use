@@ -56,29 +56,20 @@ export function interventionActionCatalog() {
       label: 'Pause',
       destructive: false,
       execute: ({ executionId, challengeToken }) =>
-        postJson(
-          `/api/orchestrations/executions/${encodeURIComponent(executionId)}/pause`,
-          withChallengeToken({}, challengeToken),
-        ),
+        postJson('/api/ui/intervention/pause', withChallengeToken({ executionId }, challengeToken)),
     },
     resumeExecution: {
       label: 'Resume',
       destructive: false,
       execute: ({ executionId, challengeToken }) =>
-        postJson(
-          `/api/orchestrations/executions/${encodeURIComponent(executionId)}/resume`,
-          withChallengeToken({}, challengeToken),
-        ),
+        postJson('/api/ui/intervention/resume', withChallengeToken({ executionId }, challengeToken)),
     },
     cancelExecution: {
       label: 'Cancel',
       destructive: true,
       requiresReason: true,
       execute: ({ executionId, reason, challengeToken }) =>
-        postJson(
-          `/api/orchestrations/executions/${encodeURIComponent(executionId)}/cancel`,
-          withChallengeToken({ reason }, challengeToken),
-        ),
+        postJson('/api/ui/intervention/cancel', withChallengeToken({ executionId, reason }, challengeToken)),
     },
     retryNode: {
       label: 'Retry Node',

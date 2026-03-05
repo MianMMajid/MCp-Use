@@ -129,6 +129,54 @@ export function registerAgentManagementRoutes(app) {
         }
     });
 
+    // PATCH /api/agents/:agentId/tools — update equipped Openclaw tool IDs
+    app.patch("/api/agents/:agentId/tools", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) return unauthorized;
+
+        const agentId = c.req.param("agentId");
+        const body = await readJsonBody(c);
+
+        if (!Array.isArray(body?.equippedToolIds)) {
+            return c.json({ error: "equippedToolIds array is required" }, 400);
+        }
+
+        const equippedToolIds = body.equippedToolIds
+            .map((item) => asString(item))
+            .filter((item) => item && item.length > 0);
+
+        try {
+            const existing = await database.findAgentById(agentId);
+            if (!existing) {
+                return c.json({ error: "Agent not found" }, 404);
+            }
+
+            const nextConfig = existing.config && typeof existing.config === "object"
+                ? { ...existing.config, equippedToolIds }
+                : { equippedToolIds };
+
+            const updated = await database.updateAgent(agentId, { config: nextConfig });
+            if (!updated) {
+                return c.json({ error: "Agent not found" }, 404);
+            }
+
+            mapleLog("info", "agent.tools_updated", {
+                agentId,
+                equippedToolCount: equippedToolIds.length,
+            });
+
+            return c.json({
+                ok: true,
+                agentId,
+                equippedToolIds,
+                config: updated.config,
+            });
+        } catch (err) {
+            mapleLog("error", "agent.tools_update_failed", { agentId, error: err.message });
+            return c.json({ error: "Failed to update agent tools", details: err.message }, 500);
+        }
+    });
+
     // DELETE /api/agents/:agentId — archive agent (soft delete)
     app.delete("/api/agents/:agentId", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);

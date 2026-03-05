@@ -1,1 +1,0 @@
-import"../chunks/BH9Hwi-n.js";import{i as p}from"../chunks/B6pwNZO2.js";import{p as r,a}from"../chunks/iXbLd11_.js";import{D as m}from"../chunks/DtlpY12a.js";import{d as i}from"../chunks/2rHXOVXQ.js";function g(o,s){r(s,!1);const t=i["/sdks"];p(),m(o,{get doc(){return t}}),a()}export{g as component};

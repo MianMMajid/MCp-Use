@@ -100,7 +100,7 @@
     return badges.slice(0, 3);
   }
 
-  function readFirewallLibrary() {
+  function readFirewallLibraryFallback() {
     if (typeof window === 'undefined') return [];
     try {
       const raw = window.localStorage.getItem('mayple_firewall_objects_v2');
@@ -109,6 +109,17 @@
     } catch {
       return [];
     }
+  }
+
+  async function loadFirewallLibrary() {
+    try {
+      const payload = await loadJson('/api/firewalls?archived=false');
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      if (items.length > 0) return items;
+    } catch {
+      // Fallback to local cache for offline/dev transitions.
+    }
+    return readFirewallLibraryFallback();
   }
 
   function fromApiNode(node) {
@@ -227,9 +238,12 @@
     loading = true;
     error = '';
     try {
-      const item = await loadJson(`/api/orchestrations/${data.id}`);
+      const [item, firewalls] = await Promise.all([
+        loadJson(`/api/orchestrations/${data.id}`),
+        loadFirewallLibrary(),
+      ]);
       orchestration = item;
-      firewallLibrary = readFirewallLibrary();
+      firewallLibrary = firewalls;
       orchestrationName = item?.name || data.id;
       orchestrationInstructions = item?.description || '';
       flowNodes = ensureInstructionNode((item.nodes || []).map(fromApiNode));

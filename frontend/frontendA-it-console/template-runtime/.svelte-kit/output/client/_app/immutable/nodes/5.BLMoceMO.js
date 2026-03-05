@@ -1,0 +1,1 @@
+import"../chunks/CBxUoMQf.js";import{i as p}from"../chunks/PQaj27Yw.js";import{p as r,a as i}from"../chunks/CazhmhZi.js";import{D as s}from"../chunks/BkhafTdk.js";import{d as m}from"../chunks/2rHXOVXQ.js";function u(o,t){r(t,!1);const a=m["/authentication"];p(),s(o,{get doc(){return a}}),i()}export{u as component};

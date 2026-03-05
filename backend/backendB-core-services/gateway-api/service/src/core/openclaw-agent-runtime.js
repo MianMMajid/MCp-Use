@@ -13,9 +13,11 @@ import {
   openclawAgentGatewayPort,
   openclawAgentMode,
   openclawAgentRequired,
+  dbOpenclawDurabilityEnabled,
 } from "../config.js";
 import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
+import { database } from "../state.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -42,6 +44,51 @@ let sessionEventSequence = 0;
 const sessionStore = new Map();
 const runStore = new Map();
 const sessionWatchers = new Map();
+
+function canPersistOpenClaw() {
+  return dbOpenclawDurabilityEnabled
+    && database
+    && typeof database.upsertOpenClawSession === "function"
+    && typeof database.upsertOpenClawRun === "function"
+    && typeof database.appendOpenClawSessionEvent === "function";
+}
+
+function persistSessionState(session) {
+  if (!canPersistOpenClaw() || !session) return;
+  void database.upsertOpenClawSession({
+    sessionId: session.sessionId,
+    status: session.status,
+    lastRunId: session.lastRunId,
+    lastError: session.lastError,
+    cancelRequested: session.cancelRequested,
+    runCount: Array.isArray(session.runIds) ? session.runIds.length : 0,
+    metadata: {},
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  }).catch(() => {});
+}
+
+function persistRunState(run) {
+  if (!canPersistOpenClaw() || !run) return;
+  void database.upsertOpenClawRun({
+    runId: run.runId,
+    sessionId: run.sessionId,
+    type: run.type,
+    status: run.status,
+    input: run.input ?? {},
+    output: run.output ?? null,
+    error: run.error ?? "",
+    artifacts: run.artifacts ?? [],
+    cost: run.cost ?? null,
+    parentRunId: run.parentRunId ?? null,
+    childRunIds: run.childRunIds ?? [],
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+  }).catch(() => {});
+  if (typeof database.replaceOpenClawRunArtifacts === "function") {
+    void database.replaceOpenClawRunArtifacts(run.runId, run.artifacts ?? []).catch(() => {});
+  }
+}
 
 function evictOldest(store, maxSize) {
   while (store.size > maxSize) {
@@ -112,6 +159,7 @@ function ensureSessionRecord(sessionId) {
   };
   evictOldest(sessionStore, MAX_SESSIONS);
   sessionStore.set(normalizedSessionId, created);
+  persistSessionState(created);
   return created;
 }
 
@@ -132,6 +180,16 @@ function emitSessionEvent(sessionId, eventType, payload = {}) {
     session.events.splice(0, session.events.length - 500);
   }
   session.updatedAt = event.timestamp;
+  if (canPersistOpenClaw()) {
+    void database.appendOpenClawSessionEvent({
+      id: event.id,
+      sessionId: event.sessionId,
+      eventType: event.eventType,
+      payload: event.payload ?? {},
+      timestamp: event.timestamp,
+    }).catch(() => {});
+  }
+  persistSessionState(session);
 
   const watchers = sessionWatchers.get(session.sessionId);
   if (watchers) {
@@ -171,6 +229,7 @@ function createRunRecord({ type, sessionId, input, parentRunId }) {
     const parent = runStore.get(parentRunId);
     if (parent) {
       parent.childRunIds.push(runId);
+      persistRunState(parent);
     }
   }
 
@@ -180,6 +239,8 @@ function createRunRecord({ type, sessionId, input, parentRunId }) {
   session.lastError = "";
   session.cancelRequested = false;
   session.runIds.push(runId);
+  persistRunState(run);
+  persistSessionState(session);
   emitSessionEvent(session.sessionId, "run_started", {
     runId,
     type: run.type,
@@ -223,6 +284,8 @@ function completeRunRecord(run, output, artifacts = []) {
       type: run.type,
     });
   }
+  persistRunState(run);
+  persistSessionState(session);
 }
 
 function failRunRecord(run, errorText) {
@@ -239,6 +302,8 @@ function failRunRecord(run, errorText) {
     type: run.type,
     error: run.error,
   });
+  persistRunState(run);
+  persistSessionState(session);
 }
 
 function isSessionCancelRequested(sessionId) {
@@ -876,6 +941,7 @@ export function cancelOpenClawSession(sessionId) {
   emitSessionEvent(session.sessionId, "cancel_requested", {
     sessionId: session.sessionId,
   });
+  persistSessionState(session);
   return toPublicSession(session);
 }
 

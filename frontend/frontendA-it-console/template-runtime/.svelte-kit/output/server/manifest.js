@@ -10,7 +10,7 @@ return {
 	assets: new Set([]),
 	mimeTypes: {},
 	_: {
-		client: {start:"_app/immutable/entry/start.BoTWK-yg.js",app:"_app/immutable/entry/app.CV1TDtJp.js",imports:["_app/immutable/entry/start.BoTWK-yg.js","_app/immutable/chunks/Cvn2JKTt.js","_app/immutable/chunks/iXbLd11_.js","_app/immutable/chunks/CHN0UO6c.js","_app/immutable/chunks/yiFNK72W.js","_app/immutable/entry/app.CV1TDtJp.js","_app/immutable/chunks/iXbLd11_.js","_app/immutable/chunks/BH9Hwi-n.js","_app/immutable/chunks/yiFNK72W.js","_app/immutable/chunks/EpgkPxzp.js","_app/immutable/chunks/Dyj-gO_8.js","_app/immutable/chunks/CHN0UO6c.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
+		client: {start:"_app/immutable/entry/start.C4eadn4X.js",app:"_app/immutable/entry/app.CUXMTCcw.js",imports:["_app/immutable/entry/start.C4eadn4X.js","_app/immutable/chunks/AirwjYgq.js","_app/immutable/chunks/CazhmhZi.js","_app/immutable/chunks/ZMMBrx3F.js","_app/immutable/chunks/CVzWwZtW.js","_app/immutable/entry/app.CUXMTCcw.js","_app/immutable/chunks/CazhmhZi.js","_app/immutable/chunks/CBxUoMQf.js","_app/immutable/chunks/CVzWwZtW.js","_app/immutable/chunks/a0pJDYsd.js","_app/immutable/chunks/BcqJ6ZNb.js","_app/immutable/chunks/ZMMBrx3F.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
 		nodes: [
 			__memo(() => import('./nodes/0.js')),
 			__memo(() => import('./nodes/1.js')),
@@ -49,6 +49,13 @@ return {
 				params: [{"name":"path","optional":false,"rest":true,"chained":true}],
 				page: null,
 				endpoint: __memo(() => import('./entries/endpoints/admin/api/_...path_/_server.js'))
+			},
+			{
+				id: "/api/ui/[...path]",
+				pattern: /^\/api\/ui(?:\/([^]*))?\/?$/,
+				params: [{"name":"path","optional":false,"rest":true,"chained":true}],
+				page: null,
+				endpoint: __memo(() => import('./entries/endpoints/api/ui/_...path_/_server.js'))
 			},
 			{
 				id: "/api/[...path]",

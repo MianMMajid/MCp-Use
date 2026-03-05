@@ -1,0 +1,58 @@
+{
+  "summary": {
+    "generatedAt": "2026-03-05T15:48:46.423Z",
+    "totalDomains": 6,
+    "fullyDurable": 6,
+    "gaps": []
+  },
+  "rows": [
+    {
+      "domain": "orchestration_conversation",
+      "apiRead": true,
+      "apiWrite": true,
+      "db": true,
+      "stream": false,
+      "verdict": true
+    },
+    {
+      "domain": "orchestration_execution_tasks_reassignments",
+      "apiRead": true,
+      "apiWrite": true,
+      "db": true,
+      "stream": true,
+      "verdict": true
+    },
+    {
+      "domain": "openclaw_sessions_runs_events",
+      "apiRead": true,
+      "apiWrite": true,
+      "db": true,
+      "stream": true,
+      "verdict": true
+    },
+    {
+      "domain": "firewalls_objects",
+      "apiRead": true,
+      "apiWrite": true,
+      "db": true,
+      "stream": false,
+      "verdict": true
+    },
+    {
+      "domain": "skills_custom_activity",
+      "apiRead": true,
+      "apiWrite": true,
+      "db": true,
+      "stream": false,
+      "verdict": true
+    },
+    {
+      "domain": "chat_transcripts_stream_events",
+      "apiRead": true,
+      "apiWrite": true,
+      "db": true,
+      "stream": true,
+      "verdict": true
+    }
+  ]
+}

@@ -2028,6 +2028,8 @@ export async function handleFakeRequest({ method, pathname, searchParams, body, 
 
 export function getHandledRouteManifest() {
   return [
+    '/api/:param',
+    '/admin/api/:param',
     '/api/auth/*',
     '/api/demo/*',
     '/api/firewall/*',

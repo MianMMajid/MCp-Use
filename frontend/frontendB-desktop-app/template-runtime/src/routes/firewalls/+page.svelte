@@ -1,10 +1,10 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson } from '@/lib/api';
+  import { loadJson, postJson, patchJson, deleteJson } from '@/lib/api';
 
-  const STORAGE_KEY = 'mayple_firewall_objects_v2';
   const SELECTED_KEY = 'mayple_firewall_selected_object';
+  const FALLBACK_STORAGE_KEY = 'mayple_firewall_objects_v2';
 
   let objects = [];
   let selectedObjectId = '';
@@ -25,6 +25,7 @@
   let libraryView = 'active';
   let detailDragActive = false;
   let scanPulse = false;
+  let apiPersistenceEnabled = true;
 
   $: selectedObject = objects.find((item) => item.id === selectedObjectId && item.archived === (libraryView === 'archived')) || null;
   $: agentOptions = Array.isArray(agents) ? agents.map((item) => ({ id: String(item.agentId || item.id), name: item.name || String(item.id) })) : [];
@@ -46,7 +47,13 @@
   }
 
   onMount(async () => {
-    readStorage();
+    if (typeof window !== 'undefined') {
+      selectedObjectId = window.localStorage.getItem(SELECTED_KEY) || '';
+    }
+    await refreshFromApi();
+    if (!apiPersistenceEnabled) {
+      readStorage();
+    }
     try {
       const payload = await loadJson('/api/agents').catch(() => ({ items: [] }));
       agents = payload?.items || payload || [];
@@ -58,10 +65,36 @@
     }
   });
 
+  async function refreshFromApi() {
+    try {
+      const [activePayload, archivedPayload] = await Promise.all([
+        loadJson('/api/firewalls?archived=false'),
+        loadJson('/api/firewalls?archived=true'),
+      ]);
+      if (activePayload?.disabled || archivedPayload?.disabled) {
+        apiPersistenceEnabled = false;
+        return;
+      }
+      const activeItems = Array.isArray(activePayload?.items) ? activePayload.items : [];
+      const archivedItems = Array.isArray(archivedPayload?.items) ? archivedPayload.items : [];
+      const merged = [...activeItems, ...archivedItems].map(normalizeObject);
+      objects = merged;
+      if (!objects.find((item) => item.id === selectedObjectId)) {
+        selectedObjectId = objects[0]?.id || '';
+      }
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(SELECTED_KEY, selectedObjectId || '');
+      }
+      apiPersistenceEnabled = true;
+    } catch {
+      apiPersistenceEnabled = false;
+    }
+  }
+
   function readStorage() {
     if (typeof window === 'undefined') return;
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
+      const raw = window.localStorage.getItem(FALLBACK_STORAGE_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
       objects = Array.isArray(parsed) ? parsed.map(normalizeObject) : [];
     } catch {
@@ -94,7 +127,7 @@
     objects = nextObjects.map(normalizeObject);
     selectedObjectId = nextSelected;
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(objects));
+    window.localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(objects));
     window.localStorage.setItem(SELECTED_KEY, selectedObjectId || '');
   }
 
@@ -133,7 +166,7 @@
     }, 850);
   }
 
-  function activateFirewall() {
+  async function activateFirewall() {
     const name = entityName.trim();
     const folder = folderName.trim() || 'root';
     const policy = policyText.trim();
@@ -164,8 +197,25 @@
       ],
     });
 
-    const next = [newObject, ...objects];
-    persist(next, newObject.id);
+    if (apiPersistenceEnabled) {
+      const response = await postJson('/api/firewalls', {
+        name: newObject.name,
+        folder: newObject.folder,
+        policyText: newObject.policyText,
+        scope: newObject.scope,
+        assignedAgentId: newObject.assignedAgentId,
+      });
+      if (response.ok) {
+        await refreshFromApi();
+      } else {
+        apiPersistenceEnabled = false;
+        const next = [newObject, ...objects];
+        persist(next, newObject.id);
+      }
+    } else {
+      const next = [newObject, ...objects];
+      persist(next, newObject.id);
+    }
     triggerScanPulse();
 
     entityName = '';
@@ -175,7 +225,13 @@
     selectedAgentId = '';
   }
 
-  function removeObject(objectId) {
+  async function removeObject(objectId) {
+    if (apiPersistenceEnabled) {
+      await deleteJson(`/api/firewalls/${objectId}`).catch(() => {});
+      await refreshFromApi();
+      simulatorResult = null;
+      return;
+    }
     const next = objects.map((item) => (item.id === objectId ? { ...item, archived: true } : item));
     const remainingVisible = next.filter((item) => item.archived === (libraryView === 'archived') && item.id !== objectId);
     const nextSelected = selectedObjectId === objectId ? remainingVisible[0]?.id || '' : selectedObjectId;
@@ -183,7 +239,12 @@
     simulatorResult = null;
   }
 
-  function restoreObject(objectId) {
+  async function restoreObject(objectId) {
+    if (apiPersistenceEnabled) {
+      await patchJson(`/api/firewalls/${objectId}`, { archived: false, status: 'active' }).catch(() => {});
+      await refreshFromApi();
+      return;
+    }
     const next = objects.map((item) => (item.id === objectId ? { ...item, archived: false } : item));
     persist(next, objectId);
   }
@@ -211,7 +272,7 @@
     return date.toLocaleString();
   }
 
-  function addFilesToObject(objectId, fileList) {
+  async function addFilesToObject(objectId, fileList) {
     if (!fileList || fileList.length === 0) return;
     const mapped = Array.from(fileList).map((file) => ({
       id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -222,12 +283,27 @@
       addedAt: nowIso(),
     }));
 
-    const next = objects.map((item) =>
-      item.id === objectId
-        ? { ...item, entries: [...mapped, ...(item.entries || [])] }
-        : item
-    );
-    persist(next, objectId);
+    if (apiPersistenceEnabled) {
+      for (const entry of mapped) {
+        // eslint-disable-next-line no-await-in-loop
+        await postJson(`/api/firewalls/${objectId}/snippets`, {
+          kind: entry.kind,
+          name: entry.name,
+          mimeType: entry.mimeType,
+          sizeBytes: entry.sizeBytes,
+          preview: '',
+          content: '',
+        }).catch(() => {});
+      }
+      await refreshFromApi();
+    } else {
+      const next = objects.map((item) =>
+        item.id === objectId
+          ? { ...item, entries: [...mapped, ...(item.entries || [])] }
+          : item
+      );
+      persist(next, objectId);
+    }
     addAudit(objectId, `Scanned ${mapped.length} uploaded reference file(s).`, 'safe');
     triggerScanPulse();
   }
@@ -241,7 +317,7 @@
     addFilesToObject(selectedObject.id, files);
   }
 
-  function addSnippet() {
+  async function addSnippet() {
     if (!selectedObject || !snippetContent.trim()) return;
     const content = snippetContent.trim();
     const entry = {
@@ -253,19 +329,36 @@
       preview: content.slice(0, 320),
       addedAt: nowIso(),
     };
-    const next = objects.map((item) =>
-      item.id === selectedObject.id
-        ? { ...item, entries: [entry, ...(item.entries || [])] }
-        : item
-    );
-    persist(next, selectedObject.id);
+    if (apiPersistenceEnabled) {
+      await postJson(`/api/firewalls/${selectedObject.id}/snippets`, {
+        kind: entry.kind,
+        name: entry.name,
+        mimeType: entry.mimeType,
+        sizeBytes: entry.sizeBytes,
+        preview: entry.preview || '',
+        content,
+      }).catch(() => {});
+      await refreshFromApi();
+    } else {
+      const next = objects.map((item) =>
+        item.id === selectedObject.id
+          ? { ...item, entries: [entry, ...(item.entries || [])] }
+          : item
+      );
+      persist(next, selectedObject.id);
+    }
     addAudit(selectedObject.id, `Policy context snippet "${entry.name}" added.`, 'safe');
     triggerScanPulse();
     snippetName = '';
     snippetContent = '';
   }
 
-  function removeEntry(objectId, entryId) {
+  async function removeEntry(objectId, entryId) {
+    if (apiPersistenceEnabled) {
+      await deleteJson(`/api/firewalls/${objectId}/snippets/${entryId}`).catch(() => {});
+      await refreshFromApi();
+      return;
+    }
     const next = objects.map((item) =>
       item.id === objectId
         ? { ...item, entries: (item.entries || []).filter((entry) => entry.id !== entryId) }
@@ -274,7 +367,7 @@
     persist(next, objectId);
   }
 
-  function runSimulation() {
+  async function runSimulation() {
     if (!selectedObject || !simulatorPrompt.trim()) return;
     const prompt = simulatorPrompt.trim().toLowerCase();
     const policy = String(selectedObject.policyText || '').toLowerCase();
@@ -306,6 +399,13 @@
       at: nowIso(),
     };
 
+    if (apiPersistenceEnabled) {
+      await postJson(`/api/firewalls/${selectedObject.id}/simulate`, {
+        prompt: simulatorPrompt.trim(),
+      }).catch(() => {});
+      await refreshFromApi();
+      return;
+    }
     const next = objects.map((item) =>
       item.id === selectedObject.id
         ? {
@@ -362,11 +462,23 @@
     return { added, removed };
   }
 
-  function savePolicyRevision() {
+  async function savePolicyRevision() {
     if (!selectedObject || !revisionText.trim()) return;
     const newText = revisionText.trim();
     const oldText = String(selectedObject.policyText || '');
     const { added, removed } = computeDiff(newText, oldText);
+
+    if (apiPersistenceEnabled) {
+      await patchJson(`/api/firewalls/${selectedObject.id}`, {
+        policyText: newText,
+        rulesCount: inferRulesCount(newText),
+        lastEvaluatedAt: nowIso(),
+      }).catch(() => {});
+      await refreshFromApi();
+      triggerScanPulse();
+      revisionText = '';
+      return;
+    }
 
     const next = objects.map((item) =>
       item.id === selectedObject.id

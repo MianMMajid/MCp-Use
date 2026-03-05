@@ -1,9 +1,10 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import { loadJson, postJson, deleteJson } from '@/lib/api';
 
-  const CUSTOM_SKILLS_KEY = 'mayple_custom_skills';
-  const RECENT_ACTIVITY_KEY = 'mayple_skills_recent';
+  const CUSTOM_SKILLS_KEY = 'mayple_custom_skills_fallback';
+  const RECENT_ACTIVITY_KEY = 'mayple_skills_recent_fallback';
 
   const builtinSkills = [
     { id: 'exec', name: 'exec', description: 'Run terminal/shell commands.', category: 'system', tags: ['#file-system', '#runtime'], status: 'connected' },
@@ -60,6 +61,7 @@
   let testRunning = false;
   let testResult = '';
   let testTimers = [];
+  let apiPersistenceEnabled = true;
 
   $: unifiedSkills = [
     ...builtinSkills,
@@ -108,13 +110,34 @@
       }
     : null;
 
-  onMount(() => {
-    readStorage();
+  onMount(async () => {
+    await readApi();
+    if (!apiPersistenceEnabled) {
+      readStorage();
+    }
   });
 
   onDestroy(() => {
     clearTestTimers();
   });
+
+  async function readApi() {
+    try {
+      const [customPayload, activityPayload] = await Promise.all([
+        loadJson('/api/skills/custom'),
+        loadJson('/api/skills/activity'),
+      ]);
+      if (customPayload?.disabled || activityPayload?.disabled) {
+        apiPersistenceEnabled = false;
+        return;
+      }
+      customSkills = Array.isArray(customPayload?.items) ? customPayload.items : [];
+      recentActivity = Array.isArray(activityPayload?.items) ? activityPayload.items.slice(0, 3) : [];
+      apiPersistenceEnabled = true;
+    } catch {
+      apiPersistenceEnabled = false;
+    }
+  }
 
   function readStorage() {
     if (typeof window === 'undefined') return;
@@ -133,15 +156,21 @@
     }
   }
 
-  function persistCustomSkills(next) {
+  async function persistCustomSkills(next) {
     customSkills = next;
+    if (apiPersistenceEnabled) {
+      return;
+    }
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(CUSTOM_SKILLS_KEY, JSON.stringify(next));
     }
   }
 
-  function persistActivity(next) {
+  async function persistActivity(next) {
     recentActivity = next;
+    if (apiPersistenceEnabled) {
+      return;
+    }
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(RECENT_ACTIVITY_KEY, JSON.stringify(next));
     }
@@ -195,7 +224,7 @@
     creatorError = '';
   }
 
-  function addCustomSkill() {
+  async function addCustomSkill() {
     const name = skillName.trim();
     if (!name) {
       creatorError = 'Skill name is required.';
@@ -207,26 +236,44 @@
     }
 
     const id = `custom-${Date.now()}`;
+    const nextItem = {
+      id,
+      name,
+      description: `Custom skill imported from ${pendingFile.name}`,
+      fileName: pendingFile.name,
+      sizeBytes: pendingFile.size,
+      importedAt: new Date().toISOString(),
+    };
     const next = [
       {
-        id,
-        name,
-        description: `Custom skill imported from ${pendingFile.name}`,
-        fileName: pendingFile.name,
-        sizeBytes: pendingFile.size,
-        importedAt: new Date().toISOString(),
+        ...nextItem,
       },
       ...customSkills,
     ];
-    persistCustomSkills(next);
+    if (apiPersistenceEnabled) {
+      const response = await postJson('/api/skills/custom', nextItem).catch(() => null);
+      if (response?.ok) {
+        await readApi();
+      } else {
+        apiPersistenceEnabled = false;
+        await persistCustomSkills(next);
+      }
+    } else {
+      await persistCustomSkills(next);
+    }
     skillName = '';
     pendingFile = null;
     creatorError = '';
     creatorOpen = false;
   }
 
-  function removeCustomSkill(skillId) {
-    persistCustomSkills(customSkills.filter((item) => item.id !== skillId));
+  async function removeCustomSkill(skillId) {
+    if (apiPersistenceEnabled) {
+      await deleteJson(`/api/skills/custom/${skillId}`).catch(() => {});
+      await readApi();
+      return;
+    }
+    await persistCustomSkills(customSkills.filter((item) => item.id !== skillId));
   }
 
   function clearTestTimers() {
@@ -263,7 +310,12 @@
         status: 'success',
         timestamp: new Date().toISOString(),
       };
-      persistActivity([activityEntry, ...recentActivity].slice(0, 3));
+      const nextActivity = [activityEntry, ...recentActivity].slice(0, 3);
+      if (apiPersistenceEnabled) {
+        void postJson('/api/skills/activity', activityEntry).then(() => readApi()).catch(() => {});
+      } else {
+        void persistActivity(nextActivity);
+      }
     }, 1600);
 
     testTimers = [t1, t2, t3];

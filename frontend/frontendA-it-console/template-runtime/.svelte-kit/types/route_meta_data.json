@@ -5,6 +5,9 @@
 	"/admin/api/[...path]": [
 		"src/routes/admin/api/[...path]/+server.js"
 	],
+	"/api/ui/[...path]": [
+		"src/routes/api/ui/[...path]/+server.js"
+	],
 	"/api/[...path]": [
 		"src/routes/api/[...path]/+server.js"
 	],

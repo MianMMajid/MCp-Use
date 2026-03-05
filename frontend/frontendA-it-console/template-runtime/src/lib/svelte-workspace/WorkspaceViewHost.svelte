@@ -1,7 +1,9 @@
 <script>
+  import { onMount } from 'svelte'
   import InterventionControlPanel from './InterventionControlPanel.svelte'
   import TopologyView from './TopologyView.svelte'
   import DocsViews from './DocsViews.svelte'
+  import { CHANGE_EVENT as FAKE_MODE_CHANGE_EVENT } from '../fake-mode/runtime.js'
   import {
     buildMonitoringQuickPrompts,
     requestMonitoringChat,
@@ -34,6 +36,7 @@
   export let error = ''
   export let showConfirmStop = false
   export let allEndpoints = []
+  export let reloadWorkspace = async () => {}
 
   export let setTraceQuery = () => {}
   export let setSessionQuery = () => {}
@@ -135,7 +138,8 @@
   let userEmail = ''
   let userRole = 'viewer'
   let userNotice = ''
-  let manualUserRows = []
+  let usersBusy = false
+  let apiUserRows = []
   let userRows = []
   const SEEDED_USER_PREFIX = 'seed-user-'
 
@@ -180,14 +184,18 @@
   $: marketplaceRows = [...catalogRows, ...appRows, ...toolRows, ...openclawRows]
   let marketplaceQuery = ''
   let marketplaceKind = 'all'
+  let appliedMarketplaceQuery = ''
+  let appliedMarketplaceKind = 'all'
+  let marketplaceBusy = false
+  let marketplaceNotice = ''
   $: filteredMarketplaceRows = marketplaceRows.filter((row) => {
-    const query = marketplaceQuery.trim().toLowerCase()
+    const query = appliedMarketplaceQuery.trim().toLowerCase()
     const matchesQuery =
       !query ||
       row.app.toLowerCase().includes(query) ||
       row.detail.toLowerCase().includes(query) ||
       row.source.toLowerCase().includes(query)
-    const matchesKind = marketplaceKind === 'all' || row.kind === marketplaceKind
+    const matchesKind = appliedMarketplaceKind === 'all' || row.kind === appliedMarketplaceKind
     return matchesQuery && matchesKind
   })
   $: chatPrompts = buildMonitoringQuickPrompts({
@@ -305,7 +313,24 @@
     })
     return rows
   })()
-  $: userRows = [...seededUsers, ...manualUserRows]
+  $: userRows = apiUserRows.length > 0 ? apiUserRows : seededUsers
+
+  async function loadUsers() {
+    usersBusy = true
+    try {
+      const response = await fetch('/api/ui/users')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(`Users load failed (${response.status})`)
+      apiUserRows = Array.isArray(payload.users) ? payload.users : []
+    } catch (requestError) {
+      userNotice =
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load users from API.'
+    } finally {
+      usersBusy = false
+    }
+  }
 
   async function sendChatPrompt(rawPrompt) {
     const prompt = String(rawPrompt ?? '').trim()
@@ -356,7 +381,7 @@
 
     firewallRulesBusy = true
     try {
-      const response = await fetch('/api/firewall/rules', {
+      const response = await fetch('/api/ui/firewall/rules', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ rules: parsed }),
@@ -365,6 +390,7 @@
         throw new Error(`Failed applying rules (${response.status})`)
       }
       firewallRulesNotice = 'Firewall rules applied successfully.'
+      await reloadWorkspace()
     } catch (requestError) {
       firewallRulesNotice = 'Rules saved locally for review. Backend apply is unavailable.'
       firewallRulesError = requestError instanceof Error ? requestError.message : 'Unable to apply rules.'
@@ -392,8 +418,16 @@
       const form = new FormData()
       for (const file of files) form.append('documents', file)
       form.append('policyMode', leakagePolicy)
-      await fetch('/api/firewall/context-leakage/documents', { method: 'POST', body: form })
+      const response = await fetch('/api/ui/firewall/context-leakage/documents', { method: 'POST', body: form })
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok) {
+        const incoming = Array.isArray(payload.documents) ? payload.documents : []
+        if (incoming.length > 0) {
+          leakageDocs = [...incoming, ...leakageDocs].slice(0, 20)
+        }
+      }
       leakageNotice = `${files.length} document(s) submitted for context leakage scanning.`
+      await reloadWorkspace()
     } catch {
       leakageNotice = `${files.length} document(s) queued locally.`
     } finally {
@@ -402,26 +436,132 @@
     }
   }
 
-  function addUser() {
+  async function addUser() {
     const name = userName.trim()
     const email = userEmail.trim()
     if (!name || !email) {
       userNotice = 'Name and email are required.'
       return
     }
-    manualUserRows = [
-      {
-        id: `u-${Date.now()}`,
-        name,
-        email,
-        role: userRole,
-      },
-      ...manualUserRows,
-    ]
-    userNotice = `Added ${name} as ${userRole}.`
-    userName = ''
-    userEmail = ''
+    usersBusy = true
+    try {
+      const response = await fetch('/api/ui/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, email, role: userRole }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.message || `Create user failed (${response.status})`)
+      const created = payload?.user
+      if (created) {
+        apiUserRows = [created, ...apiUserRows]
+      }
+      userNotice = `Added ${name} as ${userRole}.`
+      userName = ''
+      userEmail = ''
+      await reloadWorkspace()
+    } catch (requestError) {
+      userNotice =
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to create user.'
+    } finally {
+      usersBusy = false
+    }
   }
+
+  async function updateUserRole(user) {
+    const userId = String(user?.userId ?? user?.id ?? '').trim()
+    if (!userId) return
+    usersBusy = true
+    try {
+      const response = await fetch(`/api/ui/users/${encodeURIComponent(userId)}/role`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: user.role }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.message || `Role update failed (${response.status})`)
+      userNotice = `Updated ${user.name} role to ${user.role}.`
+      await reloadWorkspace()
+    } catch (requestError) {
+      userNotice =
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to update role.'
+    } finally {
+      usersBusy = false
+    }
+  }
+
+  async function deleteUser(user) {
+    const userId = String(user?.userId ?? user?.id ?? '').trim()
+    if (!userId) return
+    usersBusy = true
+    try {
+      const response = await fetch(`/api/ui/users/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.message || `Delete user failed (${response.status})`)
+      apiUserRows = apiUserRows.filter(
+        (item) => String(item.userId ?? item.id) !== userId,
+      )
+      userNotice = `Removed ${user.name}.`
+      await reloadWorkspace()
+    } catch (requestError) {
+      userNotice =
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to delete user.'
+    } finally {
+      usersBusy = false
+    }
+  }
+
+  function applyMarketplaceFilter() {
+    appliedMarketplaceQuery = marketplaceQuery
+    appliedMarketplaceKind = marketplaceKind
+  }
+
+  async function dispatchMarketplaceRow(row) {
+    marketplaceBusy = true
+    marketplaceNotice = ''
+    try {
+      const response = await fetch('/api/ui/marketplace/dispatch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          app: row.app,
+          tool: row.kind,
+          source: row.source,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload?.message || `Dispatch failed (${response.status})`)
+      marketplaceNotice = `Dispatched ${row.app}.`
+      await reloadWorkspace()
+    } catch (requestError) {
+      marketplaceNotice =
+        requestError instanceof Error
+          ? requestError.message
+          : `Unable to dispatch ${row.app}.`
+    } finally {
+      marketplaceBusy = false
+    }
+  }
+
+  onMount(() => {
+    applyMarketplaceFilter()
+    void loadUsers()
+    const handleFakeModeChange = () => {
+      void loadUsers()
+    }
+    window.addEventListener(FAKE_MODE_CHANGE_EVENT, handleFakeModeChange)
+    return () => {
+      window.removeEventListener(FAKE_MODE_CHANGE_EVENT, handleFakeModeChange)
+    }
+  })
 
   function clampZoom(value) {
     return Math.max(0.45, Math.min(1.8, value))
@@ -680,8 +820,9 @@
             <option value="agent-tool">OpenClaw</option>
           </select>
         </div>
-        <button type="button" class="action-btn primary">Filter</button>
+        <button type="button" class="action-btn primary" on:click={applyMarketplaceFilter} disabled={marketplaceBusy}>Filter</button>
       </div>
+      {#if marketplaceNotice}<p class="empty-row">{marketplaceNotice}</p>{/if}
 
       <div class="marketplace-section">
         <h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3>
@@ -703,7 +844,7 @@
                   <td class="mono">{row.app}</td>
                   <td>{row.source.toLowerCase()}</td>
                   <td>{row.detail || row.kind || '-'}</td>
-                  <td><button type="button" class="action-btn">Dispatch</button></td>
+                  <td><button type="button" class="action-btn" on:click={() => dispatchMarketplaceRow(row)} disabled={marketplaceBusy}>Dispatch</button></td>
                 </tr>
               {/each}
             </tbody>
@@ -940,23 +1081,38 @@
         </label>
       </div>
       <div class="actions users-form-actions">
-        <button type="button" class="action-btn primary" on:click={addUser}>Add User</button>
+        <button type="button" class="action-btn primary" on:click={addUser} disabled={usersBusy}>Add User</button>
       </div>
       {#if userNotice}<p class="empty-row">{userNotice}</p>{/if}
       <div class="table-wrap">
         <table class="timeline-table">
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {#if userRows.length === 0}
-              <tr><td colspan="3" class="empty-row">No users added yet.</td></tr>
+              <tr><td colspan="4" class="empty-row">No users added yet.</td></tr>
             {:else}
               {#each userRows as user}
                 <tr>
                   <td>{user.name}</td>
                   <td class="mono">{user.email}</td>
-                  <td>{user.role}</td>
+                  <td>
+                    <select class="select" bind:value={user.role}>
+                      <option value="viewer">Viewer</option>
+                      <option value="operator">Operator</option>
+                      <option value="security-admin">Security Admin</option>
+                      <option value="admin">Admin</option>
+                      <option value="owner">Owner</option>
+                      <option value="reviewer">Reviewer</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div class="actions">
+                      <button type="button" class="action-btn" on:click={() => updateUserRole(user)} disabled={usersBusy}>Save Role</button>
+                      <button type="button" class="action-btn danger" on:click={() => deleteUser(user)} disabled={usersBusy}>Delete</button>
+                    </div>
+                  </td>
                 </tr>
               {/each}
             {/if}

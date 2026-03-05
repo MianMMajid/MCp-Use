@@ -1,0 +1,1 @@
+import"../chunks/CBxUoMQf.js";import{i as p}from"../chunks/PQaj27Yw.js";import{p as s,a}from"../chunks/CazhmhZi.js";import{D as m}from"../chunks/BkhafTdk.js";import{d as i}from"../chunks/2rHXOVXQ.js";function g(o,r){s(r,!1);const t=i["/errors"];p(),m(o,{get doc(){return t}}),a()}export{g as component};

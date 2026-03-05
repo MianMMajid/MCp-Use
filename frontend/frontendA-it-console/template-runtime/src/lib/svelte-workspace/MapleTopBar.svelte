@@ -18,6 +18,10 @@
   function clearAnalysts() {
     dispatch('clearAnalysts')
   }
+
+  function refreshWorkspace() {
+    dispatch('refreshWorkspace')
+  }
 </script>
 
 <header class="top-bar" class:panel-connected={connected}>
@@ -47,6 +51,6 @@
       </div>
     </details>
     <span class="source-badge">{sourceText}</span>
-    <button class="top-bar-icon-btn" type="button" aria-label="Refresh">↻</button>
+    <button class="top-bar-icon-btn" type="button" aria-label="Refresh" on:click={refreshWorkspace}>↻</button>
   </div>
 </header>

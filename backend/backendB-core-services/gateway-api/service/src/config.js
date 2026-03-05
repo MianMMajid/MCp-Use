@@ -129,6 +129,12 @@ export const openclawModifierAuditOutboxEnabled = requireEnvBool("MAPLE_OPENCLAW
 export const openclawModifierAuditOutboxIntervalMs = requireEnvInt("MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_INTERVAL_MS", { min: 1000, max: 60000 });
 export const openclawModifierAuditOutboxBatchSize = requireEnvInt("MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_BATCH_SIZE", { min: 1, max: 500 });
 export const openclawModifierAuditOutboxMaxRetries = requireEnvInt("MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_MAX_RETRIES", { min: 1, max: 20 });
+export const dbOrchConversationEnabled = optionalEnvBool("MAPLE_DB_ORCH_CONVERSATION_ENABLED", false);
+export const dbOrchExecTasksEnabled = optionalEnvBool("MAPLE_DB_ORCH_EXEC_TASKS_ENABLED", false);
+export const dbOpenclawDurabilityEnabled = optionalEnvBool("MAPLE_DB_OPENCLAW_DURABILITY_ENABLED", false);
+export const dbFirewallObjectsEnabled = optionalEnvBool("MAPLE_DB_FIREWALL_OBJECTS_ENABLED", false);
+export const dbSkillsCustomEnabled = optionalEnvBool("MAPLE_DB_SKILLS_CUSTOM_ENABLED", false);
+export const dbChatTranscriptsEnabled = optionalEnvBool("MAPLE_DB_CHAT_TRANSCRIPTS_ENABLED", false);
 // ── Enterprise module config ──────────────────────────────────────────────
 export const stepUpRequiredForApprovals = requireEnvBool("MAPLE_STEP_UP_REQUIRED_FOR_APPROVALS");
 export const escalationCheckIntervalMs = requireEnvInt("MAPLE_ESCALATION_CHECK_INTERVAL_MS", { min: 5000, max: 300000 });

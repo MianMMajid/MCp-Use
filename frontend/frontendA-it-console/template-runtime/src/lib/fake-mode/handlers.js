@@ -58,6 +58,94 @@ function parseBody(body) {
   return body
 }
 
+function normalizeUiRule(rule, fallbackId) {
+  return {
+    id: String(rule?.id ?? rule?.ruleId ?? fallbackId ?? `rule-${Date.now()}`),
+    condition: String(rule?.condition ?? rule?.match ?? rule?.pattern ?? 'custom condition'),
+    decision: String(rule?.decision ?? rule?.action ?? rule?.effect ?? 'review'),
+    status: String(rule?.status ?? 'enabled'),
+    source: String(rule?.source ?? 'runtime'),
+    createdAt: rule?.createdAt ?? nowIso(),
+    createdBy: rule?.createdBy ?? null,
+    reason: String(rule?.reason ?? ''),
+  }
+}
+
+function normalizeUiRules(rules, nextId) {
+  return (Array.isArray(rules) ? rules : []).map((rule, index) =>
+    normalizeUiRule(rule, typeof nextId === 'function' ? nextId('rule') : `rule-${index + 1}`),
+  )
+}
+
+function normalizeAnalyst(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function extractAnalystCandidates(item) {
+  if (!item || typeof item !== 'object') return []
+  return [
+    item.actor,
+    item.requestedBy,
+    item.approvedBy,
+    item.reviewer,
+    item.user,
+    item.username,
+    item.email,
+    item.owner,
+    item?.metadata?.actor,
+    item?.metadata?.user,
+    item?.metadata?.requestedBy,
+  ]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+}
+
+function parseAnalystFilter(searchParams) {
+  const fromRepeated = searchParams.getAll('analysts')
+  const fromCsv = String(searchParams.get('analysts') ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  return Array.from(new Set([...fromRepeated, ...fromCsv]))
+}
+
+function filterByAnalyst(records, analystFilter) {
+  if (!Array.isArray(records)) return []
+  if (!Array.isArray(analystFilter) || analystFilter.length === 0) return records
+  const selected = new Set(analystFilter.map((value) => normalizeAnalyst(value)))
+  return records.filter((record) =>
+    extractAnalystCandidates(record).some((candidate) => selected.has(normalizeAnalyst(candidate))),
+  )
+}
+
+function extractUploadedDocuments(payload) {
+  const docs = []
+  const pushDoc = (value) => {
+    if (!value) return
+    const items = Array.isArray(value) ? value : [value]
+    for (const item of items) {
+      if (!item) continue
+      const name = String(item?.name ?? item?.filename ?? 'document')
+      const mimeType = String(item?.type ?? item?.mimeType ?? 'application/octet-stream')
+      const sizeBytes = Number(item?.size ?? item?.sizeBytes ?? String(item?.content ?? '').length ?? 0)
+      docs.push({
+        name,
+        mimeType,
+        sizeBytes,
+        content: typeof item === 'string' ? item : String(item?.content ?? ''),
+      })
+    }
+  }
+
+  if (!payload || typeof payload !== 'object') return docs
+  pushDoc(payload.documents)
+  pushDoc(payload.document)
+  pushDoc(payload.file)
+  pushDoc(payload.files)
+  pushDoc(payload['documents[]'])
+  return docs
+}
+
 function nowIso() {
   return new Date().toISOString()
 }
@@ -304,7 +392,61 @@ function handleFirewall(pathname, method, state, body) {
   }
 
   if (pathname === '/api/firewall/rules/effective' && method === 'GET') {
-    return asJson({ rules: state.firewall.rules })
+    const rules = normalizeUiRules(state.firewall.rules, state.nextId)
+    state.firewall.rules = rules
+    return asJson({
+      ok: true,
+      source: 'fake-runtime',
+      ruleCount: rules.length,
+      rules,
+    })
+  }
+
+  if (pathname === '/api/firewall/rules' && method === 'GET') {
+    const rules = normalizeUiRules(state.firewall.rules, state.nextId)
+    state.firewall.rules = rules
+    return asJson({ ok: true, rules, count: rules.length })
+  }
+
+  if (pathname === '/api/firewall/rules' && method === 'POST') {
+    const payload = parseBody(body)
+    if (Array.isArray(payload.rules)) {
+      const nextRules = payload.rules.map((rule, index) =>
+        normalizeUiRule(
+          { ...rule, createdBy: rule?.createdBy ?? payload.createdBy ?? state.user.email },
+          `rule-${index + 1}`,
+        ),
+      )
+      state.firewall.rules = nextRules
+      return asJson({ ok: true, rules: state.firewall.rules, count: state.firewall.rules.length })
+    }
+
+    const inserted = normalizeUiRule(
+      {
+        ...payload,
+        condition: String(payload.condition ?? (payload.target ? `target equals ${payload.target}` : 'custom condition')),
+        source: payload.source ?? 'ui',
+        createdBy: payload.createdBy ?? state.user.email,
+      },
+      state.nextId('rule'),
+    )
+    state.firewall.rules.unshift(inserted)
+    return asJson({ ok: true, rule: inserted, rules: state.firewall.rules, count: state.firewall.rules.length }, 201)
+  }
+
+  let ruleParams = matchPath(pathname, '/api/firewall/rules/:ruleId')
+  if (ruleParams && method === 'PATCH') {
+    const payload = parseBody(body)
+    const rule = state.firewall.rules.find((entry) => String(entry.id) === String(ruleParams.ruleId))
+    if (!rule) return asJson({ ok: false, message: 'Rule not found.' }, 404)
+    Object.assign(rule, payload, { updatedAt: nowIso() })
+    return asJson({ ok: true, rule })
+  }
+
+  ruleParams = matchPath(pathname, '/api/firewall/rules/:ruleId')
+  if (ruleParams && method === 'DELETE') {
+    state.firewall.rules = state.firewall.rules.filter((entry) => String(entry.id) !== String(ruleParams.ruleId))
+    return asJson({ ok: true, ruleId: ruleParams.ruleId })
   }
 
   if (pathname === '/api/firewall/preview' && method === 'POST') {
@@ -348,12 +490,326 @@ function handleFirewall(pathname, method, state, body) {
   }
 
   if (pathname === '/api/runtime/feature-capabilities' && method === 'GET') {
-    return asJson([
-      { name: 'streamingChat', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'policyPreview', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'hitl', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'orchestrationRuntime', enabled: true, reason: 'Enabled in fake mode' },
+    return asJson({
+      ok: true,
+      service: 'gateway-api',
+      capabilities: [
+        { name: 'streamingChat', enabled: true, reason: 'Enabled in fake mode' },
+        { name: 'policyPreview', enabled: true, reason: 'Enabled in fake mode' },
+        { name: 'hitl', enabled: true, reason: 'Enabled in fake mode' },
+        { name: 'orchestrationRuntime', enabled: true, reason: 'Enabled in fake mode' },
+      ],
+      generatedAt: nowIso(),
+    })
+  }
+
+  if (pathname === '/api/firewall/context-leakage/documents' && method === 'POST') {
+    const payload = parseBody(body)
+    const incomingDocs = extractUploadedDocuments(payload)
+    const policyMode = String(payload?.policyMode ?? 'strict')
+    const docs = incomingDocs.map((document) => ({
+      id: state.nextId('leakage'),
+      name: document.name,
+      mimeType: document.mimeType,
+      sizeBytes: document.sizeBytes,
+      preview: String(document.content ?? '').slice(0, 300),
+      uploadedAt: nowIso(),
+      policyMode,
+    }))
+    state.ui.leakageUploads = [...docs, ...state.ui.leakageUploads].slice(0, 200)
+    return asJson(
+      {
+        ok: true,
+        firewallObjectId: 'context-leakage-global',
+        policyMode,
+        documents: docs,
+        total: state.ui.leakageUploads.length,
+      },
+      201,
+    )
+  }
+
+  if (pathname === '/api/firewall/context-leakage/documents' && method === 'GET') {
+    return asJson({
+      ok: true,
+      firewallObjectId: 'context-leakage-global',
+      documents: state.ui.leakageUploads.map((item) => ({
+        id: item.id,
+        name: item.name,
+        mimeType: item.mimeType ?? 'application/octet-stream',
+        sizeBytes: Number(item.sizeBytes ?? item.size ?? 0),
+        preview: item.preview ?? '',
+        uploadedAt: item.uploadedAt ?? nowIso(),
+      })),
+    })
+  }
+
+  return null
+}
+
+function handleUi(pathname, method, state, searchParams, body) {
+  if (!pathname.startsWith('/api/ui/')) return null
+
+  if (pathname === '/api/ui/bootstrap' && method === 'GET') {
+    const analystFilter = parseAnalystFilter(searchParams)
+    state.firewall.rules = normalizeUiRules(state.firewall.rules, state.nextId)
+    return asJson({
+      summary: state.observability.summary,
+      slo: state.observability.slo,
+      auditEvents: filterByAnalyst(state.observability.auditLog.slice(0, 50), analystFilter),
+      executions: filterByAnalyst(state.orchestrationExecutions.slice(0, 50), analystFilter),
+      approvals: filterByAnalyst(state.hitl.gatewayApprovals.slice(0, 50), analystFilter),
+      runtimeCapabilities: [
+        { name: 'streamingChat', enabled: true, reason: 'Enabled in fake mode' },
+        { name: 'policyPreview', enabled: true, reason: 'Enabled in fake mode' },
+        { name: 'hitl', enabled: true, reason: 'Enabled in fake mode' },
+        { name: 'orchestrationRuntime', enabled: true, reason: 'Enabled in fake mode' },
+      ],
+      integrationCatalog: state.integrations.catalog,
+      connectedIntegrations: state.integrations.connected,
+      downstreamApps: state.downstream.apps,
+      downstreamTools: state.downstream.tools,
+      openclawCatalog: state.tools.cliCatalog,
+      authMe: state.user,
+      firewallRules: state.firewall.rules,
+      contextLeakageDocuments: state.ui.leakageUploads.map((item) => ({
+        id: item.id,
+        name: item.name,
+        mimeType: item.mimeType ?? 'application/octet-stream',
+        sizeBytes: Number(item.sizeBytes ?? item.size ?? 0),
+        preview: item.preview ?? '',
+        uploadedAt: item.uploadedAt ?? nowIso(),
+      })),
+    })
+  }
+
+  if (pathname === '/api/ui/analysts' && method === 'GET') {
+    const analystFilter = parseAnalystFilter(searchParams)
+    const set = new Set([
+      state.user.username,
+      state.user.email,
+      ...state.observability.auditLog.slice(0, 80).flatMap((item) => [item.actor, item.user, item.owner]),
+      ...state.orchestrationExecutions.slice(0, 80).flatMap((item) => [item.requestedBy, item.user]),
+      ...state.hitl.gatewayApprovals.slice(0, 80).flatMap((item) => [item.user, item.reviewer]),
+      ...state.ui.users.map((user) => user.email),
+      ...state.ui.users.map((user) => user.name),
     ])
+    const analysts = Array.from(set)
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+    const filtered = analystFilter.length
+      ? analysts.filter((value) => analystFilter.map((item) => normalizeAnalyst(item)).includes(normalizeAnalyst(value)))
+      : analysts
+    return asJson({
+      analysts: filtered,
+    })
+  }
+
+  if (pathname === '/api/ui/users' && method === 'GET') {
+    return asJson({ orgId: String(state.org?.orgs?.[0]?.id ?? state.org?.orgs?.[0]?.orgId ?? 'default'), users: state.ui.users })
+  }
+
+  if (pathname === '/api/ui/users' && method === 'POST') {
+    const payload = parseBody(body)
+    const orgId = String(state.org?.orgs?.[0]?.id ?? state.org?.orgs?.[0]?.orgId ?? 'default')
+    const user = {
+      id: state.nextId('ui-user'),
+      userId: state.nextId('user'),
+      name: String(payload.name ?? payload.email ?? 'new-user'),
+      email: String(payload.email ?? `user-${Date.now()}@mayple.dev`),
+      role: String(payload.role ?? 'viewer'),
+      status: 'pending',
+      source: 'invite',
+      createdAt: nowIso(),
+    }
+    state.ui.users.unshift(user)
+    return asJson({ ok: true, user, orgId })
+  }
+
+  let uiUserRole = matchPath(pathname, '/api/ui/users/:userId/role')
+  if (uiUserRole && method === 'PATCH') {
+    const payload = parseBody(body)
+    const user = state.ui.users.find((item) => String(item.userId) === String(uiUserRole.userId) || String(item.id) === String(uiUserRole.userId))
+    if (!user) return asJson({ ok: false, message: 'User not found.' }, 404)
+    user.role = String(payload.role ?? user.role)
+    user.status = 'active'
+    user.updatedAt = nowIso()
+    const orgId = String(state.org?.orgs?.[0]?.id ?? state.org?.orgs?.[0]?.orgId ?? 'default')
+    return asJson({ ok: true, userId: String(user.userId ?? user.id), role: user.role, orgId, user })
+  }
+
+  let uiUserDelete = matchPath(pathname, '/api/ui/users/:userId')
+  if (uiUserDelete && method === 'DELETE') {
+    state.ui.users = state.ui.users.filter((item) => String(item.userId) !== String(uiUserDelete.userId) && String(item.id) !== String(uiUserDelete.userId))
+    const orgId = String(state.org?.orgs?.[0]?.id ?? state.org?.orgs?.[0]?.orgId ?? 'default')
+    return asJson({ ok: true, userId: uiUserDelete.userId, orgId })
+  }
+
+  if (pathname === '/api/ui/firewall/rules' && method === 'GET') {
+    state.firewall.rules = normalizeUiRules(state.firewall.rules, state.nextId)
+    return asJson({ rules: state.firewall.rules, count: state.firewall.rules.length })
+  }
+
+  if (pathname === '/api/ui/firewall/rules' && method === 'POST') {
+    const payload = parseBody(body)
+    if (Array.isArray(payload.rules)) {
+      state.firewall.rules = payload.rules.map((rule, index) =>
+        normalizeUiRule(
+          { ...rule, createdBy: rule?.createdBy ?? payload.createdBy ?? state.user.email },
+          `rule-${index + 1}`,
+        ),
+      )
+      return asJson({ ok: true, rules: state.firewall.rules, count: state.firewall.rules.length })
+    }
+    const inserted = normalizeUiRule(
+      {
+        ...payload,
+        condition: String(payload.condition ?? `target equals ${payload.target ?? 'unknown'}`),
+        decision: String(payload.decision ?? payload.action ?? 'block'),
+        source: String(payload.source ?? 'ui'),
+        createdBy: payload.createdBy ?? state.user.email,
+      },
+      state.nextId('rule'),
+    )
+    state.firewall.rules.unshift(inserted)
+    return asJson({ ok: true, rule: inserted, rules: state.firewall.rules, count: state.firewall.rules.length }, 201)
+  }
+
+  let uiRulePatch = matchPath(pathname, '/api/ui/firewall/rules/:ruleId')
+  if (uiRulePatch && method === 'PATCH') {
+    const payload = parseBody(body)
+    const rule = state.firewall.rules.find((item) => String(item.id) === String(uiRulePatch.ruleId))
+    if (!rule) return asJson({ ok: false, message: 'Rule not found.' }, 404)
+    Object.assign(rule, payload, { updatedAt: nowIso() })
+    return asJson({ ok: true, rule })
+  }
+
+  let uiRuleDelete = matchPath(pathname, '/api/ui/firewall/rules/:ruleId')
+  if (uiRuleDelete && method === 'DELETE') {
+    state.firewall.rules = state.firewall.rules.filter((item) => String(item.id) !== String(uiRuleDelete.ruleId))
+    return asJson({ ok: true, ruleId: uiRuleDelete.ruleId })
+  }
+
+  if (pathname === '/api/ui/firewall/context-leakage/documents' && method === 'POST') {
+    const payload = parseBody(body)
+    const incoming = extractUploadedDocuments(payload)
+    const policyMode = String(payload?.policyMode ?? 'strict')
+    const docs = incoming.map((document) => ({
+      id: state.nextId('leakage'),
+      name: document.name,
+      mimeType: document.mimeType,
+      sizeBytes: document.sizeBytes,
+      preview: String(document.content ?? '').slice(0, 300),
+      uploadedAt: nowIso(),
+      policyMode,
+    }))
+    state.ui.leakageUploads = [...docs, ...state.ui.leakageUploads].slice(0, 200)
+    return asJson({
+      ok: true,
+      firewallObjectId: 'context-leakage-global',
+      policyMode,
+      documents: docs,
+      uploads: state.ui.leakageUploads,
+    }, 201)
+  }
+
+  if (pathname === '/api/ui/firewall/context-leakage/documents' && method === 'GET') {
+    return asJson({
+      firewallObjectId: 'context-leakage-global',
+      documents: state.ui.leakageUploads.map((item) => ({
+        id: item.id,
+        name: item.name,
+        mimeType: item.mimeType ?? 'application/octet-stream',
+        sizeBytes: Number(item.sizeBytes ?? item.size ?? 0),
+        preview: item.preview ?? '',
+        uploadedAt: item.uploadedAt ?? nowIso(),
+      })),
+    })
+  }
+
+  if (pathname === '/api/ui/marketplace/dispatch' && method === 'POST') {
+    const payload = parseBody(body)
+    const item = {
+      id: state.nextId('dispatch'),
+      app: payload.app ?? payload.provider ?? 'unknown-app',
+      tool: payload.tool ?? payload.kind ?? 'unknown-tool',
+      target: payload.target ?? '',
+      status: 'queued',
+      createdAt: nowIso(),
+    }
+    state.ui.dispatchEvents.unshift(item)
+    return asJson({
+      ok: true,
+      result: {
+        dispatchId: item.id,
+        app: item.app,
+        tool: item.tool,
+        output: 'Simulated downstream output',
+      },
+      dispatchEvents: state.ui.dispatchEvents,
+    })
+  }
+
+  if (pathname === '/api/ui/chat/send' && method === 'POST') {
+    const payload = parseBody(body)
+    return asJson({
+      ok: true,
+      reply: `Monitoring agent: simulated answer for \"${String(payload.message ?? payload.prompt ?? '').trim()}\".`,
+      source: 'fake-ui-chat',
+    })
+  }
+
+  if (pathname === '/api/ui/intervention/pause' && method === 'POST') {
+    const payload = parseBody(body)
+    const execution = getExecution(state, payload.executionId)
+    if (!execution) return asJson({ ok: false, message: 'Execution not found.' }, 404)
+    execution.status = 'paused'
+    execution.updatedAt = nowIso()
+    return asJson({ ok: true, execution })
+  }
+
+  if (pathname === '/api/ui/intervention/resume' && method === 'POST') {
+    const payload = parseBody(body)
+    const execution = getExecution(state, payload.executionId)
+    if (!execution) return asJson({ ok: false, message: 'Execution not found.' }, 404)
+    execution.status = 'running'
+    execution.updatedAt = nowIso()
+    return asJson({ ok: true, execution })
+  }
+
+  if (pathname === '/api/ui/intervention/cancel' && method === 'POST') {
+    const payload = parseBody(body)
+    const execution = getExecution(state, payload.executionId)
+    if (execution) {
+      execution.status = 'canceled'
+      execution.completedAt = nowIso()
+      execution.updatedAt = nowIso()
+      return asJson({ ok: true, execution })
+    }
+    return asJson({ ok: true, canceled: true, sessionId: payload.sessionId ?? null })
+  }
+
+  if (pathname === '/api/ui/intervention/block-rule' && method === 'POST') {
+    const payload = parseBody(body)
+    const target = String(payload.target ?? '').trim()
+    if (!target) return asJson({ ok: false, message: 'Target is required.' }, 400)
+    const rule = normalizeUiRule({
+      id: state.nextId('rule'),
+      condition: `target equals ${target}`,
+      decision: 'block + escalate',
+      status: 'enabled',
+      source: 'intervention',
+      createdAt: nowIso(),
+      createdBy: payload.createdBy ?? state.user.email,
+      reason: payload.reason ?? '',
+    })
+    state.firewall.rules.unshift(rule)
+    return asJson({ ok: true, rule })
+  }
+
+  if (pathname === '/api/ui/refresh' && method === 'POST') {
+    return asJson({ ok: true, refreshedAt: nowIso() })
   }
 
   return null
@@ -1467,6 +1923,7 @@ export async function handleFakeRequest({ method, pathname, searchParams, body, 
 
   const handlers = [
     () => handleLegacyAndMisc(normalizedPath, upperMethod),
+    () => handleUi(normalizedPath, upperMethod, state, searchParams, body),
     () => handleAuth(normalizedPath, upperMethod, state, body),
     () => handleDemo(normalizedPath, upperMethod, state, body),
     () => handleFirewall(normalizedPath, upperMethod, state, body),
@@ -1497,6 +1954,7 @@ export async function handleFakeRequest({ method, pathname, searchParams, body, 
 
 export function getHandledRouteManifest() {
   return [
+    '/api/ui/*',
     '/api/auth/*',
     '/api/demo/*',
     '/api/firewall/*',
@@ -1522,8 +1980,16 @@ export function getHandledRouteManifest() {
     '/api/operations/orchestrations*',
     '/api/observability/orchestrations*',
     '/api/tools*',
+    '/api/policies',
+    '/api/modifier/*',
+    '/api/escalation/*',
+    '/api/tenants/bindings',
+    '/api/runtime/status',
     '/api/openclaw/cli*',
     '/api/orchestrations*',
+    '/admin/api/audit/events',
+    '/admin/api/policies',
+    '/admin/api/reload',
     '/api/traces/export',
     '/api/openclaw/events',
   ]

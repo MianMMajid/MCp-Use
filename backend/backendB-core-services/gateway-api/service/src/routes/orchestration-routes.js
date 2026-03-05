@@ -3,6 +3,7 @@ import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { hasValidStepUp } from "../core/step-up-auth.js";
+import { dbOrchConversationEnabled, dbOrchExecTasksEnabled } from "../config.js";
 import {
   validateOrchestrationDefinition,
   createOrchestrationExecution,
@@ -20,6 +21,7 @@ import {
 } from "../core/orchestration-runtime.js";
 
 const executionPersistenceWatchers = new Map();
+const LEGACY_ORCHESTRATION_ALIAS_RE = /^orch-(\d+)$/i;
 
 // ── In-memory stores for conversations, tasks, reassignments ──────────────
 const conversations = new Map();
@@ -27,6 +29,60 @@ const objectivePackages = new Map();
 const executionTasks = new Map();
 const executionReassignments = new Map();
 let reassignCounter = 0;
+
+async function listConversationItems(orchestrationId) {
+  if (!dbOrchConversationEnabled || typeof database.listOrchestrationConversationMessages !== "function") {
+    return conversations.get(orchestrationId) || [];
+  }
+  return database.listOrchestrationConversationMessages(orchestrationId);
+}
+
+async function appendConversationItem(orchestrationId, item) {
+  if (!dbOrchConversationEnabled || typeof database.createOrchestrationConversationMessage !== "function") {
+    if (!conversations.has(orchestrationId)) {
+      conversations.set(orchestrationId, []);
+    }
+    const items = conversations.get(orchestrationId);
+    items.push(item);
+    return item;
+  }
+  return database.createOrchestrationConversationMessage({
+    id: item.id,
+    orchestrationId,
+    role: item.role,
+    text: item.text,
+    createdAt: item.createdAt,
+    metadata: item.metadata ?? {},
+  });
+}
+
+async function listExecutionTasks(executionId) {
+  if (!dbOrchExecTasksEnabled || typeof database.listOrchestrationExecutionTasks !== "function") {
+    return executionTasks.get(executionId) || [];
+  }
+  return database.listOrchestrationExecutionTasks(executionId);
+}
+
+async function upsertExecutionTask(item) {
+  if (!dbOrchExecTasksEnabled || typeof database.upsertOrchestrationExecutionTask !== "function") {
+    if (!executionTasks.has(item.executionId)) {
+      executionTasks.set(item.executionId, []);
+    }
+    const existing = executionTasks.get(item.executionId);
+    const idx = existing.findIndex((it) => String(it.taskId ?? it.id) === String(item.taskId ?? item.id));
+    if (idx >= 0) existing[idx] = item;
+    else existing.push(item);
+    return item;
+  }
+  return database.upsertOrchestrationExecutionTask(item);
+}
+
+async function listExecutionReassignments(executionId) {
+  if (!dbOrchExecTasksEnabled || typeof database.listOrchestrationExecutionReassignments !== "function") {
+    return executionReassignments.get(executionId) || [];
+  }
+  return database.listOrchestrationExecutionReassignments(executionId);
+}
 
 const BUILTIN_TEMPLATES = [
   {
@@ -145,6 +201,48 @@ function parsePayload(raw, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function safeTime(value) {
+  const time = new Date(String(value ?? "")).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+async function resolveOrchestrationByRouteId(routeId) {
+  const requestedId = asString(routeId) ?? "";
+  if (!requestedId) return null;
+
+  const direct = await database.findOrchestrationById(requestedId);
+  if (direct) {
+    return { orchestration: direct, resolvedId: direct.id, requestedId };
+  }
+
+  const list = await database.listOrchestrations({ limit: 500, offset: 0 });
+  if (!Array.isArray(list) || list.length === 0) {
+    return null;
+  }
+
+  const aliasMatch = requestedId.match(LEGACY_ORCHESTRATION_ALIAS_RE);
+  if (aliasMatch) {
+    const aliasIndex = Number(aliasMatch[1]) - 1;
+    const ordered = [...list].sort((a, b) => {
+      const delta = safeTime(a.createdAt) - safeTime(b.createdAt);
+      if (delta !== 0) return delta;
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
+    if (aliasIndex >= 0 && aliasIndex < ordered.length) {
+      const orchestration = ordered[aliasIndex];
+      return { orchestration, resolvedId: orchestration.id, requestedId };
+    }
+  }
+
+  const requestedLower = requestedId.toLowerCase();
+  const byName = list.find((item) => String(item?.name || "").trim().toLowerCase() === requestedLower);
+  if (byName) {
+    return { orchestration: byName, resolvedId: byName.id, requestedId };
+  }
+
+  return null;
 }
 
 function toDbExecutionPublic(row, metrics = {}) {
@@ -1087,13 +1185,14 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = asString(c.req.param("id")) ?? "";
-    const orchestration = await database.findOrchestrationById(id);
-    if (!orchestration) {
+    const routeId = asString(c.req.param("id")) ?? "";
+    const resolved = await resolveOrchestrationByRouteId(routeId);
+    if (!resolved) {
       return c.json({ ok: false, error: "Orchestration not found" }, 404);
     }
+    const id = resolved.resolvedId;
 
-    const items = conversations.get(id) || [];
+    const items = await listConversationItems(id);
     const objPkg = objectivePackages.get(id) || null;
     return c.json({ ok: true, items, objectivePackage: objPkg });
   });
@@ -1103,23 +1202,19 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = asString(c.req.param("id")) ?? "";
-    const orchestration = await database.findOrchestrationById(id);
-    if (!orchestration) {
+    const routeId = asString(c.req.param("id")) ?? "";
+    const resolved = await resolveOrchestrationByRouteId(routeId);
+    if (!resolved) {
       return c.json({ ok: false, error: "Orchestration not found" }, 404);
     }
+    const id = resolved.resolvedId;
 
     const body = await readJsonBody(c);
     const message = String(body.message || "").trim();
 
-    if (!conversations.has(id)) {
-      conversations.set(id, []);
-    }
-    const items = conversations.get(id);
-
     if (message) {
-      items.push({
-        id: `conv-${id}-${items.length + 1}`,
+      await appendConversationItem(id, {
+        id: `conv-${id}-u-${Date.now()}`,
         role: "user",
         text: message,
         createdAt: new Date().toISOString(),
@@ -1148,12 +1243,14 @@ export function registerOrchestrationRoutes(app) {
     objectivePackages.set(id, nextObjective);
 
     const reply = `Manager update: next loop will plan/delegate around "${nextObjective.goal || "objective"}".`;
-    items.push({
-      id: `conv-${id}-${items.length + 1}`,
+    await appendConversationItem(id, {
+      id: `conv-${id}-m-${Date.now()}`,
       role: "manager",
       text: reply,
       createdAt: new Date().toISOString(),
     });
+
+    const items = await listConversationItems(id);
 
     return c.json({ ok: true, items, reply, objectivePackage: nextObjective });
   });
@@ -1171,12 +1268,15 @@ export function registerOrchestrationRoutes(app) {
       return c.json({ ok: false, error: "Execution not found" }, 404);
     }
 
-    if (!executionTasks.has(executionId)) {
+    let tasks = await listExecutionTasks(executionId);
+    if (!Array.isArray(tasks) || tasks.length === 0) {
       // Auto-generate tasks from execution graph nodes
       const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
       const nodes = graph?.nodes || [];
       const now = new Date().toISOString();
-      const tasks = nodes.map((node, idx) => ({
+      tasks = [];
+      for (const [idx, node] of nodes.entries()) {
+        const task = {
         id: `${executionId}-task-${idx + 1}`,
         taskId: `${executionId}-task-${idx + 1}`,
         executionId,
@@ -1189,11 +1289,13 @@ export function registerOrchestrationRoutes(app) {
         createdAt: now,
         updatedAt: now,
         history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
-      }));
-      executionTasks.set(executionId, tasks);
+        };
+        // eslint-disable-next-line no-await-in-loop
+        const saved = await upsertExecutionTask(task);
+        tasks.push(saved);
+      }
     }
-
-    return c.json({ items: executionTasks.get(executionId) });
+    return c.json({ items: tasks });
   });
 
   // ── Reassignments ───────────────────────────────────────────────────────
@@ -1217,11 +1319,14 @@ export function registerOrchestrationRoutes(app) {
     }
 
     // Ensure tasks exist
-    if (!executionTasks.has(executionId)) {
+    let tasks = await listExecutionTasks(executionId);
+    if (!Array.isArray(tasks) || tasks.length === 0) {
       const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
       const nodes = graph?.nodes || [];
       const now = new Date().toISOString();
-      executionTasks.set(executionId, nodes.map((node, idx) => ({
+      tasks = [];
+      for (const [idx, node] of nodes.entries()) {
+        const task = {
         id: `${executionId}-task-${idx + 1}`,
         taskId: `${executionId}-task-${idx + 1}`,
         executionId,
@@ -1234,10 +1339,13 @@ export function registerOrchestrationRoutes(app) {
         createdAt: now,
         updatedAt: now,
         history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
-      })));
+        };
+        // eslint-disable-next-line no-await-in-loop
+        const saved = await upsertExecutionTask(task);
+        tasks.push(saved);
+      }
     }
 
-    const tasks = executionTasks.get(executionId);
     const task = tasks.find((t) => String(t.id) === taskId || String(t.taskId) === taskId);
     if (!task) {
       return c.json({ ok: false, error: "Task not found" }, 404);
@@ -1276,10 +1384,11 @@ export function registerOrchestrationRoutes(app) {
     }
 
     reassignCounter += 1;
+    const reassignmentToken = `${executionId}-${Date.now()}-${reassignCounter}`;
     const now = new Date().toISOString();
     const reassignment = {
-      id: `reassign-${reassignCounter}`,
-      reassignmentId: `reassign-ref-${reassignCounter}`,
+      id: `reassign-${reassignmentToken}`,
+      reassignmentId: `reassign-ref-${reassignmentToken}`,
       executionId,
       taskId: task.id,
       dueAt: dueAt.toISOString(),
@@ -1293,10 +1402,14 @@ export function registerOrchestrationRoutes(app) {
       updatedAt: now,
     };
 
-    if (!executionReassignments.has(executionId)) {
-      executionReassignments.set(executionId, []);
+    if (dbOrchExecTasksEnabled && typeof database.createOrchestrationExecutionReassignment === "function") {
+      await database.createOrchestrationExecutionReassignment(reassignment);
+    } else {
+      if (!executionReassignments.has(executionId)) {
+        executionReassignments.set(executionId, []);
+      }
+      executionReassignments.get(executionId).unshift(reassignment);
     }
-    executionReassignments.get(executionId).unshift(reassignment);
 
     task.updatedAt = now;
     if (!Array.isArray(task.history)) task.history = [];
@@ -1308,6 +1421,7 @@ export function registerOrchestrationRoutes(app) {
       targetAgentId: reassignment.targetAgentId,
     });
 
+    await upsertExecutionTask(task);
     return c.json({ ok: true, reassignment, warnings, message: "Timed reassignment scheduled." });
   });
 
@@ -1322,7 +1436,7 @@ export function registerOrchestrationRoutes(app) {
       return c.json({ ok: false, error: "Execution not found" }, 404);
     }
 
-    const items = executionReassignments.get(executionId) || [];
+    const items = await listExecutionReassignments(executionId);
     return c.json({ items });
   });
 
@@ -1339,7 +1453,7 @@ export function registerOrchestrationRoutes(app) {
       return c.json({ ok: false, error: "Execution not found" }, 404);
     }
 
-    const reassignments = executionReassignments.get(executionId) || [];
+    const reassignments = await listExecutionReassignments(executionId);
     const reassignment = reassignments.find(
       (r) => String(r.id) === reassignmentId || String(r.reassignmentId) === reassignmentId,
     );
@@ -1347,8 +1461,12 @@ export function registerOrchestrationRoutes(app) {
       return c.json({ ok: false, error: "Reassignment not found" }, 404);
     }
 
-    reassignment.status = "canceled";
-    reassignment.updatedAt = new Date().toISOString();
+    if (dbOrchExecTasksEnabled && typeof database.updateOrchestrationExecutionReassignmentStatus === "function") {
+      await database.updateOrchestrationExecutionReassignmentStatus(executionId, reassignmentId, "canceled");
+    } else {
+      reassignment.status = "canceled";
+      reassignment.updatedAt = new Date().toISOString();
+    }
     return c.json({ ok: true });
   });
 
@@ -1357,14 +1475,16 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = asString(c.req.param("id")) ?? "";
+    const routeId = asString(c.req.param("id")) ?? "";
     const body = await readJsonBody(c);
 
     try {
-      const orchestration = await database.findOrchestrationById(id);
-      if (!orchestration) {
+      const routeResolution = await resolveOrchestrationByRouteId(routeId);
+      if (!routeResolution) {
         return c.json({ ok: false, error: "Orchestration not found." }, 404);
       }
+      const id = routeResolution.resolvedId;
+      const orchestration = routeResolution.orchestration;
 
       const requestedVersion = asString(body.definitionVersion) ?? "";
       const resolved = await resolveDefinitionForRuntime(orchestration, requestedVersion);
@@ -1387,7 +1507,7 @@ export function registerOrchestrationRoutes(app) {
         validation.ok ? 200 : 400,
       );
     } catch (err) {
-      mapleLog("error", "orchestration.validate_failed", { id, error: err.message });
+      mapleLog("error", "orchestration.validate_failed", { id: routeId, error: err.message });
       return c.json(
         { ok: false, error: "Failed to validate orchestration", details: err.message },
         500,
@@ -1400,7 +1520,7 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = asString(c.req.param("id")) ?? "";
+    const routeId = asString(c.req.param("id")) ?? "";
     const body = await readJsonBody(c);
     if (asString(body.mode) !== "dry_run") {
       const gated = await enforceSensitiveOperationGate(c, "execute_live");
@@ -1408,10 +1528,12 @@ export function registerOrchestrationRoutes(app) {
     }
 
     try {
-      const orchestration = await database.findOrchestrationById(id);
-      if (!orchestration) {
+      const routeResolution = await resolveOrchestrationByRouteId(routeId);
+      if (!routeResolution) {
         return c.json({ ok: false, error: "Orchestration not found." }, 404);
       }
+      const id = routeResolution.resolvedId;
+      const orchestration = routeResolution.orchestration;
 
       const requestedVersion = asString(body.definitionVersion) ?? "";
       const resolved = await resolveDefinitionForRuntime(orchestration, requestedVersion);
@@ -1472,7 +1594,7 @@ export function registerOrchestrationRoutes(app) {
         201,
       );
     } catch (err) {
-      mapleLog("error", "orchestration.execute_failed", { id, error: err.message });
+      mapleLog("error", "orchestration.execute_failed", { id: routeId, error: err.message });
       return c.json(
         { ok: false, error: "Failed to execute orchestration", details: err.message },
         500,
@@ -1485,12 +1607,14 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = asString(c.req.param("id")) ?? "";
+    const routeId = asString(c.req.param("id")) ?? "";
     try {
-      const existing = await database.findOrchestrationById(id);
-      if (!existing) {
+      const resolved = await resolveOrchestrationByRouteId(routeId);
+      if (!resolved) {
         return c.json({ ok: false, error: "Orchestration not found." }, 404);
       }
+      const id = resolved.resolvedId;
+      const existing = resolved.orchestration;
       const body = await readJsonBody(c);
       const authContext = authContextStorage.getStore();
       const createdBy = asString(body.createdBy) ?? asString(authContext?.userId) ?? "operator";
@@ -1529,15 +1653,15 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = c.req.param("id");
+    const routeId = asString(c.req.param("id")) ?? "";
     try {
-      const orchestration = await database.findOrchestrationById(id);
-      if (!orchestration) {
+      const resolved = await resolveOrchestrationByRouteId(routeId);
+      if (!resolved) {
         return c.json({ error: "Orchestration not found" }, 404);
       }
-      return c.json(orchestration);
+      return c.json(resolved.orchestration);
     } catch (err) {
-      mapleLog("error", "orchestration.get_failed", { id, error: err.message });
+      mapleLog("error", "orchestration.get_failed", { id: routeId, error: err.message });
       return c.json(
         { error: "Failed to get orchestration", details: err.message },
         500,
@@ -1550,7 +1674,7 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = c.req.param("id");
+    const routeId = asString(c.req.param("id")) ?? "";
     const body = await readJsonBody(c);
 
     const updates = {};
@@ -1561,6 +1685,11 @@ export function registerOrchestrationRoutes(app) {
     if (body.edges !== undefined) updates.edges = body.edges;
 
     try {
+      const resolved = await resolveOrchestrationByRouteId(routeId);
+      if (!resolved) {
+        return c.json({ error: "Orchestration not found" }, 404);
+      }
+      const id = resolved.resolvedId;
       const orchestration = await database.updateOrchestration(id, updates);
       if (!orchestration) {
         return c.json({ error: "Orchestration not found" }, 404);
@@ -1568,7 +1697,7 @@ export function registerOrchestrationRoutes(app) {
       mapleLog("info", "orchestration.updated", { id, updates: Object.keys(updates) });
       return c.json(orchestration);
     } catch (err) {
-      mapleLog("error", "orchestration.update_failed", { id, error: err.message });
+      mapleLog("error", "orchestration.update_failed", { id: routeId, error: err.message });
       return c.json(
         { error: "Failed to update orchestration", details: err.message },
         500,
@@ -1581,8 +1710,13 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
-    const id = c.req.param("id");
+    const routeId = asString(c.req.param("id")) ?? "";
     try {
+      const resolved = await resolveOrchestrationByRouteId(routeId);
+      if (!resolved) {
+        return c.json({ error: "Orchestration not found" }, 404);
+      }
+      const id = resolved.resolvedId;
       const orchestration = await database.archiveOrchestration(id);
       if (!orchestration) {
         return c.json({ error: "Orchestration not found" }, 404);
@@ -1590,7 +1724,7 @@ export function registerOrchestrationRoutes(app) {
       mapleLog("info", "orchestration.archived", { id });
       return c.json({ archived: true, orchestration });
     } catch (err) {
-      mapleLog("error", "orchestration.archive_failed", { id, error: err.message });
+      mapleLog("error", "orchestration.archive_failed", { id: routeId, error: err.message });
       return c.json(
         { error: "Failed to archive orchestration", details: err.message },
         500,

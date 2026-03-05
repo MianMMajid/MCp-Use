@@ -124,16 +124,24 @@
     loading = true;
     error = '';
     try {
-      const [agentPayload, toolsPayload] = await Promise.all([
+      const [agentPayload, toolsPayload, customSkillsPayload] = await Promise.all([
         loadJson(`/api/agents/${data.id}`),
         loadJson(`/api/agents/${data.id}/tools`).catch(() => ({ items: [], equippedToolIds: [] })),
+        loadJson('/api/skills/custom').catch(() => ({ items: readCustomSkills() })),
       ]);
 
       agent = agentPayload;
       openclawTools = Array.isArray(toolsPayload?.items)
         ? toolsPayload.items.map((item) => ({ ...item, toolId: String(item.toolId || item.name) }))
         : [];
-      customSkills = readCustomSkills();
+      const customItems = Array.isArray(customSkillsPayload?.items)
+        ? customSkillsPayload.items
+        : (Array.isArray(customSkillsPayload) ? customSkillsPayload : readCustomSkills());
+      customSkills = customItems.map((item) => ({
+        id: item?.id ?? item?.skillId ?? item?.name,
+        name: item?.name ?? item?.title ?? 'Custom Skill',
+        fileName: item?.fileName ?? item?.source ?? '',
+      }));
       equippedToolIds = Array.isArray(toolsPayload?.equippedToolIds)
         ? toolsPayload.equippedToolIds.map(String)
         : (Array.isArray(agentPayload?.equippedToolIds) ? agentPayload.equippedToolIds.map(String) : []);

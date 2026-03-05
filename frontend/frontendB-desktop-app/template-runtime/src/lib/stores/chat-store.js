@@ -11,6 +11,7 @@ const STACK_MODE_KEY = 'mayple_stack_mode';
 const ORCH_ID_KEY = 'mayple_orchestration_id';
 const AGENT_ID_KEY = 'selectedAgentId';
 const ORCH_PANEL_KEY = 'mayple_orchestration_dock_tab';
+const CHAT_CONVERSATION_ID_KEY = 'mayple_chat_conversation_id';
 const VALID_PANELS = new Set(['controls', 'tasks', 'timeline', 'approvals', 'advanced']);
 
 function normalizeMode(value) {
@@ -77,6 +78,7 @@ function createChatStore() {
     sessionsLoading: false,
     sessionId: '',
     messages: [],
+    chatConversationId: '',
     runError: '',
     streaming: false,
     orchestrations: [],
@@ -150,6 +152,7 @@ function createChatStore() {
     let orchestrationExecutionId = '';
     let selectedAgentId = '';
     let selectedOrchestrationId = '';
+    let chatConversationId = '';
 
     if (typeof window !== 'undefined') {
       mode = normalizeMode(window.localStorage.getItem(CHAT_MODE_KEY));
@@ -160,6 +163,7 @@ function createChatStore() {
       orchestrationPanelTab = normalizePanel(window.localStorage.getItem(ORCH_PANEL_KEY));
       selectedAgentId = window.localStorage.getItem(AGENT_ID_KEY) || '';
       selectedOrchestrationId = window.localStorage.getItem(ORCH_ID_KEY) || '';
+      chatConversationId = window.localStorage.getItem(CHAT_CONVERSATION_ID_KEY) || '';
       const query = readWorkspaceQuery();
       if (query.mode) mode = normalizeMode(query.mode);
       if (query.stack) stackMode = normalizeStackMode(query.stack);
@@ -177,7 +181,8 @@ function createChatStore() {
       orchestrationPanelTab,
       orchestrationExecutionId,
       selectedAgentId,
-      selectedOrchestrationId
+      selectedOrchestrationId,
+      chatConversationId
     });
     await Promise.all([loadUser(), loadAgents(), loadOrchestrationList()]);
 
@@ -198,6 +203,7 @@ function createChatStore() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(AGENT_ID_KEY, resolvedAgentId);
       window.localStorage.setItem(ORCH_ID_KEY, resolvedOrchId);
+      window.localStorage.setItem(CHAT_CONVERSATION_ID_KEY, chatConversationId);
       window.localStorage.setItem(CHAT_MODE_KEY, mode);
       window.localStorage.setItem(STACK_MODE_KEY, stackMode);
       window.localStorage.setItem(ORCH_PANEL_KEY, orchestrationPanelTab);
@@ -310,6 +316,18 @@ function createChatStore() {
     patch({ sessionId: '', messages: [], runError: '' });
   }
 
+  async function ensureChatConversationId() {
+    const state = get({ subscribe });
+    const existing = String(state.chatConversationId || '');
+    if (existing) return existing;
+    const generated = `conv-${Date.now()}`;
+    patch({ chatConversationId: generated });
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CHAT_CONVERSATION_ID_KEY, generated);
+    }
+    return generated;
+  }
+
   async function selectSession(sessionId) {
     const sid = String(sessionId || '');
     if (!sid) return;
@@ -393,17 +411,25 @@ function createChatStore() {
     if (!content) return;
 
     const state = get({ subscribe });
+    const conversationId = await ensureChatConversationId();
     patch({
       runError: '',
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
     try {
+      await postJson(`/api/chat/conversations/${conversationId}/messages`, {
+        role: 'user',
+        content,
+        streamState: 'done',
+        createdAt: new Date().toISOString()
+      }).catch(() => null);
+
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content })
+        body: JSON.stringify({ message: content, conversationId })
       });
 
       if (!response.ok) {
@@ -452,6 +478,12 @@ function createChatStore() {
           }
         ]
       });
+      await postJson(`/api/chat/conversations/${conversationId}/messages`, {
+        role: 'assistant',
+        content: reply || 'Simulated global chat response.',
+        streamState: 'done',
+        createdAt: new Date().toISOString()
+      }).catch(() => null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const next = get({ subscribe });
