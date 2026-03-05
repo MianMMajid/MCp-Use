@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
 const mapleGatewayOrigin =
-  process.env.MAPLE_GATEWAY_ORIGIN ??
+  process.env.MAPLE_GATEWAY_ORIGIN ||
   (inKubernetes ? 'https://gateway-api:3000' : 'http://127.0.0.1:3000')
 
 function resolveAdminConsoleOrigin() {

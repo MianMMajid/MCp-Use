@@ -107,7 +107,9 @@ export MAPLE_GATEWAY_TLS_CA="${MAPLE_GATEWAY_TLS_CA:-${TLS_DIR}/ca.crt}"
 export MAPLE_ADMIN_TLS_CERT="${MAPLE_ADMIN_TLS_CERT:-${TLS_DIR}/tls.crt}"
 export MAPLE_ADMIN_TLS_KEY="${MAPLE_ADMIN_TLS_KEY:-${TLS_DIR}/tls.key}"
 export MAPLE_ADMIN_TLS_CA="${MAPLE_ADMIN_TLS_CA:-${TLS_DIR}/ca.crt}"
-# gRPC TLS material defaults (used by runtime dependency checks).
+# gRPC TLS material defaults — only used when MAPLE_DISABLE_TLS is NOT true.
+# When MAPLE_DISABLE_TLS=true (default on Railway), loadGrpcTlsConfig() returns
+# null and gRPC falls back to insecure credentials (correct for private network).
 export MAPLE_GRPC_TLS_CERT="${MAPLE_GRPC_TLS_CERT:-${TLS_DIR}/tls.crt}"
 export MAPLE_GRPC_TLS_KEY="${MAPLE_GRPC_TLS_KEY:-${TLS_DIR}/tls.key}"
 export MAPLE_GRPC_TLS_CA="${MAPLE_GRPC_TLS_CA:-${TLS_DIR}/ca.crt}"

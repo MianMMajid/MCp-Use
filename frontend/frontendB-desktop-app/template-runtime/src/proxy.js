@@ -5,7 +5,7 @@ const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 const DEFAULT_RAILWAY_GATEWAY_ORIGIN = 'https://maple-gateway-production.up.railway.app'
 
 const mapleGatewayOrigin =
-  process.env.MAPLE_GATEWAY_ORIGIN ??
+  process.env.MAPLE_GATEWAY_ORIGIN ||
   (inKubernetes ? 'https://gateway-api:3000' : DEFAULT_RAILWAY_GATEWAY_ORIGIN)
 
 function resolveAdminConsoleOrigin() {
