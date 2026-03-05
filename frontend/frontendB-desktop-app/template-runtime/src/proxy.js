@@ -4,7 +4,7 @@ const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
 const isRailway = Boolean(process.env.RAILWAY_SERVICE_NAME)
 const DEFAULT_GATEWAY = isRailway
-  ? 'http://maple-gateway.railway.internal:3000'
+  ? 'http://maple-gateway.railway.internal:8080'
   : 'https://maple-gateway-production.up.railway.app'
 
 const mapleGatewayOrigin =
