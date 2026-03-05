@@ -24,7 +24,7 @@ export function CallToAction() {
             Start protecting your agent workflows
           </h2>
           <p className="mt-4 text-lg tracking-tight text-white">
-            Install Maple, connect your agents, and add clear guardrails in
+            Install Mayple, connect your agents, and add clear guardrails in
             minutes.
           </p>
           <div className="mt-10 flex justify-center gap-3">

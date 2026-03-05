@@ -11,7 +11,7 @@ const testimonials = [
   [
     {
       content:
-        'Maple\'s agent governance saved us hours of manual review every week. The policy controls catch risky actions before they reach production, giving our team confidence to deploy agents faster.',
+        'Mayple\'s agent governance saved us hours of manual review every week. The policy controls catch risky actions before they reach production, giving our team confidence to deploy agents faster.',
       author: {
         name: 'Sarah Chen',
         role: 'VP of Engineering at Nexus AI',
@@ -40,7 +40,7 @@ const testimonials = [
     },
     {
       content:
-        'Maple\'s risk scoring caught an anomalous agent behavior pattern that would have cost us thousands. The ML-powered detection is genuinely impressive.',
+        'Mayple\'s risk scoring caught an anomalous agent behavior pattern that would have cost us thousands. The ML-powered detection is genuinely impressive.',
       author: {
         name: 'James Okonkwo',
         role: 'Security Lead at Meridian Systems',
@@ -51,7 +51,7 @@ const testimonials = [
   [
     {
       content:
-        'Setting up policy controls for our MCP-compatible agents took minutes, not days. Maple works as a transparent proxy — no agent modifications needed.',
+        'Setting up policy controls for our MCP-compatible agents took minutes, not days. Mayple works as a transparent proxy — no agent modifications needed.',
       author: {
         name: 'Elena Vasquez',
         role: 'Platform Engineer at Orion Tech',
@@ -60,7 +60,7 @@ const testimonials = [
     },
     {
       content:
-        'The combination of real-time monitoring and configurable guard actions gives us the confidence to scale our agent fleet. Maple is the governance layer we were missing.',
+        'The combination of real-time monitoring and configurable guard actions gives us the confidence to scale our agent fleet. Mayple is the governance layer we were missing.',
       author: {
         name: 'Alex Kim',
         role: 'Director of AI Operations at Summit Analytics',
@@ -91,7 +91,7 @@ export function Testimonials() {
             Trusted by engineering teams worldwide.
           </h2>
           <p className="mt-4 text-lg tracking-tight text-zinc-700">
-            See how teams are using Maple to govern their AI agents and keep
+            See how teams are using Mayple to govern their AI agents and keep
             operations secure.
           </p>
         </div>

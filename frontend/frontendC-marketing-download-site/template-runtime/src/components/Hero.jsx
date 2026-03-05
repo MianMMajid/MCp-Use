@@ -20,7 +20,7 @@ export function Hero() {
         while they work.
       </h1>
       <p className="mx-auto mt-6 max-w-2xl text-lg tracking-tight text-zinc-700">
-        Maple sits between your agents and the tools they use. Watch actions
+        Mayple sits between your agents and the tools they use. Watch actions
         live, block risky steps, and require approval for sensitive actions.
       </p>
       <div className="mt-10 flex justify-center gap-x-6">

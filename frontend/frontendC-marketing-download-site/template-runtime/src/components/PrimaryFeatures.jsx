@@ -16,7 +16,7 @@ const features = [
   {
     title: 'Set up in minutes',
     description:
-      'Connect your current agent stack without rewriting it. Maple runs as a proxy layer in front of your tools.',
+      'Connect your current agent stack without rewriting it. Mayple runs as a proxy layer in front of your tools.',
     image: screenshotPayroll,
   },
   {
@@ -77,7 +77,7 @@ export function PrimaryFeatures() {
             Control your agents without slowing your team down.
           </h2>
           <p className="mt-6 text-lg tracking-tight text-orange-100">
-            Maple gives you one place to monitor activity, enforce rules, and
+            Mayple gives you one place to monitor activity, enforce rules, and
             keep a clear audit trail.
           </p>
         </div>

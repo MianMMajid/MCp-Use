@@ -5,11 +5,11 @@ import '@/styles/tailwind.css'
 
 export const metadata = {
   title: {
-    template: '%s - Maple',
-    default: 'Maple - Safe AI Agent Operations',
+    template: '%s - Mayple',
+    default: 'Mayple - Safe AI Agent Operations',
   },
   description:
-    'Maple helps teams monitor AI agents, enforce policy controls, and keep a complete audit trail.',
+    'Mayple helps teams monitor AI agents, enforce policy controls, and keep a complete audit trail.',
   icons: {
     icon: [
       { url: '/maple-favicon.svg', type: 'image/svg+xml' },

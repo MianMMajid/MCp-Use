@@ -6,48 +6,48 @@ import backgroundImage from '@/images/background-faqs.jpg'
 const faqs = [
   [
     {
-      question: 'What is Maple?',
+      question: 'What is Mayple?',
       answer:
-        'Maple helps teams run AI agents safely. It sits between your agents and tools so you can watch actions, enforce rules, and keep clear logs.',
+        'Mayple helps teams run AI agents safely. It sits between your agents and tools so you can watch actions, enforce rules, and keep clear logs.',
     },
     {
       question: 'How do approvals work?',
       answer:
-        'When an action matches an approval rule, Maple pauses it and sends it to a human reviewer. The reviewer can approve or block it with full context.',
+        'When an action matches an approval rule, Mayple pauses it and sends it to a human reviewer. The reviewer can approve or block it with full context.',
     },
     {
-      question: 'What agents does Maple support?',
+      question: 'What agents does Mayple support?',
       answer:
-        'Maple works with MCP-compatible agents and can protect existing setups without requiring a full rewrite.',
+        'Mayple works with MCP-compatible agents and can protect existing setups without requiring a full rewrite.',
     },
   ],
   [
     {
       question: 'Is my data secure?',
       answer:
-        'Yes. Maple supports secure deployments, encrypted data handling, and complete audit trails.',
+        'Yes. Mayple supports secure deployments, encrypted data handling, and complete audit trails.',
     },
     {
       question: 'Do I need to modify my agents?',
       answer:
-        'Usually no. Maple is designed as a proxy layer, so most teams connect existing agents and configure rules separately.',
+        'Usually no. Mayple is designed as a proxy layer, so most teams connect existing agents and configure rules separately.',
     },
     {
       question: 'What\'s the pricing?',
       answer:
-        'Maple has plans for individuals, teams, and enterprise deployments. See the pricing section for current options.',
+        'Mayple has plans for individuals, teams, and enterprise deployments. See the pricing section for current options.',
     },
   ],
   [
     {
-      question: 'Can I self-host Maple?',
+      question: 'Can I self-host Mayple?',
       answer:
-        'Yes. You can self-host Maple, or run it as a managed setup depending on your team\'s needs.',
+        'Yes. You can self-host Mayple, or run it as a managed setup depending on your team\'s needs.',
     },
     {
       question: 'How do I get started?',
       answer:
-        'Download Maple, connect your first agent, and start with basic allow, block, and approval policies.',
+        'Download Mayple, connect your first agent, and start with basic allow, block, and approval policies.',
     },
     {
       question: 'What are policies?',

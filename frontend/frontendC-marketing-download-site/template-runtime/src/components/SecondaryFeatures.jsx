@@ -45,7 +45,7 @@ const features = [
     name: 'Risk alerts',
     summary: 'Spot unusual behavior early.',
     description:
-      'Maple flags suspicious patterns in real time so operators can step in before a risky action causes damage.',
+      'Mayple flags suspicious patterns in real time so operators can step in before a risky action causes damage.',
     icon: function InventoryIcon() {
       return (
         <>

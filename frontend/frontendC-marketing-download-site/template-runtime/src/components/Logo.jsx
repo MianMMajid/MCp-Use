@@ -8,7 +8,7 @@ export function Logo({ className, ...props }) {
     <div
       {...props}
       className={clsx('inline-flex items-center gap-2', className)}
-      aria-label="Maple"
+      aria-label="Mayple"
     >
       <span className="inline-flex h-8 w-8 items-center justify-center">
         <svg
@@ -42,7 +42,7 @@ export function Logo({ className, ...props }) {
         </svg>
       </span>
       <span className="text-base font-semibold tracking-tight text-zinc-900">
-        Maple
+        Mayple
       </span>
     </div>
   )

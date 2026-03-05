@@ -36,7 +36,7 @@ export function DownloadSection() {
     <section id="download" className="py-20 sm:py-24">
       <Container className="rounded-3xl bg-zinc-50 p-8 ring-1 ring-zinc-900/5 sm:p-12">
         <h3 className="font-display text-2xl tracking-tight text-zinc-900">
-          Download Maple Desktop
+          Download Mayple Desktop
         </h3>
         <p className="mt-3 max-w-2xl text-sm text-zinc-700">
           Run and monitor agent workflows with built-in policy checks and audit
