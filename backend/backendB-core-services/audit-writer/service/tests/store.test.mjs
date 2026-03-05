@@ -110,6 +110,46 @@ test("AuditStore: write buffer properties have correct defaults", () => {
   assert.equal(store.flushIntervalMs, 200);
 });
 
+test("AuditStore: concurrent flush protection — flushInProgress blocks reentry", async () => {
+  const store = new AuditStore();
+  store.pgReady = true;
+  store.pool = {};
+  let flushCount = 0;
+  store.insertEventsPgBatch = async (events) => {
+    flushCount++;
+    await new Promise((r) => setTimeout(r, 50)); // simulate slow insert
+  };
+  store.insertEventPg = async () => {};
+  store.insertDeadLetter = async () => {};
+
+  store.writeBuffer.push(
+    { eventId: "cf-1", eventType: "test", timestamp: new Date().toISOString(), sourceService: "test" },
+  );
+  // Start first flush (sets flushInProgress=true)
+  const flush1 = store.flushBuffer();
+  // Attempt second flush while first is in progress — should return immediately
+  await store.flushBuffer();
+  await flush1;
+  assert.equal(flushCount, 1);
+});
+
+test("AuditStore: flushBuffer falls back to individual inserts on batch failure", async () => {
+  const store = new AuditStore();
+  store.pgReady = true;
+  store.pool = {};
+  const individualInserts = [];
+  store.insertEventsPgBatch = async () => { throw new Error("batch fail"); };
+  store.insertEventPg = async (event) => { individualInserts.push(event.eventId); };
+  store.insertDeadLetter = async () => {};
+
+  store.writeBuffer.push(
+    { eventId: "fb-1", eventType: "test", timestamp: new Date().toISOString(), sourceService: "test" },
+    { eventId: "fb-2", eventType: "test", timestamp: new Date().toISOString(), sourceService: "test" },
+  );
+  await store.flushBuffer();
+  assert.deepEqual(individualInserts, ["fb-1", "fb-2"]);
+});
+
 // ── PG Tests (conditional on DATABASE_URL) ───────────────────────────────────
 
 test("AuditStore: initialize creates tables", { skip }, async () => {

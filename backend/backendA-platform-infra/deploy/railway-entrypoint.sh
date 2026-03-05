@@ -259,7 +259,7 @@ case "${MAPLE_SERVICE}" in
     export STRIPE_PRICE_ENTERPRISE="${STRIPE_PRICE_ENTERPRISE:-price_not_configured}"
     export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-pk_test_not_configured}"
 
-    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=64 --max-old-space-size=1536}"
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=128 --max-old-space-size=1536}"
 
     echo "[railway-entrypoint] Starting gateway-api on port ${GATEWAY_PORT}..."
     echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."

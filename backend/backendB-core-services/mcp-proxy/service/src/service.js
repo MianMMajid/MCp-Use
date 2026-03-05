@@ -17,7 +17,7 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
-import { loadGrpcTlsConfig, loadServiceClientSecure, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 // ── Lightweight audit event emitter ──────────────────────────────────────────
@@ -43,8 +43,8 @@ function emitAuditEvent(opts) {
 // ── gRPC clients for cyber-proxy and audit-writer ────────────────────────────
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
-function loadServiceClient(protoFile, servicePath, address) {
-    return loadServiceClientSecure(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
+function loadServiceClientPooled(protoFile, servicePath, address) {
+    return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
 function grpcUnary(client, method, request) {
     return new Promise((resolve, reject) => {
@@ -56,38 +56,27 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let cyberProxyClient;
-let auditWriterClient;
+let cyberProxyPool;
+let auditWriterPool;
 const cyberProxyBreaker = new CircuitBreaker("mcp-proxy->cyber-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("mcp-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
-function closeGrpcClient(client) {
-    if (!client || typeof client.close !== "function") {
-        return;
-    }
-    try {
-        client.close();
-    }
-    catch {
-        // best effort
-    }
-}
 function getCyberProxy() {
-    if (!cyberProxyClient) {
-        cyberProxyClient = loadServiceClient("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
+    if (!cyberProxyPool) {
+        cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
     }
-    return cyberProxyClient;
+    return cyberProxyPool.getClient();
 }
 function getAuditWriter() {
-    if (!auditWriterClient) {
-        auditWriterClient = loadServiceClient("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
+    if (!auditWriterPool) {
+        auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
     }
-    return auditWriterClient;
+    return auditWriterPool.getClient();
 }
 export function closeMcpProxyClients() {
-    closeGrpcClient(cyberProxyClient);
-    closeGrpcClient(auditWriterClient);
-    cyberProxyClient = undefined;
-    auditWriterClient = undefined;
+    cyberProxyPool?.close();
+    auditWriterPool?.close();
+    cyberProxyPool = undefined;
+    auditWriterPool = undefined;
 }
 class CredentialMintError extends Error {
     constructor(message) {

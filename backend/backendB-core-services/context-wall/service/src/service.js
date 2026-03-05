@@ -2,7 +2,7 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
-import { loadGrpcTlsConfig, loadServiceClientSecure, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII } from "@maple/security";
 import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
 import { generateOpenAI } from "./providers/openai.js";
@@ -21,8 +21,8 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const contextProto = proto.maple.context.v1;
-function loadServiceClient(protoFile, servicePath, address) {
-    return loadServiceClientSecure(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
+function loadServiceClientPooled(protoFile, servicePath, address) {
+    return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
 function grpcUnary(client, method, request) {
     return new Promise((resolvePromise, rejectPromise) => {
@@ -34,32 +34,21 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let mcpProxyClient;
-let auditWriterClient;
+let mcpProxyPool;
+let auditWriterPool;
 const mcpProxyBreaker = new CircuitBreaker("context-wall->mcp-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("context-wall->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
-function closeGrpcClient(client) {
-    if (!client || typeof client.close !== "function") {
-        return;
-    }
-    try {
-        client.close();
-    }
-    catch {
-        // best effort
-    }
-}
 function getMcpProxy() {
-    if (!mcpProxyClient) {
-        mcpProxyClient = loadServiceClient("maple/proxy/v1/mcp_proxy.proto", "maple.proxy.v1.McpProxyService", config.mcpProxyAddress);
+    if (!mcpProxyPool) {
+        mcpProxyPool = loadServiceClientPooled("maple/proxy/v1/mcp_proxy.proto", "maple.proxy.v1.McpProxyService", config.mcpProxyAddress);
     }
-    return mcpProxyClient;
+    return mcpProxyPool.getClient();
 }
 function getAuditWriter() {
-    if (!auditWriterClient) {
-        auditWriterClient = loadServiceClient("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
+    if (!auditWriterPool) {
+        auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
     }
-    return auditWriterClient;
+    return auditWriterPool.getClient();
 }
 function getPreferredProvider() {
     const raw = String(process.env.MAPLE_FIREWALL_CHAT_PRIMARY || "openai").trim().toLowerCase();
@@ -175,10 +164,10 @@ async function generateChatModelResponse(request) {
     return generateViaLocalProviders(request);
 }
 export function closeContextWallClients() {
-    closeGrpcClient(mcpProxyClient);
-    closeGrpcClient(auditWriterClient);
-    mcpProxyClient = undefined;
-    auditWriterClient = undefined;
+    mcpProxyPool?.close();
+    auditWriterPool?.close();
+    mcpProxyPool = undefined;
+    auditWriterPool = undefined;
 }
 function emitAuditEvent(opts) {
     try {

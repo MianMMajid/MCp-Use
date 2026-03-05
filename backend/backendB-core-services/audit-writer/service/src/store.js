@@ -45,7 +45,8 @@ export class AuditStore {
           );
           CREATE INDEX IF NOT EXISTS idx_audit_trace ON audit_events(trace_id);
           CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_events(session_id);
-          CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_events(timestamp DESC);
+          DROP INDEX IF EXISTS idx_audit_ts;
+          CREATE INDEX IF NOT EXISTS idx_audit_ts_composite ON audit_events(timestamp DESC, event_id DESC);
 
           CREATE TABLE IF NOT EXISTS audit_dead_letter (
             event_id UUID PRIMARY KEY,
@@ -315,30 +316,50 @@ export class AuditStore {
     }
     async insertEventsPgBatch(events) {
         if (events.length === 0) return;
-        const COLS = 12;
-        const placeholders = [];
-        const params = [];
-        for (let i = 0; i < events.length; i++) {
-            const offset = i * COLS;
-            placeholders.push(
-                `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12})`
-            );
-            const e = events[i];
-            params.push(
-                e.eventId, e.eventType, e.timestamp, e.sourceService,
-                e.traceId ?? null, e.sessionId ?? null, e.requestId ?? null, e.userId ?? null,
-                e.keyFingerprint ?? null, e.payload ? JSON.stringify(e.payload) : null,
-                e.severity ?? null, e.summary ?? null,
-            );
+        // UNNEST-based batch insert: fixed 12-param prepared statement regardless
+        // of batch size. PostgreSQL expands the arrays row-by-row internally.
+        // This avoids generating dynamic placeholders ($1..$N*12) which causes
+        // query plan cache misses and string allocation overhead for large batches.
+        const eventIds = [];
+        const eventTypes = [];
+        const timestamps = [];
+        const sourceServices = [];
+        const traceIds = [];
+        const sessionIds = [];
+        const requestIds = [];
+        const userIds = [];
+        const keyFingerprints = [];
+        const payloadJsons = [];
+        const severities = [];
+        const summaries = [];
+        for (const e of events) {
+            eventIds.push(e.eventId);
+            eventTypes.push(e.eventType);
+            timestamps.push(e.timestamp);
+            sourceServices.push(e.sourceService);
+            traceIds.push(e.traceId ?? null);
+            sessionIds.push(e.sessionId ?? null);
+            requestIds.push(e.requestId ?? null);
+            userIds.push(e.userId ?? null);
+            keyFingerprints.push(e.keyFingerprint ?? null);
+            payloadJsons.push(e.payload ? JSON.stringify(e.payload) : null);
+            severities.push(e.severity ?? null);
+            summaries.push(e.summary ?? null);
         }
         await this.pool.query(
             `INSERT INTO audit_events
              (event_id, event_type, timestamp, source_service,
               trace_id, session_id, request_id, user_id,
               key_fingerprint, payload_json, severity, summary)
-             VALUES ${placeholders.join(", ")}
+             SELECT * FROM UNNEST(
+               $1::uuid[], $2::text[], $3::timestamptz[], $4::text[],
+               $5::text[], $6::text[], $7::text[], $8::text[],
+               $9::text[], $10::jsonb[], $11::text[], $12::text[]
+             )
              ON CONFLICT (event_id) DO NOTHING`,
-            params
+            [eventIds, eventTypes, timestamps, sourceServices,
+             traceIds, sessionIds, requestIds, userIds,
+             keyFingerprints, payloadJsons, severities, summaries]
         );
     }
     async queryPg(filters) {

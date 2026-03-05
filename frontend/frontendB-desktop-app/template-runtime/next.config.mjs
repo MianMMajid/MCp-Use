@@ -86,18 +86,6 @@ const nextConfig = {
     }
     return config
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${mapleGatewayOrigin}/api/:path*`,
-      },
-      {
-        source: '/admin/api/:path*',
-        destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`,
-      },
-    ]
-  },
   async redirects() {
     return [
       // Route consolidation: retired control/ops routes -> orchestration or settings

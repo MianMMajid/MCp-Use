@@ -18,6 +18,16 @@ export const DEFAULT_GRPC_CHANNEL_OPTIONS = {
   'grpc.enable_retries': 1,
   'grpc.service_config': JSON.stringify({
     loadBalancingConfig: [{ round_robin: {} }],
+    methodConfig: [{
+      name: [{}],
+      retryPolicy: {
+        maxAttempts: 3,
+        initialBackoff: '0.1s',
+        maxBackoff: '1s',
+        backoffMultiplier: 2,
+        retryableStatusCodes: ['UNAVAILABLE', 'DEADLINE_EXCEEDED'],
+      },
+    }],
   }),
 };
 
@@ -28,6 +38,8 @@ export const DEFAULT_GRPC_SERVER_OPTIONS = {
   'grpc.max_send_message_length': 10 * 1024 * 1024,
   'grpc.max_receive_message_length': 10 * 1024 * 1024,
   'grpc.max_concurrent_streams': 100,
+  'grpc.http2.min_time_between_pings_ms': 20000,
+  'grpc.http2.min_ping_interval_without_data_ms': 20000,
 };
 /**
  * Load TLS config from MAPLE_GRPC_TLS_CERT, MAPLE_GRPC_TLS_KEY, MAPLE_GRPC_TLS_CA env vars.
@@ -102,6 +114,50 @@ export function loadServiceClientSecure(protoFile, servicePath, address, protoRo
         service = service[part];
     const credentials = createGrpcClientCredentials(tlsConfig);
     return new service(address, credentials, { ...DEFAULT_GRPC_CHANNEL_OPTIONS, ...channelOptions });
+}
+/**
+ * Create a pool of gRPC clients sharing the same proto definition but using
+ * separate HTTP/2 connections. Each pool member uses a local subchannel pool
+ * to prevent connection sharing, breaking the 100-concurrent-stream ceiling.
+ *
+ * Returns { getClient(), close(), size }.
+ * getClient() round-robins across pool members — call it per-RPC.
+ */
+export function loadServiceClientSecurePooled(protoFile, servicePath, address, protoRoot, tlsConfig, poolSize = 4, channelOptions = {}) {
+    const protoPath = resolve(protoRoot, protoFile);
+    const packageDefinition = protoLoader.loadSync(protoPath, {
+        keepCase: false, longs: String, enums: String, defaults: true, oneofs: true,
+        includeDirs: [protoRoot, resolve(protoRoot, "maple"), dirname(protoPath)],
+    });
+    const proto = grpc.loadPackageDefinition(packageDefinition);
+    const parts = servicePath.split(".");
+    let ServiceClass = proto;
+    for (const part of parts) ServiceClass = ServiceClass[part];
+    const credentials = createGrpcClientCredentials(tlsConfig);
+    const clients = [];
+    for (let i = 0; i < poolSize; i++) {
+        clients.push(new ServiceClass(address, credentials, {
+            ...DEFAULT_GRPC_CHANNEL_OPTIONS,
+            ...channelOptions,
+            'grpc.use_local_subchannel_pool': 1,
+        }));
+    }
+    let idx = 0;
+    return {
+        getClient() {
+            const client = clients[idx];
+            idx = (idx + 1) % clients.length;
+            return client;
+        },
+        close() {
+            for (const client of clients) {
+                try { client.close(); } catch { /* best effort */ }
+            }
+        },
+        get size() {
+            return clients.length;
+        },
+    };
 }
 export async function startGrpcServer(server, options) {
     const { port, host = "0.0.0.0", serviceName } = options;

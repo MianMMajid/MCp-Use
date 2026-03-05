@@ -100,18 +100,6 @@ const nextConfig = {
     }
     return config
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${mapleGatewayOrigin}/api/:path*`,
-      },
-      {
-        source: '/admin/api/:path*',
-        destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`,
-      },
-    ]
-  },
 }
 
 export default withSearch(withMDX(nextConfig))

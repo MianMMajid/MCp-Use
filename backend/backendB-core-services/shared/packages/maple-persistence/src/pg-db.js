@@ -364,6 +364,13 @@ export class MaplePostgresDatabase {
         CREATE INDEX IF NOT EXISTS idx_notifications_user_read
           ON notifications(user_id, read, created_at DESC);
 
+        CREATE TABLE IF NOT EXISTS notification_preferences (
+          user_id TEXT PRIMARY KEY,
+          categories_json TEXT NOT NULL DEFAULT '{}',
+          channels_json TEXT NOT NULL DEFAULT '{}',
+          updated_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS orchestrations (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL DEFAULT 'Untitled Orchestration',

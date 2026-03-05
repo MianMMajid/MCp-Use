@@ -77,7 +77,7 @@ COPY --from=build --chown=1000:1000 /app/README.md ./README.md
 RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>/dev/null || true)
 
 ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-semi-space-size=64"
+ENV NODE_OPTIONS="--max-semi-space-size=128"
 ENV MAPLE_ALLOW_NO_AUTH=false
 ENV HOST=0.0.0.0
 ENV HACKATHON_TOOLHUB_HOST=127.0.0.1

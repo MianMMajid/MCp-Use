@@ -16,6 +16,7 @@ const {
   DEFAULT_GRPC_CHANNEL_OPTIONS,
   DEFAULT_GRPC_SERVER_OPTIONS,
   createGrpcServer,
+  loadServiceClientSecurePooled,
 } = await import("../src/grpc.js?t=" + Date.now());
 
 // ---------------------------------------------------------------------------
@@ -124,6 +125,18 @@ test("DEFAULT_GRPC_CHANNEL_OPTIONS: has expected keys", () => {
   assert.deepEqual(serviceConfig.loadBalancingConfig, [{ round_robin: {} }]);
 });
 
+test("DEFAULT_GRPC_CHANNEL_OPTIONS: retry policy configured", () => {
+  const serviceConfig = JSON.parse(DEFAULT_GRPC_CHANNEL_OPTIONS["grpc.service_config"]);
+  assert.ok(Array.isArray(serviceConfig.methodConfig));
+  const methodConfig = serviceConfig.methodConfig[0];
+  assert.deepEqual(methodConfig.name, [{}]);
+  assert.equal(methodConfig.retryPolicy.maxAttempts, 3);
+  assert.equal(methodConfig.retryPolicy.initialBackoff, "0.1s");
+  assert.equal(methodConfig.retryPolicy.maxBackoff, "1s");
+  assert.equal(methodConfig.retryPolicy.backoffMultiplier, 2);
+  assert.deepEqual(methodConfig.retryPolicy.retryableStatusCodes, ["UNAVAILABLE", "DEADLINE_EXCEEDED"]);
+});
+
 // ---------------------------------------------------------------------------
 // DEFAULT_GRPC_SERVER_OPTIONS
 // ---------------------------------------------------------------------------
@@ -135,6 +148,11 @@ test("DEFAULT_GRPC_SERVER_OPTIONS: has expected keys", () => {
   assert.equal(DEFAULT_GRPC_SERVER_OPTIONS["grpc.max_send_message_length"], 10 * 1024 * 1024);
   assert.equal(DEFAULT_GRPC_SERVER_OPTIONS["grpc.max_receive_message_length"], 10 * 1024 * 1024);
   assert.equal(DEFAULT_GRPC_SERVER_OPTIONS["grpc.max_concurrent_streams"], 100);
+});
+
+test("DEFAULT_GRPC_SERVER_OPTIONS: server-side keepalive enforcement", () => {
+  assert.equal(DEFAULT_GRPC_SERVER_OPTIONS["grpc.http2.min_time_between_pings_ms"], 20000);
+  assert.equal(DEFAULT_GRPC_SERVER_OPTIONS["grpc.http2.min_ping_interval_without_data_ms"], 20000);
 });
 
 // ---------------------------------------------------------------------------
@@ -154,4 +172,12 @@ test("createGrpcServer: accepts custom options", () => {
   const server = createGrpcServer({ "grpc.max_concurrent_streams": 200 });
   assert.ok(server);
   server.forceShutdown();
+});
+
+// ---------------------------------------------------------------------------
+// loadServiceClientSecurePooled
+// ---------------------------------------------------------------------------
+
+test("loadServiceClientSecurePooled: is exported as a function", () => {
+  assert.equal(typeof loadServiceClientSecurePooled, "function");
 });

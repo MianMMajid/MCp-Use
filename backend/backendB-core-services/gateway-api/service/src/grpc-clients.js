@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { loadGrpcTlsConfig, loadServiceClientSecure, CircuitBreaker } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecurePooled, CircuitBreaker } from "@maple/common";
 import { contextWallAddress, auditWriterAddress, } from "./config.js";
 import { currentRequestContext } from "./logging.js";
 import { recordServiceCall } from "./core/service-utilization.js";
@@ -7,49 +7,47 @@ const DEFAULT_DEADLINE_MS = 5000;
 const serviceBreakers = new Map();
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
-function loadProtoClient(protoFile, servicePath, address) {
-    return loadServiceClientSecure(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
+function loadProtoClientPooled(protoFile, servicePath, address) {
+    return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
-function annotateGrpcClient(client, serviceName) {
-    if (!client || typeof client !== "object") {
+function annotatePooledClient(pool, serviceName) {
+    const originalGetClient = pool.getClient.bind(pool);
+    pool.getClient = () => {
+        const client = originalGetClient();
+        try {
+            Object.defineProperty(client, "__mapleServiceName", {
+                value: serviceName,
+                enumerable: false,
+                configurable: true,
+                writable: false,
+            });
+        }
+        catch {
+            // best effort — property may already exist
+        }
         return client;
-    }
-    try {
-        Object.defineProperty(client, "__mapleServiceName", {
-            value: serviceName,
-            enumerable: false,
-            configurable: true,
-            writable: false,
-        });
-    }
-    catch {
-        // best effort
-    }
-    return client;
+    };
+    return pool;
 }
 export function createGrpcClients() {
     return {
-        contextWall: annotateGrpcClient(loadProtoClient("maple/context/v1/context_wall.proto", "maple.context.v1.ContextWallService", contextWallAddress), "context-wall"),
-        auditWriter: annotateGrpcClient(loadProtoClient("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", auditWriterAddress), "audit-writer"),
+        contextWall: annotatePooledClient(loadProtoClientPooled("maple/context/v1/context_wall.proto", "maple.context.v1.ContextWallService", contextWallAddress), "context-wall"),
+        auditWriter: annotatePooledClient(loadProtoClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", auditWriterAddress), "audit-writer"),
     };
 }
 export function closeGrpcClients(clients) {
     if (!clients || typeof clients !== "object") {
         return;
     }
-    for (const client of Object.values(clients)) {
-        if (!client || typeof client.close !== "function") {
-            continue;
-        }
-        try {
-            client.close();
-        }
-        catch {
-            // best effort
+    for (const pool of Object.values(clients)) {
+        if (!pool) continue;
+        if (typeof pool.close === "function") {
+            try { pool.close(); } catch { /* best effort */ }
         }
     }
 }
-export function grpcUnary(client, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+export function grpcUnary(clientOrPool, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+    const client = typeof clientOrPool?.getClient === "function" ? clientOrPool.getClient() : clientOrPool;
     const startedAtMs = Date.now();
     const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolve, reject) => {
@@ -85,7 +83,8 @@ function getBreaker(serviceName) {
     }
     return breaker;
 }
-export function grpcUnaryProtected(client, method, request, options) {
+export function grpcUnaryProtected(clientOrPool, method, request, options) {
+    const client = typeof clientOrPool?.getClient === "function" ? clientOrPool.getClient() : clientOrPool;
     const serviceName = String(client?.__mapleServiceName ?? "unknown");
     const breaker = getBreaker(serviceName);
     return breaker.execute(() => grpcUnary(client, method, request, options));

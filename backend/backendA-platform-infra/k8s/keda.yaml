@@ -1,0 +1,103 @@
+# KEDA ScaledObjects for RPS-based autoscaling with CPU fallback.
+#
+# Prerequisites:
+#   1. Install KEDA: https://keda.sh/docs/deploy/
+#   2. Prometheus must be scraping gateway-api and context-wall metrics
+#   3. Remove hpa.yaml resources before applying — KEDA manages HPAs internally
+#
+# When KEDA is not installed, these resources are ignored and the existing
+# hpa.yaml HPAs continue to work as CPU-only autoscalers.
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gateway-api
+  namespace: maple
+  labels:
+    app: gateway-api
+    app.kubernetes.io/part-of: maple-stack
+spec:
+  scaleTargetRef:
+    name: gateway-api
+  minReplicaCount: 2
+  maxReplicaCount: 8
+  pollingInterval: 15
+  cooldownPeriod: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+        query: sum(rate(http_requests_total{app="gateway-api"}[1m]))
+        threshold: "100"
+        activationThreshold: "5"
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "60"
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+          selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 20
+              periodSeconds: 60
+          selectPolicy: Min
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: context-wall
+  namespace: maple
+  labels:
+    app: context-wall
+    app.kubernetes.io/part-of: maple-stack
+spec:
+  scaleTargetRef:
+    name: context-wall
+  minReplicaCount: 2
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+        query: sum(rate(grpc_server_started_total{app="context-wall"}[1m]))
+        threshold: "80"
+        activationThreshold: "5"
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "60"
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+          selectPolicy: Max
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 20
+              periodSeconds: 60
+          selectPolicy: Min

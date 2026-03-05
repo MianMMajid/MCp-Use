@@ -2,29 +2,18 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { loadGrpcTlsConfig, loadServiceClientSecure, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { checkUrl, scanContent } from "./ssrf-guard.js";
 import { config } from "./config.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
-let auditWriterClient;
+let auditWriterPool;
 const auditWriterBreaker = new CircuitBreaker("cyber-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
-function closeGrpcClient(client) {
-    if (!client || typeof client.close !== "function") {
-        return;
-    }
-    try {
-        client.close();
-    }
-    catch {
-        // best effort
-    }
-}
 function getAuditWriter() {
-    if (!auditWriterClient) {
-        auditWriterClient = loadServiceClientSecure("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress, PROTO_ROOT, grpcTlsConfig);
+    if (!auditWriterPool) {
+        auditWriterPool = loadServiceClientSecurePooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress, PROTO_ROOT, grpcTlsConfig);
     }
-    return auditWriterClient;
+    return auditWriterPool.getClient();
 }
 // ── Lightweight audit event emitter ──────────────────────────────────────────
 function grpcUnaryPromise(client, method, request) {
@@ -61,8 +50,8 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const cyberProto = proto.maple.cyber.v1;
 export function closeCyberProxyClients() {
-    closeGrpcClient(auditWriterClient);
-    auditWriterClient = undefined;
+    auditWriterPool?.close();
+    auditWriterPool = undefined;
 }
 function hostnameMatchesDomain(hostname, domain) {
     const normalizedHost = hostname.toLowerCase();
