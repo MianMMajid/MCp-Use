@@ -8,7 +8,7 @@ export const MAPLE_WORKSPACE_DEFAULT_CATEGORY = 'observe'
 export const MAPLE_WORKSPACE_DEFAULT_VIEW = 'live'
 
 export const MAPLE_WORKSPACE_CATEGORY_VIEWS = Object.freeze({
-  observe: Object.freeze(['live', 'timeline']),
+  observe: Object.freeze(['live', 'chat', 'timeline']),
   analyze: Object.freeze(['control', 'topology']),
   govern: Object.freeze(['guard', 'fork']),
   admin: Object.freeze(['settings', 'policy', 'marketplace']),

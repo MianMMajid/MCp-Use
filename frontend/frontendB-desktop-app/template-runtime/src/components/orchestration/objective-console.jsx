@@ -34,8 +34,8 @@ export function ObjectiveConsole({
   }
 
   return (
-    <section className="border-t border-zinc-200 bg-zinc-100/70 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="mx-auto max-w-[1800px] space-y-3">
+    <section className="border-t border-zinc-200/80 bg-[var(--mayple-surface)] px-3 py-2.5 dark:border-zinc-800">
+      <div className="mx-auto max-w-6xl space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Objective Console</h3>
@@ -49,7 +49,7 @@ export function ObjectiveConsole({
 
         <OrchestrationConversationThread messages={conversation} />
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
           <Textarea
             rows={3}
             value={composer}
@@ -63,7 +63,7 @@ export function ObjectiveConsole({
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="mb-3 text-xs font-semibold text-zinc-700 dark:text-zinc-200">Objective Package</p>
           <ObjectiveSchemaForm value={objectivePackage} errors={objectiveErrors} onChange={onObjectiveFieldChange} />
         </div>

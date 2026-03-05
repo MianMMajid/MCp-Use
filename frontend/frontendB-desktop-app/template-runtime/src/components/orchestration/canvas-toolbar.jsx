@@ -58,11 +58,11 @@ export function CanvasToolbar({
   const busy = Boolean(runtimeBusyAction)
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-zinc-200/80 bg-[var(--mayple-surface)] px-3 dark:border-zinc-800">
       {/* Back */}
       <button
         onClick={() => router.push('/orchestrate')}
-        className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
         title="Back to orchestrations"
       >
         <ArrowLeftIcon className="h-5 w-5" />
@@ -84,7 +84,7 @@ export function CanvasToolbar({
       ) : (
         <button
           onClick={() => setEditingName(true)}
-          className="truncate text-sm font-medium text-zinc-900 hover:text-zinc-600 dark:text-white dark:hover:text-zinc-300"
+          className="truncate text-sm font-medium text-zinc-900 transition hover:text-zinc-600 dark:text-white dark:hover:text-zinc-300"
         >
           {orchestration?.name ?? 'Loading...'}
         </button>
@@ -107,14 +107,14 @@ export function CanvasToolbar({
       </span>
 
       {/* Save button */}
-      <Button outline onClick={onSave} disabled={saving || !dirty || busy} className="h-7 text-xs">
+      <Button outline onClick={onSave} disabled={saving || !dirty || busy} className="h-7 px-2.5 text-xs">
         Save Draft
       </Button>
-      <Button color="orange" onClick={onPublishVersion} disabled={saving || busy} className="h-7 text-xs">
+      <Button color="orange" onClick={onPublishVersion} disabled={saving || busy} className="h-7 px-2.5 text-xs">
         Publish
       </Button>
-      <Button color="orange" onClick={() => onExecuteVersion?.('live')} disabled={saving || busy} className="h-7 text-xs">
-        Execute Version
+      <Button color="orange" onClick={() => onExecuteVersion?.('live')} disabled={saving || busy} className="h-7 px-2.5 text-xs">
+        Start Live
       </Button>
       <Button outline href={observabilityHref} target="_blank" rel="noreferrer" className="h-7 text-xs">
         Observability

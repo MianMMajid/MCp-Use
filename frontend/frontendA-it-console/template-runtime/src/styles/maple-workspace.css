@@ -488,7 +488,6 @@
   background: #fff8f0;
   color: #573924;
 }
-}
 
 .mw-docs-panel {
   width: 0;
@@ -796,5 +795,273 @@
 
   .mw-intervention-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* a1-parity React shell overrides */
+.mayple-shell-root {
+  position: relative;
+}
+
+.mayple-shell-root .product-shell {
+  max-width: 1720px;
+  height: 100%;
+  min-height: 100dvh;
+}
+
+.mw-view-header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.mw-view-header p {
+  margin: 0.35rem 0 0;
+  color: #6b6b6b;
+}
+
+.tree-node-flow {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+.tree-node {
+  text-align: left;
+  border: 1px solid #d8cdbf;
+  background: #fff;
+  border-radius: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  display: grid;
+  gap: 0.2rem;
+  cursor: pointer;
+}
+
+.tree-node:hover {
+  border-color: #e8740c;
+}
+
+.tree-node-title {
+  font-weight: 700;
+}
+
+.tree-node-meta {
+  font-size: 0.74rem;
+  color: #6b6b6b;
+}
+
+.tree-node.risk-low {
+  border-color: #cedfce;
+}
+
+.tree-node.risk-medium {
+  border-color: #e7d49a;
+}
+
+.tree-node.risk-high {
+  border-color: #e8b479;
+}
+
+.tree-node.risk-critical,
+.tree-node.blocked {
+  border-color: #d77f7f;
+  background: #fff5f5;
+}
+
+.tree-node.selected {
+  box-shadow: 0 0 0 2px rgba(232, 116, 12, 0.2);
+}
+
+.trace-list-item {
+  width: 100%;
+  border: 1px solid #e5ddd4;
+  border-radius: 0.8rem;
+  padding: 0.55rem 0.6rem;
+  background: #fff;
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trace-list-item + .trace-list-item {
+  margin-top: 0.45rem;
+}
+
+.trace-list-item.is-active {
+  border-color: #e8740c;
+  background: #fff8f0;
+}
+
+.control-right {
+  min-width: 0;
+}
+
+.timeline-table-wrap {
+  overflow: auto;
+}
+
+.timeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+
+.timeline-table th,
+.timeline-table td {
+  border-bottom: 1px solid #eee2d5;
+  padding: 0.5rem;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.topology-endpoint-card {
+  border: 1px solid #e5ddd4;
+  border-radius: 0.8rem;
+  padding: 0.65rem;
+  background: #fff;
+}
+
+.topology-endpoint-card + .topology-endpoint-card {
+  margin-top: 0.5rem;
+}
+
+.chat-home-chat {
+  position: relative;
+}
+
+.chat-bubble {
+  max-width: min(760px, 100%);
+  margin-bottom: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid #eadfce;
+  background: #fff;
+}
+
+.chat-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.chat-bubble-user {
+  margin-left: auto;
+  background: #fff3e3;
+  border-color: #f2cfaa;
+}
+
+.chat-bubble-ai {
+  margin-right: auto;
+}
+
+.mw-chat-prompt-row {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding-top: 0.45rem;
+}
+
+.mw-chat-inline-error {
+  margin: 0.35rem 0 0;
+  color: #b64141;
+  font-size: 0.78rem;
+}
+
+.mw-source-badge {
+  font-size: 0.67rem;
+  color: #6f4c2d;
+  border: 1px solid rgba(232, 116, 12, 0.35);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  background: rgba(255, 247, 238, 0.9);
+}
+
+.top-bar .mw-source-badge {
+  margin-left: 0.35rem;
+}
+
+.context-panel-body .mw-intervention {
+  margin-top: 0.8rem;
+}
+
+.mayple-shell-root .mw-docs-panel {
+  position: fixed;
+  top: 74px;
+  right: 0;
+  height: calc(100dvh - 74px);
+  z-index: 70;
+  width: min(420px, 92vw);
+  background: rgba(255, 255, 255, 0.96);
+  border-left: 1px solid #e5ddd4;
+  box-shadow: -16px 0 44px rgba(0, 0, 0, 0.08);
+  transform: translateX(102%);
+  opacity: 0;
+  overflow: auto;
+  transition: transform 240ms ease, opacity 180ms ease;
+}
+
+.mayple-shell-root .mw-docs-panel.mw-docs-panel-open {
+  transform: translateX(0%);
+  opacity: 1;
+}
+
+.mayple-shell-root:has(.mw-docs-panel-open) .product-shell {
+  padding-right: min(420px, 92vw);
+}
+
+.mayple-shell-root .mw-docs-backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 9, 6, 0.35);
+  z-index: 68;
+}
+
+.mayple-shell-root .mw-docs-header {
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  z-index: 2;
+  border-bottom: 1px solid #e8dccf;
+  padding-bottom: 0.7rem;
+}
+
+.mayple-shell-root .mw-docs-section {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #f0e6da;
+}
+
+.mayple-shell-root .mw-docs-section h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.86rem;
+}
+
+.mayple-shell-root .mw-docs-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.28rem;
+}
+
+@media (max-width: 1023px) {
+  .top-bar .mw-source-badge {
+    display: none;
+  }
+
+  .context-panel-body {
+    padding: 0.75rem;
+  }
+
+  .control-split {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .timeline-table {
+    min-width: 540px;
+  }
+
+  .mw-chat-prompt-row {
+    display: none;
   }
 }

@@ -9,12 +9,12 @@ export function MessageBubble({ role, content, timestamp, cost, error }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[80%] rounded-xl px-4 py-3 ${
+        className={`max-w-[88%] rounded-[24px] px-4 py-3 shadow-sm ${
           isUser
             ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
             : error
               ? 'border border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200'
-              : 'border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100'
+              : 'border border-zinc-200 bg-[var(--mayple-surface)] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
         }`}
       >
         <p className="whitespace-pre-wrap text-sm">{content}</p>

@@ -6,6 +6,8 @@ import { PromptBar } from './prompt-bar'
 import { Button } from '@/components/button'
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
 
+const CHAT_SCROLL_KEY = 'mayple_chat_scroll_position'
+
 export function ChatPanel({
   messages,
   onSend,
@@ -17,30 +19,52 @@ export function ChatPanel({
   disabled,
 }) {
   const scrollRef = useRef(null)
+  const showCenteredComposer = messages.length === 0 && !streaming
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (!scrollRef.current) return
+    if (messages.length === 0) {
+      const stored = Number(window.localStorage.getItem(CHAT_SCROLL_KEY) || 0)
+      if (Number.isFinite(stored) && stored > 0) scrollRef.current.scrollTop = stored
+      return
     }
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages, streaming])
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* scrollable message area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 dark:bg-zinc-950">
-        {messages.length === 0 && !streaming && (
-          <div className="flex h-full flex-col items-center justify-center text-center">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto bg-[var(--mayple-bg)] px-3 py-4"
+        onScroll={(event) => {
+          if (typeof window === 'undefined') return
+          window.localStorage.setItem(CHAT_SCROLL_KEY, String(event.currentTarget.scrollTop || 0))
+        }}
+      >
+        {showCenteredComposer && (
+          <div className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center text-center">
             <ChatBubbleLeftRightIcon className="h-10 w-10 text-zinc-300 dark:text-zinc-600" />
             <p className="mt-3 text-sm font-medium text-zinc-500 dark:text-zinc-400">
               Start a conversation
             </p>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-              Type a message below to begin interacting with this agent.
+              Ask Mayple anything to begin.
             </p>
+            <div className="mt-4 w-full">
+              <PromptBar
+                onSend={onSend}
+                streaming={streaming}
+                sessionId={sessionId}
+                onStopped={onStopped}
+                disabled={disabled}
+                variant="floating"
+              />
+            </div>
           </div>
         )}
 
-        <div className="space-y-3">
+        <div className="mx-auto w-full max-w-3xl space-y-3 pb-4">
           {messages.map((msg, idx) => (
             <MessageBubble
               key={msg.id ?? idx}
@@ -79,13 +103,15 @@ export function ChatPanel({
       </div>
 
       {/* prompt bar */}
-      <PromptBar
-        onSend={onSend}
-        streaming={streaming}
-        sessionId={sessionId}
-        onStopped={onStopped}
-        disabled={disabled}
-      />
+      {!showCenteredComposer ? (
+        <PromptBar
+          onSend={onSend}
+          streaming={streaming}
+          sessionId={sessionId}
+          onStopped={onStopped}
+          disabled={disabled}
+        />
+      ) : null}
     </div>
   )
 }

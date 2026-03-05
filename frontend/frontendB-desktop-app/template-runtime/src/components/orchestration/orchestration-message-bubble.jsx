@@ -14,11 +14,11 @@ export function OrchestrationMessageBubble({ message }) {
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
         className={[
-          'max-w-[86%] rounded-2xl px-4 py-3 shadow-sm',
+          'max-w-[88%] rounded-[24px] px-4 py-3 shadow-sm',
           isUser
             ? 'bg-orange-600 text-white'
             : isManager
-              ? 'border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
+              ? 'border border-zinc-200 bg-[var(--mayple-surface)] text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'
               : 'border border-zinc-200 bg-zinc-100 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200',
         ].join(' ')}
       >

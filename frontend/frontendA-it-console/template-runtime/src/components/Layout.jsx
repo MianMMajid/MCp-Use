@@ -8,7 +8,7 @@ import { usePathname } from 'next/navigation'
 import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
 import { Logo } from '@/components/Logo'
-import { MapleWorkspaceShell } from '@/components/workspace/MapleWorkspaceShell'
+import { MaypleOpsShell } from '@/components/workspace/MaypleOpsShell'
 import { NavigationProgress } from '@/components/NavigationProgress'
 import { SectionProvider } from '@/components/SectionProvider'
 
@@ -30,7 +30,7 @@ export function Layout({ children, allSections }) {
     return (
       <SectionProvider sections={allSections[pathname] ?? []}>
         <NavigationProgress />
-        <MapleWorkspaceShell />
+        <MaypleOpsShell />
       </SectionProvider>
     )
   }

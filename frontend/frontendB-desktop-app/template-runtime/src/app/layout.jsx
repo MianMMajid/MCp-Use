@@ -13,7 +13,7 @@ export const metadata = {
       { url: '/maple-favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon.ico', type: 'image/x-icon' },
     ],
-    shortcut: '/favicon.ico',
+    shortcut: '/maple-favicon.svg',
     apple: '/maple-favicon.svg',
   },
 }
@@ -22,7 +22,7 @@ export default async function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className="text-zinc-950 antialiased lg:bg-zinc-100 dark:bg-zinc-900 dark:text-white dark:lg:bg-zinc-950"
+      className="text-zinc-950 antialiased dark:text-white"
     >
       <body>
         <Providers>{children}</Providers>

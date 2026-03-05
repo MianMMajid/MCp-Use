@@ -35,14 +35,23 @@ import {
 const ChatContext = createContext(null)
 
 const CHAT_MODE_STORAGE_KEY = 'mayple_chat_mode'
+const STACK_MODE_STORAGE_KEY = 'mayple_stack_mode'
 const ORCHESTRATION_STORAGE_KEY = 'mayple_orchestration_id'
-const ORCHESTRATION_PANEL_STORAGE_KEY = 'mayple_orchestration_panel_tab'
+const ORCHESTRATION_PANEL_STORAGE_KEY = 'mayple_orchestration_dock_tab'
+const LEGACY_ORCHESTRATION_PANEL_STORAGE_KEY = 'mayple_orchestration_panel_tab'
+const ORCHESTRATION_DOCK_EXPANDED_STORAGE_KEY = 'mayple_orchestration_dock_expanded'
 const VALID_CHAT_MODES = new Set(['agent', 'orchestration'])
-const VALID_ORCHESTRATION_PANELS = new Set(['tasks', 'runtime', 'timeline', 'approvals', 'advanced'])
+const VALID_STACK_MODES = new Set(['frontend', 'backend'])
+const VALID_ORCHESTRATION_PANELS = new Set(['controls', 'tasks', 'timeline', 'approvals', 'advanced'])
 
 function normalizeMode(value) {
   const mode = String(value || '').toLowerCase()
   return VALID_CHAT_MODES.has(mode) ? mode : 'agent'
+}
+
+function normalizeStackMode(value) {
+  const stackMode = String(value || '').toLowerCase()
+  return VALID_STACK_MODES.has(stackMode) ? stackMode : 'frontend'
 }
 
 function normalizePanel(value) {
@@ -55,18 +64,22 @@ function readWorkspaceQuery() {
   const search = new URLSearchParams(window.location.search)
   return {
     mode: search.get('mode') || '',
+    stack: search.get('stack') || '',
     orchestrationId: search.get('orchestrationId') || '',
     executionId: search.get('executionId') || '',
     panel: search.get('panel') || '',
   }
 }
 
-function writeWorkspaceQuery({ mode, orchestrationId, executionId, panel }) {
+function writeWorkspaceQuery({ mode, stack, orchestrationId, executionId, panel }) {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
 
   if (mode) url.searchParams.set('mode', mode)
   else url.searchParams.delete('mode')
+
+  if (stack) url.searchParams.set('stack', stack)
+  else url.searchParams.delete('stack')
 
   if (orchestrationId) url.searchParams.set('orchestrationId', orchestrationId)
   else url.searchParams.delete('orchestrationId')
@@ -89,12 +102,19 @@ function readLocalStorageValue(key, fallback = '') {
   return window.localStorage.getItem(key) || fallback
 }
 
+function readLocalStorageBoolean(key, fallback = false) {
+  if (typeof window === 'undefined') return fallback
+  const raw = window.localStorage.getItem(key)
+  if (raw === null) return fallback
+  return raw === 'true'
+}
+
 export function ChatProvider({ children }) {
   const pathname = usePathname()
 
   // Agent list
   const [agents, setAgents] = useState([])
-  const [selectedAgentId, setSelectedAgentId] = useState(() => readLocalStorageValue('selectedAgentId', null))
+  const [selectedAgentId, setSelectedAgentId] = useState(null)
   const [selectedAgent, setSelectedAgent] = useState(null)
   const [agentError, setAgentError] = useState('')
 
@@ -113,14 +133,15 @@ export function ChatProvider({ children }) {
   const [lastInput, setLastInput] = useState('')
 
   // Unified workspace mode
-  const [mode, setMode] = useState(() => normalizeMode(readLocalStorageValue(CHAT_MODE_STORAGE_KEY, 'agent')))
+  const [mode, setMode] = useState('agent')
+  const [stackMode, setStackMode] = useState('frontend')
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [currentUser, setCurrentUser] = useState(null)
 
   // Orchestration workspace state
   const [orchestrations, setOrchestrations] = useState([])
   const [orchestrationsLoading, setOrchestrationsLoading] = useState(false)
-  const [selectedOrchestrationId, setSelectedOrchestrationId] = useState(() => readLocalStorageValue(ORCHESTRATION_STORAGE_KEY, ''))
+  const [selectedOrchestrationId, setSelectedOrchestrationId] = useState('')
   const [orchestrationConversation, setOrchestrationConversation] = useState([])
   const [objectivePackage, setObjectivePackage] = useState(createDefaultObjectivePackage())
   const [objectiveErrors, setObjectiveErrors] = useState({})
@@ -132,9 +153,11 @@ export function ChatProvider({ children }) {
   const [orchestrationTasks, setOrchestrationTasks] = useState([])
   const [orchestrationReassignments, setOrchestrationReassignments] = useState([])
   const [orchestrationLoopState, setOrchestrationLoopState] = useState(null)
-  const [orchestrationPanelTab, setOrchestrationPanelTabState] = useState(() => normalizePanel(readLocalStorageValue(ORCHESTRATION_PANEL_STORAGE_KEY, 'tasks')))
+  const [orchestrationPanelTab, setOrchestrationPanelTabState] = useState('controls')
+  const [orchestrationDockExpanded, setOrchestrationDockExpanded] = useState(true)
   const [orchestrationBusyAction, setOrchestrationBusyAction] = useState('')
   const [orchestrationRuntimeError, setOrchestrationRuntimeError] = useState('')
+  const [storageHydrated, setStorageHydrated] = useState(false)
 
   const selectedOrchestration = useMemo(
     () => orchestrations.find((item) => String(item.id) === String(selectedOrchestrationId)) || null,
@@ -168,25 +191,70 @@ export function ChatProvider({ children }) {
   // Persist selected agent to localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return
+    const query = readWorkspaceQuery()
+
+    const storedAgentId = readLocalStorageValue('selectedAgentId', '')
+    const storedMode = normalizeMode(readLocalStorageValue(CHAT_MODE_STORAGE_KEY, 'agent'))
+    const rawStoredStack = readLocalStorageValue(STACK_MODE_STORAGE_KEY, '')
+    const storedStack = rawStoredStack
+      ? normalizeStackMode(rawStoredStack)
+      : (storedMode === 'orchestration' ? 'backend' : 'frontend')
+    const storedOrchestrationId = readLocalStorageValue(ORCHESTRATION_STORAGE_KEY, '')
+    const storedPanel = normalizePanel(
+      readLocalStorageValue(ORCHESTRATION_PANEL_STORAGE_KEY, '')
+      || readLocalStorageValue(LEGACY_ORCHESTRATION_PANEL_STORAGE_KEY, '')
+      || 'controls',
+    )
+    const storedDockExpanded = readLocalStorageBoolean(ORCHESTRATION_DOCK_EXPANDED_STORAGE_KEY, true)
+
+    const queryStack = query.stack ? normalizeStackMode(query.stack) : ''
+    const queryMode = query.mode ? normalizeMode(query.mode) : ''
+
+    const effectiveStack = queryStack || storedStack
+    const effectiveMode = queryMode || (queryStack ? (queryStack === 'backend' ? 'orchestration' : 'agent') : storedMode)
+
+    if (storedAgentId) setSelectedAgentId(storedAgentId)
+    setStackMode(effectiveStack)
+    setMode(effectiveMode)
+    if (query.orchestrationId) setSelectedOrchestrationId(query.orchestrationId)
+    else if (storedOrchestrationId) setSelectedOrchestrationId(storedOrchestrationId)
+    if (query.executionId) setOrchestrationExecutionId(query.executionId)
+    setOrchestrationPanelTabState(query.panel ? normalizePanel(query.panel) : storedPanel)
+    setOrchestrationDockExpanded(storedDockExpanded)
+    setStorageHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !storageHydrated) return
     if (selectedAgentId) window.localStorage.setItem('selectedAgentId', selectedAgentId)
     else window.localStorage.removeItem('selectedAgentId')
-  }, [selectedAgentId])
+  }, [selectedAgentId, storageHydrated])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || !storageHydrated) return
     window.localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode)
-  }, [mode])
+  }, [mode, storageHydrated])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || !storageHydrated) return
+    window.localStorage.setItem(STACK_MODE_STORAGE_KEY, stackMode)
+  }, [stackMode, storageHydrated])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !storageHydrated) return
     if (selectedOrchestrationId) window.localStorage.setItem(ORCHESTRATION_STORAGE_KEY, selectedOrchestrationId)
     else window.localStorage.removeItem(ORCHESTRATION_STORAGE_KEY)
-  }, [selectedOrchestrationId])
+  }, [selectedOrchestrationId, storageHydrated])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || !storageHydrated) return
     window.localStorage.setItem(ORCHESTRATION_PANEL_STORAGE_KEY, orchestrationPanelTab)
-  }, [orchestrationPanelTab])
+  }, [orchestrationPanelTab, storageHydrated])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !storageHydrated) return
+    window.localStorage.setItem(ORCHESTRATION_DOCK_EXPANDED_STORAGE_KEY, String(orchestrationDockExpanded))
+  }, [orchestrationDockExpanded, storageHydrated])
 
   // Read URL query state on home route
   useEffect(() => {
@@ -194,7 +262,16 @@ export function ChatProvider({ children }) {
 
     const syncFromQuery = () => {
       const query = readWorkspaceQuery()
-      if (query.mode) setMode(normalizeMode(query.mode))
+      if (query.mode) {
+        const nextMode = normalizeMode(query.mode)
+        setMode(nextMode)
+        setStackMode(nextMode === 'orchestration' ? 'backend' : 'frontend')
+      }
+      if (query.stack) {
+        const nextStack = normalizeStackMode(query.stack)
+        setStackMode(nextStack)
+        setMode(nextStack === 'backend' ? 'orchestration' : 'agent')
+      }
       if (query.orchestrationId) setSelectedOrchestrationId(query.orchestrationId)
       if (query.executionId) setOrchestrationExecutionId(query.executionId)
       if (query.panel) setOrchestrationPanelTabState(normalizePanel(query.panel))
@@ -210,17 +287,19 @@ export function ChatProvider({ children }) {
     if (pathname !== '/') return
 
     const nextMode = mode
+    const nextStack = stackMode
     const nextOrchestrationId = nextMode === 'orchestration' ? selectedOrchestrationId : ''
     const nextExecutionId = nextMode === 'orchestration' ? orchestrationExecutionId : ''
     const nextPanel = nextMode === 'orchestration' ? orchestrationPanelTab : ''
 
     writeWorkspaceQuery({
       mode: nextMode,
+      stack: nextStack,
       orchestrationId: nextOrchestrationId,
       executionId: nextExecutionId,
       panel: nextPanel,
     })
-  }, [pathname, mode, selectedOrchestrationId, orchestrationExecutionId, orchestrationPanelTab])
+  }, [pathname, mode, stackMode, selectedOrchestrationId, orchestrationExecutionId, orchestrationPanelTab])
 
   // Load agent details when selectedAgentId changes
   useEffect(() => {
@@ -456,8 +535,19 @@ export function ChatProvider({ children }) {
   const selectMode = useCallback((nextMode) => {
     const normalized = normalizeMode(nextMode)
     setMode(normalized)
+    setStackMode(normalized === 'orchestration' ? 'backend' : 'frontend')
 
     if (normalized === 'orchestration' && !selectedOrchestrationId && orchestrations.length > 0) {
+      setSelectedOrchestrationId(String(orchestrations[0]?.id || ''))
+    }
+  }, [orchestrations, selectedOrchestrationId])
+
+  const selectStackMode = useCallback((nextStackMode) => {
+    const normalized = normalizeStackMode(nextStackMode)
+    setStackMode(normalized)
+    const nextMode = normalized === 'backend' ? 'orchestration' : 'agent'
+    setMode(nextMode)
+    if (nextMode === 'orchestration' && !selectedOrchestrationId && orchestrations.length > 0) {
       setSelectedOrchestrationId(String(orchestrations[0]?.id || ''))
     }
   }, [orchestrations, selectedOrchestrationId])
@@ -869,6 +959,8 @@ export function ChatProvider({ children }) {
 
         mode,
         selectMode,
+        stackMode,
+        selectStackMode,
         currentUser,
         rightPanelOpen,
         setRightPanelOpen,
@@ -905,6 +997,8 @@ export function ChatProvider({ children }) {
 
         orchestrationPanelTab,
         setOrchestrationPanelTab,
+        orchestrationDockExpanded,
+        setOrchestrationDockExpanded,
 
         orchestrationBusyAction,
         orchestrationRuntimeError,

@@ -133,8 +133,8 @@ export function RuntimeCommandBar({
   const busy = Boolean(runtimeBusyAction)
 
   return (
-    <section className="border-t border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="mx-auto flex max-w-[1800px] flex-col gap-3">
+    <section className="border-t border-zinc-200/80 bg-[var(--mayple-surface)] px-3 py-2.5 dark:border-zinc-800">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             Runtime Control Plane
@@ -195,7 +195,7 @@ export function RuntimeCommandBar({
         )}
 
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
             <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Mutations</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <Input value={dynamicNodeLabel} onChange={(e) => setDynamicNodeLabel(e.target.value)} placeholder="Dynamic node label" />
@@ -226,7 +226,7 @@ export function RuntimeCommandBar({
             </p>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
             <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Approvals & Run Ops</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Select value={retryNodeId} onChange={(e) => setRetryNodeId(e.target.value)} className="min-w-44">
@@ -266,7 +266,7 @@ export function RuntimeCommandBar({
         </div>
 
         {timeline.length > 0 && (
-          <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
             <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">Execution Timeline</p>
             <div className="mt-2 max-h-44 space-y-1 overflow-auto">
               {[...timeline].slice(-40).reverse().map((event) => (

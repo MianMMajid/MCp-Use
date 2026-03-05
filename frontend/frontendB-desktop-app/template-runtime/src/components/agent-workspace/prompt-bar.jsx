@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import clsx from 'clsx'
 import { Button } from '@/components/button'
 import { StopButton } from '@/components/stop-button'
 import { PaperAirplaneIcon } from '@heroicons/react/20/solid'
 
-export function PromptBar({ onSend, streaming, sessionId, onStopped, disabled }) {
+export function PromptBar({ onSend, streaming, sessionId, onStopped, disabled, variant = 'docked' }) {
   const [value, setValue] = useState('')
   const textareaRef = useRef(null)
+  const floating = variant === 'floating'
 
   const handleSubmit = useCallback(() => {
     const trimmed = value.trim()
@@ -34,8 +36,19 @@ export function PromptBar({ onSend, streaming, sessionId, onStopped, disabled })
   }
 
   return (
-    <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-end gap-2">
+    <div
+      className={clsx(
+        floating
+          ? 'bg-transparent px-3 py-0'
+          : 'bg-[var(--mayple-surface)] px-3 py-2.5',
+      )}
+    >
+      <div
+        className={clsx(
+          'mx-auto flex w-full max-w-3xl items-end gap-2 border bg-[var(--mayple-surface)] px-3 py-2 shadow-sm dark:border-zinc-700',
+          floating ? 'rounded-[28px] border-zinc-300/90 dark:bg-zinc-900' : 'rounded-[24px] border-zinc-200',
+        )}
+      >
         <textarea
           ref={textareaRef}
           value={value}
@@ -44,14 +57,21 @@ export function PromptBar({ onSend, streaming, sessionId, onStopped, disabled })
           placeholder="Send a message..."
           disabled={streaming || disabled}
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-400 dark:focus:ring-zinc-400"
+          className={clsx(
+            'flex-1 resize-none border border-transparent bg-transparent px-2 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-200 focus:bg-zinc-50 focus:outline-none dark:text-zinc-100 dark:focus:border-zinc-700 dark:focus:bg-zinc-800',
+            floating ? 'rounded-2xl' : 'rounded-xl',
+          )}
         />
         {streaming ? (
-          <StopButton sessionId={sessionId} onStopped={onStopped} />
+          <StopButton sessionId={sessionId} onStopped={onStopped} compact={floating} />
         ) : (
-          <Button onClick={handleSubmit} disabled={!value.trim() || disabled} className="gap-1">
+          <Button
+            onClick={handleSubmit}
+            disabled={!value.trim() || disabled}
+            className={clsx('!rounded-full !px-3 !py-2')}
+          >
             <PaperAirplaneIcon className="h-4 w-4" />
-            Send
+            <span className="sr-only">Send</span>
           </Button>
         )}
       </div>

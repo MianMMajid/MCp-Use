@@ -110,12 +110,12 @@ export default function OrchestratePage() {
     <div className="flex h-full flex-col">
       <ChatHeader onToggleMobileSidebar={() => {}} />
 
-      <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
-        <div className="mx-auto max-w-5xl px-6 py-8">
-          <div className="flex items-center justify-between gap-3">
+      <div className="flex-1 overflow-y-auto bg-[var(--mayple-bg)]">
+        <div className="mx-auto max-w-5xl px-5 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-lg font-semibold text-zinc-900 dark:text-white">Orchestrations</h1>
-              <p className="mt-1 text-sm text-zinc-500">Persistent control loops with manager-worker coordination</p>
+              <h1 className="text-lg font-semibold text-zinc-900 dark:text-white">Orchestration Builder</h1>
+              <p className="mt-1 text-sm text-zinc-500">Templates, manager loops, and runtime-ready orchestration graphs.</p>
             </div>
             <div className="flex gap-2">
               <Button outline onClick={openTemplateCatalog}>Create from Template</Button>
@@ -126,60 +126,57 @@ export default function OrchestratePage() {
             </div>
           </div>
 
-          <div className="mt-6 flex items-center gap-2">
+          <div className="mt-5 flex max-w-md items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
             <MagnifyingGlassIcon className="h-4 w-4 text-zinc-400" />
             <Input
               type="text"
               placeholder="Search orchestrations..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="max-w-sm"
+              className="border-transparent bg-transparent shadow-none focus:border-transparent focus:ring-0"
             />
           </div>
 
           {loading && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-36 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
+                <div key={i} className="h-24 animate-pulse rounded-xl border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800" />
               ))}
             </div>
           )}
 
           {!loading && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 space-y-3">
               {filtered.map((orch) => (
                 <div
                   key={orch.id}
                   onClick={() => router.push(`/orchestrate/${orch.id}`)}
-                  className="group flex cursor-pointer flex-col rounded-xl border border-zinc-200 bg-white p-4 text-left transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900"
+                  className="group flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left transition hover:border-orange-300 hover:bg-orange-50/40 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-orange-700 dark:hover:bg-orange-900/10"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-900/20">
-                      <ShareIcon className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">{orch.name}</span>
-                        <Badge color={statusColor(orch.status)} className="text-[10px]">{orch.status}</Badge>
-                      </div>
-                      {orch.description && (
-                        <p className="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{orch.description}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={(e) => handleArchive(e, orch.id)}
-                      className="shrink-0 rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                      title="Archive orchestration"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                    <ShareIcon className="h-4.5 w-4.5" />
                   </div>
-
-                  <div className="mt-3 flex items-center gap-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                    <span className="text-[10px] text-zinc-400">{(orch.nodes ?? []).length} nodes</span>
-                    <span className="text-[10px] text-zinc-400">{(orch.edges ?? []).length} edges</span>
-                    <span className="ml-auto text-[10px] text-zinc-400">{formatDateShort(orch.updatedAt)}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">{orch.name}</span>
+                      <Badge color={statusColor(orch.status)} className="text-[10px]">{orch.status}</Badge>
+                    </div>
+                    {orch.description ? (
+                      <p className="mt-0.5 line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{orch.description}</p>
+                    ) : null}
+                    <div className="mt-1.5 flex items-center gap-3 text-[10px] text-zinc-400">
+                      <span>{(orch.nodes ?? []).length} nodes</span>
+                      <span>{(orch.edges ?? []).length} edges</span>
+                      <span className="ml-auto">{formatDateShort(orch.updatedAt)}</span>
+                    </div>
                   </div>
+                  <button
+                    onClick={(e) => handleArchive(e, orch.id)}
+                    className="shrink-0 rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                    title="Archive orchestration"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
                 </div>
               ))}
             </div>

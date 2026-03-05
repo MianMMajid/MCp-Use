@@ -7,8 +7,9 @@
     "dev:warm": "next dev --webpack --port 4102 & sleep 3 && node scripts/prewarm-dev.js",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "next lint",
-    "check:surface": "node scripts/check-orchestration-surface.js"
+    "lint": "npm run check:ui-import-guards",
+    "check:surface": "node scripts/check-orchestration-surface.js",
+    "check:ui-import-guards": "node scripts/check-ui-import-guards.js"
   },
   "dependencies": {
     "@xyflow/react": "^12.6.0",

@@ -60,6 +60,8 @@
  */
 
 export const OBJECTIVE_RISK_CEILINGS = ['low', 'medium', 'high', 'critical']
+export const WORKSPACE_COMPOSER_MODES = ['agent', 'orchestration']
+export const ORCHESTRATION_DOCK_TABS = ['controls', 'tasks', 'timeline', 'approvals', 'advanced']
 
 export function createDefaultObjectivePackage(overrides = {}) {
   return {

@@ -4,17 +4,15 @@ import { useChat } from '@/contexts/chat-context'
 import { useShell } from '@/contexts/shell-context'
 import { Badge } from './badge'
 import { statusColor } from '@/lib/format'
-import { Bars3Icon, Squares2X2Icon } from '@heroicons/react/20/solid'
-import clsx from 'clsx'
+import { Bars3Icon } from '@heroicons/react/20/solid'
 
 export function ChatHeader({ onToggleMobileSidebar }) {
   const {
     mode,
+    stackMode,
     selectedAgent,
     selectedAgentId,
     selectedOrchestration,
-    rightPanelOpen,
-    toggleRightPanel,
   } = useChat()
   const { toggleSidebar, sidebarCollapsed } = useShell()
 
@@ -23,11 +21,11 @@ export function ChatHeader({ onToggleMobileSidebar }) {
   const orchestrationName = selectedOrchestration?.name ?? null
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="sticky top-0 z-20 flex h-11 shrink-0 items-center gap-2 border-b border-gray-200/80 bg-gray-50/90 px-3 dark:border-gray-800 dark:bg-gray-950/90">
       {/* Mobile hamburger */}
       <button
         onClick={onToggleMobileSidebar}
-        className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 lg:hidden dark:hover:bg-zinc-800"
+        className="rounded-xl p-1 text-zinc-500 transition hover:bg-gray-100 lg:hidden dark:hover:bg-gray-900"
       >
         <Bars3Icon className="h-5 w-5" />
       </button>
@@ -35,46 +33,34 @@ export function ChatHeader({ onToggleMobileSidebar }) {
       {/* Desktop sidebar toggle */}
       <button
         onClick={toggleSidebar}
-        className="hidden rounded-md p-1 text-zinc-500 hover:bg-zinc-100 lg:block dark:hover:bg-zinc-800"
+        className="hidden rounded-xl p-1 text-zinc-500 transition hover:bg-gray-100 lg:block dark:hover:bg-gray-900"
         title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
       >
-        <Bars3Icon className="h-5 w-5" />
+        <Bars3Icon className="h-4.5 w-4.5" />
       </button>
 
-      {/* Agent info - center */}
-      <div className="flex flex-1 items-center justify-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Badge color={stackMode === 'backend' ? 'orange' : 'sky'} className="text-[10px]">
+          {stackMode === 'backend' ? 'Backend Mode' : 'Frontend Mode'}
+        </Badge>
         {mode === 'orchestration' ? (
           orchestrationName ? (
             <>
-              <span className="text-sm font-medium text-zinc-900 dark:text-white">{orchestrationName}</span>
-              <Badge color="orange" className="text-[10px]">orchestration</Badge>
+              <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">{orchestrationName}</span>
+              <Badge color="orange" className="text-[10px]">Orchestration</Badge>
             </>
           ) : (
             <span className="text-sm text-zinc-400">No orchestration selected</span>
           )
         ) : agentName ? (
           <>
-            <span className="text-sm font-medium text-zinc-900 dark:text-white">{agentName}</span>
+            <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">{agentName}</span>
             <Badge color={statusColor(agentStatus)} className="text-[10px]">{agentStatus}</Badge>
           </>
         ) : (
           <span className="text-sm text-zinc-400">No agent selected</span>
         )}
       </div>
-
-      {/* Right panel toggle */}
-      <button
-        onClick={toggleRightPanel}
-        className={clsx(
-          'rounded-md p-1.5 transition-colors',
-          rightPanelOpen
-            ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
-            : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-        )}
-        title={rightPanelOpen ? 'Hide right panel' : 'Show right panel'}
-      >
-        <Squares2X2Icon className="h-4 w-4" />
-      </button>
     </div>
   )
 }

@@ -58,9 +58,9 @@ export function TimedTaskPanel({
   }
 
   return (
-    <section className="border-t border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="mx-auto grid max-w-[1800px] gap-3 lg:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+    <section className="border-t border-zinc-200/80 bg-[var(--mayple-surface)] px-3 py-2.5 dark:border-zinc-800">
+      <div className="mx-auto grid max-w-6xl gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Timed Task Reassignment</p>
           <div className="mt-2 grid gap-2 md:grid-cols-2">
             <Field>
@@ -111,7 +111,7 @@ export function TimedTaskPanel({
           </div>
         </div>
 
-        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Reassignment Queue</p>
           <ReassignmentQueue items={reassignments} disabled={busy} onCancel={onCancelReassignment} />
         </div>

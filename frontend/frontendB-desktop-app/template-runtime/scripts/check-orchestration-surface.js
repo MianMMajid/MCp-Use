@@ -16,6 +16,7 @@ const ALLOWED_ROUTE_GROUPS = new Set([
   'service-accounts',
   'sessions',
   'settings',
+  'tasks',
 ])
 
 const ALLOWED_API_PREFIXES = [

@@ -38,6 +38,19 @@ describe('frontend A workspace state resolver', () => {
     expect(state.sessionId).toBe('sess-2')
   })
 
+  it('supports observe chat view in canonical workspace state', () => {
+    const state = resolveWorkspaceState({
+      pathname: '/maple',
+      searchParams: new URLSearchParams(
+        'category=observe&view=chat&route=/maple/observability',
+      ),
+    })
+
+    expect(state.category).toBe('observe')
+    expect(state.view).toBe('chat')
+    expect(state.routePath).toBe('/maple/observability')
+  })
+
   it('builds canonical href with required and optional values', () => {
     const href = buildWorkspaceHref({
       category: 'analyze',

@@ -1,24 +1,11 @@
 'use client'
 
-import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { MapleCategoryRail } from './MapleCategoryRail'
 import { MapleChatDock } from './MapleChatDock'
-import { MapleContextFrame } from './MapleContextFrame'
-import { MapleDocsPanel } from './MapleDocsPanel'
-import { MapleTopBar } from './MapleTopBar'
-import { MapleViewTabs } from './MapleViewTabs'
 import { WorkspaceViewHost } from './WorkspaceViewHost'
-import {
-  MAPLE_WORKSPACE_CATEGORIES,
-} from '../../lib/maple-workspace/route-registry.js'
-import {
-  MAPLE_DOCS_PANEL_STORAGE_KEY,
-  parseStoredDocsPanelPreference,
-  resolveInitialDocsPanelState,
-} from '../../lib/maple-workspace/docs-panel-preferences.js'
+import { MAPLE_WORKSPACE_CATEGORIES } from '../../lib/maple-workspace/route-registry.js'
 import {
   MAPLE_WORKSPACE_CATEGORY_VIEWS,
   buildWorkspaceHref,
@@ -26,14 +13,14 @@ import {
   resolveWorkspaceState,
 } from '../../lib/maple-workspace/workspace-state.js'
 
-const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)'
 const VIEW_LABELS = Object.freeze({
   live: 'Live',
+  chat: 'Chat',
   timeline: 'Timeline',
   control: 'Control',
   topology: 'Topology',
   guard: 'Guardrails',
-  fork: 'Fork Insights',
+  fork: 'Insights',
   settings: 'Settings',
   policy: 'Policy',
   marketplace: 'Marketplace',
@@ -43,12 +30,27 @@ const VIEW_LABELS = Object.freeze({
   'route-help': 'Route Help',
 })
 
-function persistDocsPreference(nextValue) {
-  if (typeof window === 'undefined') {
-    return
+function loadStylesheet(href, id) {
+  if (typeof document === 'undefined') {
+    return () => {}
   }
-  const storedValue = nextValue ? 'open' : 'closed'
-  window.localStorage.setItem(MAPLE_DOCS_PANEL_STORAGE_KEY, storedValue)
+
+  const existing = id ? document.getElementById(id) : null
+  if (existing) {
+    return () => {}
+  }
+
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = href
+  if (id) {
+    link.id = id
+  }
+  document.head.appendChild(link)
+
+  return () => {
+    link.remove()
+  }
 }
 
 export function MapleWorkspaceShell() {
@@ -60,22 +62,52 @@ export function MapleWorkspaceShell() {
     () => resolveWorkspaceState({ pathname, searchParams }),
     [pathname, searchParams],
   )
+
   const activeRoute = workspaceState.routeRecord
   const activeCategory = workspaceState.category
   const activeView = workspaceState.view
+
   const [target, setTarget] = useState({
     executionId: workspaceState.executionId,
     sessionId: workspaceState.sessionId,
   })
-  const [isDesktop, setIsDesktop] = useState(false)
-  const [docsOpen, setDocsOpen] = useState(false)
+  const [contextPanelOpen, setContextPanelOpen] = useState(() => pathname !== '/maple')
+  const [queuedPrompt, setQueuedPrompt] = useState('')
+  const [statusText, setStatusText] = useState('Connected to Frontend B orchestration runtime stream.')
 
   useEffect(() => {
+    const cleanupJudges = loadStylesheet('/judges.css?v=47', 'mayple-judges-css')
+    const cleanupFonts = loadStylesheet(
+      'https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap',
+      'mayple-judges-fonts',
+    )
+
+    document.body.classList.add('product-body')
+    return () => {
+      document.body.classList.remove('product-body')
+      cleanupJudges()
+      cleanupFonts()
+    }
+  }, [])
+
+  useEffect(() => {
+    const explicitExecutionId = searchParams?.get('executionId')
+    const explicitSessionId = searchParams?.get('sessionId')
+    if (explicitExecutionId === null && explicitSessionId === null) {
+      return
+    }
+
+    const nextExecutionId = explicitExecutionId ?? ''
+    const nextSessionId = explicitSessionId ?? ''
+    if (nextExecutionId === target.executionId && nextSessionId === target.sessionId) {
+      return
+    }
+
     setTarget({
-      executionId: workspaceState.executionId,
-      sessionId: workspaceState.sessionId,
+      executionId: nextExecutionId,
+      sessionId: nextSessionId,
     })
-  }, [workspaceState.executionId, workspaceState.sessionId])
+  }, [searchParams, target.executionId, target.sessionId])
 
   useEffect(() => {
     if (!isMapleWorkspacePath(pathname)) {
@@ -100,105 +132,27 @@ export function MapleWorkspaceShell() {
       return
     }
 
-    router.replace(
-      buildWorkspaceHref({
-        category: workspaceState.category,
-        view: workspaceState.view,
-        routePath: workspaceState.routePath,
-        executionId: workspaceState.executionId,
-        sessionId: workspaceState.sessionId,
-      }),
-      { scroll: false },
-    )
+    const nextHref = buildWorkspaceHref({
+      category: workspaceState.category,
+      view: workspaceState.view,
+      routePath: workspaceState.routePath,
+      executionId: workspaceState.executionId,
+      sessionId: workspaceState.sessionId,
+    })
+
+    router.replace(nextHref, { scroll: false })
   }, [pathname, router, searchParams, workspaceState])
-
-  useEffect(() => {
-    if (!isMapleWorkspacePath(pathname)) {
-      return
-    }
-    if (
-      target.executionId === workspaceState.executionId &&
-      target.sessionId === workspaceState.sessionId
-    ) {
-      return
-    }
-
-    router.replace(
-      buildWorkspaceHref({
-        category: workspaceState.category,
-        view: workspaceState.view,
-        routePath: workspaceState.routePath,
-        executionId: target.executionId,
-        sessionId: target.sessionId,
-      }),
-      { scroll: false },
-    )
-  }, [
-    pathname,
-    router,
-    target.executionId,
-    target.sessionId,
-    workspaceState.category,
-    workspaceState.executionId,
-    workspaceState.routePath,
-    workspaceState.sessionId,
-    workspaceState.view,
-  ])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined
-    }
-
-    const media = window.matchMedia(DESKTOP_MEDIA_QUERY)
-
-    const applyState = () => {
-      const preference = parseStoredDocsPanelPreference(
-        window.localStorage.getItem(MAPLE_DOCS_PANEL_STORAGE_KEY),
-      )
-      const desktop = media.matches
-      setIsDesktop(desktop)
-      setDocsOpen(
-        resolveInitialDocsPanelState({
-          storedPreference: preference,
-          isDesktop: desktop,
-        }),
-      )
-    }
-
-    const handleMediaChange = () => {
-      setIsDesktop(media.matches)
-      const preference = parseStoredDocsPanelPreference(
-        window.localStorage.getItem(MAPLE_DOCS_PANEL_STORAGE_KEY),
-      )
-      if (typeof preference !== 'boolean') {
-        setDocsOpen(media.matches)
-      }
-    }
-
-    applyState()
-    media.addEventListener('change', handleMediaChange)
-
-    return () => {
-      media.removeEventListener('change', handleMediaChange)
-    }
-  }, [])
 
   const activeCategoryViews = useMemo(
     () => MAPLE_WORKSPACE_CATEGORY_VIEWS[activeCategory] ?? MAPLE_WORKSPACE_CATEGORY_VIEWS.observe,
     [activeCategory],
   )
-  const activeCategoryLabel = useMemo(
-    () => MAPLE_WORKSPACE_CATEGORIES.find((category) => category.id === activeCategory)?.label ?? 'Observe',
-    [activeCategory],
-  )
-  const activeViewLabel = VIEW_LABELS[activeView] ?? activeView
-  const tabs = useMemo(
+
+  const subTabs = useMemo(
     () =>
       activeCategoryViews.map((viewId) => ({
         id: viewId,
         label: VIEW_LABELS[viewId] ?? viewId,
-        caption: activeCategory === 'docs' ? 'Documentation' : activeRoute?.title ?? 'Operations',
         href: buildWorkspaceHref({
           category: activeCategory,
           view: viewId,
@@ -211,26 +165,14 @@ export function MapleWorkspaceShell() {
       activeCategory,
       activeCategoryViews,
       activeRoute?.path,
-      activeRoute?.title,
       target.executionId,
       target.sessionId,
       workspaceState.routePath,
     ],
   )
 
-  const toggleDocs = () => {
-    setDocsOpen((prev) => {
-      const next = !prev
-      persistDocsPreference(next)
-      return next
-    })
-  }
-
-  const closeDocs = () => {
-    setDocsOpen(false)
-    persistDocsPreference(false)
-  }
   const handleSelectCategory = (categoryId) => {
+    setContextPanelOpen(true)
     router.push(
       buildWorkspaceHref({
         category: categoryId,
@@ -243,60 +185,281 @@ export function MapleWorkspaceShell() {
     )
   }
 
+  const handleSelectView = (viewId) => {
+    setContextPanelOpen(true)
+    router.push(
+      buildWorkspaceHref({
+        category: activeCategory,
+        view: viewId,
+        routePath: activeRoute?.path ?? workspaceState.routePath,
+        executionId: target.executionId,
+        sessionId: target.sessionId,
+      }),
+      { scroll: false },
+    )
+  }
+
   const handleTargetChange = (nextTarget) => {
+    const nextExecutionId = nextTarget?.executionId ?? ''
+    const nextSessionId = nextTarget?.sessionId ?? ''
+
+    if (nextExecutionId === target.executionId && nextSessionId === target.sessionId) {
+      return
+    }
+
     setTarget({
-      executionId: nextTarget?.executionId ?? '',
-      sessionId: nextTarget?.sessionId ?? '',
+      executionId: nextExecutionId,
+      sessionId: nextSessionId,
     })
+
+    router.replace(
+      buildWorkspaceHref({
+        category: workspaceState.category,
+        view: workspaceState.view,
+        routePath: activeRoute?.path ?? workspaceState.routePath,
+        executionId: nextExecutionId,
+        sessionId: nextSessionId,
+      }),
+      { scroll: false },
+    )
+  }
+
+  const categoryIndex = Math.max(
+    MAPLE_WORKSPACE_CATEGORIES.findIndex((category) => category.id === activeCategory),
+    0,
+  )
+  const handleRefreshContext = () => {
+    setStatusText('Refreshing runtime context...')
+    window.setTimeout(() => {
+      setStatusText('Connected to Frontend B orchestration runtime stream.')
+    }, 900)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+    } catch {
+      // Best-effort logout in frontend-only mode.
+    } finally {
+      router.push('/login')
+    }
   }
 
   return (
-    <section
-      className={clsx('mw-shell', docsOpen && 'mw-docs-open', !isDesktop && 'mw-mobile-shell')}
-      data-testid="maple-workspace-layout"
-    >
-      <MapleTopBar
-        activeRoute={activeRoute}
-        activeCategoryLabel={activeCategoryLabel}
-        activeViewLabel={activeViewLabel}
-        docsOpen={docsOpen}
-        onToggleDocs={toggleDocs}
-      />
+    <section className="mayple-shell-root" data-testid="maple-workspace-layout">
+      <div className="product-shell" data-testid="maple-workspace-shell">
+        <header className={`top-bar ${contextPanelOpen ? 'panel-connected' : ''}`}>
+          <div className="top-bar-brand">
+            <svg className="kirby-mascot top-bar-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mayple mascot">
+              <defs>
+                <radialGradient id="kirbyBodyGrad-brand" cx="45%" cy="38%" r="55%">
+                  <stop offset="0%" stopColor="#ffb366" />
+                  <stop offset="100%" stopColor="#e8740c" />
+                </radialGradient>
+              </defs>
+              <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-brand)" />
+              <g className="kirby-eye kirby-eye-left">
+                <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111" />
+                <circle cx="81" cy="73" r="3.5" fill="white" />
+              </g>
+              <g className="kirby-eye kirby-eye-right">
+                <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111" />
+                <circle cx="125" cy="73" r="3.5" fill="white" />
+              </g>
+              <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
+              <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
+              <path d="M85 105 Q100 120 115 105" stroke="#111" strokeWidth="3" fill="none" strokeLinecap="round" />
+              <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800" />
+              <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800" />
+            </svg>
+            <span className="top-bar-title">Mayple</span>
+            <span className="chat-mode-badge rules">Rules</span>
+            <span className="mw-source-badge">Source: Frontend B orchestration runtime</span>
+          </div>
+          <div className="top-bar-end">
+            <button
+              id="firewallChatRefreshBtn"
+              className="top-bar-icon-btn"
+              type="button"
+              title="Refresh Context"
+              aria-label="Refresh Context"
+              onClick={handleRefreshContext}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M13.5 8a5.5 5.5 0 01-10.58 2.12M2.5 8a5.5 5.5 0 0110.58-2.12M13.5 3v3.5H10M2.5 13V9.5H6"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <button
+              id="logoutBtn"
+              className="top-bar-icon-btn"
+              type="button"
+              title="Sign Out"
+              aria-label="Sign Out"
+              onClick={handleLogout}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </header>
 
-      <div className="mw-main-grid">
-        <aside className="mw-navigation-column">
-          <MapleCategoryRail
-            categories={MAPLE_WORKSPACE_CATEGORIES}
-            activeCategory={activeCategory}
-            onSelectCategory={handleSelectCategory}
-          />
-          <MapleViewTabs tabs={tabs} activeTabId={activeView} />
-        </aside>
+        <div className="main-area">
+          <div id="status" className="status" role="status" aria-live="polite">
+            <span id="pollDot" className="poll-dot live" />
+            <span id="pollState">{statusText}</span>
+          </div>
 
-        <MapleContextFrame>
-          <WorkspaceViewHost
-            category={activeCategory}
-            view={activeView}
-            routeRecord={activeRoute}
-            executionId={target.executionId}
-            sessionId={target.sessionId}
-            onTargetChange={handleTargetChange}
-          />
-        </MapleContextFrame>
+          <div className={`chat-home ${contextPanelOpen ? 'panel-active' : ''}`} id="chatHome">
+            <div className={`welcome-state ${contextPanelOpen ? 'is-hidden' : ''}`} id="welcomeState">
+              <svg className="kirby-mascot welcome-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mayple mascot">
+                <defs>
+                  <radialGradient id="kirbyBodyGrad-welcome" cx="45%" cy="38%" r="55%">
+                    <stop offset="0%" stopColor="#ffb366" />
+                    <stop offset="100%" stopColor="#e8740c" />
+                  </radialGradient>
+                </defs>
+                <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-welcome)" />
+                <g className="kirby-eye kirby-eye-left">
+                  <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111" />
+                  <circle cx="81" cy="73" r="3.5" fill="white" />
+                </g>
+                <g className="kirby-eye kirby-eye-right">
+                  <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111" />
+                  <circle cx="125" cy="73" r="3.5" fill="white" />
+                </g>
+                <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
+                <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
+                <path d="M85 105 Q100 120 115 105" stroke="#111" strokeWidth="3" fill="none" strokeLinecap="round" />
+                <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800" />
+                <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800" />
+              </svg>
+              <h1 className="welcome-heading">What can I help with?</h1>
+              <p className="welcome-sub" id="firewallChatContext">
+                Monitoring {activeRoute?.title ?? 'operations'} for {target.executionId || 'active executions'}.
+              </p>
+              <div className="welcome-pills">
+                <button
+                  type="button"
+                  className="welcome-pill"
+                  onClick={() => setQueuedPrompt('Give me a firewall status update.')}
+                >
+                  Status Update
+                </button>
+                <button
+                  type="button"
+                  className="welcome-pill"
+                  onClick={() => setQueuedPrompt('Why was this trace blocked?')}
+                >
+                  Why Blocked?
+                </button>
+                <button
+                  type="button"
+                  className="welcome-pill"
+                  onClick={() => setQueuedPrompt('What should we do next to reduce risk?')}
+                >
+                  Next Action
+                </button>
+                <button
+                  type="button"
+                  className="welcome-pill"
+                  onClick={() => setQueuedPrompt('What is the current risk score?')}
+                >
+                  Risk Score
+                </button>
+              </div>
+            </div>
 
-        <MapleDocsPanel
-          isDesktop={isDesktop}
-          isOpen={docsOpen}
-          routeRecord={activeRoute}
-          onClose={closeDocs}
-        />
+            <MapleChatDock
+              routeRecord={activeRoute}
+              panelOpen={contextPanelOpen}
+              presetPrompt={queuedPrompt}
+              onPresetPromptHandled={() => setQueuedPrompt('')}
+            />
+
+            <div className={`context-panel ${contextPanelOpen ? 'is-open' : ''}`} id="contextPanel" aria-hidden={!contextPanelOpen}>
+              <button
+                id="contextCloseBtn"
+                className="context-close-btn"
+                type="button"
+                aria-label="Close context panel"
+                onClick={() => setContextPanelOpen(false)}
+              >
+                Close
+              </button>
+
+              <div className="context-panel-body" id="contextPanelBody">
+                <WorkspaceViewHost
+                  category={activeCategory}
+                  view={activeView}
+                  routeRecord={activeRoute}
+                  executionId={target.executionId}
+                  sessionId={target.sessionId}
+                  onTargetChange={handleTargetChange}
+                />
+              </div>
+
+              <div className="context-panel-foot" id="contextSubRow">
+                <div className="context-sub-tabs" id="contextSubTabs" role="tablist" aria-label="Category views">
+                  {subTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      className={`context-sub-tab ${tab.id === activeView ? 'is-active' : ''}`}
+                      aria-selected={tab.id === activeView}
+                      onClick={() => handleSelectView(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <nav className="category-bar" role="navigation" aria-label="Workspace categories">
+              <div className="category-track">
+                <div
+                  className="category-indicator is-active"
+                  style={{
+                    width: `${100 / MAPLE_WORKSPACE_CATEGORIES.length}%`,
+                    transform: `translateX(${categoryIndex * 100}%)`,
+                  }}
+                />
+                {MAPLE_WORKSPACE_CATEGORIES.map((category) => (
+                  <button
+                    key={category.id}
+                    className={`category-pill ${category.id === activeCategory ? 'is-active' : ''}`}
+                    data-category={category.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={category.id === activeCategory}
+                    aria-controls="contextPanel"
+                    onClick={() => handleSelectCategory(category.id)}
+                  >
+                    {category.label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+          </div>
+        </div>
       </div>
-
-      <MapleChatDock
-        routeRecord={activeRoute}
-        executionId={target.executionId}
-        sessionId={target.sessionId}
-      />
     </section>
   )
 }

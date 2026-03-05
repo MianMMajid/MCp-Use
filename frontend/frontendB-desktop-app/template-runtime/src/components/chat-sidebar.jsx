@@ -1,20 +1,22 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import clsx from 'clsx'
 import { useChat } from '@/contexts/chat-context'
+import { useShell } from '@/contexts/shell-context'
 import { AgentSelector } from './agent-selector'
 import { Avatar } from './avatar'
+import { Badge } from './badge'
 import { groupByDate, statusColor } from '@/lib/format'
-import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import {
-  CpuChipIcon,
-  Cog6ToothIcon,
+  Bars3Icon,
   ChatBubbleLeftRightIcon,
-  ShareIcon,
+  ClipboardDocumentListIcon,
+  MagnifyingGlassIcon,
+  PencilSquareIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline'
-import clsx from 'clsx'
 
 function shortId(value) {
   if (!value) return '--'
@@ -25,19 +27,15 @@ function shortId(value) {
 export function ChatSidebar() {
   const router = useRouter()
   const pathname = usePathname()
+  const { toggleSidebar } = useShell()
   const {
     mode,
-    selectMode,
-
-    // Agent mode
     sessions,
     sessionId,
     handleSelectSession,
     handleNewSession,
     selectedAgentId,
     sessionsLoading,
-
-    // Orchestration mode
     orchestrations,
     orchestrationsLoading,
     selectedOrchestrationId,
@@ -45,16 +43,13 @@ export function ChatSidebar() {
   } = useChat()
 
   const [search, setSearch] = useState('')
+  const [scrollTop, setScrollTop] = useState(0)
 
   const sortedSessions = useMemo(() => {
-    const list = [...sessions].sort((a, b) =>
-      new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0),
-    )
+    const list = [...sessions].sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
     if (!search) return list
-    return list.filter((session) => {
-      const title = session.title ?? session.sessionId ?? ''
-      return title.toLowerCase().includes(search.toLowerCase())
-    })
+    const q = search.toLowerCase()
+    return list.filter((session) => String(session.title ?? session.sessionId ?? '').toLowerCase().includes(q))
   }, [sessions, search])
 
   const groupedSessions = useMemo(() => groupByDate(sortedSessions, 'createdAt'), [sortedSessions])
@@ -69,246 +64,227 @@ export function ChatSidebar() {
     )
   }, [orchestrations, search])
 
-  const navItems = [
-    { href: '/agents', label: 'Agents', icon: CpuChipIcon },
-    { href: '/orchestrate', label: 'Builder', icon: ShareIcon },
-    { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
-  ]
-
-  function activateAgentMode() {
-    selectMode('agent')
-    if (pathname !== '/') router.push('/?mode=agent')
-  }
-
-  function activateOrchestrationMode() {
-    selectMode('orchestration')
-    if (pathname !== '/') router.push('/?mode=orchestration')
-  }
-
-  function handleSelectOrchestration(orchestrationId) {
-    selectOrchestration(orchestrationId)
-    if (pathname !== '/') {
-      router.push(`/?mode=orchestration&orchestrationId=${encodeURIComponent(orchestrationId)}`)
-    }
+  function onSearchPillClick() {
+    if (typeof window === 'undefined') return
+    const promptLabel = mode === 'agent' ? 'Search chats' : 'Search orchestrations'
+    const nextValue = window.prompt(promptLabel, search)
+    if (nextValue !== null) setSearch(nextValue)
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-white/60 bg-white/45 shadow-xl backdrop-blur-xl supports-[backdrop-filter]:bg-white/35 dark:border-white/10 dark:bg-zinc-900/45 dark:supports-[backdrop-filter]:bg-zinc-900/40">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <Avatar src="/maple-favicon.svg" className="size-6" />
-        <span className="text-sm font-semibold text-zinc-900 dark:text-white">Mayple</span>
-      </div>
-
-      <div className="px-3 pb-2">
-        <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-200/80 bg-white/70 p-1 dark:border-zinc-700/80 dark:bg-zinc-900/60">
-          <button
-            onClick={activateAgentMode}
-            className={clsx(
-              'rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
-              mode === 'agent'
-                ? 'bg-orange-500 text-white'
-                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
-            )}
-          >
-            Agent
-          </button>
-          <button
-            onClick={activateOrchestrationMode}
-            className={clsx(
-              'rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
-              mode === 'orchestration'
-                ? 'bg-orange-500 text-white'
-                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
-            )}
-          >
-            Orchestration
-          </button>
-        </div>
-      </div>
-
-      {mode === 'agent' ? (
-        <>
-          <div className="px-3 pb-2">
+    <aside className="h-screen max-h-[100dvh] min-h-screen select-none bg-gray-50/70 text-gray-900 dark:bg-gray-950/70 dark:text-gray-200">
+      <div className="my-auto flex h-screen max-h-[100dvh] w-full flex-col justify-between overflow-x-hidden scrollbar-hidden">
+        <div className="sidebar sticky top-0 z-10 -mb-3 flex justify-between space-x-1 px-[0.5625rem] pb-1.5 pt-2 text-gray-600 dark:text-gray-400">
+          <div className="flex w-full items-center gap-1.5">
             <button
+              className="flex size-8 items-center justify-center rounded-xl transition hover:bg-gray-100/50 dark:hover:bg-zinc-900/50"
               onClick={() => {
                 handleNewSession()
-                if (pathname !== '/') router.push('/?mode=agent')
+                router.push('/?mode=agent')
               }}
-              className={clsx(
-                'flex w-full items-center gap-2 rounded-lg px-3 py-2',
-                'text-sm font-medium',
-                'border border-zinc-200 dark:border-zinc-700',
-                'text-zinc-700 dark:text-zinc-300',
-                'hover:bg-zinc-50 dark:hover:bg-zinc-800',
-                'transition-colors',
-              )}
+              aria-label="New Chat"
             >
-              <PlusIcon className="h-4 w-4" />
-              New Chat
+              <Avatar src="/maple-favicon.svg" className="size-5" />
             </button>
-          </div>
-
-          <AgentSelector />
-
-          {selectedAgentId ? (
-            <div className="mt-2 px-3">
-              <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-800/50">
-                <MagnifyingGlassIcon className="h-3.5 w-3.5 text-zinc-400" />
-                <input
-                  type="text"
-                  placeholder="Search conversations..."
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="flex-1 bg-transparent text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-white"
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <div className="mt-2 flex-1 overflow-y-auto px-2">
-            {!selectedAgentId ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <ChatBubbleLeftRightIcon className="h-8 w-8 text-zinc-300 dark:text-zinc-600" />
-                <p className="mt-2 text-xs text-zinc-400">Select an agent to start chatting</p>
-              </div>
-            ) : null}
-
-            {selectedAgentId && sessionsLoading ? (
-              <div className="flex justify-center py-4">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
-              </div>
-            ) : null}
-
-            {selectedAgentId && !sessionsLoading && sortedSessions.length === 0 ? (
-              <div className="py-4 text-center text-xs text-zinc-400">No conversations yet</div>
-            ) : null}
-
-            {groupedSessions.map(([label, items]) => (
-              <div key={label} className="mb-2">
-                <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                  {label}
-                </div>
-                {items.map((session) => {
-                  const sid = session.sessionId ?? session.id
-                  const isActive = sid === sessionId
-                  const title = session.title ?? sid?.substring(0, 24) ?? 'Untitled'
-                  return (
-                    <button
-                      key={sid}
-                      onClick={() => {
-                        handleSelectSession(sid)
-                        if (pathname !== '/') router.push('/?mode=agent')
-                      }}
-                      className={clsx(
-                        'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left',
-                        'text-sm transition-colors',
-                        isActive
-                          ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white'
-                          : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50',
-                      )}
-                    >
-                      <ChatBubbleLeftRightIcon className="h-4 w-4 shrink-0 opacity-50" />
-                      <span className="flex-1 truncate text-xs">{title}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="px-3 pb-2">
             <button
-              onClick={() => router.push('/orchestrate')}
-              className={clsx(
-                'flex w-full items-center gap-2 rounded-lg px-3 py-2',
-                'text-sm font-medium',
-                'border border-zinc-200 dark:border-zinc-700',
-                'text-zinc-700 dark:text-zinc-300',
-                'hover:bg-zinc-50 dark:hover:bg-zinc-800',
-                'transition-colors',
-              )}
+              className="flex min-w-0 flex-1 items-center rounded-xl px-1.5 py-1 text-left transition hover:bg-gray-100/50 dark:hover:bg-zinc-900/50"
+              onClick={() => router.push('/')}
             >
-              <Squares2X2Icon className="h-4 w-4" />
-              Open Builder Library
+              <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">Mayple</span>
+            </button>
+            <button
+              className="flex size-8 items-center justify-center rounded-xl transition hover:bg-gray-100/50 dark:hover:bg-zinc-900/50"
+              onClick={toggleSidebar}
+              aria-label="Collapse sidebar"
+            >
+              <Bars3Icon className="h-4 w-4" />
             </button>
           </div>
+          <div
+            className={clsx(
+              'pointer-events-none absolute inset-0 -z-10 -mb-6 bg-linear-to-b from-gray-50 to-transparent from-50% dark:from-gray-950',
+              scrollTop > 0 ? 'visible' : 'invisible',
+            )}
+          />
+        </div>
 
-          <div className="px-3">
-            <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-800/50">
-              <MagnifyingGlassIcon className="h-3.5 w-3.5 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search orchestrations..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="flex-1 bg-transparent text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none dark:text-white"
-              />
+        <div
+          className="relative flex min-h-0 flex-1 flex-col overflow-y-auto pb-3 pt-3 scrollbar-hidden"
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop || 0)}
+        >
+          <div className="pb-1.5">
+            <div className="px-[0.4375rem] text-gray-800 dark:text-gray-200">
+              <div className="space-y-1">
+                {[
+                  {
+                    key: 'agents',
+                    label: 'Agents',
+                    icon: ChatBubbleLeftRightIcon,
+                    active: (pathname === '/' && mode === 'agent') || pathname.startsWith('/agents'),
+                    onClick: () => router.push('/?mode=agent'),
+                  },
+                  {
+                    key: 'builder',
+                    label: 'Builder',
+                    icon: Squares2X2Icon,
+                    active: pathname.startsWith('/orchestrate'),
+                    onClick: () => router.push('/orchestrate'),
+                  },
+                  {
+                    key: 'tasks',
+                    label: 'Tasks',
+                    icon: ClipboardDocumentListIcon,
+                    active: pathname.startsWith('/tasks'),
+                    onClick: () => router.push('/tasks'),
+                  },
+                  {
+                    key: 'new-chat',
+                    label: 'New Chat',
+                    icon: PencilSquareIcon,
+                    active: false,
+                    onClick: () => {
+                      handleNewSession()
+                      router.push('/?mode=agent')
+                    },
+                  },
+                  {
+                    key: 'search',
+                    label: search ? `Search: ${search}` : 'Search',
+                    icon: MagnifyingGlassIcon,
+                    active: Boolean(search.trim()),
+                    onClick: onSearchPillClick,
+                  },
+                ].map(({ key, label, icon: Icon, active, onClick }) => (
+                  <button
+                    key={key}
+                    onClick={onClick}
+                    className={clsx(
+                      'group flex w-full items-center space-x-3 rounded-2xl px-2.5 py-2 text-left text-sm transition outline-none',
+                      active
+                        ? 'bg-gray-100 text-zinc-900 dark:bg-gray-900 dark:text-zinc-100'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-900',
+                    )}
+                  >
+                    <div className="self-center">
+                      <Icon className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="flex flex-1 self-center">
+                      <div className="truncate self-center">{label}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="mt-2 flex-1 overflow-y-auto px-2">
-            {orchestrationsLoading ? (
-              <div className="flex justify-center py-4">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
-              </div>
-            ) : null}
-
-            {!orchestrationsLoading && filteredOrchestrations.length === 0 ? (
-              <div className="py-4 text-center text-xs text-zinc-400">No orchestrations yet</div>
-            ) : null}
-
-            {filteredOrchestrations.map((orchestration) => {
-              const id = String(orchestration.id || '')
-              const isActive = id === String(selectedOrchestrationId || '')
-              return (
-                <button
-                  key={id}
-                  onClick={() => handleSelectOrchestration(id)}
-                  className={clsx(
-                    'mb-2 flex w-full flex-col rounded-lg border px-3 py-2 text-left transition-colors',
-                    isActive
-                      ? 'border-orange-300 bg-orange-50/90 dark:border-orange-700 dark:bg-orange-900/20'
-                      : 'border-zinc-200 bg-white/70 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/50 dark:hover:bg-zinc-800/70',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs font-semibold text-zinc-900 dark:text-white">{orchestration.name || id}</span>
-                    <Badge color={statusColor(orchestration.status || 'unknown')}>{orchestration.status || 'unknown'}</Badge>
-                  </div>
-                  <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                    {shortId(id)} · {(orchestration.nodes || []).length} nodes
-                  </p>
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
-
-      <div className="border-t border-zinc-900/10 dark:border-white/10">
-        <div className="flex items-center justify-around px-2 py-3">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname.startsWith(href)
-            return (
+          <div className="mt-2 px-[0.4375rem]">
+            {mode === 'agent' ? (
+              <AgentSelector />
+            ) : (
               <button
-                key={href}
-                onClick={() => router.push(href)}
-                title={label}
-                className={clsx(
-                  'relative rounded-lg p-2 transition-colors',
-                  isActive
-                    ? 'bg-white/80 text-zinc-900 shadow-sm dark:bg-zinc-800/80 dark:text-white'
-                    : 'text-zinc-500 hover:bg-white/70 hover:text-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100',
-                )}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-2.5 py-2 text-xs transition hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800"
+                onClick={() => router.push('/orchestrate')}
               >
-                <Icon className="h-5 w-5" />
+                <Squares2X2Icon className="h-4 w-4" />
+                Open Builder
               </button>
-            )
-          })}
+            )}
+          </div>
+
+          <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-[0.4375rem] pb-2 scrollbar-hidden">
+          {mode === 'agent' ? (
+            <>
+              {!selectedAgentId ? (
+                <div className="flex h-full flex-col items-center justify-center py-8 text-center text-xs text-zinc-400">
+                  <ChatBubbleLeftRightIcon className="h-8 w-8 text-zinc-300 dark:text-zinc-700" />
+                  <p className="mt-2">Select an agent to start chatting</p>
+                </div>
+              ) : null}
+
+              {selectedAgentId && sessionsLoading ? (
+                <div className="flex justify-center py-4">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
+                </div>
+              ) : null}
+
+              {selectedAgentId && !sessionsLoading && sortedSessions.length === 0 ? (
+                <p className="py-5 text-center text-xs text-zinc-400">No conversations yet</p>
+              ) : null}
+
+              {groupedSessions.map(([label, items]) => (
+                <div key={label} className="mb-3">
+                  <p className="px-2 py-1 text-[10px] font-medium text-gray-500 dark:text-gray-500">{label}</p>
+                  {items.map((session) => {
+                    const sid = session.sessionId ?? session.id
+                    const isActive = sid === sessionId
+                    const title = session.title ?? sid?.slice(0, 28) ?? 'Untitled'
+                    return (
+                      <button
+                        key={sid}
+                        id="sidebar-chat-item"
+                        onClick={() => {
+                          handleSelectSession(sid)
+                          router.push('/?mode=agent')
+                        }}
+                        className={clsx(
+                          'mb-1 flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition',
+                          isActive
+                            ? 'bg-gray-100 text-zinc-900 dark:bg-gray-900 dark:text-zinc-100'
+                            : 'text-zinc-700 hover:bg-gray-100 dark:text-zinc-200 dark:hover:bg-gray-900',
+                        )}
+                      >
+                        <ChatBubbleLeftRightIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                        <span className="truncate">{title}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {orchestrationsLoading ? (
+                <div className="flex justify-center py-4">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
+                </div>
+              ) : null}
+
+              {!orchestrationsLoading && filteredOrchestrations.length === 0 ? (
+                <p className="py-5 text-center text-xs text-zinc-400">No orchestrations found</p>
+              ) : null}
+
+              {filteredOrchestrations.map((orchestration) => {
+                const id = String(orchestration.id || '')
+                const active = id === String(selectedOrchestrationId || '')
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      selectOrchestration(id)
+                      router.push(`/?mode=orchestration&orchestrationId=${encodeURIComponent(id)}`)
+                    }}
+                    className={clsx(
+                      'mb-2 w-full rounded-2xl border px-3 py-2 text-left transition',
+                      active
+                        ? 'border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900'
+                        : 'border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800',
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 truncate text-xs font-semibold">{orchestration.name || id}</span>
+                      <Badge color={statusColor(orchestration.status || 'unknown')} className="text-[10px]">
+                        {orchestration.status || 'unknown'}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[11px] text-zinc-500">{shortId(id)} · {(orchestration.nodes || []).length} nodes</p>
+                  </button>
+                )
+              })}
+            </>
+          )}
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
   )
 }

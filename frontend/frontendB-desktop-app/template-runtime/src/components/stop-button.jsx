@@ -5,7 +5,7 @@ import { Button } from '@/components/button'
 import { postJson } from '@/lib/api'
 import { StopIcon } from '@heroicons/react/20/solid'
 
-export function StopButton({ sessionId, onStopped }) {
+export function StopButton({ sessionId, onStopped, compact = false }) {
   const [stopping, setStopping] = useState(false)
 
   async function handleStop() {
@@ -26,10 +26,10 @@ export function StopButton({ sessionId, onStopped }) {
       color="red"
       disabled={stopping || !sessionId}
       onClick={handleStop}
-      className="gap-1"
+      className={compact ? '!rounded-full !px-3 !py-2' : 'gap-1 !rounded-full'}
     >
       <StopIcon className="h-4 w-4" />
-      {stopping ? 'Stopping...' : 'Stop Run'}
+      {compact ? <span className="sr-only">{stopping ? 'Stopping' : 'Stop run'}</span> : (stopping ? 'Stopping...' : 'Stop Run')}
     </Button>
   )
 }
