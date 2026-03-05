@@ -82,7 +82,7 @@ export function Faqs() {
           </h2>
           <p className="mt-4 text-lg tracking-tight text-zinc-700">
             If you can&apos;t find what you&apos;re looking for, email our
-            support team at support@maple.dev.
+            support team at support@mayple.cloud.
           </p>
         </div>
         <ul
