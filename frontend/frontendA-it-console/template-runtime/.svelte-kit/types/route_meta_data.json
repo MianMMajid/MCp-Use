@@ -17,6 +17,7 @@
 	"/health": [
 		"src/routes/health/+server.js"
 	],
+	"/legacy-docs": [],
 	"/login": [],
 	"/maple": [
 		"src/routes/maple/+page.server.js"

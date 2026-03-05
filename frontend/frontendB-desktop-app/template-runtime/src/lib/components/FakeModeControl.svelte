@@ -35,7 +35,7 @@
 <style>
   .fake-control {
     position: fixed;
-    top: 14px;
+    bottom: 14px;
     right: 14px;
     z-index: 70;
     display: flex;

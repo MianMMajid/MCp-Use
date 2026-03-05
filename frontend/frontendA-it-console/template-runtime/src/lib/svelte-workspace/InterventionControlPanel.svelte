@@ -20,6 +20,7 @@
   export let openStopConfirm = () => {}
   export let cancelStopConfirm = () => {}
   export let confirmStop = () => {}
+  export let blockActionRule = () => {}
 
   $: filteredExecutions = executions.filter((execution) => {
     const traceMatch = !traceQuery || String(execution.executionId ?? '').toLowerCase().includes(traceQuery.toLowerCase())
@@ -29,7 +30,7 @@
 
   $: activeExecution = executions.find((entry) => entry.executionId === selectedExecutionId) ?? null
   let manualTarget = ''
-  $: if (!manualTarget && targetInput) manualTarget = targetInput
+  $: if (targetInput && targetInput !== manualTarget) manualTarget = targetInput
   $: targetValue = manualTarget || targetInput || activeExecution?.executionId || ''
 </script>
 
@@ -73,6 +74,7 @@
         <button type="button" class="action-btn" on:click={() => pauseExecution(targetValue)} disabled={busy !== '' || !targetValue}>Pause</button>
         <button type="button" class="action-btn" on:click={() => resumeExecution(targetValue)} disabled={busy !== '' || !targetValue}>Resume</button>
         <button type="button" class="action-btn danger" on:click={openStopConfirm} disabled={busy !== '' || !targetValue}>Stop</button>
+        <button type="button" class="action-btn" on:click={() => blockActionRule(targetValue)} disabled={busy !== '' || !targetValue}>Block Future Action</button>
       </div>
       {#if showConfirmStop}
         <div class="panel">

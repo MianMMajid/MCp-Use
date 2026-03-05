@@ -18,7 +18,8 @@ export const nodes = [
 	() => import('./nodes/14'),
 	() => import('./nodes/15'),
 	() => import('./nodes/16'),
-	() => import('./nodes/17')
+	() => import('./nodes/17'),
+	() => import('./nodes/18')
 ];
 
 export const server_loads = [];
@@ -31,14 +32,15 @@ export const dictionary = {
 		"/conversations": [7],
 		"/errors": [8],
 		"/groups": [9],
-		"/login": [10],
-		"/maple": [~11],
-		"/maple/[...legacy]": [~12],
-		"/messages": [13],
-		"/pagination": [14],
-		"/quickstart": [15],
-		"/sdks": [16],
-		"/webhooks": [17],
+		"/legacy-docs": [10],
+		"/login": [11],
+		"/maple": [~12],
+		"/maple/[...legacy]": [~13],
+		"/messages": [14],
+		"/pagination": [15],
+		"/quickstart": [16],
+		"/sdks": [17],
+		"/webhooks": [18],
 		"/[slug]": [~3]
 	};
 

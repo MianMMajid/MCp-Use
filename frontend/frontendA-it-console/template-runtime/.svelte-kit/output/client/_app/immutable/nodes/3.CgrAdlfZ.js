@@ -1,1 +1,0 @@
-import"../chunks/Lw7-F3fC.js";import{i as p}from"../chunks/pawvQQtv.js";import{p as r,a as e,d as s,u as m}from"../chunks/CumqLj6T.js";import{p as i}from"../chunks/DGHUnuJg.js";import{D as d}from"../chunks/D9bi5j9V.js";function _(t,a){r(a,!1);let o=i(a,"data",8);p(),d(t,{get doc(){return s(o()),m(()=>o().doc)}}),e()}export{_ as component};

@@ -1,4 +1,4 @@
-import { b as bind_props } from "../../../chunks/index2.js";
+import { c as bind_props } from "../../../chunks/index2.js";
 import { D as DocsPage } from "../../../chunks/DocsPage.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {

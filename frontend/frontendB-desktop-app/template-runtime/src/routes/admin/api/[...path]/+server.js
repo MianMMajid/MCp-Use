@@ -15,11 +15,27 @@ async function proxy(request, path) {
   headers.delete('host');
   headers.set('x-forwarded-host', inUrl.host);
 
-  const response = await fetch(target, {
-    method: request.method,
-    headers,
-    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer(),
-  });
+  let response;
+  try {
+    response = await fetch(target, {
+      method: request.method,
+      headers,
+      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(
+      JSON.stringify({
+        message: 'Backend API unavailable',
+        target: target.toString(),
+        details: message,
+      }),
+      {
+        status: 503,
+        headers: { 'content-type': 'application/json' },
+      },
+    );
+  }
 
   return new Response(response.body, {
     status: response.status,

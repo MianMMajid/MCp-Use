@@ -9,7 +9,7 @@
 
   const LEGACY_DOC_LINKS = Object.entries(docsByPath).map(([path, doc]) => ({
     label: doc?.title ?? path,
-    href: path,
+    href: path === '/' ? '/quickstart' : path,
   }))
 
   const INCIDENT_FLOW = [

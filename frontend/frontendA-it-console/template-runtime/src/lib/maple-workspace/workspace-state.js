@@ -8,20 +8,26 @@ export const MAPLE_WORKSPACE_DEFAULT_CATEGORY = 'observe'
 export const MAPLE_WORKSPACE_DEFAULT_VIEW = 'live'
 
 export const MAPLE_WORKSPACE_CATEGORY_VIEWS = Object.freeze({
-  observe: Object.freeze(['live', 'timeline']),
+  observe: Object.freeze(['topology', 'live', 'timeline', 'forks']),
   chat: Object.freeze(['chat']),
-  analyze: Object.freeze(['control', 'topology']),
-  admin: Object.freeze(['settings', 'policy', 'marketplace']),
+  admin: Object.freeze(['control', 'marketplace']),
+  firewalls: Object.freeze(['cybersecurity', 'rules', 'context-leakage']),
+  users: Object.freeze(['access']),
   docs: Object.freeze(['overview', 'api', 'runbooks', 'route-help']),
 })
 
 const CATEGORY_ALIASES = Object.freeze({
   monitor: 'observe',
   opschat: 'chat',
-  intervene: 'analyze',
+  analyze: 'admin',
+  intervene: 'admin',
   policy: 'admin',
   govern: 'admin',
   system: 'admin',
+  firewall: 'firewalls',
+  firewalls: 'firewalls',
+  user: 'users',
+  users: 'users',
 })
 
 const VIEW_ALIASES = Object.freeze({
@@ -29,6 +35,18 @@ const VIEW_ALIASES = Object.freeze({
   fork: 'policy',
   recovery: 'policy',
   integrations: 'marketplace',
+  settings: 'control',
+  policy: 'control',
+  cybersecurity: 'cybersecurity',
+  rules: 'rules',
+  leakage: 'context-leakage',
+  contextleakage: 'context-leakage',
+  context_leakage: 'context-leakage',
+  actionforks: 'forks',
+  action_forks: 'forks',
+  forks: 'forks',
+  user: 'access',
+  roles: 'access',
 })
 
 const SPECIAL_LEGACY_ROUTE_TARGETS = Object.freeze({
@@ -118,20 +136,30 @@ export function resolveWorkspaceState({ pathname, searchParams }) {
   const sessionId = searchParams?.get('sessionId') ?? ''
 
   // Preserve old deep-link semantics where monitor+chat now maps to dedicated chat category.
+  const preserveLegacyAnalyzeTopology =
+    typeof categoryFromQuery === 'string' &&
+    ['analyze', 'intervene'].includes(categoryFromQuery.toLowerCase()) &&
+    typeof viewFromQuery === 'string' &&
+    viewFromQuery.toLowerCase() === 'topology'
+
   const preserveLegacyMonitorChat =
     typeof categoryFromQuery === 'string' &&
     categoryFromQuery.toLowerCase() === 'monitor' &&
     typeof viewFromQuery === 'string' &&
     viewFromQuery.toLowerCase() === 'chat'
 
-  const category = preserveLegacyMonitorChat
+  const category = preserveLegacyAnalyzeTopology
+    ? 'observe'
+    : preserveLegacyMonitorChat
     ? 'chat'
     : (categoryFromQuery
       ? normalizeWorkspaceCategory(categoryFromQuery)
       : getWorkspaceCategoryForRoute(routeRecord))
 
   const view = viewFromQuery
-    ? preserveLegacyMonitorChat
+    ? preserveLegacyAnalyzeTopology
+      ? 'topology'
+      : preserveLegacyMonitorChat
       ? 'chat'
       : normalizeWorkspaceView(category, viewFromQuery)
     : getWorkspaceViewForRoute(routeRecord)

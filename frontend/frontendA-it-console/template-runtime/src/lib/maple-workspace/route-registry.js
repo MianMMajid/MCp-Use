@@ -8,11 +8,11 @@ export const MAPLE_WORKSPACE_PATH_PREFIX = '/maple'
 export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
 
 export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
-  { id: 'observe', label: 'Monitor', description: 'Live telemetry and runtime snapshots.' },
   { id: 'chat', label: 'Chat', description: 'Monitoring agent conversation and live recommendations.' },
-  { id: 'analyze', label: 'Intervene', description: 'Inspect decisions, sessions, and execution traces.' },
+  { id: 'observe', label: 'Monitor', description: 'Live telemetry and runtime snapshots.' },
   { id: 'admin', label: 'System', description: 'Identity, integrations, and account operations.' },
-  { id: 'docs', label: 'Docs', description: 'Runbooks, endpoint references, and route guidance.' },
+  { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
+  { id: 'users', label: 'Users', description: 'User accounts, role assignments, and access governance.' },
 ])
 
 const LEGACY_DOC_LINKS = Object.freeze([
@@ -41,7 +41,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/audit',
     title: 'Audit + Traces',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Audit + Traces',
     description: 'Review immutable audit chains, retention state, and dead-letter replay.',
     apiEndpoints: [
@@ -56,7 +56,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/gateway',
     title: 'Firewall Dashboard',
-    category: 'observe',
+    category: 'firewalls',
     tabLabel: 'Firewall Dashboard',
     description: 'Track firewall status, effective rules, and preview live decisions.',
     apiEndpoints: [
@@ -66,7 +66,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
       '/api/firewall/decision',
       '/api/firewall/chat',
     ],
-    preferredView: 'live',
+    preferredView: 'cybersecurity',
   },
   {
     path: '/maple/runs',
@@ -89,7 +89,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/hitl',
     title: 'HITL Queue',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'HITL Queue',
     description: 'Process pending approvals and review high-risk interventions.',
     apiEndpoints: [
@@ -103,7 +103,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/modifier-approvals',
     title: 'Modifier Approvals',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Modifier Approvals',
     description: 'Approve or reject modifier actions requiring explicit authorization.',
     apiEndpoints: ['/api/modifier/approvals', '/api/modifier/decision'],
@@ -112,7 +112,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/agent',
     title: 'Agent Management',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Agent Management',
     description: 'Inspect agent status, message streams, and session context.',
     apiEndpoints: ['/api/openclaw/agent/status', '/api/openclaw/agent/turn'],
@@ -121,7 +121,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/demo',
     title: 'Demo Playground',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Demo Playground',
     description: 'Run deterministic demos for trace, audit, block, and fork paths.',
     apiEndpoints: ['/api/demo/start', '/api/demo/full', '/api/demo/guard'],
@@ -130,7 +130,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/downstream',
     title: 'Downstream MCP',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Downstream MCP',
     description: 'Discover connected downstream MCP apps and dispatch tools.',
     apiEndpoints: ['/api/downstream/apps', '/api/downstream/tools', '/api/downstream/dispatch'],
@@ -203,11 +203,11 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/auth-admin',
     title: 'Auth Admin',
-    category: 'admin',
+    category: 'users',
     tabLabel: 'Auth Admin',
     description: 'Operate login, registration, recovery, and session endpoints.',
     apiEndpoints: ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/me'],
-    preferredView: 'settings',
+    preferredView: 'access',
   },
   {
     path: '/maple/api-keys',
@@ -262,39 +262,44 @@ function toAnchors(path) {
 
 const ROUTE_SURFACE_BY_PATH = Object.freeze({
   '/maple/observability': { category: 'observe', view: 'live' },
-  '/maple/gateway': { category: 'observe', view: 'live' },
+  '/maple/gateway': { category: 'firewalls', view: 'cybersecurity' },
   '/maple/runs': { category: 'observe', view: 'timeline' },
   '/maple/community': { category: 'observe', view: 'timeline' },
   '/maple/chat': { category: 'chat', view: 'chat' },
-  '/maple/audit': { category: 'analyze', view: 'control' },
-  '/maple/hitl': { category: 'admin', view: 'policy' },
-  '/maple/modifier-approvals': { category: 'admin', view: 'policy' },
-  '/maple/agent': { category: 'analyze', view: 'control' },
-  '/maple/demo': { category: 'analyze', view: 'control' },
+  '/maple/audit': { category: 'admin', view: 'control' },
+  '/maple/hitl': { category: 'admin', view: 'control' },
+  '/maple/modifier-approvals': { category: 'admin', view: 'control' },
+  '/maple/agent': { category: 'admin', view: 'control' },
+  '/maple/demo': { category: 'admin', view: 'control' },
   '/maple/downstream': { category: 'admin', view: 'marketplace' },
-  '/maple/policies': { category: 'admin', view: 'policy' },
-  '/maple/runtime': { category: 'admin', view: 'settings' },
-  '/maple/tenants': { category: 'admin', view: 'policy' },
-  '/maple/tools': { category: 'admin', view: 'policy' },
-  '/maple/escalation': { category: 'admin', view: 'policy' },
-  '/maple/org': { category: 'admin', view: 'settings' },
-  '/maple/admin': { category: 'admin', view: 'settings' },
-  '/maple/auth-admin': { category: 'admin', view: 'settings' },
-  '/maple/api-keys': { category: 'admin', view: 'settings' },
+  '/maple/policies': { category: 'admin', view: 'control' },
+  '/maple/runtime': { category: 'admin', view: 'control' },
+  '/maple/tenants': { category: 'admin', view: 'control' },
+  '/maple/tools': { category: 'admin', view: 'control' },
+  '/maple/escalation': { category: 'admin', view: 'control' },
+  '/maple/org': { category: 'admin', view: 'control' },
+  '/maple/admin': { category: 'admin', view: 'control' },
+  '/maple/auth-admin': { category: 'users', view: 'access' },
+  '/maple/api-keys': { category: 'admin', view: 'control' },
   '/maple/integrations': { category: 'admin', view: 'marketplace' },
-  '/maple/usage': { category: 'admin', view: 'settings' },
-  '/maple/desktop': { category: 'admin', view: 'settings' },
+  '/maple/usage': { category: 'admin', view: 'control' },
+  '/maple/desktop': { category: 'admin', view: 'control' },
 })
 
 const PRIMARY_FUNCTION_BY_SURFACE = Object.freeze({
+  'chat:chat': 'monitoring-agent-chat',
+  'observe:topology': 'runtime-topology',
   'observe:live': 'monitor-now',
   'observe:timeline': 'chronology',
-  'chat:chat': 'monitoring-agent-chat',
-  'analyze:control': 'intervention-execution',
-  'analyze:topology': 'runtime-topology',
+  'observe:forks': 'fork-isolation-monitoring',
+  'admin:control': 'intervention-execution',
   'admin:settings': 'system-health',
   'admin:policy': 'policy-operations',
   'admin:marketplace': 'integration-lifecycle',
+  'firewalls:cybersecurity': 'firewall-rules',
+  'firewalls:rules': 'firewall-rules-library',
+  'firewalls:context-leakage': 'context-leakage-controls',
+  'users:access': 'user-role-access',
   'docs:overview': 'docs-workspace-model',
   'docs:api': 'docs-endpoints',
   'docs:runbooks': 'docs-response',

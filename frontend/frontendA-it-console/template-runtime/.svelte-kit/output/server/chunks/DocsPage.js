@@ -1,4 +1,4 @@
-import { e as ensure_array_like, b as bind_props } from "./index2.js";
+import { e as ensure_array_like, c as bind_props } from "./index2.js";
 import { e as escape_html, a as attr } from "./attributes.js";
 function DocsPage($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {

@@ -1,13 +1,21 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api';
+
+  const FIREWALLS_KEY = 'mayple_firewall_objects_v2';
+  const FIREWALL_SELECTED_KEY = 'mayple_firewall_selected_object';
 
   let loading = true;
   let error = '';
   let tasks = [];
   let agents = [];
   let orchestrations = [];
+  let firewallObjects = [];
+  let nowTs = Date.now();
+  let timer = null;
+  let openMenuTaskId = '';
 
   let title = '';
   let prompt = '';
@@ -33,6 +41,17 @@
     return Number.isNaN(date.getTime()) ? '' : date.toISOString();
   }
 
+  function readFirewalls() {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = window.localStorage.getItem(FIREWALLS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
   async function refresh() {
     loading = true;
     error = '';
@@ -40,11 +59,13 @@
       const [taskData, agentData, orchestrationData] = await Promise.all([
         loadJson('/api/tasks'),
         loadJson('/api/agents').catch(() => ({ items: [] })),
-        loadJson('/api/orchestrations').catch(() => ({ items: [] }))
+        loadJson('/api/orchestrations').catch(() => ({ items: [] })),
       ]);
       tasks = taskData?.items || [];
       agents = agentData?.items || agentData || [];
       orchestrations = orchestrationData?.items || orchestrationData || [];
+      firewallObjects = readFirewalls().filter((item) => !item?.archived);
+
       if (!assignmentId) {
         assignmentId = assignmentType === 'agent'
           ? String(agents[0]?.agentId || agents[0]?.id || '')
@@ -60,7 +81,16 @@
     }
   }
 
-  onMount(refresh);
+  onMount(async () => {
+    await refresh();
+    timer = setInterval(() => {
+      nowTs = Date.now();
+    }, 1000);
+  });
+
+  onDestroy(() => {
+    if (timer) clearInterval(timer);
+  });
 
   $: assignmentOptions = assignmentType === 'agent'
     ? (agents || []).map((item) => ({ value: String(item.agentId || item.id), label: item.name || item.id }))
@@ -68,6 +98,56 @@
 
   $: if (!assignmentOptions.find((item) => item.value === assignmentId)) {
     assignmentId = assignmentOptions[0]?.value || '';
+  }
+
+  function statusClass(status) {
+    const value = String(status || '').toLowerCase();
+    if (value.includes('run')) return 'status running';
+    if (value.includes('pause')) return 'status paused';
+    if (value.includes('fail') || value.includes('error')) return 'status blocked';
+    return 'status queued';
+  }
+
+  function formatCountdown(targetIso) {
+    if (!targetIso) return '--';
+    const ms = new Date(targetIso).getTime() - nowTs;
+    if (!Number.isFinite(ms)) return '--';
+    if (ms <= 0) return 'due now';
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  function progressPercent(task) {
+    const intervalMs = Math.max(1, Number(task?.schedule?.intervalMinutes || 0)) * 60 * 1000;
+    const next = task?.nextRunAt ? new Date(task.nextRunAt).getTime() : NaN;
+    if (!Number.isFinite(next) || intervalMs <= 0) return 0;
+    const elapsed = intervalMs - Math.max(0, next - nowTs);
+    return Math.max(0, Math.min(100, Math.round((elapsed / intervalMs) * 100)));
+  }
+
+  function firewallForTask(task) {
+    const assignment = task?.assignment || {};
+    if (assignment.type === 'agent' && assignment.agentId) {
+      const agentSpecific = firewallObjects.find(
+        (item) => item.scope === 'agent' && String(item.assignedAgentId || '') === String(assignment.agentId)
+      );
+      if (agentSpecific) return agentSpecific;
+    }
+    return firewallObjects.find((item) => item.scope === 'global') || null;
+  }
+
+  function openFirewall(task) {
+    const fw = firewallForTask(task);
+    if (!fw) return;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(FIREWALL_SELECTED_KEY, String(fw.id));
+    }
+    goto('/firewalls');
   }
 
   async function createTask(event) {
@@ -87,7 +167,7 @@
         },
         assignment: assignmentType === 'agent'
           ? { agentId: assignmentId }
-          : { orchestrationId: assignmentId }
+          : { orchestrationId: assignmentId },
       };
       const response = await postJson('/api/tasks', payload);
       const data = await response.json().catch(() => ({}));
@@ -140,91 +220,123 @@
 
 <AppShell>
   <section class="page">
-    <div class="card section">
+    <section class="card section header">
       <h1>Task Builder</h1>
-      <p class="muted">Create timed tasks and assign them to an orchestration or agent.</p>
+      <p class="muted">Define intent, schedule it, and route execution through agents or orchestrations.</p>
+    </section>
 
+    <section class="card section">
       <form class="builder" on:submit={createTask}>
-        <label>
-          <span>Title</span>
-          <input bind:value={title} required />
-        </label>
-        <label>
-          <span>Prompt / Objective</span>
-          <textarea rows="2" bind:value={prompt}></textarea>
-        </label>
-        <label>
-          <span>Start At</span>
-          <input type="datetime-local" bind:value={startAt} />
-        </label>
-        <label>
-          <span>End At (optional)</span>
-          <input type="datetime-local" bind:value={endAt} />
-        </label>
-        <label>
-          <span>Timezone</span>
-          <input bind:value={timezone} />
-        </label>
-        <label>
-          <span>Interval (minutes)</span>
-          <input type="number" min="1" bind:value={intervalMinutes} required />
-        </label>
-        <label>
-          <span>Max repeats</span>
-          <input type="number" min="1" bind:value={maxRepeats} required />
-        </label>
-
-        <div class="assign-row">
+        <div class="column intent">
+          <h2>Intent</h2>
           <label>
-            <span>Assign Type</span>
-            <select bind:value={assignmentType}>
-              <option value="orchestration">Orchestration</option>
-              <option value="agent">Agent</option>
-            </select>
+            <span>Objective Title</span>
+            <input bind:value={title} required placeholder="Weekly governance summary" />
           </label>
           <label>
-            <span>Assign Target</span>
-            <select bind:value={assignmentId}>
-              {#each assignmentOptions as option}
-                <option value={option.value}>{option.label}</option>
-              {/each}
-            </select>
+            <span>Prompt / Objective</span>
+            <textarea rows="7" bind:value={prompt} placeholder="Describe the full task objective, output format, and constraints..."></textarea>
           </label>
         </div>
 
-        <button class="pill cta" type="submit" disabled={creating || !title.trim() || !assignmentId}>
-          {creating ? 'Creating...' : 'Create Task'}
-        </button>
+        <div class="column schedule">
+          <h2>Schedule</h2>
+          <label>
+            <span>🗓 Start At</span>
+            <input type="datetime-local" bind:value={startAt} />
+          </label>
+          <label>
+            <span>🗓 End At (optional)</span>
+            <input type="datetime-local" bind:value={endAt} />
+          </label>
+          <label>
+            <span>🕒 Timezone</span>
+            <input bind:value={timezone} />
+          </label>
+          <div class="inline-2">
+            <label>
+              <span>⏱ Interval (min)</span>
+              <input type="number" min="1" bind:value={intervalMinutes} required />
+            </label>
+            <label>
+              <span>🔁 Max Repeats</span>
+              <input type="number" min="1" bind:value={maxRepeats} required />
+            </label>
+          </div>
+          <div class="inline-2">
+            <label>
+              <span>Assign Type</span>
+              <select bind:value={assignmentType}>
+                <option value="orchestration">Orchestration</option>
+                <option value="agent">Agent</option>
+              </select>
+            </label>
+            <label>
+              <span>Assign Target</span>
+              <select bind:value={assignmentId}>
+                {#each assignmentOptions as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+          </div>
+          <button class="pill cta" type="submit" disabled={creating || !title.trim() || !assignmentId}>
+            {creating ? 'Scheduling...' : 'Schedule Task'}
+          </button>
+        </div>
       </form>
-
       {#if error}<p class="error">{error}</p>{/if}
-    </div>
+    </section>
 
-    <div class="card section">
+    <section class="card section">
       <h2>Scheduled Tasks</h2>
       {#if loading}
         <p class="muted">Loading tasks...</p>
       {:else if tasks.length === 0}
-        <p class="muted">No tasks yet.</p>
+        <div class="ghost-empty">
+          <p>No tasks scheduled yet. Assign an objective to get started.</p>
+        </div>
       {:else}
-        <div class="list">
+        <div class="task-grid">
           {#each tasks as task}
-            <article class="task">
-              <div class="task-head">
-                <p class="title-input">{task.title}</p>
-                <span class="status">{task.status}</span>
+            {@const fw = firewallForTask(task)}
+            <article class="task-card">
+              <div class="task-top">
+                <div>
+                  <p class="title">{task.title}</p>
+                  <p class="prompt">{task.prompt || '--'}</p>
+                </div>
+                <span class={statusClass(task.status)}>{task.status || 'scheduled'}</span>
               </div>
-              <p class="prompt">{task.prompt || '--'}</p>
+
+              <div class="timeline">
+                <div class="timeline-row">
+                  <span>Next run in {formatCountdown(task.nextRunAt)}</span>
+                  <span>{progressPercent(task)}%</span>
+                </div>
+                <div class="progress">
+                  <span style={`width:${progressPercent(task)}%`}></span>
+                </div>
+              </div>
 
               <div class="meta-grid">
                 <p><strong>Interval</strong> {task.schedule?.intervalMinutes || '--'}m</p>
-                <p><strong>Max repeats</strong> {task.schedule?.maxRepeats || '--'}</p>
+                <p><strong>Repeats</strong> {task.schedule?.maxRepeats || '--'}</p>
                 <p><strong>Timezone</strong> {task.schedule?.timezone || '--'}</p>
-                <p><strong>Ends</strong> {task.schedule?.endAt ? new Date(task.schedule.endAt).toLocaleString() : '--'}</p>
-                <p><strong>Next run</strong> {task.nextRunAt ? new Date(task.nextRunAt).toLocaleString() : '--'}</p>
-                <p><strong>Last run</strong> {task.lastRunAt ? new Date(task.lastRunAt).toLocaleString() : '--'}</p>
+                <p><strong>Next</strong> {task.nextRunAt ? new Date(task.nextRunAt).toLocaleString() : '--'}</p>
+              </div>
+
+              <div class="task-foot">
+                {#if fw}
+                  <button class="shield" on:click={() => openFirewall(task)} title="Open linked firewall policy">
+                    🛡 Firewall
+                  </button>
+                {:else}
+                  <span class="shield muted-shield">🛡 No Firewall</span>
+                {/if}
+
                 <label class="assign">
-                  <span>Assigned to</span>
+                  <span>Target</span>
                   <select
                     value={task.assignment?.type === 'agent' ? task.assignment?.agentId : task.assignment?.orchestrationId}
                     on:change={(event) => assignTask(task.id, task.assignment?.type || 'orchestration', event.currentTarget.value).catch((err) => (error = err.message))}
@@ -240,63 +352,167 @@
                     {/if}
                   </select>
                 </label>
-              </div>
 
-              <div class="row-actions">
-                <button
-                  class="pill"
-                  on:click={() => {
-                    const nextTitle = window.prompt('Task title', task.title || '');
-                    if (nextTitle == null) return;
-                    const nextPrompt = window.prompt('Task prompt/objective', task.prompt || '');
-                    if (nextPrompt == null) return;
-                    updateTask(task.id, { title: nextTitle, prompt: nextPrompt }).catch((err) => (error = err.message));
-                  }}
-                >Edit</button>
-                <button class="pill" on:click={() => commandTask(task.id, 'pause').catch((err) => (error = err.message))}>Pause</button>
-                <button class="pill" on:click={() => commandTask(task.id, 'resume').catch((err) => (error = err.message))}>Resume</button>
-                <button class="pill" on:click={() => commandTask(task.id, 'run-now').catch((err) => (error = err.message))}>Run Now</button>
-                <button class="pill danger" on:click={() => removeTask(task.id).catch((err) => (error = err.message))}>Delete</button>
+                <div class="menu-wrap">
+                  <button class="menu-btn pill" on:click={() => (openMenuTaskId = openMenuTaskId === task.id ? '' : task.id)}>⋯</button>
+                  {#if openMenuTaskId === task.id}
+                    <div class="menu">
+                      <button on:click={() => {
+                        const nextTitle = window.prompt('Task title', task.title || '');
+                        if (nextTitle == null) return;
+                        const nextPrompt = window.prompt('Task prompt/objective', task.prompt || '');
+                        if (nextPrompt == null) return;
+                        updateTask(task.id, { title: nextTitle, prompt: nextPrompt }).catch((err) => (error = err.message));
+                        openMenuTaskId = '';
+                      }}>Edit</button>
+                      <button on:click={() => { commandTask(task.id, 'pause').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Pause</button>
+                      <button on:click={() => { commandTask(task.id, 'resume').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Resume</button>
+                      <button on:click={() => { commandTask(task.id, 'run-now').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Run Now</button>
+                      <button class="danger-item" on:click={() => { removeTask(task.id).catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Delete</button>
+                    </div>
+                  {/if}
+                </div>
               </div>
             </article>
           {/each}
         </div>
       {/if}
-    </div>
+    </section>
   </section>
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
-  .section { padding: 14px; }
-  h1, h2 { margin: 0 0 8px; }
-  h2 { font-size: 1rem; }
-  .muted { margin: 0; color: var(--muted); }
-  .builder { margin-top: 10px; display: grid; gap: 10px; }
-  .assign-row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
-  label span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+  .page { min-height: calc(100svh - 24px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
+  .section { padding: 13px; display: grid; gap: 10px; }
+  .header {
+    padding: 8px 11px;
+    gap: 3px;
+    align-content: start;
+    align-self: start;
+  }
+  h1, h2 { margin: 0; }
+  h1 { font-size: 1.02rem; font-weight: 700; }
+  h2 { font-size: 0.98rem; }
+  .muted { margin: 0; color: var(--muted); font-size: 12px; }
+
+  .builder { display: grid; gap: 12px; grid-template-columns: 1.2fr 1fr; }
+  .column { border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(14,18,24,.48); padding: 10px; display: grid; gap: 8px; align-content: start; }
+  label span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
   input, textarea, select {
     width: 100%;
     border: 1px solid rgba(255,255,255,.14);
-    border-radius: 12px;
+    border-radius: 11px;
     background: rgba(20,24,32,.72);
     color: var(--fg);
-    padding: 9px 11px;
+    padding: 8px 10px;
     outline: none;
   }
   textarea { resize: vertical; }
-  .cta { width: fit-content; padding: 8px 12px; border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.2); cursor: pointer; }
-  .error { margin: 10px 0 0; color: #fecdd3; }
-  .list { display: grid; gap: 10px; }
-  .task { border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 10px; background: rgba(14,18,24,.5); display: grid; gap: 8px; }
-  .task-head { display: flex; gap: 8px; align-items: center; }
-  .title-input { margin: 0; flex: 1; font-weight: 600; }
-  .prompt { margin: 0; color: var(--muted); font-size: 13px; }
-  .status { padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(249,115,22,.4); font-size: 11px; }
-  .meta-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-  .meta-grid p { margin: 0; font-size: 12px; color: var(--muted); }
+  .inline-2 { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+  .cta {
+    width: fit-content;
+    padding: 8px 12px;
+    border-color: rgba(249,115,22,.62);
+    background: linear-gradient(180deg, rgba(249,115,22,.28), rgba(249,115,22,.2));
+    box-shadow: 0 0 0 6px rgba(249,115,22,.08);
+    cursor: pointer;
+  }
+  .error { margin: 0; color: #fecdd3; }
+
+  .ghost-empty {
+    min-height: 130px;
+    border: 1px dashed rgba(148,163,184,.26);
+    border-radius: 12px;
+    background: rgba(15,23,42,.26);
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: var(--muted);
+    padding: 16px;
+  }
+
+  .task-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .task-card {
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px;
+    background: rgba(14,18,24,.55);
+    padding: 10px;
+    display: grid;
+    gap: 9px;
+  }
+  .task-top { display: flex; gap: 10px; justify-content: space-between; align-items: start; }
+  .title { margin: 0; font-weight: 700; font-size: 14px; }
+  .prompt { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+  .status {
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid rgba(148,163,184,.3);
+    background: rgba(15,23,42,.4);
+  }
+  .status.running { color: #6ee7b7; border-color: rgba(16,185,129,.44); background: rgba(16,185,129,.16); box-shadow: 0 0 0 6px rgba(16,185,129,.12); animation: pulse 1.6s infinite; }
+  .status.paused { color: #9ca3af; border-color: rgba(107,114,128,.45); background: rgba(55,65,81,.32); }
+  .status.blocked { color: #fca5a5; border-color: rgba(251,113,133,.44); background: rgba(251,113,133,.16); }
+  .status.queued { color: #fcd34d; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.14); }
+  @keyframes pulse {
+    50% { box-shadow: 0 0 0 2px rgba(16,185,129,.06); }
+  }
+
+  .timeline { display: grid; gap: 6px; }
+  .timeline-row { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
+  .progress { height: 7px; border-radius: 999px; background: rgba(30,41,59,.5); overflow: hidden; }
+  .progress span { display: block; height: 100%; background: linear-gradient(90deg, rgba(249,115,22,.85), rgba(245,158,11,.82)); }
+
+  .meta-grid { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+  .meta-grid p { margin: 0; font-size: 11px; color: var(--muted); }
+
+  .task-foot { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: end; }
+  .shield {
+    border: 1px solid rgba(16,185,129,.35);
+    border-radius: 999px;
+    padding: 5px 8px;
+    background: rgba(16,185,129,.12);
+    color: #6ee7b7;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .muted-shield { border-color: rgba(107,114,128,.3); background: rgba(55,65,81,.26); color: #9ca3af; cursor: default; }
+
   .assign { display: grid; gap: 4px; }
-  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .row-actions button { padding: 7px 10px; cursor: pointer; border-color: rgba(249,115,22,.35); background: rgba(23,28,37,.74); }
-  .row-actions .danger { border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); }
+  .assign span { color: var(--muted); font-size: 10px; }
+  .assign select { padding: 6px 8px; font-size: 12px; }
+
+  .menu-wrap { position: relative; }
+  .menu-btn { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+  .menu {
+    position: absolute;
+    right: 0;
+    top: 36px;
+    z-index: 8;
+    min-width: 124px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px;
+    background: rgba(13,17,24,.95);
+    padding: 4px;
+    display: grid;
+    gap: 2px;
+  }
+  .menu button {
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fg);
+    text-align: left;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .menu button:hover { background: rgba(30,41,59,.55); }
+  .menu .danger-item { color: #fda4af; }
+
+  @media (max-width: 1080px) {
+    .builder { grid-template-columns: 1fr; }
+  }
 </style>

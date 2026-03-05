@@ -10,7 +10,7 @@ return {
 	assets: new Set([]),
 	mimeTypes: {},
 	_: {
-		client: {start:"_app/immutable/entry/start.DEOPgu_W.js",app:"_app/immutable/entry/app.IOjyinSK.js",imports:["_app/immutable/entry/start.DEOPgu_W.js","_app/immutable/chunks/C2iqHNqn.js","_app/immutable/chunks/CumqLj6T.js","_app/immutable/chunks/BTpW48VA.js","_app/immutable/chunks/D2ODcbmA.js","_app/immutable/entry/app.IOjyinSK.js","_app/immutable/chunks/CumqLj6T.js","_app/immutable/chunks/BmmFhtRl.js","_app/immutable/chunks/Lw7-F3fC.js","_app/immutable/chunks/D2ODcbmA.js","_app/immutable/chunks/Cw9SDOlT.js","_app/immutable/chunks/DGHUnuJg.js","_app/immutable/chunks/BTpW48VA.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
+		client: {start:"_app/immutable/entry/start.BoTWK-yg.js",app:"_app/immutable/entry/app.CV1TDtJp.js",imports:["_app/immutable/entry/start.BoTWK-yg.js","_app/immutable/chunks/Cvn2JKTt.js","_app/immutable/chunks/iXbLd11_.js","_app/immutable/chunks/CHN0UO6c.js","_app/immutable/chunks/yiFNK72W.js","_app/immutable/entry/app.CV1TDtJp.js","_app/immutable/chunks/iXbLd11_.js","_app/immutable/chunks/BH9Hwi-n.js","_app/immutable/chunks/yiFNK72W.js","_app/immutable/chunks/EpgkPxzp.js","_app/immutable/chunks/Dyj-gO_8.js","_app/immutable/chunks/CHN0UO6c.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
 		nodes: [
 			__memo(() => import('./nodes/0.js')),
 			__memo(() => import('./nodes/1.js')),
@@ -29,7 +29,8 @@ return {
 			__memo(() => import('./nodes/14.js')),
 			__memo(() => import('./nodes/15.js')),
 			__memo(() => import('./nodes/16.js')),
-			__memo(() => import('./nodes/17.js'))
+			__memo(() => import('./nodes/17.js')),
+			__memo(() => import('./nodes/18.js'))
 		],
 		remotes: {
 			
@@ -106,59 +107,66 @@ return {
 				endpoint: __memo(() => import('./entries/endpoints/health/_server.js'))
 			},
 			{
+				id: "/legacy-docs",
+				pattern: /^\/legacy-docs\/?$/,
+				params: [],
+				page: { layouts: [0,], errors: [1,], leaf: 10 },
+				endpoint: null
+			},
+			{
 				id: "/login",
 				pattern: /^\/login\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 10 },
+				page: { layouts: [0,], errors: [1,], leaf: 11 },
 				endpoint: null
 			},
 			{
 				id: "/maple",
 				pattern: /^\/maple\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 11 },
+				page: { layouts: [0,], errors: [1,], leaf: 12 },
 				endpoint: null
 			},
 			{
 				id: "/maple/[...legacy]",
 				pattern: /^\/maple(?:\/([^]*))?\/?$/,
 				params: [{"name":"legacy","optional":false,"rest":true,"chained":true}],
-				page: { layouts: [0,], errors: [1,], leaf: 12 },
+				page: { layouts: [0,], errors: [1,], leaf: 13 },
 				endpoint: null
 			},
 			{
 				id: "/messages",
 				pattern: /^\/messages\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 13 },
+				page: { layouts: [0,], errors: [1,], leaf: 14 },
 				endpoint: null
 			},
 			{
 				id: "/pagination",
 				pattern: /^\/pagination\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 14 },
+				page: { layouts: [0,], errors: [1,], leaf: 15 },
 				endpoint: null
 			},
 			{
 				id: "/quickstart",
 				pattern: /^\/quickstart\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 15 },
+				page: { layouts: [0,], errors: [1,], leaf: 16 },
 				endpoint: null
 			},
 			{
 				id: "/sdks",
 				pattern: /^\/sdks\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 16 },
+				page: { layouts: [0,], errors: [1,], leaf: 17 },
 				endpoint: null
 			},
 			{
 				id: "/webhooks",
 				pattern: /^\/webhooks\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 17 },
+				page: { layouts: [0,], errors: [1,], leaf: 18 },
 				endpoint: null
 			},
 			{

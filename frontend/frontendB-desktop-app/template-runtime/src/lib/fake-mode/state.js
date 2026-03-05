@@ -44,6 +44,17 @@ function buildAgents(rand, now, nextId) {
     'Risk Reviewer',
     'Cost Watcher',
   ]
+  const openclawToolIds = [
+    'trace-list',
+    'firewall-preview',
+    'policy-validate',
+    'github.search_prs',
+    'github.create_pr_comment',
+    'slack.post_message',
+    'calendar.find_slots',
+    'email.send',
+  ]
+
   return names.map((name, idx) => ({
     id: `agent-${idx + 1}`,
     agentId: `agent-${idx + 1}`,
@@ -57,6 +68,7 @@ function buildAgents(rand, now, nextId) {
     createdAt: new Date(now - (idx + 1) * DAY_MS).toISOString(),
     updatedAt: new Date(now - idx * 2 * 60 * 60 * 1000).toISOString(),
     capabilities: ['chat', 'tool_use', 'orchestration'],
+    equippedToolIds: openclawToolIds.slice(0, 2 + (idx % 3)),
     tags: ['fake', 'seeded'],
     version: `v${1 + idx}`,
     metadata: { owner: 'fake-mode', environment: 'local' },
@@ -496,6 +508,11 @@ function buildTools(now) {
     registry: [
       { id: 'tool-1', toolId: 'tool-1', name: 'fetch_context', description: 'Fetch context wall data', createdAt: new Date(now - 10 * DAY_MS).toISOString() },
       { id: 'tool-2', toolId: 'tool-2', name: 'risk_score', description: 'Calculate risk score', createdAt: new Date(now - 6 * DAY_MS).toISOString() },
+      { id: 'tool-3', toolId: 'github.search_prs', name: 'github.search_prs', description: 'Search pull requests from GitHub', createdAt: new Date(now - 5 * DAY_MS).toISOString() },
+      { id: 'tool-4', toolId: 'github.create_pr_comment', name: 'github.create_pr_comment', description: 'Post PR review comments', createdAt: new Date(now - 4 * DAY_MS).toISOString() },
+      { id: 'tool-5', toolId: 'slack.post_message', name: 'slack.post_message', description: 'Send messages to Slack channels', createdAt: new Date(now - 3 * DAY_MS).toISOString() },
+      { id: 'tool-6', toolId: 'calendar.find_slots', name: 'calendar.find_slots', description: 'Find available meeting slots', createdAt: new Date(now - 2 * DAY_MS).toISOString() },
+      { id: 'tool-7', toolId: 'email.send', name: 'email.send', description: 'Send outbound email', createdAt: new Date(now - DAY_MS).toISOString() },
     ],
     policies: [
       { policyId: 'policy-1', name: 'block-delete', effect: 'deny', condition: 'tool == delete_record' },
@@ -505,11 +522,25 @@ function buildTools(now) {
       { id: 'exec-tool-1', executionId: 'exec-tool-1', toolName: 'fetch_context', status: 'completed', createdAt: new Date(now - 90 * 60 * 1000).toISOString(), output: { ok: true } },
       { id: 'exec-tool-2', executionId: 'exec-tool-2', toolName: 'risk_score', status: 'failed', createdAt: new Date(now - 50 * 60 * 1000).toISOString(), error: 'Threshold exceeded' },
     ],
-    cliTools: ['trace-list', 'firewall-preview', 'policy-validate'],
+    cliTools: [
+      'trace-list',
+      'firewall-preview',
+      'policy-validate',
+      'github.search_prs',
+      'github.create_pr_comment',
+      'slack.post_message',
+      'calendar.find_slots',
+      'email.send',
+    ],
     cliCatalog: [
       { name: 'trace-list', description: 'List recent traces' },
       { name: 'firewall-preview', description: 'Preview firewall decision' },
       { name: 'policy-validate', description: 'Validate policy draft' },
+      { name: 'github.search_prs', description: 'Search pull requests in repositories' },
+      { name: 'github.create_pr_comment', description: 'Create pull request review comments' },
+      { name: 'slack.post_message', description: 'Post structured updates to Slack' },
+      { name: 'calendar.find_slots', description: 'Find calendar availability for attendees' },
+      { name: 'email.send', description: 'Send formatted email updates' },
     ],
   }
 }

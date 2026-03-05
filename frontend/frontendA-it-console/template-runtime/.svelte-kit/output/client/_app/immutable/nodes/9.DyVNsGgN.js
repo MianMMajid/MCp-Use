@@ -1,0 +1,1 @@
+import"../chunks/BH9Hwi-n.js";import{i as t}from"../chunks/B6pwNZO2.js";import{p as s,a}from"../chunks/iXbLd11_.js";import{D as m}from"../chunks/DtlpY12a.js";import{d as i}from"../chunks/2rHXOVXQ.js";function g(o,p){s(p,!1);const r=i["/groups"];t(),m(o,{get doc(){return r}}),a()}export{g as component};

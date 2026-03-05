@@ -17,6 +17,8 @@
       )
     : agents;
 
+  $: activeCount = agents.filter((item) => String(item.status || '').toLowerCase() === 'active').length;
+
   function badgeClass(value) {
     const color = statusColor(value);
     if (color === 'green') return 'badge green';
@@ -46,14 +48,19 @@
 <AppShell>
   <section class="page">
     <div class="header card">
-      <div>
+      <div class="title-wrap">
         <h1>Agents</h1>
-        <p>Browse and manage your agents</p>
+        <p>Openclaw-powered operators you can manage and equip with tools.</p>
       </div>
-      <button class="pill cta" on:click={handleCreate} disabled={creating}>{creating ? 'Creating...' : 'Create Agent'}</button>
+      <div class="meta-row">
+        <span class="pill tiny stat">{agents.length} total</span>
+        <span class="pill tiny stat">{activeCount} active</span>
+        <button class="pill cta" on:click={handleCreate} disabled={creating}>{creating ? 'Creating…' : 'Create Agent'}</button>
+      </div>
     </div>
 
     <div class="search card">
+      <span class="search-icon">⌕</span>
       <input bind:value={search} placeholder="Search agents..." />
     </div>
 
@@ -63,16 +70,16 @@
       {:else}
         {#each filtered as agent}
           {@const id = agent.agentId || agent.id}
-          <article
-            class="card agent"
-          >
-            <div class="top" on:click={() => goto(`/agents/${id}`)}>
+          <article class="card agent">
+            <button class="top-btn" type="button" on:click={() => goto(`/agents/${id}`)}>
               <p class="name">{agent.name || id}</p>
               <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
-            </div>
+            </button>
+
             {#if agent.description}
               <p class="desc">{agent.description}</p>
             {/if}
+
             <div class="meta">
               {#if agent.riskScore != null}
                 <span class={badgeClass(riskColor(agent.riskScore))}>{riskLabel(agent.riskScore)} risk</span>
@@ -80,13 +87,18 @@
               {#if agent.model}
                 <span class="model">{agent.model}</span>
               {/if}
+              <span class="model">{(agent.equippedToolIds || []).length} Openclaw tools</span>
             </div>
+
             <div class="actions">
-              <button class="pill tiny" on:click={() => goto(`/agents/${id}`)}>Open</button>
-              <button class="pill tiny" on:click={async () => {
-                await chatStore.selectAgent(id);
-                goto('/?mode=agent');
-              }}>Use in Chat</button>
+              <button class="pill tiny" on:click={() => goto(`/agents/${id}`)}>Configure</button>
+              <button
+                class="pill tiny"
+                on:click={async () => {
+                  await chatStore.selectAgent(id);
+                  goto('/?mode=agent');
+                }}
+              >Use in Chat</button>
             </div>
           </article>
         {/each}
@@ -99,46 +111,72 @@
   .page {
     min-height: calc(100svh - 24px);
     display: grid;
-    gap: 12px;
+    gap: 10px;
+    align-content: start;
+    grid-auto-rows: min-content;
   }
 
   .header {
-    padding: 14px;
+    padding: 8px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .title-wrap {
+    min-width: 0;
   }
 
   h1 {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.06rem;
   }
 
-  .header p {
-    margin: 3px 0 0;
+  .title-wrap p {
+    margin: 2px 0 0;
     color: var(--muted);
-    font-size: 14px;
+    font-size: 12px;
+  }
+
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .tiny {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .stat {
+    border-color: rgba(249, 115, 22, 0.28);
+    background: rgba(24, 29, 38, 0.7);
   }
 
   .cta {
-    padding: 9px 12px;
+    padding: 7px 10px;
     border-color: rgba(249, 115, 22, 0.55);
     background: rgba(249, 115, 22, 0.2);
     cursor: pointer;
   }
 
   .search {
-    padding: 10px 12px;
+    min-height: 0;
+    height: 44px;
+    padding: 6px 10px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
   }
 
-  .search::before {
-    content: '⌕';
+  .search-icon {
     color: var(--muted);
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .search input {
@@ -147,18 +185,19 @@
     outline: none;
     background: transparent;
     color: var(--fg);
+    font-size: 14px;
   }
 
   .grid {
     display: grid;
-    gap: 12px;
+    gap: 10px;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
 
   .agent {
     text-align: left;
-    padding: 14px;
-    border-radius: 20px;
+    padding: 12px;
+    border-radius: 18px;
   }
 
   .agent:hover {
@@ -166,10 +205,17 @@
     background: rgba(29, 34, 45, 0.85);
   }
 
-  .top {
+  .top-btn {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    text-align: left;
     display: flex;
     align-items: center;
     gap: 8px;
+    cursor: pointer;
   }
 
   .name {
@@ -183,18 +229,22 @@
     margin: 8px 0 0;
     color: var(--muted);
     font-size: 12px;
-    min-height: 34px;
+    min-height: 32px;
   }
 
   .meta {
-    margin-top: 10px;
+    margin-top: 8px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
   }
-  .actions { margin-top: 10px; display: flex; gap: 8px; }
-  .tiny { padding: 6px 9px; border-color: rgba(249,115,22,.35); background: rgba(20,24,32,.65); cursor: pointer; }
+
+  .actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+  }
 
   .model {
     color: var(--muted);

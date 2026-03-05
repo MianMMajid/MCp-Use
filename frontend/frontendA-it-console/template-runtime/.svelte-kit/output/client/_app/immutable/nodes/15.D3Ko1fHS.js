@@ -1,0 +1,1 @@
+import"../chunks/BH9Hwi-n.js";import{i as p}from"../chunks/B6pwNZO2.js";import{p as r,a as i}from"../chunks/iXbLd11_.js";import{D as s}from"../chunks/DtlpY12a.js";import{d as m}from"../chunks/2rHXOVXQ.js";function g(o,t){r(t,!1);const a=m["/pagination"];p(),s(o,{get doc(){return a}}),i()}export{g as component};

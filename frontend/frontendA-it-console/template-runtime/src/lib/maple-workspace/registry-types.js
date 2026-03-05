@@ -1,5 +1,5 @@
 /**
- * @typedef {'observe' | 'chat' | 'analyze' | 'admin' | 'docs'} MapleWorkspaceCategory
+ * @typedef {'observe' | 'chat' | 'admin' | 'firewalls' | 'users' | 'docs'} MapleWorkspaceCategory
  */
 
 /**
@@ -11,7 +11,7 @@
  */
 
 /**
- * @typedef {'live' | 'chat' | 'timeline' | 'control' | 'topology' | 'guard' | 'fork' | 'settings' | 'policy' | 'marketplace' | 'overview' | 'api' | 'runbooks' | 'route-help'} MapleWorkspaceView
+ * @typedef {'live' | 'chat' | 'timeline' | 'control' | 'topology' | 'forks' | 'guard' | 'fork' | 'settings' | 'policy' | 'marketplace' | 'cybersecurity' | 'rules' | 'context-leakage' | 'action-forks' | 'access' | 'overview' | 'api' | 'runbooks' | 'route-help'} MapleWorkspaceView
  */
 
 /**
@@ -30,10 +30,11 @@
  */
 
 export const MAPLE_WORKSPACE_CATEGORY_IDS = Object.freeze([
-  'observe',
   'chat',
-  'analyze',
+  'observe',
   'admin',
+  'firewalls',
+  'users',
   'docs',
 ])
 

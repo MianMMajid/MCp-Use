@@ -162,10 +162,11 @@
     "src": "src/routes/+layout.svelte",
     "isEntry": true,
     "imports": [
-      "_index2.js"
+      "_index2.js",
+      "_attributes.js"
     ],
     "css": [
-      "_app/immutable/assets/_layout.Dn6gC9mL.css"
+      "_app/immutable/assets/_layout.BL3vEd1_.css"
     ]
   },
   "src/routes/+page.server.js": {
@@ -286,6 +287,16 @@
     "name": "entries/endpoints/health/_server",
     "src": "src/routes/health/+server.js",
     "isEntry": true
+  },
+  "src/routes/legacy-docs/+page.svelte": {
+    "file": "entries/pages/legacy-docs/_page.svelte.js",
+    "name": "entries/pages/legacy-docs/_page.svelte",
+    "src": "src/routes/legacy-docs/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_DocsPage.js",
+      "_content.js"
+    ]
   },
   "src/routes/login/+page.svelte": {
     "file": "entries/pages/login/_page.svelte.js",

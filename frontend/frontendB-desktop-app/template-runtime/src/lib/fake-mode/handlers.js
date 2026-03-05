@@ -751,6 +751,9 @@ function handleSearch(pathname, method, state, searchParams) {
 }
 
 function handleAgentsRunsSessions(pathname, method, state, searchParams, body) {
+  const findAgentById = (agentId) =>
+    state.agents.find((a) => String(a.id) === String(agentId) || String(a.agentId) === String(agentId))
+
   if (pathname === '/api/agents' && method === 'GET') {
     const pinnedOnly = searchParams.get('pinned') === 'true'
     const items = pinnedOnly ? state.agents.filter((a) => a.pinned) : state.agents
@@ -769,6 +772,7 @@ function handleAgentsRunsSessions(pathname, method, state, searchParams, body) {
       riskTier: 'medium',
       riskScore: 55,
       model: 'gpt-4.1',
+      equippedToolIds: ['trace-list', 'firewall-preview', 'policy-validate'],
       pinned: false,
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -777,10 +781,80 @@ function handleAgentsRunsSessions(pathname, method, state, searchParams, body) {
     return asJson(agent)
   }
 
-  let params = matchPath(pathname, '/api/agents/:agentId')
+  let params = matchPath(pathname, '/api/agents/:agentId/tools')
   if (params && method === 'GET') {
-    const agent = state.agents.find((a) => String(a.id) === String(params.agentId) || String(a.agentId) === String(params.agentId))
+    const agent = findAgentById(params.agentId)
     if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+
+    const catalogTools = (state.tools?.cliCatalog || []).map((item) => ({
+      toolId: item.name,
+      name: item.name,
+      description: item.description || 'Openclaw CLI tool',
+      source: 'openclaw-cli',
+    }))
+    const registryTools = (state.tools?.registry || []).map((item) => ({
+      toolId: item.toolId || item.name,
+      name: item.name || item.toolId,
+      description: item.description || 'Registered tool',
+      source: 'registry',
+    }))
+    const byId = new Map()
+    for (const item of [...catalogTools, ...registryTools]) {
+      if (!item.toolId) continue
+      if (!byId.has(item.toolId)) byId.set(item.toolId, item)
+    }
+
+    const equippedSet = new Set((agent.equippedToolIds || []).map(String))
+    const items = Array.from(byId.values()).map((item) => ({
+      ...item,
+      equipped: equippedSet.has(String(item.toolId)),
+    }))
+    for (const equippedId of equippedSet) {
+      if (!byId.has(String(equippedId))) {
+        items.push({
+          toolId: String(equippedId),
+          name: String(equippedId),
+          description: 'Custom imported skill',
+          source: 'custom',
+          equipped: true,
+        })
+      }
+    }
+    return asJson({ items, equippedToolIds: Array.from(equippedSet) })
+  }
+
+  params = matchPath(pathname, '/api/agents/:agentId/tools')
+  if (params && (method === 'PATCH' || method === 'POST')) {
+    const agent = findAgentById(params.agentId)
+    if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    const payload = parseBody(body)
+    const equipped = Array.isArray(payload?.equippedToolIds)
+      ? payload.equippedToolIds.map((item) => String(item).trim()).filter(Boolean)
+      : []
+    const catalogIds = (state.tools?.cliCatalog || []).map((item) => String(item.name))
+    const registryIds = (state.tools?.registry || []).map((item) => String(item.toolId || item.name))
+    const allowed = new Set([...catalogIds, ...registryIds])
+    agent.equippedToolIds = equipped.filter((id) => allowed.has(id) || id.startsWith('custom-'))
+    agent.updatedAt = nowIso()
+    return asJson({ ok: true, equippedToolIds: agent.equippedToolIds, agent })
+  }
+
+  params = matchPath(pathname, '/api/agents/:agentId')
+  if (params && method === 'GET') {
+    const agent = findAgentById(params.agentId)
+    if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    return asJson(agent)
+  }
+
+  params = matchPath(pathname, '/api/agents/:agentId')
+  if (params && method === 'PATCH') {
+    const agent = findAgentById(params.agentId)
+    if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    const payload = parseBody(body)
+    if (payload?.name != null) agent.name = String(payload.name || '').trim() || agent.name
+    if (payload?.description != null) agent.description = String(payload.description || '')
+    if (payload?.status != null) agent.status = String(payload.status || agent.status)
+    agent.updatedAt = nowIso()
     return asJson(agent)
   }
 

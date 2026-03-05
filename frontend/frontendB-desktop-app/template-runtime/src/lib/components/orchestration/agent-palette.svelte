@@ -29,7 +29,7 @@
       {@const id = agent.agentId || agent.id}
       <button type="button" class="item" draggable="true" on:dragstart={(event) => onDragStart(event, id)}>
         <div class="meta">
-          <p>{agent.name || id}</p>
+          <p><span class="drag">⋮⋮</span>{agent.name || id}</p>
           <span>{agent.status || 'unknown'}</span>
         </div>
         {#if onCanvasIds.has(id)}
@@ -61,7 +61,8 @@
     color: inherit;
   }
   .meta { display: flex; justify-content: space-between; gap: 6px; align-items: center; }
-  .meta p { margin: 0; font-size: 12px; font-weight: 600; }
+  .meta p { margin: 0; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+  .drag { color: #94a3b8; font-size: 11px; letter-spacing: -1px; }
   .meta span { font-size: 10px; color: var(--muted); }
   small { color: #86efac; font-size: 10px; }
   .empty { margin: 0; color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }

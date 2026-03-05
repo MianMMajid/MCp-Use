@@ -1,4 +1,5 @@
 <script>
+  import { tick } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { shellStore } from '@/lib/stores/shell-store';
@@ -7,10 +8,15 @@
   import { groupByDate, statusColor } from '@/lib/format';
 
   let search = '';
+  let searchDialogOpen = false;
+  let searchDraft = '';
+  let searchInputEl;
 
   const navItems = [
+    { key: 'skills', label: 'Skils', icon: 'skills', href: '/skills' },
     { key: 'agents', label: 'Agents', icon: 'agent', href: '/agents' },
     { key: 'builder', label: 'Builder', icon: 'builder', href: '/orchestrate' },
+    { key: 'firewalls', label: 'Firewalls', icon: 'firewall', href: '/firewalls' },
     { key: 'tasks', label: 'Tasks', icon: 'tasks', href: '/tasks' },
     { key: 'new-chat', label: 'New Chat', icon: 'pen', action: () => newChat() },
     { key: 'search', label: 'Search', icon: 'search', action: () => onSearchPillClick() }
@@ -42,8 +48,14 @@
   }
 
   function active(item) {
+    if (item.key === 'skills') {
+      return path.startsWith('/skills');
+    }
     if (item.key === 'agents') {
       return path.startsWith('/agents');
+    }
+    if (item.key === 'firewalls') {
+      return path.startsWith('/firewalls');
     }
     if (!item.href) return false;
     if (item.href === '/') return path === '/';
@@ -65,10 +77,33 @@
   }
 
   function onSearchPillClick() {
-    if (typeof window === 'undefined') return;
-    const promptLabel = workspaceMode === 'agent' ? 'Search chats' : 'Search orchestrations';
-    const nextValue = window.prompt(promptLabel, search);
-    if (nextValue !== null) search = nextValue;
+    searchDraft = search;
+    searchDialogOpen = true;
+    tick().then(() => {
+      searchInputEl?.focus();
+      searchInputEl?.select?.();
+    });
+  }
+
+  function applySearchDialog() {
+    search = searchDraft.trim();
+    searchDialogOpen = false;
+  }
+
+  function cancelSearchDialog() {
+    searchDialogOpen = false;
+  }
+
+  function onSearchInputKeyDown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applySearchDialog();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelSearchDialog();
+    }
   }
 
   function statusClass(status) {
@@ -86,10 +121,7 @@
       <button class="logo-btn" on:click={() => goto('/')} aria-label="Go home">
         <img src="/maple-favicon.svg" alt="Mayple" class="logo" />
       </button>
-      {#if !$shellStore.sidebarCollapsed}
-        <button class="brand pill" on:click={() => goto('/')}>Mayple</button>
-      {/if}
-      <button class="toggle pill" on:click={shellStore.toggleSidebar} aria-label="Toggle sidebar">
+      <button class="toggle" on:click={shellStore.toggleSidebar} aria-label="Toggle sidebar">
         <Icon name="menu" size={18} />
       </button>
     </div>
@@ -181,6 +213,37 @@
   </div>
 </aside>
 
+{#if searchDialogOpen}
+  <div
+    class="search-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-modal="true"
+    aria-label={workspaceMode === 'agent' ? 'Search chats' : 'Search orchestrations'}
+    on:click={(event) => {
+      if (event.currentTarget === event.target) cancelSearchDialog();
+    }}
+    on:keydown={(event) => {
+      if (event.key === 'Escape') cancelSearchDialog();
+    }}
+  >
+    <div class="search-dialog card">
+      <p class="search-title">{workspaceMode === 'agent' ? 'Search chats' : 'Search orchestrations'}</p>
+      <input
+        class="search-input"
+        bind:this={searchInputEl}
+        bind:value={searchDraft}
+        placeholder={workspaceMode === 'agent' ? 'Find a chat...' : 'Find an orchestration...'}
+        on:keydown={onSearchInputKeyDown}
+      />
+      <div class="search-actions">
+        <button class="pill ghost" type="button" on:click={cancelSearchDialog}>Cancel</button>
+        <button class="pill confirm" type="button" on:click={applySearchDialog}>Apply</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .sidebar {
     height: calc(100svh - 24px);
@@ -203,43 +266,38 @@
   .brand-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    justify-content: space-between;
   }
 
   .logo-btn {
     width: 52px;
     height: 52px;
-    border: 1px solid rgba(249, 115, 22, 0.32);
-    border-radius: 16px;
-    background: rgba(19, 22, 29, 0.75);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     display: grid;
     place-items: center;
     cursor: pointer;
+    padding: 0;
   }
 
   .logo {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-  }
-
-  .brand {
-    flex: 1;
-    height: 52px;
-    justify-content: flex-start;
-    padding: 0 16px;
-    border-color: rgba(249, 115, 22, 0.28);
-    background: rgba(20, 24, 32, 0.66);
-    cursor: pointer;
-    font-size: 1.05rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 0;
   }
 
   .toggle {
     width: 52px;
     height: 52px;
-    border-color: rgba(249, 115, 22, 0.28);
-    background: rgba(20, 24, 32, 0.66);
+    border: 0;
+    background: transparent;
+    color: #e5e7eb;
     cursor: pointer;
+    padding: 0;
+    display: grid;
+    place-items: center;
   }
 
   .menu {
@@ -430,6 +488,71 @@
     justify-content: flex-start;
   }
 
+  .search-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(6, 9, 14, 0.56);
+    backdrop-filter: blur(4px);
+    display: grid;
+    place-items: center;
+    padding: 18px;
+  }
+
+  .search-dialog {
+    width: min(520px, 100%);
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(20, 24, 32, 0.95);
+    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.5);
+    padding: 14px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .search-title {
+    margin: 0;
+    font-size: 14px;
+    color: #d4d4d8;
+    font-weight: 600;
+  }
+
+  .search-input {
+    width: 100%;
+    border: 1px solid rgba(249, 115, 22, 0.26);
+    border-radius: 14px;
+    background: rgba(11, 14, 20, 0.86);
+    color: #f4f4f5;
+    padding: 10px 12px;
+    outline: none;
+    font-size: 15px;
+  }
+
+  .search-input:focus {
+    border-color: rgba(249, 115, 22, 0.58);
+    box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.28);
+  }
+
+  .search-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .search-actions .ghost {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(37, 41, 52, 0.76);
+    cursor: pointer;
+    padding: 7px 11px;
+  }
+
+  .search-actions .confirm {
+    border-color: rgba(249, 115, 22, 0.5);
+    background: rgba(249, 115, 22, 0.22);
+    cursor: pointer;
+    padding: 7px 11px;
+  }
+
   .account {
     width: 44px;
     height: 44px;
@@ -449,9 +572,7 @@
     line-height: 1;
   }
 
-  :global(.sidebar .item),
-  :global(.sidebar .toggle),
-  :global(.sidebar .brand) {
+  :global(.sidebar .item) {
     border-radius: 999px;
   }
 
@@ -460,7 +581,6 @@
       width: 88px !important;
     }
 
-    .brand,
     .label,
     .history-wrap {
       display: none;

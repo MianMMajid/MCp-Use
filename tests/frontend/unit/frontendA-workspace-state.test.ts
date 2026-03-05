@@ -20,7 +20,7 @@ describe('frontend A workspace state resolver', () => {
       searchParams: new URLSearchParams(),
     })
     expect(policiesState.routePath).toBe('/maple/audit')
-    expect(policiesState.category).toBe('analyze')
+    expect(policiesState.category).toBe('admin')
     expect(policiesState.view).toBe('control')
   })
 
@@ -57,7 +57,7 @@ describe('frontend A workspace state resolver', () => {
       searchParams: new URLSearchParams('category=policy&view=recovery&route=/maple/tools'),
     })
     expect(governState.category).toBe('admin')
-    expect(governState.view).toBe('policy')
+    expect(governState.view).toBe('control')
 
     const adminState = resolveWorkspaceState({
       pathname: '/maple',
@@ -68,9 +68,18 @@ describe('frontend A workspace state resolver', () => {
     expect(adminState.routePath).toBe('/maple/integrations')
   })
 
+  it('normalizes legacy analyze topology deep-links into monitor topology', () => {
+    const state = resolveWorkspaceState({
+      pathname: '/maple',
+      searchParams: new URLSearchParams('category=analyze&view=topology&route=/maple/observability'),
+    })
+    expect(state.category).toBe('observe')
+    expect(state.view).toBe('topology')
+  })
+
   it('builds canonical href with required and optional values', () => {
     const href = buildWorkspaceHref({
-      category: 'analyze',
+      category: 'admin',
       view: 'control',
       routePath: '/maple/audit',
       executionId: 'exec-1',
@@ -78,7 +87,7 @@ describe('frontend A workspace state resolver', () => {
     })
 
     expect(href).toContain('/maple?')
-    expect(href).toContain('category=analyze')
+    expect(href).toContain('category=admin')
     expect(href).toContain('view=control')
     expect(href).toContain('route=%2Fmaple%2Faudit')
     expect(href).toContain('executionId=exec-1')

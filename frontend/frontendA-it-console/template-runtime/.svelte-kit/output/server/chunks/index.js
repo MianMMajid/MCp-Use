@@ -1,5 +1,5 @@
 import { n as noop } from "./attributes.js";
-import { a as safe_not_equal } from "./index2.js";
+import { b as safe_not_equal } from "./index2.js";
 import "clsx";
 const subscriber_queue = [];
 function readable(value, start) {
