@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 
-export const runtime = 'nodejs'
-
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
+
+const isRailway = Boolean(process.env.RAILWAY_SERVICE_NAME)
+const DEFAULT_GATEWAY = isRailway
+  ? 'http://maple-gateway.railway.internal:3000'
+  : 'http://localhost:4000'
 
 const mapleGatewayOrigin =
   process.env.MAPLE_GATEWAY_ORIGIN ||
-  (inKubernetes ? 'https://gateway-api:3000' : 'http://localhost:4000')
+  (inKubernetes ? 'https://gateway-api:3000' : DEFAULT_GATEWAY)
 
 function resolveAdminConsoleOrigin() {
   if (process.env.MAPLE_ADMIN_CONSOLE_ORIGIN) return process.env.MAPLE_ADMIN_CONSOLE_ORIGIN
