@@ -9,7 +9,7 @@ import clsx from 'clsx'
 const ALL_PAGES = [
   { label: 'Home', href: '/', section: 'Pages' },
   { label: 'Agents', href: '/agents', section: 'Pages' },
-  { label: 'Runs', href: '/runs', section: 'Pages' },
+  { label: 'Orchestration Chat', href: '/?mode=orchestration', section: 'Pages' },
   { label: 'Orchestrate', href: '/orchestrate', section: 'Pages' },
   { label: 'Settings', href: '/settings', section: 'Pages' },
   { label: 'Settings — Account', href: '/settings?tab=account', section: 'Pages' },

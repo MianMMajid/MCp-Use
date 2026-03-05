@@ -3,14 +3,14 @@
 import { Link } from '@/components/link'
 import {
   PlusCircleIcon,
-  PlayCircleIcon,
   ShareIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/20/solid'
 
 const ACTIONS = [
   { href: '/agents', icon: PlusCircleIcon, label: 'New Agent', description: 'Create or select orchestration agents' },
   { href: '/orchestrate', icon: ShareIcon, label: 'Build Orchestration', description: 'Author and publish orchestration flows' },
-  { href: '/runs', icon: PlayCircleIcon, label: 'Execution Runs', description: 'Monitor active orchestration runs' },
+  { href: '/?mode=orchestration', icon: ChatBubbleLeftRightIcon, label: 'Orchestration Chat', description: 'Start or steer execution loops from chat' },
 ]
 
 export function QuickActions() {

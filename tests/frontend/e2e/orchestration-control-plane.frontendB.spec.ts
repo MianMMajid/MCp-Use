@@ -9,6 +9,40 @@ function asJson(body: unknown) {
 }
 
 test.describe("frontend B orchestration control plane wiring", () => {
+  test("runs routes redirect into orchestration chat mode", async ({ page }) => {
+    const baseURL = String(test.info().project.use.baseURL);
+    await page.context().addCookies([
+      { name: "maple_session", value: "playwright-session", url: baseURL },
+    ]);
+
+    await page.route("**/api/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/api/agents") {
+        await route.fulfill(asJson({ items: [] }));
+        return;
+      }
+      if (url.pathname === "/api/orchestrations") {
+        await route.fulfill(asJson({ items: [{ id: "orch-1", name: "Ops Loop", status: "active", nodes: [] }] }));
+        return;
+      }
+      if (url.pathname === "/api/orchestrations/orch-1/conversation") {
+        await route.fulfill(asJson({ ok: true, items: [], objectivePackage: {} }));
+        return;
+      }
+      if (url.pathname === "/api/orchestrations/executions") {
+        await route.fulfill(asJson({ items: [] }));
+        return;
+      }
+      await route.fulfill(asJson({ ok: true }));
+    });
+
+    await page.goto("/runs");
+    await expect(page).toHaveURL(/\/\?mode=orchestration$/);
+
+    await page.goto("/runs/exec-99");
+    await expect(page).toHaveURL(/\/\?mode=orchestration&executionId=exec-99&panel=timeline$/);
+  });
+
   test("runtime command bar maps actions to canonical orchestration APIs", async ({ page }) => {
     const baseURL = String(test.info().project.use.baseURL);
     await page.context().addCookies([

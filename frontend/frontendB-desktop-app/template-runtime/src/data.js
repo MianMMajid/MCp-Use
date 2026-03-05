@@ -191,7 +191,7 @@ export async function getOrders() {
       customer: {
         name: 'Whitney Francis',
         email: 'whitney.francis@example.com',
-        address: '654 Maple St. Ottawa, ON',
+        address: '654 Mayple St. Ottawa, ON',
         country: 'Canada',
         countryFlagUrl: '/flags/ca.svg',
       },

@@ -15,6 +15,9 @@ function detectOS() {
 export function DownloadSection() {
   const [version, setVersion] = useState(null)
   const [os, setOS] = useState('unknown')
+  const [releasesUrl, setReleasesUrl] = useState(
+    'https://github.com/MianMMajid/MCp-Use/releases',
+  )
 
   useEffect(() => {
     setOS(detectOS())
@@ -22,6 +25,7 @@ export function DownloadSection() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.version) setVersion(data.version)
+        if (data?.releases_url) setReleasesUrl(data.releases_url)
       })
       .catch(() => {})
   }, [])
@@ -65,7 +69,7 @@ export function DownloadSection() {
         <p className="mt-3 text-xs text-zinc-500">
           Requires macOS 12+ or Windows 10+ &middot;{' '}
           <a
-            href="https://github.com/omar2001ramadan/Mayple/releases"
+            href={releasesUrl}
             className="underline hover:text-zinc-700"
           >
             All releases

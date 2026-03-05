@@ -6,8 +6,11 @@ import { ChatHeader } from '@/components/chat-header'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
+import { TemplateCatalogModal } from '@/components/orchestration/template-catalog-modal'
+import { TemplateConfigWizard } from '@/components/orchestration/template-config-wizard'
 import { statusColor, formatDateShort } from '@/lib/format'
 import { loadJson, postJson, deleteJson } from '@/lib/api'
+import { createFromOrchestrationTemplate, listOrchestrationTemplates } from '@/lib/orchestrations-api'
 import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import { ShareIcon, TrashIcon } from '@heroicons/react/24/outline'
 
@@ -17,6 +20,12 @@ export default function OrchestratePage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
+  const [templateCatalogOpen, setTemplateCatalogOpen] = useState(false)
+  const [templateWizardOpen, setTemplateWizardOpen] = useState(false)
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [creatingFromTemplate, setCreatingFromTemplate] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -65,25 +74,58 @@ export default function OrchestratePage() {
     }
   }
 
+  const openTemplateCatalog = async () => {
+    setTemplateCatalogOpen(true)
+    if (templates.length > 0) return
+    setTemplatesLoading(true)
+    try {
+      const items = await listOrchestrationTemplates()
+      setTemplates(items)
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
+
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template)
+    setTemplateCatalogOpen(false)
+    setTemplateWizardOpen(true)
+  }
+
+  const handleCreateFromTemplate = async (payload) => {
+    if (!selectedTemplate) return
+    setCreatingFromTemplate(true)
+    try {
+      const result = await createFromOrchestrationTemplate(selectedTemplate.id, payload)
+      const createdId = result?.orchestration?.id || result?.id
+      if (createdId) {
+        router.push(`/orchestrate/${createdId}`)
+      }
+    } finally {
+      setCreatingFromTemplate(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <ChatHeader onToggleMobileSidebar={() => {}} />
 
       <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-950">
         <div className="mx-auto max-w-5xl px-6 py-8">
-          {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <h1 className="text-lg font-semibold text-zinc-900 dark:text-white">Orchestrations</h1>
-              <p className="mt-1 text-sm text-zinc-500">Design agent delegation hierarchies with visual canvas</p>
+              <p className="mt-1 text-sm text-zinc-500">Persistent control loops with manager-worker coordination</p>
             </div>
-            <Button color="orange" onClick={handleCreate} disabled={creating}>
-              <PlusIcon className="h-4 w-4" />
-              {creating ? 'Creating...' : 'Create Orchestration'}
-            </Button>
+            <div className="flex gap-2">
+              <Button outline onClick={openTemplateCatalog}>Create from Template</Button>
+              <Button color="orange" onClick={handleCreate} disabled={creating}>
+                <PlusIcon className="h-4 w-4" />
+                {creating ? 'Creating...' : 'Create Orchestration'}
+              </Button>
+            </div>
           </div>
 
-          {/* Search */}
           <div className="mt-6 flex items-center gap-2">
             <MagnifyingGlassIcon className="h-4 w-4 text-zinc-400" />
             <Input
@@ -95,7 +137,6 @@ export default function OrchestratePage() {
             />
           </div>
 
-          {/* Loading skeleton */}
           {loading && (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (
@@ -104,14 +145,13 @@ export default function OrchestratePage() {
             </div>
           )}
 
-          {/* Grid */}
           {!loading && (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((orch) => (
                 <div
                   key={orch.id}
                   onClick={() => router.push(`/orchestrate/${orch.id}`)}
-                  className="flex cursor-pointer flex-col rounded-xl border border-zinc-200 bg-white p-4 text-left transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900"
+                  className="group flex cursor-pointer flex-col rounded-xl border border-zinc-200 bg-white p-4 text-left transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 dark:bg-orange-900/20">
@@ -119,39 +159,26 @@ export default function OrchestratePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">
-                          {orch.name}
-                        </span>
-                        <Badge color={statusColor(orch.status)} className="text-[10px]">
-                          {orch.status}
-                        </Badge>
+                        <span className="truncate text-sm font-medium text-zinc-900 dark:text-white">{orch.name}</span>
+                        <Badge color={statusColor(orch.status)} className="text-[10px]">{orch.status}</Badge>
                       </div>
                       {orch.description && (
-                        <p className="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">
-                          {orch.description}
-                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{orch.description}</p>
                       )}
                     </div>
                     <button
                       onClick={(e) => handleArchive(e, orch.id)}
-                      className="shrink-0 rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400 [div:hover>&]:opacity-100"
+                      className="shrink-0 rounded-md p-1 text-zinc-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                       title="Archive orchestration"
                     >
                       <TrashIcon className="h-4 w-4" />
                     </button>
                   </div>
 
-                  {/* Bottom row */}
                   <div className="mt-3 flex items-center gap-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-                    <span className="text-[10px] text-zinc-400">
-                      {(orch.nodes ?? []).length} nodes
-                    </span>
-                    <span className="text-[10px] text-zinc-400">
-                      {(orch.edges ?? []).length} edges
-                    </span>
-                    <span className="ml-auto text-[10px] text-zinc-400">
-                      {formatDateShort(orch.updatedAt)}
-                    </span>
+                    <span className="text-[10px] text-zinc-400">{(orch.nodes ?? []).length} nodes</span>
+                    <span className="text-[10px] text-zinc-400">{(orch.edges ?? []).length} edges</span>
+                    <span className="ml-auto text-[10px] text-zinc-400">{formatDateShort(orch.updatedAt)}</span>
                   </div>
                 </div>
               ))}
@@ -168,6 +195,29 @@ export default function OrchestratePage() {
           )}
         </div>
       </div>
+
+      <TemplateCatalogModal
+        open={templateCatalogOpen}
+        onClose={() => setTemplateCatalogOpen(false)}
+        templates={templates}
+        loading={templatesLoading}
+        onSelect={handleTemplateSelect}
+      />
+
+      <TemplateConfigWizard
+        open={templateWizardOpen}
+        template={selectedTemplate}
+        submitting={creatingFromTemplate}
+        onClose={() => {
+          setTemplateWizardOpen(false)
+          setSelectedTemplate(null)
+        }}
+        onBack={() => {
+          setTemplateWizardOpen(false)
+          setTemplateCatalogOpen(true)
+        }}
+        onCreate={handleCreateFromTemplate}
+      />
     </div>
   )
 }

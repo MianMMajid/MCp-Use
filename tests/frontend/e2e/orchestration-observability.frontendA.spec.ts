@@ -10,8 +10,8 @@ function json(data: JsonValue) {
   };
 }
 
-test.describe("frontend A observability and safeguards wiring", () => {
-  test("observability page calls canonical observability APIs", async ({ page }) => {
+test.describe("frontend A monitoring + intervention workspace", () => {
+  test("canonical /maple workspace renders observability modules and docs panel", async ({ page }) => {
     const baseURL = String(test.info().project.use.baseURL);
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
@@ -31,15 +31,39 @@ test.describe("frontend A observability and safeguards wiring", () => {
       }
 
       if (path === "/api/observability/orchestrations/summary") {
-        await route.fulfill(json({ ok: true, totalExecutions: 8, activeExecutions: 2, approvalsPending: 1, byStatus: { completed: 5, failed: 1, canceled: 0 }, outbox: { pending: 0, deadLetter: 0 } }));
+        await route.fulfill(
+          json({
+            ok: true,
+            totalExecutions: 9,
+            activeExecutions: 3,
+            approvalsPending: 1,
+            byStatus: { completed: 5, failed: 1, canceled: 1 },
+          }),
+        );
         return;
       }
       if (path === "/api/observability/orchestrations/slo") {
-        await route.fulfill(json({ ok: true, healthy: true, windowMs: Number(url.searchParams.get("windowMs") ?? 3600000) }));
+        await route.fulfill(
+          json({ ok: true, healthy: true, windowMs: Number(url.searchParams.get("windowMs") ?? 3600000) }),
+        );
         return;
       }
       if (path === "/api/observability/orchestrations/audit-log") {
-        await route.fulfill(json({ ok: true, items: [{ id: "evt-1", eventType: "execution_started", actor: "operator", timestamp: "2026-03-03T10:00:00.000Z" }], nextOffset: null }));
+        await route.fulfill(
+          json({
+            ok: true,
+            items: [
+              {
+                id: "evt-1",
+                eventType: "execution_started",
+                source: "frontend-b/orchestrate",
+                executionId: "exec-1",
+                timestamp: "2026-03-03T10:00:00.000Z",
+              },
+            ],
+            nextOffset: null,
+          }),
+        );
         return;
       }
       if (path === "/api/observability/orchestrations/alert-webhooks") {
@@ -47,34 +71,45 @@ test.describe("frontend A observability and safeguards wiring", () => {
         return;
       }
       if (path === "/api/observability/orchestrations/export" && method === "POST") {
-        await route.fulfill(json({ ok: true, total: 1, items: [{ id: "evt-1" }] }));
+        await route.fulfill(json({ ok: true, total: 1 }));
         return;
       }
       if (path === "/api/observability/orchestrations/flush" && method === "POST") {
-        await route.fulfill(json({ ok: true, flushed: 1 }));
+        await route.fulfill(json({ ok: true }));
         return;
       }
-
-      await route.fulfill(json({ ok: true, items: [], events: [], entries: [] }));
+      if (path === "/api/hitl/approvals") {
+        await route.fulfill(json({ ok: true, approvals: [] }));
+        return;
+      }
+      if (path === "/api/firewall/chat" && method === "POST") {
+        await route.fulfill(json({ ok: true, reply: "Monitoring posture is stable." }));
+        return;
+      }
+      await route.fulfill(json({ ok: true, items: [], approvals: [], events: [] }));
     });
 
-    await page.goto("/maple/observability");
+    await page.goto("/maple");
 
+    await expect(page.getByTestId("maple-workspace-layout")).toBeVisible();
+    await expect(page.getByTestId("maple-workspace-shell")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Observability & Alerts/i })).toBeVisible();
-    await expect(page.getByText(/Overview Metrics/i)).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Audit Log/i })).toBeVisible();
+    await expect(page.getByTestId("monitoring-context-explainer")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Intervention Command Bar/i })).toBeVisible();
+    await expect(page.getByTestId("maple-docs-panel")).toBeVisible();
+    await expect(page.getByTestId("maple-docs-panel")).toContainText(/Context Docs/i);
 
-    await page.getByRole("button", { name: /Export to SIEM/i }).click();
-    await page.getByRole("button", { name: /Flush Outbox/i }).click();
+    await page.getByTestId("maple-docs-toggle").click();
+    await expect(page.getByTestId("maple-docs-panel")).toHaveAttribute("aria-hidden", "true");
+    await page.getByTestId("maple-docs-toggle").click();
+    await expect(page.getByTestId("maple-docs-panel")).toHaveAttribute("aria-hidden", "false");
 
     expect(hits.has("GET /api/observability/orchestrations/summary")).toBeTruthy();
     expect(hits.has("GET /api/observability/orchestrations/slo")).toBeTruthy();
     expect(hits.has("GET /api/observability/orchestrations/audit-log")).toBeTruthy();
-    expect(hits.has("POST /api/observability/orchestrations/export")).toBeTruthy();
-    expect(hits.has("POST /api/observability/orchestrations/flush")).toBeTruthy();
   });
 
-  test("audit page supports forking and dead-letter replay via canonical APIs", async ({ page }) => {
+  test("legacy /maple/audit deep-links into canonical workspace and intervention actions call APIs", async ({ page }) => {
     const baseURL = String(test.info().project.use.baseURL);
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
@@ -88,69 +123,92 @@ test.describe("frontend A observability and safeguards wiring", () => {
       const path = url.pathname;
       const method = request.method();
       const key = `${method} ${path}`;
+      hits.add(key);
 
-      if (path.startsWith("/api/observability/orchestrations")) {
-        hits.add(key);
+      if (path === "/api/observability/orchestrations/summary") {
+        await route.fulfill(json({ ok: true, activeExecutions: 2, approvalsPending: 1, byStatus: { failed: 1, canceled: 0 } }));
+        return;
       }
-
       if (path === "/api/observability/orchestrations/audit-log") {
-        await route.fulfill(json({ ok: true, items: [{ id: "audit-1", eventType: "execution_failed", severity: "warning", createdAt: "2026-03-03T10:05:00.000Z", summary: "Node retry requested" }], nextOffset: null }));
+        await route.fulfill(
+          json({
+            ok: true,
+            items: [
+              {
+                id: "audit-1",
+                source: "frontend-b/orchestrate",
+                executionId: "exec-parent-1",
+                sessionId: "sess-9",
+                eventType: "execution_failed",
+                severity: "warning",
+                timestamp: "2026-03-03T10:05:00.000Z",
+              },
+            ],
+            nextOffset: null,
+          }),
+        );
         return;
       }
-      if (path === "/api/observability/orchestrations/export" && method === "POST") {
-        await route.fulfill(json({ ok: true, total: 1 }));
+      if (path === "/api/hitl/approvals") {
+        await route.fulfill(json({ ok: true, approvals: [] }));
         return;
       }
-      if (path === "/api/observability/orchestrations/flush" && method === "POST") {
+      if (path === "/api/orchestrations/executions/exec-parent-1/pause" && method === "POST") {
         await route.fulfill(json({ ok: true }));
         return;
       }
-      if (path === "/api/observability/orchestrations/audit-chain") {
-        await route.fulfill(json({ ok: true, items: [{ id: "chain-1", eventType: "execution_failed", timestamp: "2026-03-03T10:05:00.000Z" }] }));
-        return;
-      }
-      if (path === "/api/observability/orchestrations/audit-chain/verify") {
-        await route.fulfill(json({ ok: true, valid: true, checked: 1 }));
-        return;
-      }
-      if (path === "/api/observability/orchestrations/retention") {
-        if (method === "GET") {
-          await route.fulfill(json({ ok: true, retentionDays: 90 }));
-          return;
-        }
-        await route.fulfill(json({ ok: true, retentionDays: 120 }));
-        return;
-      }
-      if (path === "/api/observability/orchestrations/retention/enforce") {
-        await route.fulfill(json({ ok: true, affectedRows: 1 }));
-        return;
-      }
-      if (path === "/api/observability/orchestrations/dead-letter") {
-        await route.fulfill(json({ ok: true, items: [{ outboxId: "dlq-1", attempts: 2, lastError: "network timeout" }] }));
-        return;
-      }
-      if (path === "/api/observability/orchestrations/dead-letter/dlq-1/replay" && method === "POST") {
+      if (path === "/api/orchestrations/executions/exec-parent-1/resume" && method === "POST") {
         await route.fulfill(json({ ok: true }));
         return;
       }
-      if (path === "/api/observability/orchestrations/executions/exec-parent-1/fork" && method === "POST") {
-        await route.fulfill(json({ ok: true, forkExecutionId: "exec-fork-1", parentExecutionId: "exec-parent-1", launchedAt: "2026-03-03T10:10:00.000Z" }));
+      if (path === "/api/orchestrations/executions/exec-parent-1/cancel" && method === "POST") {
+        await route.fulfill(json({ ok: true }));
         return;
       }
-
-      await route.fulfill(json({ ok: true, items: [] }));
+      if (path === "/api/firewall/chat" && method === "POST") {
+        await route.fulfill(json({ ok: true, reply: "Use pause then retry-node." }));
+        return;
+      }
+      await route.fulfill(json({ ok: true, items: [], approvals: [], events: [] }));
     });
 
     await page.goto("/maple/audit");
+    await expect(page).toHaveURL(/\/maple\?/);
     await expect(page.getByRole("heading", { name: /Audit & Compliance Operations/i })).toBeVisible();
 
-    await page.getByPlaceholder("execution id").fill("exec-parent-1");
-    await page.getByRole("button", { name: /Fork Execution/i }).click();
+    await page.getByLabel("Execution ID").fill("exec-parent-1");
+    await page.getByRole("button", { name: "Pause" }).click();
+    await page.getByRole("button", { name: "Resume" }).click();
 
-    await page.getByRole("button", { name: "Dead Letter" }).click();
-    await page.getByRole("button", { name: /Replay/i }).click();
+    await page.getByLabel(/Reason/i).fill("unsafe output in runtime");
+    await page.getByRole("button", { name: "Cancel" }).first().click();
+    await page.getByRole("button", { name: "Confirm" }).click();
 
-    expect(hits.has("POST /api/observability/orchestrations/executions/exec-parent-1/fork")).toBeTruthy();
-    expect(hits.has("POST /api/observability/orchestrations/dead-letter/dlq-1/replay")).toBeTruthy();
+    expect(hits.has("POST /api/orchestrations/executions/exec-parent-1/pause")).toBeTruthy();
+    expect(hits.has("POST /api/orchestrations/executions/exec-parent-1/resume")).toBeTruthy();
+    expect(hits.has("POST /api/orchestrations/executions/exec-parent-1/cancel")).toBeTruthy();
+  });
+
+  test("category pills include Docs and docs tabs render runbook content", async ({ page }) => {
+    const baseURL = String(test.info().project.use.baseURL);
+    await page.context().addCookies([
+      { name: "maple_session", value: "playwright-session", url: baseURL },
+    ]);
+
+    await page.route("**/api/**", async (route) => {
+      await route.fulfill(json({ ok: true, items: [], approvals: [], events: [], byStatus: {} }));
+    });
+
+    await page.goto("/maple");
+
+    await page
+      .getByRole("navigation", { name: /workspace categories/i })
+      .getByRole("button", { name: /Docs/i })
+      .click();
+    await expect(page).toHaveURL(/category=docs/);
+    await page.getByRole("tab", { name: /Runbooks/i }).click();
+    await expect(page).toHaveURL(/view=runbooks/);
+    await expect(page.getByRole("heading", { name: /Docs: Runbooks/i })).toBeVisible();
+    await expect(page.getByText(/Pause execution to stop blast radius/i)).toBeVisible();
   });
 });

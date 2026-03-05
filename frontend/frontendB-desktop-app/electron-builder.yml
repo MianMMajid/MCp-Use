@@ -3,6 +3,7 @@ productName: Maple Desktop
 asar: true
 directories:
   output: installers/dist
+  buildResources: electron/assets
 files:
   - "**/*"
   - "!installers/dist/**"
@@ -11,6 +12,7 @@ files:
   - "!template-runtime/**"
 artifactName: maple-desktop-${version}-${os}-${arch}.${ext}
 mac:
+  icon: icon.icns
   identity: null # Set to Developer ID certificate for production: "Developer ID Application: Your Name (TEAMID)"
   gatekeeperAssess: false # Set to true when code signing is configured
   category: public.app-category.developer-tools
@@ -20,6 +22,7 @@ mac:
         - x64
         - arm64
 win:
+  icon: icon.ico
   target:
     - target: nsis
       arch:
@@ -29,5 +32,6 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
 linux:
+  icon: icon.png
   target:
     - AppImage

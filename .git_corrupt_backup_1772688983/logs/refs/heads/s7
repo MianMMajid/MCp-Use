@@ -1,0 +1,3 @@
+0000000000000000000000000000000000000000 2643243a0e480bff559eaea4f24fc97f7078eb9f Omar Ramadan <omar2001ramadan@gmail.com> 1772338587 -0800	branch: Created from HEAD
+2643243a0e480bff559eaea4f24fc97f7078eb9f 86c1f779eaadd160bc37b33e68f30100a1d0b20d Omar Ramadan <omar2001ramadan@gmail.com> 1772338607 -0800	commit: Production readiness: data durability, service hardening, K8s infra, and CI/CD
+86c1f779eaadd160bc37b33e68f30100a1d0b20d 42e07c374428d6723bbd19378389c5b6e26300d2 Omar Ramadan <omar2001ramadan@gmail.com> 1772338810 -0800	commit (merge): Merge main into s7: combine frontend updates with production readiness backend

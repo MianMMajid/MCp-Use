@@ -35,6 +35,8 @@ const defaultDesktopUiUrl = process.env.MAPLE_DESKTOP_UI_URL
   ?? (app.isPackaged ? "https://agents.mayple.cloud" : "http://127.0.0.1:4102");
 const runtimeController = createRuntimeController();
 const secureStoreFilename = "maple-desktop-secure-store.json";
+const desktopIconPath = path.join(__dirname, "assets", "icon.png");
+const trayIconPath = path.join(__dirname, "assets", "trayTemplate.png");
 
 let mainWindow = null;
 
@@ -102,7 +104,8 @@ function createMainWindow() {
     height: 860,
     minWidth: 1000,
     minHeight: 700,
-    title: "Maple Desktop",
+    title: "Mayple Desktop",
+    icon: desktopIconPath,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -136,6 +139,13 @@ function isAllowedExternalUrl(url) {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === "darwin") {
+    const dockIcon = nativeImage.createFromPath(desktopIconPath);
+    if (!dockIcon.isEmpty()) {
+      app.dock.setIcon(dockIcon);
+    }
+  }
+
   ipcMain.handle("desktop:get-config", async () => {
     return {
       gatewayUrl: defaultGatewayUrl,
@@ -271,11 +281,13 @@ app.whenReady().then(() => {
   });
 
   // System tray
-  const trayIcon = nativeImage.createFromDataURL(
+  const fallbackTrayIcon = nativeImage.createFromDataURL(
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABjSURBVFhH7c0xDQAgDAXRDgJwgQtcIIJFsLB0adKlQ/5Lvp7dHBER3/a9PwjAAAYwgAEMYAADGMAABjCAAQxgAAMYwAAGMIABDGAAAxjAAAYwgAEMYAADGMAABjDg57J9ASf5DG/T2CVZAAAAASUVORK5CYII="
   );
-  tray = new Tray(trayIcon);
-  tray.setToolTip("Maple Desktop");
+  const preferredTrayIcon = nativeImage.createFromPath(trayIconPath);
+  const appTrayIcon = preferredTrayIcon.isEmpty() ? nativeImage.createFromPath(desktopIconPath) : preferredTrayIcon;
+  tray = new Tray(appTrayIcon.isEmpty() ? fallbackTrayIcon : appTrayIcon);
+  tray.setToolTip("Mayple Desktop");
 
   function updateTrayMenu(statusLabel) {
     if (!tray || tray.isDestroyed()) return;
@@ -304,7 +316,7 @@ app.whenReady().then(() => {
       const status = await runtimeController.getStatus();
       const label = status.running && status.healthy ? "Running" : status.running ? "Starting..." : "Stopped";
       updateTrayMenu(label);
-      if (tray && !tray.isDestroyed()) tray.setToolTip(`Maple Desktop — ${label}`);
+      if (tray && !tray.isDestroyed()) tray.setToolTip(`Mayple Desktop — ${label}`);
     } catch {
       updateTrayMenu("Unknown");
     } finally {

@@ -31,6 +31,9 @@ const mapleGatewayOrigin =
 const mapleAdminConsoleOrigin =
   process.env.MAPLE_ADMIN_CONSOLE_ORIGIN ??
   resolveAdminConsoleOrigin(mapleGatewayOrigin)
+const outputTracingRoot = process.env.MAPLE_OUTPUT_TRACING_ROOT
+  ? path.resolve(__dirname, process.env.MAPLE_OUTPUT_TRACING_ROOT)
+  : null
 
 if (!process.env.MAPLE_GATEWAY_ORIGIN) {
   if (inKubernetes) {
@@ -41,7 +44,7 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 const nextConfig = {
-  outputFileTracingRoot: path.resolve(__dirname, '../../../'),
+  ...(outputTracingRoot ? { outputFileTracingRoot: outputTracingRoot } : {}),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   reactCompiler: true,
   onDemandEntries: {
@@ -59,7 +62,9 @@ const nextConfig = {
       static: 600,
     },
   },
-  turbopack: {},
+  turbopack: {
+    root: __dirname,
+  },
   webpack: (config, { dev }) => {
     if (dev) {
       config.cache = {
@@ -98,8 +103,10 @@ const nextConfig = {
       // Route consolidation: retired control/ops routes -> orchestration or settings
       { source: '/events', destination: '/agents', permanent: true },
       { source: '/events/:id', destination: '/agents/:id', permanent: true },
-      { source: '/sessions', destination: '/runs', permanent: true },
-      { source: '/sessions/:id', destination: '/runs', permanent: true },
+      { source: '/sessions', destination: '/?mode=orchestration', permanent: false },
+      { source: '/sessions/:id', destination: '/?mode=orchestration', permanent: false },
+      { source: '/runs', destination: '/?mode=orchestration', permanent: false },
+      { source: '/runs/:id', destination: '/?mode=orchestration&executionId=:id&panel=timeline', permanent: false },
       { source: '/orders', destination: '/orchestrate', permanent: true },
       { source: '/orders/:id', destination: '/orchestrate', permanent: true },
       { source: '/modifier-approvals', destination: '/orchestrate', permanent: true },

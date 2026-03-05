@@ -1,0 +1,10 @@
+0000000000000000000000000000000000000000 918a46c70d5e3e528e4697430b1f8de5cde78246 Omar Ramadan <omar2001ramadan@gmail.com> 1772003133 -0800	branch: Created from HEAD
+918a46c70d5e3e528e4697430b1f8de5cde78246 b1420ab9ca753a07d1f897c374572bc9b657de73 Omar Ramadan <omar2001ramadan@gmail.com> 1772003133 -0800	commit: backend: finalize mesh refactor and hardening
+b1420ab9ca753a07d1f897c374572bc9b657de73 da80c6652f354adb2fa78278f7605ac6e6376a20 Omar Ramadan <omar2001ramadan@gmail.com> 1772008291 -0800	commit: backend: harden chat and persistence fail-closed paths
+da80c6652f354adb2fa78278f7605ac6e6376a20 5016620ef24fe3dffadbb332e1d37cefc702178b Omar Ramadan <omar2001ramadan@gmail.com> 1772008789 -0800	commit: Harden mcp-proxy ingress and enforce proto sync
+5016620ef24fe3dffadbb332e1d37cefc702178b 45c07b196132247ae07dcd318fc1336bbe2c179f Omar Ramadan <omar2001ramadan@gmail.com> 1772009983 -0800	commit: Increase model-router coverage and quiet expected test logs
+45c07b196132247ae07dcd318fc1336bbe2c179f 84144a0fc70a690ae0db71ca607152694ebb28b4 Omar Ramadan <omar2001ramadan@gmail.com> 1772010680 -0800	commit: Add OpenClaw agent runtime for chat and longform execution
+84144a0fc70a690ae0db71ca607152694ebb28b4 d04ddfd40af91ee50d3b531334306ceca2d03351 Omar Ramadan <omar2001ramadan@gmail.com> 1772014441 -0800	commit: Finalize backendC SaaS cutover and backend mesh integration
+d04ddfd40af91ee50d3b531334306ceca2d03351 3e36de699e30fa14c7b3dcd856637e0512be0e8b Omar Ramadan <omar2001ramadan@gmail.com> 1772043464 -0800	commit: feat: runtime contracts, capability API, frontend gating, and preflight enforcement
+3e36de699e30fa14c7b3dcd856637e0512be0e8b 1f558a475fb6e81480d565760590b7a2b412a3a2 Omar Ramadan <omar2001ramadan@gmail.com> 1772044925 -0800	commit (merge): merge: frontend into backend (prefer frontend conflict resolution)
+1f558a475fb6e81480d565760590b7a2b412a3a2 f9f5079b33061f9553dd68dfe768e2dfc62772c4 Omar Ramadan <omar2001ramadan@gmail.com> 1772062715 -0800	branch: Reset to HEAD

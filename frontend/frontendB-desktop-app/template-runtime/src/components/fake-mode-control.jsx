@@ -23,7 +23,7 @@ function readState() {
 }
 
 export function FakeModeControl() {
-  const [state, setState] = useState(() => readState())
+  const [state, setState] = useState({ enabled: false, seed: '' })
 
   useEffect(() => {
     initializeFakeModeRuntime()
@@ -39,6 +39,7 @@ export function FakeModeControl() {
 
     window.addEventListener(CHANGE_EVENT, onChange)
     window.addEventListener('storage', refresh)
+    refresh()
 
     return () => {
       window.removeEventListener(CHANGE_EVENT, onChange)

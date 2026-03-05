@@ -1,0 +1,19 @@
+0000000000000000000000000000000000000000 1f558a475fb6e81480d565760590b7a2b412a3a2 Omar Ramadan <omar2001ramadan@gmail.com> 1772044995 -0800	branch: Created from HEAD
+1f558a475fb6e81480d565760590b7a2b412a3a2 62359ec7d71d1a3db0449f8dfb321d9d263f864a Omar Ramadan <omar2001ramadan@gmail.com> 1772048123 -0800	commit: refactor: remove legacy maple-monolith runtime and wiring
+62359ec7d71d1a3db0449f8dfb321d9d263f864a b6e8a7c1cfaf556ef8c035a0c7d5200a21d42a27 Omar Ramadan <omar2001ramadan@gmail.com> 1772049096 -0800	commit: hardening: enforce policy authority, proto sync gates, and startup dependency checks
+b6e8a7c1cfaf556ef8c035a0c7d5200a21d42a27 df7a95649b321c8de5b6dd9ef2562b1570da4871 Omar Ramadan <omar2001ramadan@gmail.com> 1772049599 -0800	commit: test+ci: add dependency outage matrix and branch protection verification gate
+df7a95649b321c8de5b6dd9ef2562b1570da4871 f9f5079b33061f9553dd68dfe768e2dfc62772c4 Omar Ramadan <omar2001ramadan@gmail.com> 1772062707 -0800	commit: sync repo state and backend api stability fixes
+f9f5079b33061f9553dd68dfe768e2dfc62772c4 08a966ae1efc7ae052ca895aa947f4bd170c4572 Omar Ramadan <omar2001ramadan@gmail.com> 1772066131 -0800	commit: wire recovery notifications and add live provider e2e CI
+08a966ae1efc7ae052ca895aa947f4bd170c4572 c935344dc520b59a29ad8767bafc0ca59409e05c Omar Ramadan <omar2001ramadan@gmail.com> 1772068757 -0800	commit: Remove legacy marketplace env keys
+c935344dc520b59a29ad8767bafc0ca59409e05c 32c00e4822a505cde990ae403ca6d4c0bdd3bace Omar Ramadan <omar2001ramadan@gmail.com> 1772086134 -0800	commit: Set mayple.cloud defaults and provider env values
+32c00e4822a505cde990ae403ca6d4c0bdd3bace a601c703c06c546d4277856a9c75cd0d542baa23 Omar Ramadan <omar2001ramadan@gmail.com> 1772086184 -0800	commit (merge): Merge origin/main into s6 (prefer s6 conflict resolution)
+a601c703c06c546d4277856a9c75cd0d542baa23 81f14c818e91f60e4d31d7124a582d2bc613eaea Omar Ramadan <omar2001ramadan@gmail.com> 1772086297 -0800	commit: Use main version of desktop UI while keeping backend-preferred merge
+81f14c818e91f60e4d31d7124a582d2bc613eaea 177353bff070feea88fd7f8d9d454b7d9a0dfc1b Omar Ramadan <omar2001ramadan@gmail.com> 1772086479 -0800	commit: Restore ignore rules for generated artifacts while tracking .env
+177353bff070feea88fd7f8d9d454b7d9a0dfc1b 008b5a79f3b44278643cc0a360b3d5264e2920e1 Omar Ramadan <omar2001ramadan@gmail.com> 1772086733 -0800	commit: Add auth route aliases for frontend compatibility
+008b5a79f3b44278643cc0a360b3d5264e2920e1 64fb9bf0aa24ea18dd5f066fe6be97ff163a5b64 Omar Ramadan <omar2001ramadan@gmail.com> 1772086941 -0800	commit: Restore desktop capability endpoint wiring
+64fb9bf0aa24ea18dd5f066fe6be97ff163a5b64 3945de0b0e8f8b710f7f4ca71d5efdbcff2567a5 Omar Ramadan <omar2001ramadan@gmail.com> 1772087289 -0800	merge origin/main: Merge made by the 'ort' strategy.
+3945de0b0e8f8b710f7f4ca71d5efdbcff2567a5 a00598504cef0006d867303019f210a119275e76 Omar Ramadan <omar2001ramadan@gmail.com> 1772089282 -0800	commit: Add Northflank full-stack template and deploy helpers
+a00598504cef0006d867303019f210a119275e76 5186f57be25c7b24831279f36c40679133e3f253 Omar Ramadan <omar2001ramadan@gmail.com> 1772089857 -0800	commit: Make Northflank deployment one-click with addon DB wiring
+5186f57be25c7b24831279f36c40679133e3f253 8250ebdd1f5ee9e128428960217cbe22de6aff57 Omar Ramadan <omar2001ramadan@gmail.com> 1772091564 -0800	commit: Commit safe one-click Northflank template and keep secret output local
+8250ebdd1f5ee9e128428960217cbe22de6aff57 bb53cbd087be4e9990710a38bf0c3c7848848650 Omar Ramadan <omar2001ramadan@gmail.com> 1772092404 -0800	commit: fix(northflank): align template schema for region and HTTP protocols
+bb53cbd087be4e9990710a38bf0c3c7848848650 bf662a4cfca4921f43e7fae19aa6a454e94ec7b4 Omar Ramadan <omar2001ramadan@gmail.com> 1772166855 -0800	commit: Add integration routes, desktop UI, firewall chat, and infra updates

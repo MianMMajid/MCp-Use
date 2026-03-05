@@ -13,19 +13,14 @@ import {
   DropdownLabel,
   DropdownMenu,
 } from '@/components/dropdown'
-import { useShell } from '@/contexts/shell-context'
 import { loadJson, postJson } from '@/lib/api'
 import {
   MagnifyingGlassIcon,
-  BellIcon,
   ChevronDownIcon,
 } from '@heroicons/react/20/solid'
 import {
   ArrowRightStartOnRectangleIcon,
   Cog8ToothIcon,
-  UserCircleIcon,
-  CreditCardIcon,
-  KeyIcon,
 } from '@heroicons/react/16/solid'
 
 function HealthDot() {
@@ -52,38 +47,8 @@ function HealthDot() {
   )
 }
 
-function NotificationsBell() {
-  const { notificationCount, setNotificationCount } = useShell()
-
-  useEffect(() => {
-    let mounted = true
-    const poll = () => {
-      loadJson('/api/notifications/unread-count')
-        .then((data) => mounted && setNotificationCount(data?.count ?? 0))
-        .catch(() => {})
-    }
-    poll()
-    const id = setInterval(poll, 15_000)
-    return () => { mounted = false; clearInterval(id) }
-  }, [setNotificationCount])
-
-  return (
-    <button
-      className="relative rounded-md p-1.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-      title="Notifications"
-    >
-      <BellIcon className="h-5 w-5" />
-      {notificationCount > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-          {notificationCount > 99 ? '99+' : notificationCount}
-        </span>
-      )}
-    </button>
-  )
-}
-
 function GlobalSearch() {
-  const { searchOpen, setSearchOpen } = useShell()
+  const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
 
@@ -105,7 +70,7 @@ function GlobalSearch() {
         <MagnifyingGlassIcon className="h-4 w-4 text-zinc-400" />
         <Input
           type="text"
-          placeholder="Search agents, runs, traces..."
+          placeholder="Search agents, executions, traces..."
           value={query}
           onChange={(e) => { setQuery(e.target.value); setSearchOpen(true) }}
           onFocus={() => setSearchOpen(true)}
@@ -117,7 +82,13 @@ function GlobalSearch() {
           {results.slice(0, 8).map((r) => (
             <a
               key={`${r.type}-${r.id}`}
-              href={r.type === 'agent' ? `/agents/${r.id}` : r.type === 'run' ? `/runs/${r.id}` : `/orchestrate`}
+              href={r.type === 'agent'
+                ? `/agents/${r.id}`
+                : r.type === 'run'
+                  ? `/?mode=orchestration&executionId=${encodeURIComponent(r.id)}&panel=timeline`
+                  : r.type === 'orchestration'
+                    ? `/?mode=orchestration&orchestrationId=${encodeURIComponent(r.id)}`
+                    : '/orchestrate'}
               className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-700"
               onClick={() => setSearchOpen(false)}
             >
@@ -150,18 +121,23 @@ export function TopBar() {
       <div className="flex items-center gap-3">
         <Dropdown>
           <DropdownButton className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            <Avatar src="/teams/maple.svg" className="size-6" />
+            <Avatar src="/maple-favicon.svg" className="size-6" />
             <span className="text-sm font-semibold text-zinc-900 dark:text-white">Mayple</span>
             <ChevronDownIcon className="h-4 w-4 text-zinc-400" />
           </DropdownButton>
           <DropdownMenu anchor="bottom start" className="min-w-56">
             <DropdownItem href="/">
-              <Avatar slot="icon" src="/teams/maple.svg" />
+              <Avatar slot="icon" src="/maple-favicon.svg" />
               <DropdownLabel>Mayple Desktop</DropdownLabel>
             </DropdownItem>
             <DropdownItem href="/settings">
               <Cog8ToothIcon />
               <DropdownLabel>Settings</DropdownLabel>
+            </DropdownItem>
+            <DropdownDivider />
+            <DropdownItem onClick={() => handleSignOut(router)}>
+              <ArrowRightStartOnRectangleIcon />
+              <DropdownLabel>Sign out</DropdownLabel>
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
@@ -175,31 +151,6 @@ export function TopBar() {
       {/* Right side */}
       <div className="ml-auto flex items-center gap-3">
         <HealthDot />
-        <NotificationsBell />
-        <Dropdown>
-          <DropdownButton className="flex items-center gap-2 rounded-md p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            <Avatar src="/users/erica.jpg" className="size-7" square />
-          </DropdownButton>
-          <DropdownMenu anchor="bottom end" className="min-w-56">
-            <DropdownItem href="/settings">
-              <UserCircleIcon />
-              <DropdownLabel>My account</DropdownLabel>
-            </DropdownItem>
-            <DropdownItem href="/settings?tab=sessions">
-              <CreditCardIcon />
-              <DropdownLabel>Sessions</DropdownLabel>
-            </DropdownItem>
-            <DropdownItem href="/settings?tab=api-keys">
-              <KeyIcon />
-              <DropdownLabel>API Keys</DropdownLabel>
-            </DropdownItem>
-            <DropdownDivider />
-            <DropdownItem onClick={() => handleSignOut(router)}>
-              <ArrowRightStartOnRectangleIcon />
-              <DropdownLabel>Sign out</DropdownLabel>
-            </DropdownItem>
-          </DropdownMenu>
-        </Dropdown>
       </div>
     </header>
   )

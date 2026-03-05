@@ -3,6 +3,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useChat } from '@/contexts/chat-context'
 import { loadJson, patchJson, postJson } from '@/lib/api'
+import {
+  getOrchestrationConversation,
+  loadExecutionReassignments,
+  loadExecutionTasks,
+  postOrchestrationConversation,
+  postTaskReassignment,
+  removeExecutionReassignment,
+} from '@/lib/orchestrations-api'
+import {
+  contextUrlsToArray,
+  createDefaultObjectivePackage,
+  normalizeObjectivePackage,
+  validateObjectivePackage,
+} from '@/lib/orchestration-types'
 import { useEdgesState, useNodesState, addEdge } from '@xyflow/react'
 
 const DEFAULT_DELEGATION_POLICY = {
@@ -36,6 +50,11 @@ function asItems(data) {
   return []
 }
 
+function normalizeNumber(raw, fallback = 0) {
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : fallback
+}
+
 export function useOrchestration(orchestrationId) {
   const { agents } = useChat()
   const [orchestration, setOrchestration] = useState(null)
@@ -57,6 +76,13 @@ export function useOrchestration(orchestrationId) {
   const [timeline, setTimeline] = useState([])
   const [mutations, setMutations] = useState([])
   const [publishedVersion, setPublishedVersion] = useState('')
+  const [loopState, setLoopState] = useState(null)
+  const [conversation, setConversation] = useState([])
+  const [objectivePackage, setObjectivePackage] = useState(createDefaultObjectivePackage())
+  const [objectiveErrors, setObjectiveErrors] = useState({})
+  const [tasks, setTasks] = useState([])
+  const [reassignments, setReassignments] = useState([])
+
   const saveTimerRef = useRef(null)
   const orchestrationRef = useRef(null)
 
@@ -74,11 +100,26 @@ export function useOrchestration(orchestrationId) {
     setRuntimeMessage('')
   }, [])
 
+  const applyObjectivePackage = useCallback((incoming) => {
+    if (!incoming) return
+    const normalized = normalizeObjectivePackage(incoming)
+    setObjectivePackage(normalized)
+    const objectiveValidation = validateObjectivePackage(normalized)
+    setObjectiveErrors(objectiveValidation.errors)
+  }, [])
+
+  const validateCurrentObjective = useCallback((requireComplete = true) => {
+    const objectiveValidation = validateObjectivePackage(objectivePackage, { requireComplete })
+    setObjectiveErrors(objectiveValidation.errors)
+    return objectiveValidation
+  }, [objectivePackage])
+
   const getStorableData = useCallback(() => {
     const storeNodes = nodes.map((n) => ({
       id: n.id,
       agentId: n.data?.agentId,
       label: n.data?.label || n.data?.agent?.name || n.id,
+      role: n.data?.role || null,
       position: n.position,
       config: n.data?.config || {},
       maxRetries: n.data?.maxRetries ?? 1,
@@ -146,6 +187,16 @@ export function useOrchestration(orchestrationId) {
     }, 1500)
   }, [saveNow])
 
+  const loadExecutionQueues = useCallback(async (executionId) => {
+    if (!executionId) return
+    const [nextTasks, nextReassignments] = await Promise.all([
+      loadExecutionTasks(executionId).catch(() => []),
+      loadExecutionReassignments(executionId).catch(() => []),
+    ])
+    setTasks(nextTasks)
+    setReassignments(nextReassignments)
+  }, [])
+
   const loadExecutionSnapshot = useCallback(async (executionId) => {
     if (!executionId) return null
     const data = await loadJson(`/api/orchestrations/executions/${executionId}/snapshot`)
@@ -154,8 +205,15 @@ export function useOrchestration(orchestrationId) {
     setRuntimeGraph(data.graph ?? null)
     setTimeline(Array.isArray(data.timeline) ? data.timeline : [])
     setMutations(Array.isArray(data.mutations) ? data.mutations : [])
+    setLoopState(data.loopState || data.execution?.loopState || null)
+
+    const hasTasks = Array.isArray(data.tasks)
+    const hasReassignments = Array.isArray(data.reassignments)
+    if (hasTasks) setTasks(data.tasks)
+    if (hasReassignments) setReassignments(data.reassignments)
+    if (!hasTasks || !hasReassignments) await loadExecutionQueues(executionId)
     return data
-  }, [])
+  }, [loadExecutionQueues])
 
   const loadExecutionHistory = useCallback(async () => {
     if (!orchestrationId) return
@@ -170,6 +228,14 @@ export function useOrchestration(orchestrationId) {
       }
     }
   }, [orchestrationId, currentExecutionId, loadExecutionSnapshot])
+
+  const loadConversation = useCallback(async () => {
+    if (!orchestrationId) return
+    const data = await getOrchestrationConversation(orchestrationId).catch(() => null)
+    if (!data) return
+    if (Array.isArray(data.items)) setConversation(data.items)
+    if (data.objectivePackage) applyObjectivePackage(data.objectivePackage)
+  }, [orchestrationId, applyObjectivePackage])
 
   const callRuntimeAction = useCallback(async (action, handler) => {
     setRuntimeBusyAction(action)
@@ -215,13 +281,30 @@ export function useOrchestration(orchestrationId) {
 
   const executeVersion = useCallback(async (mode = 'live') => {
     if (!orchestrationId) return null
+
+    if (mode === 'live') {
+      const objectiveValidation = validateCurrentObjective(true)
+      if (!objectiveValidation.valid) {
+        setRuntimeNotice('Complete objective package is required before live execution.', true)
+        return null
+      }
+    }
+
+    const objectiveValidation = validateCurrentObjective(false)
+    const objectiveValue = objectiveValidation.value
+
     return callRuntimeAction(mode === 'dry_run' ? 'dry-run' : 'execute', async () => {
       await saveNow()
       const res = await postJson(`/api/orchestrations/${orchestrationId}/execute`, {
         mode,
         input: {
-          objective: orchestrationRef.current?.description || orchestrationRef.current?.name || 'Execute orchestration',
+          objective: objectiveValue.goal || orchestrationRef.current?.description || orchestrationRef.current?.name || 'Execute orchestration',
         },
+        objectivePackage: {
+          ...objectiveValue,
+          contextUrls: contextUrlsToArray(objectiveValue.contextUrls),
+        },
+        conversationContext: conversation.slice(-25),
         definitionVersion: publishedVersion || undefined,
       })
       const data = await parseApiResponse(res)
@@ -232,7 +315,43 @@ export function useOrchestration(orchestrationId) {
       setRuntimeNotice(`Execution started (${mode === 'dry_run' ? 'dry run' : 'live'}).`)
       return data
     })
-  }, [orchestrationId, publishedVersion, saveNow, loadExecutionHistory, loadExecutionSnapshot, callRuntimeAction, setRuntimeNotice])
+  }, [orchestrationId, publishedVersion, saveNow, loadExecutionHistory, loadExecutionSnapshot, callRuntimeAction, setRuntimeNotice, validateCurrentObjective, conversation])
+
+  const sendConversationMessage = useCallback(async (text) => {
+    if (!orchestrationId || !text.trim()) return null
+    return callRuntimeAction('conversation', async () => {
+      const clientMessage = {
+        id: `local-${crypto.randomUUID()}`,
+        role: 'user',
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+      }
+      setConversation((prev) => [...prev, clientMessage])
+
+      const data = await postOrchestrationConversation(orchestrationId, {
+        message: text.trim(),
+        objectivePackage,
+      })
+
+      if (Array.isArray(data?.items)) {
+        setConversation(data.items)
+      } else if (data?.reply) {
+        setConversation((prev) => ([
+          ...prev,
+          {
+            id: `mgr-${crypto.randomUUID()}`,
+            role: 'manager',
+            text: data.reply,
+            createdAt: new Date().toISOString(),
+          },
+        ]))
+      }
+
+      if (data?.objectivePackage) applyObjectivePackage(data.objectivePackage)
+      setRuntimeNotice('Objective conversation updated.')
+      return data
+    })
+  }, [orchestrationId, objectivePackage, callRuntimeAction, setRuntimeNotice, applyObjectivePackage])
 
   const pauseExecution = useCallback(async () => {
     if (!currentExecutionId) return null
@@ -318,6 +437,74 @@ export function useOrchestration(orchestrationId) {
     })
   }, [currentExecutionId, loadExecutionSnapshot, callRuntimeAction, setRuntimeNotice])
 
+  const createTimedReassignment = useCallback(async (payload) => {
+    if (!currentExecutionId) throw new Error('Start an execution before scheduling reassignment.')
+    if (!payload?.taskId) throw new Error('Task is required.')
+
+    const dueAtValue = new Date(payload.dueAt)
+    if (Number.isNaN(dueAtValue.getTime()) || dueAtValue.getTime() <= Date.now()) {
+      throw new Error('Due time must be in the future.')
+    }
+
+    const repeatProvided = payload.repeatIntervalMinutes != null && payload.repeatIntervalMinutes !== ''
+    const repeatIntervalMinutes = repeatProvided ? normalizeNumber(payload.repeatIntervalMinutes, 0) : 0
+    const maxRepeats = normalizeNumber(payload.maxRepeats, 1)
+    if (repeatProvided && repeatIntervalMinutes <= 0) {
+      throw new Error('Repeat interval must be positive.')
+    }
+    if (repeatProvided && maxRepeats < 1) {
+      throw new Error('Repeat schedule requires max repeats of at least 1.')
+    }
+
+    const targetRole = String(payload.targetRole || '').trim()
+    const targetAgentId = String(payload.targetAgentId || '').trim()
+    const hasRole = Boolean(targetRole)
+    const hasAgent = Boolean(targetAgentId)
+
+    if ((hasRole && hasAgent) || (!hasRole && !hasAgent)) {
+      throw new Error('Choose exactly one reassignment target: role or agent.')
+    }
+
+    let roleWarning = ''
+    if (hasRole) {
+      const roleKey = targetRole.toLowerCase()
+      const runtimeNodes = Array.isArray(runtimeGraph?.nodes) ? runtimeGraph.nodes : []
+      const mapped = runtimeNodes.some((node) => String(node.role || node.label || '').toLowerCase().includes(roleKey))
+      if (!mapped) {
+        roleWarning = `Role "${targetRole}" has no mapped agent in the current graph.`
+      }
+    }
+
+    return callRuntimeAction('task-reassign', async () => {
+      const data = await postTaskReassignment(currentExecutionId, payload.taskId, {
+        dueAt: dueAtValue.toISOString(),
+        repeatIntervalMinutes: repeatIntervalMinutes > 0 ? repeatIntervalMinutes : undefined,
+        maxRepeats,
+        targetRole: hasRole ? targetRole : undefined,
+        targetAgentId: hasAgent ? targetAgentId : undefined,
+        reason: String(payload.reason || '').trim() || undefined,
+      })
+
+      await loadExecutionQueues(currentExecutionId)
+      if (roleWarning) {
+        setRuntimeNotice(`${data?.message || 'Reassignment scheduled.'} ${roleWarning}`)
+      } else {
+        setRuntimeNotice('Reassignment scheduled.')
+      }
+      return data
+    })
+  }, [currentExecutionId, runtimeGraph, callRuntimeAction, loadExecutionQueues, setRuntimeNotice])
+
+  const cancelTimedReassignment = useCallback(async (reassignmentId) => {
+    if (!currentExecutionId || !reassignmentId) return null
+    return callRuntimeAction('task-reassign-cancel', async () => {
+      await removeExecutionReassignment(currentExecutionId, reassignmentId)
+      await loadExecutionQueues(currentExecutionId)
+      setRuntimeNotice('Reassignment canceled.')
+      return { ok: true }
+    })
+  }, [currentExecutionId, callRuntimeAction, loadExecutionQueues, setRuntimeNotice])
+
   const exportExecutionSnapshot = useCallback(async () => {
     if (!currentExecutionId) return null
     return callRuntimeAction('snapshot-export', async () => {
@@ -357,13 +544,25 @@ export function useOrchestration(orchestrationId) {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
+    loadConversation().catch(() => {})
+
     return () => { cancelled = true }
-  }, [orchestrationId, applyOrchestrationToCanvas])
+  }, [orchestrationId, applyOrchestrationToCanvas, loadConversation])
 
   useEffect(() => {
     if (!orchestrationId) return
     loadExecutionHistory().catch(() => {})
   }, [orchestrationId, loadExecutionHistory])
+
+  useEffect(() => {
+    if (!currentExecutionId) {
+      setTasks([])
+      setReassignments([])
+      return
+    }
+    loadExecutionQueues(currentExecutionId).catch(() => {})
+  }, [currentExecutionId, loadExecutionQueues])
 
   useEffect(() => {
     return () => {
@@ -376,9 +575,10 @@ export function useOrchestration(orchestrationId) {
     if (!execution || TERMINAL_EXECUTION_STATUSES.has(execution.status)) return
     const interval = setInterval(() => {
       loadExecutionSnapshot(currentExecutionId).catch(() => {})
+      loadExecutionQueues(currentExecutionId).catch(() => {})
     }, 1500)
     return () => clearInterval(interval)
-  }, [currentExecutionId, execution, loadExecutionSnapshot])
+  }, [currentExecutionId, execution, loadExecutionSnapshot, loadExecutionQueues])
 
   useEffect(() => {
     if (!runtimeMessage && !runtimeError) return
@@ -451,6 +651,20 @@ export function useOrchestration(orchestrationId) {
     scheduleSave()
   }, [scheduleSave])
 
+  const updateObjectiveField = useCallback((field, value) => {
+    setObjectivePackage((prev) => {
+      const next = {
+        ...prev,
+        [field]: field === 'runtimeLimitMinutes' || field === 'budgetUsd'
+          ? normalizeNumber(value, prev[field])
+          : value,
+      }
+      const objectiveValidation = validateObjectivePackage(next, { requireComplete: false })
+      setObjectiveErrors(objectiveValidation.errors)
+      return next
+    })
+  }, [])
+
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null
   const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : null
   const approvals = Array.isArray(runtimeGraph?.approvals) ? runtimeGraph.approvals : []
@@ -492,9 +706,16 @@ export function useOrchestration(orchestrationId) {
     runtimeMessage,
     runtimeError,
     publishedVersion,
+    loopState,
+    objectivePackage,
+    objectiveErrors,
+    conversation,
+    tasks,
+    reassignments,
     validateDefinition,
     publishVersion,
     executeVersion,
+    sendConversationMessage,
     pauseExecution,
     resumeExecution,
     cancelExecution,
@@ -502,6 +723,9 @@ export function useOrchestration(orchestrationId) {
     retryFailedNode,
     replayFromNode,
     submitApprovalDecision,
+    createTimedReassignment,
+    cancelTimedReassignment,
+    updateObjectiveField,
     exportExecutionSnapshot,
     loadExecutionSnapshot,
     loadExecutionHistory,

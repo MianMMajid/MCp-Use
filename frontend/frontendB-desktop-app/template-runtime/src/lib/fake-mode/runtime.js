@@ -172,7 +172,7 @@ function patchEventSource(runtime) {
   const OriginalEventSource = window.EventSource
   runtime.originalEventSource = OriginalEventSource
 
-  function MapleFakeAwareEventSource(url, options) {
+  function MaypleFakeAwareEventSource(url, options) {
     const resolved = toUrl(url)
     const pathname = normalizePathname(resolved?.pathname || '')
 
@@ -198,12 +198,12 @@ function patchEventSource(runtime) {
     return new OriginalEventSource(url, options)
   }
 
-  MapleFakeAwareEventSource.CONNECTING = FakeEventSource.CONNECTING
-  MapleFakeAwareEventSource.OPEN = FakeEventSource.OPEN
-  MapleFakeAwareEventSource.CLOSED = FakeEventSource.CLOSED
-  MapleFakeAwareEventSource.prototype = OriginalEventSource?.prototype || {}
+  MaypleFakeAwareEventSource.CONNECTING = FakeEventSource.CONNECTING
+  MaypleFakeAwareEventSource.OPEN = FakeEventSource.OPEN
+  MaypleFakeAwareEventSource.CLOSED = FakeEventSource.CLOSED
+  MaypleFakeAwareEventSource.prototype = OriginalEventSource?.prototype || {}
 
-  window.EventSource = MapleFakeAwareEventSource
+  window.EventSource = MaypleFakeAwareEventSource
   runtime.eventSourcePatched = true
 }
 

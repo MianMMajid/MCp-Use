@@ -1,14 +1,51 @@
-const FALLBACK_URL = "https://github.com/omar2001ramadan/Mayple/releases";
+import path from 'node:path'
+import { createReadStream } from 'node:fs'
+import { stat } from 'node:fs/promises'
+import { Readable } from 'node:stream'
+import { resolveDownloadState, getReleasesPageUrl } from '../_lib'
 
-export async function GET(request) {
+export const runtime = 'nodejs'
+
+function isExternalUrl(value) {
+  return typeof value === 'string' && /^https?:\/\//i.test(value)
+}
+
+async function streamFile(filePath) {
+  const fileName = path.basename(filePath)
+  const fileStats = await stat(filePath)
+  const stream = createReadStream(filePath)
+
+  return new Response(Readable.toWeb(stream), {
+    headers: {
+      'Content-Type': 'application/vnd.microsoft.portable-executable',
+      'Content-Length': String(fileStats.size),
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Cache-Control': 'no-store',
+    },
+  })
+}
+
+export async function GET() {
   try {
-    const origin = new URL(request.url).origin;
-    const res = await fetch(`${origin}/api/downloads/latest`);
-    if (!res.ok) throw new Error("upstream error");
-    const data = await res.json();
-    const url = data.win || FALLBACK_URL;
-    return Response.redirect(url, 302);
+    const state = await resolveDownloadState()
+
+    if (state.local.win_x64) {
+      try {
+        return await streamFile(state.local.win_x64)
+      } catch {
+        // Fall through to remote fallback if local artifact disappears.
+      }
+    }
+
+    if (isExternalUrl(state.win)) {
+      return Response.redirect(state.win, 302)
+    }
+
+    return Response.redirect(getReleasesPageUrl(state), 302)
   } catch {
-    return Response.redirect(FALLBACK_URL, 302);
+    return Response.redirect(
+      'https://github.com/MianMMajid/MCp-Use/releases',
+      302,
+    )
   }
 }

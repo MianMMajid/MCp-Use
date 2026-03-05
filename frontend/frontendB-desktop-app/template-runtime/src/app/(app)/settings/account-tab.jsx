@@ -103,7 +103,7 @@ export default function AccountTab() {
           <Text>This will be displayed on your public profile.</Text>
         </div>
         <div>
-          <Input aria-label="Organization Name" name="name" defaultValue="Maple" />
+          <Input aria-label="Organization Name" name="name" defaultValue="Mayple" />
         </div>
       </section>
 

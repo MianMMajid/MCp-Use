@@ -1,6 +1,6 @@
-# Maple Demo
+# Mayple Demo
 
-To run the Maple demo, first install the npm dependencies:
+To run the Mayple demo, first install the npm dependencies:
 
 ```bash
 npm install

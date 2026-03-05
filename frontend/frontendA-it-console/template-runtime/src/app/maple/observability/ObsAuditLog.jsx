@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { SkeletonList } from '@/components/Skeleton'
+import { filterFrontendBOrigin } from '@/lib/maple-workspace/origin-filter'
 
 export default function ObsAuditLog() {
   const [auditLog, setAuditLog] = useState(null)
@@ -18,7 +19,8 @@ export default function ObsAuditLog() {
     setAuditLogLoading(true)
     try {
       const data = await loadJson('/api/observability/orchestrations/audit-log?offset=0&limit=100')
-      setAuditLog(Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? [])
+      const entries = Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? []
+      setAuditLog(filterFrontendBOrigin(entries))
       setAuditLogNextOffset(data.nextOffset ?? null)
     } catch { /* non-critical */ }
     finally { setAuditLogLoading(false) }
@@ -38,7 +40,8 @@ export default function ObsAuditLog() {
     try {
       const data = await loadJson(`/api/observability/orchestrations/audit-log?offset=${auditLogNextOffset}&limit=100`)
       const entries = Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? []
-      setAuditLog((prev) => (prev ? [...prev, ...entries] : entries))
+      const filteredEntries = filterFrontendBOrigin(entries)
+      setAuditLog((prev) => (prev ? [...prev, ...filteredEntries] : filteredEntries))
       setAuditLogNextOffset(data.nextOffset ?? null)
     } catch { /* non-critical */ }
     finally { setAuditLogLoading(false) }

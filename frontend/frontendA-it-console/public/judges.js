@@ -981,7 +981,7 @@ function setFirewallChatContext(context) {
 
 let lastMessageTimestamp = null;
 
-function resetFirewallChatLog(message = "Ask Maple for live firewall updates.") {
+function resetFirewallChatLog(message = "Ask Mayple for live firewall updates.") {
   chatHistory = [];
   lastMessageTimestamp = null;
   if (!(firewallChatLogEl instanceof HTMLElement)) {
@@ -1325,7 +1325,7 @@ function openNodeModalWithStep(trace, step) {
     nodeForkCommandEl.value = step.command ?? "";
   }
   if (nodeForkNoteEl instanceof HTMLInputElement) {
-    nodeForkNoteEl.value = `Forked from step #${step.index} via Maple node modal.`;
+    nodeForkNoteEl.value = `Forked from step #${step.index} via Mayple node modal.`;
   }
   if (nodeForkLaunchRuntimeEl instanceof HTMLInputElement) {
     nodeForkLaunchRuntimeEl.checked = true;
@@ -2242,7 +2242,7 @@ function buildTopologyGraphData(trace, forkContext) {
   const ySpacing = 80;
 
   nodes.push({ data: { id: "__claudebot__", label: "ClaudeBot\nagent runtime", nodeType: "fixed", target: "" }, position: { x: 0, y: 0 }, classes: "fixed" });
-  nodes.push({ data: { id: "__maple__", label: "Maple\nMCP server + firewall", nodeType: "fixed", target: "" }, position: { x: xSpacing, y: 0 }, classes: "fixed" });
+  nodes.push({ data: { id: "__maple__", label: "Mayple\nMCP server + firewall", nodeType: "fixed", target: "" }, position: { x: xSpacing, y: 0 }, classes: "fixed" });
   edges.push({ data: { id: "core_cb_maple", source: "__claudebot__", target: "__maple__", linkType: "core" }, classes: "core-edge" });
 
   if (!trace || !Array.isArray(trace.steps) || trace.steps.length === 0) {
@@ -4541,7 +4541,7 @@ try {
   clearLivePanels("Authenticating session...");
   renderCommunityTraces([]);
   setDemoResult("");
-  resetFirewallChatLog("Ask Maple for live firewall updates.");
+  resetFirewallChatLog("Ask Mayple for live firewall updates.");
   setFirewallChatContext(null);
   setFirewallChatBusy(false);
   updateWelcomeState();

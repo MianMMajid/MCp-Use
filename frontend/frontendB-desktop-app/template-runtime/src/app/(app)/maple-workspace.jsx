@@ -12,7 +12,7 @@ import { loadJson, getCached } from '@/lib/api'
 import { formatDate, statusColor } from '@/lib/format'
 import { SkeletonCard, SkeletonList } from '@/components/skeleton'
 
-export default function MapleWorkspace() {
+export default function MaypleWorkspace() {
   const _cCaps = getCached('/api/runtime/feature-capabilities')
   const _cFw = getCached('/api/firewall/state')
   const _cHitl = getCached('/api/hitl/approvals')
@@ -177,13 +177,13 @@ export default function MapleWorkspace() {
         <div className="mt-10">
           <div className="flex items-center justify-between">
             <Subheading>Recent Runs</Subheading>
-            <Button href="/runs" outline className="text-xs">View all</Button>
+            <Button href="/?mode=orchestration&panel=timeline" outline className="text-xs">Open in Chat</Button>
           </div>
           <div className="mt-4 space-y-2">
             {runList.slice(0, 5).map((run) => (
               <Link
                 key={run.runId}
-                href={`/runs/${run.runId}`}
+                href={`/?mode=orchestration&executionId=${encodeURIComponent(run.runId)}&panel=timeline`}
                 className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-4 py-3 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               >
                 <div className="flex items-center gap-3">

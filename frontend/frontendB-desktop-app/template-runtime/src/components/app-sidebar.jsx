@@ -2,14 +2,14 @@
 
 import {
   CpuChipIcon,
-  PlayCircleIcon,
   Cog6ToothIcon,
   ShareIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/20/solid'
 
 export const NAV_ITEMS = [
   { href: '/agents', label: 'Agents', icon: CpuChipIcon },
-  { href: '/runs', label: 'Runs', icon: PlayCircleIcon },
+  { href: '/?mode=orchestration', label: 'Orchestration Chat', icon: ChatBubbleLeftRightIcon },
   { href: '/orchestrate', label: 'Orchestrate', icon: ShareIcon },
   { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
 ]

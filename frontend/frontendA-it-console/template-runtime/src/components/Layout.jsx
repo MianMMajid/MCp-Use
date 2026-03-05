@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation'
 import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
 import { Logo } from '@/components/Logo'
+import { MapleWorkspaceShell } from '@/components/workspace/MapleWorkspaceShell'
 import { NavigationProgress } from '@/components/NavigationProgress'
 import { SectionProvider } from '@/components/SectionProvider'
 
@@ -18,10 +19,20 @@ const Navigation = dynamic(
 
 export function Layout({ children, allSections }) {
   let pathname = usePathname()
+  let isMapleRoute = pathname?.startsWith('/maple')
 
   // Render login page without sidebar/navigation
   if (pathname === '/login') {
     return <>{children}</>
+  }
+
+  if (isMapleRoute) {
+    return (
+      <SectionProvider sections={allSections[pathname] ?? []}>
+        <NavigationProgress />
+        <MapleWorkspaceShell />
+      </SectionProvider>
+    )
   }
 
   return (

@@ -213,6 +213,138 @@ function buildOrchestrations(now, nextId) {
   ]
 }
 
+function createObjectivePackage(orch, idx = 0) {
+  return {
+    goal: `Deliver objective for ${orch.name}`,
+    successCriteria: idx % 2 === 0 ? 'All worker tasks complete and report submitted.' : 'Manager validates output and no critical alerts remain.',
+    runtimeLimitMinutes: 45 + idx * 15,
+    budgetUsd: 120 + idx * 20,
+    riskCeiling: idx % 2 === 0 ? 'high' : 'medium',
+    contextUrls: [
+      'https://docs.internal/runbook',
+      'https://wiki.internal/operational-policy',
+    ],
+    outputContract: 'Return summary, risks, and explicit next actions in markdown.',
+    escalationPolicy: 'Escalate to on-call lead after two failed worker attempts.',
+  }
+}
+
+function createConversationSeed(now, orch) {
+  return [
+    {
+      id: `conv-${orch.id}-1`,
+      role: 'system',
+      text: 'Loop protocol active: plan -> delegate -> observe -> re-plan.',
+      createdAt: new Date(now - 10 * 60 * 1000).toISOString(),
+    },
+    {
+      id: `conv-${orch.id}-2`,
+      role: 'manager',
+      text: `Objective baseline loaded for ${orch.name}.`,
+      createdAt: new Date(now - 9 * 60 * 1000).toISOString(),
+    },
+  ]
+}
+
+function createLoopState(status, idx = 0) {
+  const phaseByStatus = {
+    running: 'delegate',
+    completed: 'complete',
+    failed: 'observe',
+    waiting_approval: 'observe',
+    paused: 'observe',
+    canceled: 'halted',
+  }
+  return {
+    phase: phaseByStatus[status] || 'plan',
+    iteration: 1 + idx,
+    maxIterations: 12,
+  }
+}
+
+function createExecutionTasks(now, orch, executionId, status, nextId) {
+  const active = status !== 'completed' && status !== 'failed' && status !== 'canceled'
+  return (orch.nodes || []).map((node, idx) => ({
+    id: `${executionId}-task-${idx + 1}`,
+    taskId: `${executionId}-task-${idx + 1}`,
+    executionId,
+    nodeId: node.id,
+    title: `${node.label || node.id} task`,
+    status: active && idx === 0 ? 'running' : active ? 'queued' : 'completed',
+    ownerRole: node.role || (idx === 0 ? 'manager' : `worker-${idx}`),
+    ownerAgentId: node.agentId,
+    dueAt: new Date(now + (idx + 1) * 20 * 60 * 1000).toISOString(),
+    createdAt: new Date(now - (idx + 1) * 60 * 1000).toISOString(),
+    updatedAt: new Date(now - idx * 60 * 1000).toISOString(),
+    history: [
+      {
+        id: nextId('task-history'),
+        type: 'created',
+        timestamp: new Date(now - (idx + 1) * 60 * 1000).toISOString(),
+      },
+    ],
+  }))
+}
+
+function buildTemplates() {
+  return [
+    {
+      id: 'tpl-manager-coding-3',
+      name: 'Manager + 3 Coding Workers',
+      description: 'Manager agent delegates implementation, review, and test tasks to coding workers.',
+      suggestedName: 'Coding Delivery Loop',
+      suggestedDescription: 'Continuous planning and delivery with code-focused workers.',
+      roles: [
+        { roleId: 'manager', displayName: 'Manager', defaultAgentId: 'agent-1' },
+        { roleId: 'coder-1', displayName: 'Coding Worker 1', defaultAgentId: 'agent-2' },
+        { roleId: 'coder-2', displayName: 'Coding Worker 2', defaultAgentId: 'agent-3' },
+        { roleId: 'coder-3', displayName: 'Coding Worker 3', defaultAgentId: 'agent-4' },
+      ],
+      edges: [
+        ['manager', 'coder-1'],
+        ['manager', 'coder-2'],
+        ['manager', 'coder-3'],
+      ],
+    },
+    {
+      id: 'tpl-manager-email-3',
+      name: 'Manager + 3 Email Workers',
+      description: 'Manager coordinates drafting, QA, and follow-up email workers.',
+      suggestedName: 'Email Operations Loop',
+      suggestedDescription: 'Repeated outbound and response triage orchestration.',
+      roles: [
+        { roleId: 'manager', displayName: 'Manager', defaultAgentId: 'agent-1' },
+        { roleId: 'email-draft', displayName: 'Email Drafter', defaultAgentId: 'agent-2' },
+        { roleId: 'email-qa', displayName: 'Email QA', defaultAgentId: 'agent-3' },
+        { roleId: 'email-followup', displayName: 'Follow-up Worker', defaultAgentId: 'agent-4' },
+      ],
+      edges: [
+        ['manager', 'email-draft'],
+        ['manager', 'email-qa'],
+        ['manager', 'email-followup'],
+      ],
+    },
+    {
+      id: 'tpl-security-triage',
+      name: 'Security Triage Manager Pattern',
+      description: 'Security triage manager delegates policy, comms, and remediation workers.',
+      suggestedName: 'Security Triage Loop',
+      suggestedDescription: 'Persistent triage loop for security incidents and guardrails.',
+      roles: [
+        { roleId: 'triage-manager', displayName: 'Triage Manager', defaultAgentId: 'agent-1' },
+        { roleId: 'policy-worker', displayName: 'Policy Worker', defaultAgentId: 'agent-2' },
+        { roleId: 'comms-worker', displayName: 'Comms Worker', defaultAgentId: 'agent-3' },
+        { roleId: 'remediation-worker', displayName: 'Remediation Worker', defaultAgentId: 'agent-4' },
+      ],
+      edges: [
+        ['triage-manager', 'policy-worker'],
+        ['triage-manager', 'comms-worker'],
+        ['triage-manager', 'remediation-worker'],
+      ],
+    },
+  ]
+}
+
 function buildExecutions(now, orchestrations, nextId) {
   const items = []
   const statuses = ['running', 'completed', 'failed', 'waiting_approval']
@@ -229,10 +361,12 @@ function buildExecutions(now, orchestrations, nextId) {
         status: status === 'failed' && nodeIdx === orch.nodes.length - 1 ? 'failed' : status === 'running' ? (nodeIdx === 0 ? 'running' : 'pending') : 'completed',
       }))
       const timeline = [
-        { id: nextId('timeline'), eventType: 'execution.started', timestamp: createdAt, message: 'Execution started' },
-        { id: nextId('timeline'), eventType: status === 'failed' ? 'execution.failed' : status === 'running' ? 'execution.running' : status === 'waiting_approval' ? 'execution.waiting_approval' : 'execution.completed', timestamp: updatedAt, message: `Execution ${status}` },
+        { id: nextId('timeline'), eventType: 'execution.started', timestamp: createdAt, message: 'Execution started', phase: 'plan', iteration: 1 },
+        { id: nextId('timeline'), eventType: status === 'failed' ? 'execution.failed' : status === 'running' ? 'execution.running' : status === 'waiting_approval' ? 'execution.waiting_approval' : 'execution.completed', timestamp: updatedAt, message: `Execution ${status}`, phase: status === 'running' ? 'delegate' : 'observe', iteration: 2 },
       ]
       const approvals = status === 'waiting_approval' ? [{ approvalId: `orch-approval-${executionId}`, toolName: 'delete_record', reason: 'High-risk tool', status: 'pending' }] : []
+      const objectivePackage = createObjectivePackage(orch, i)
+      const tasks = createExecutionTasks(now, orch, executionId, status, nextId)
       items.push({
         executionId,
         id: executionId,
@@ -249,6 +383,11 @@ function buildExecutions(now, orchestrations, nextId) {
           edges: orch.edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, status: 'active' })),
           approvals,
         },
+        loopState: createLoopState(status, i),
+        objectivePackage,
+        conversationContext: createConversationSeed(now, orch),
+        tasks,
+        reassignments: [],
         timeline,
         mutations: [],
       })
@@ -451,6 +590,10 @@ export function createFakeState(seedInput) {
   const orgData = buildOrgData(now, nextId)
   const orchestrations = buildOrchestrations(now, nextId)
   const executions = buildExecutions(now, orchestrations, nextId)
+  const orchestrationTemplates = buildTemplates()
+  const orchestrationConversations = Object.fromEntries(
+    orchestrations.map((orch) => [orch.id, createConversationSeed(now, orch)]),
+  )
 
   const state = {
     seed,
@@ -610,6 +753,8 @@ export function createFakeState(seedInput) {
       ],
     },
     orchestrations,
+    orchestrationTemplates,
+    orchestrationConversations,
     orchestrationExecutions: executions,
     traceExports: [],
     search: {

@@ -5,7 +5,6 @@ import { CloseButton, Dialog, DialogBackdrop, DialogPanel } from '@headlessui/re
 import { NavbarItem } from './navbar'
 import { ChatSidebar } from './chat-sidebar'
 import { CommandPalette } from './command-palette'
-import { TracePanel } from './trace-panel'
 import { ShellProvider, useShell } from '@/contexts/shell-context'
 import { useChat } from '@/contexts/chat-context'
 
@@ -28,7 +27,7 @@ function MobileSidebar({ open, close }) {
         transition
         className="fixed inset-y-0 w-full max-w-80 p-2 transition duration-300 ease-in-out data-closed:-translate-x-full"
       >
-        <div className="flex h-full flex-col rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+        <div className="flex h-full flex-col">
           <div className="-mb-3 px-4 pt-3">
             <CloseButton as={NavbarItem} aria-label="Close navigation">
               <CloseMenuIcon />
@@ -62,7 +61,7 @@ function ShellInner({ children }) {
         e.preventDefault()
         toggleSidebar()
       }
-      // Cmd+Shift+T — toggle trace panel
+      // Cmd+Shift+T — toggle right panel
       if (e.key === 't' && e.shiftKey) {
         e.preventDefault()
         toggleTrace()
@@ -84,7 +83,7 @@ function ShellInner({ children }) {
 
       {/* Desktop sidebar */}
       <div
-        className={`hidden shrink-0 overflow-hidden border-r border-zinc-200 lg:block dark:border-zinc-800 transition-[width] duration-200 ${
+        className={`hidden shrink-0 overflow-hidden px-2 py-2 lg:block transition-[width] duration-200 ${
           sidebarCollapsed ? 'w-0' : 'w-[280px]'
         }`}
       >
@@ -101,8 +100,6 @@ function ShellInner({ children }) {
       {/* Command palette */}
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
 
-      {/* Trace panel */}
-      <TracePanel />
     </div>
   )
 }

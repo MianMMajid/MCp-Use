@@ -1,17 +1,100 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { loadJson, postJson, connectSSE, invalidateCache } from '@/lib/api'
+import {
+  cancelOrchestrationExecution,
+  decideOrchestrationApproval,
+  executeOrchestration,
+  getOrchestrationConversation,
+  getOrchestrationExecution,
+  getOrchestrationExecutionGraph,
+  getOrchestrationExecutionSnapshot,
+  getOrchestrationExecutionTimeline,
+  listOrchestrationExecutions,
+  listOrchestrations,
+  loadExecutionReassignments,
+  loadExecutionTasks,
+  mutateOrchestrationExecution,
+  pauseOrchestrationExecution,
+  postOrchestrationConversation,
+  postTaskReassignment,
+  removeExecutionReassignment,
+  replayOrchestrationFromNode,
+  resumeOrchestrationExecution,
+  retryOrchestrationNode,
+} from '@/lib/orchestrations-api'
+import {
+  contextUrlsToArray,
+  createDefaultObjectivePackage,
+  normalizeObjectivePackage,
+  validateObjectivePackage,
+} from '@/lib/orchestration-types'
 
 const ChatContext = createContext(null)
 
+const CHAT_MODE_STORAGE_KEY = 'mayple_chat_mode'
+const ORCHESTRATION_STORAGE_KEY = 'mayple_orchestration_id'
+const ORCHESTRATION_PANEL_STORAGE_KEY = 'mayple_orchestration_panel_tab'
+const VALID_CHAT_MODES = new Set(['agent', 'orchestration'])
+const VALID_ORCHESTRATION_PANELS = new Set(['tasks', 'runtime', 'timeline', 'approvals', 'advanced'])
+
+function normalizeMode(value) {
+  const mode = String(value || '').toLowerCase()
+  return VALID_CHAT_MODES.has(mode) ? mode : 'agent'
+}
+
+function normalizePanel(value) {
+  const panel = String(value || '').toLowerCase()
+  return VALID_ORCHESTRATION_PANELS.has(panel) ? panel : 'tasks'
+}
+
+function readWorkspaceQuery() {
+  if (typeof window === 'undefined') return {}
+  const search = new URLSearchParams(window.location.search)
+  return {
+    mode: search.get('mode') || '',
+    orchestrationId: search.get('orchestrationId') || '',
+    executionId: search.get('executionId') || '',
+    panel: search.get('panel') || '',
+  }
+}
+
+function writeWorkspaceQuery({ mode, orchestrationId, executionId, panel }) {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+
+  if (mode) url.searchParams.set('mode', mode)
+  else url.searchParams.delete('mode')
+
+  if (orchestrationId) url.searchParams.set('orchestrationId', orchestrationId)
+  else url.searchParams.delete('orchestrationId')
+
+  if (executionId) url.searchParams.set('executionId', executionId)
+  else url.searchParams.delete('executionId')
+
+  if (panel) url.searchParams.set('panel', panel)
+  else url.searchParams.delete('panel')
+
+  const nextPath = `${url.pathname}${url.search ? `?${url.searchParams.toString()}` : ''}${url.hash}`
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (nextPath !== currentPath) {
+    window.history.replaceState({}, '', nextPath)
+  }
+}
+
+function readLocalStorageValue(key, fallback = '') {
+  if (typeof window === 'undefined') return fallback
+  return window.localStorage.getItem(key) || fallback
+}
+
 export function ChatProvider({ children }) {
+  const pathname = usePathname()
+
   // Agent list
   const [agents, setAgents] = useState([])
-  const [selectedAgentId, setSelectedAgentId] = useState(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('selectedAgentId') || null
-    return null
-  })
+  const [selectedAgentId, setSelectedAgentId] = useState(() => readLocalStorageValue('selectedAgentId', null))
   const [selectedAgent, setSelectedAgent] = useState(null)
   const [agentError, setAgentError] = useState('')
 
@@ -29,8 +112,34 @@ export function ChatProvider({ children }) {
   const [currentRunId, setCurrentRunId] = useState(null)
   const [lastInput, setLastInput] = useState('')
 
-  // Trace panel
-  const [traceOpen, setTraceOpen] = useState(false)
+  // Unified workspace mode
+  const [mode, setMode] = useState(() => normalizeMode(readLocalStorageValue(CHAT_MODE_STORAGE_KEY, 'agent')))
+  const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [currentUser, setCurrentUser] = useState(null)
+
+  // Orchestration workspace state
+  const [orchestrations, setOrchestrations] = useState([])
+  const [orchestrationsLoading, setOrchestrationsLoading] = useState(false)
+  const [selectedOrchestrationId, setSelectedOrchestrationId] = useState(() => readLocalStorageValue(ORCHESTRATION_STORAGE_KEY, ''))
+  const [orchestrationConversation, setOrchestrationConversation] = useState([])
+  const [objectivePackage, setObjectivePackage] = useState(createDefaultObjectivePackage())
+  const [objectiveErrors, setObjectiveErrors] = useState({})
+  const [orchestrationExecutionHistory, setOrchestrationExecutionHistory] = useState([])
+  const [orchestrationExecutionId, setOrchestrationExecutionId] = useState('')
+  const [orchestrationExecution, setOrchestrationExecution] = useState(null)
+  const [orchestrationRuntimeGraph, setOrchestrationRuntimeGraph] = useState(null)
+  const [orchestrationTimeline, setOrchestrationTimeline] = useState([])
+  const [orchestrationTasks, setOrchestrationTasks] = useState([])
+  const [orchestrationReassignments, setOrchestrationReassignments] = useState([])
+  const [orchestrationLoopState, setOrchestrationLoopState] = useState(null)
+  const [orchestrationPanelTab, setOrchestrationPanelTabState] = useState(() => normalizePanel(readLocalStorageValue(ORCHESTRATION_PANEL_STORAGE_KEY, 'tasks')))
+  const [orchestrationBusyAction, setOrchestrationBusyAction] = useState('')
+  const [orchestrationRuntimeError, setOrchestrationRuntimeError] = useState('')
+
+  const selectedOrchestration = useMemo(
+    () => orchestrations.find((item) => String(item.id) === String(selectedOrchestrationId)) || null,
+    [orchestrations, selectedOrchestrationId],
+  )
 
   const sseRef = useRef(null)
 
@@ -43,11 +152,75 @@ export function ChatProvider({ children }) {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    loadJson('/api/auth/me')
+      .then((data) => {
+        if (cancelled) return
+        setCurrentUser(data?.user ?? data ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUser(null)
+      })
+    return () => { cancelled = true }
+  }, [])
+
   // Persist selected agent to localStorage
   useEffect(() => {
-    if (selectedAgentId) localStorage.setItem('selectedAgentId', selectedAgentId)
-    else localStorage.removeItem('selectedAgentId')
+    if (typeof window === 'undefined') return
+    if (selectedAgentId) window.localStorage.setItem('selectedAgentId', selectedAgentId)
+    else window.localStorage.removeItem('selectedAgentId')
   }, [selectedAgentId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(CHAT_MODE_STORAGE_KEY, mode)
+  }, [mode])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (selectedOrchestrationId) window.localStorage.setItem(ORCHESTRATION_STORAGE_KEY, selectedOrchestrationId)
+    else window.localStorage.removeItem(ORCHESTRATION_STORAGE_KEY)
+  }, [selectedOrchestrationId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(ORCHESTRATION_PANEL_STORAGE_KEY, orchestrationPanelTab)
+  }, [orchestrationPanelTab])
+
+  // Read URL query state on home route
+  useEffect(() => {
+    if (pathname !== '/') return
+
+    const syncFromQuery = () => {
+      const query = readWorkspaceQuery()
+      if (query.mode) setMode(normalizeMode(query.mode))
+      if (query.orchestrationId) setSelectedOrchestrationId(query.orchestrationId)
+      if (query.executionId) setOrchestrationExecutionId(query.executionId)
+      if (query.panel) setOrchestrationPanelTabState(normalizePanel(query.panel))
+    }
+
+    syncFromQuery()
+    window.addEventListener('popstate', syncFromQuery)
+    return () => window.removeEventListener('popstate', syncFromQuery)
+  }, [pathname])
+
+  // Keep URL query aligned on home route
+  useEffect(() => {
+    if (pathname !== '/') return
+
+    const nextMode = mode
+    const nextOrchestrationId = nextMode === 'orchestration' ? selectedOrchestrationId : ''
+    const nextExecutionId = nextMode === 'orchestration' ? orchestrationExecutionId : ''
+    const nextPanel = nextMode === 'orchestration' ? orchestrationPanelTab : ''
+
+    writeWorkspaceQuery({
+      mode: nextMode,
+      orchestrationId: nextOrchestrationId,
+      executionId: nextExecutionId,
+      panel: nextPanel,
+    })
+  }, [pathname, mode, selectedOrchestrationId, orchestrationExecutionId, orchestrationPanelTab])
 
   // Load agent details when selectedAgentId changes
   useEffect(() => {
@@ -63,6 +236,166 @@ export function ChatProvider({ children }) {
     })()
     return () => { cancelled = true }
   }, [selectedAgentId])
+
+  const loadOrchestrations = useCallback(async () => {
+    setOrchestrationsLoading(true)
+    try {
+      const items = await listOrchestrations()
+      setOrchestrations(items)
+      return items
+    } finally {
+      setOrchestrationsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOrchestrations().catch(() => {})
+  }, [loadOrchestrations])
+
+  useEffect(() => {
+    if (!orchestrations.length) return
+
+    if (!selectedOrchestrationId) {
+      setSelectedOrchestrationId(String(orchestrations[0].id || ''))
+      return
+    }
+
+    const exists = orchestrations.some((item) => String(item.id) === String(selectedOrchestrationId))
+    if (!exists) {
+      setSelectedOrchestrationId(String(orchestrations[0].id || ''))
+    }
+  }, [orchestrations, selectedOrchestrationId])
+
+  const withOrchestrationAction = useCallback(async (action, handler) => {
+    setOrchestrationBusyAction(action)
+    setOrchestrationRuntimeError('')
+    try {
+      return await handler()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setOrchestrationRuntimeError(message)
+      throw error
+    } finally {
+      setOrchestrationBusyAction('')
+    }
+  }, [])
+
+  const loadOrchestrationConversation = useCallback(async (orchestrationId) => {
+    if (!orchestrationId) {
+      setOrchestrationConversation([])
+      setObjectivePackage(createDefaultObjectivePackage())
+      setObjectiveErrors({})
+      return
+    }
+
+    const payload = await getOrchestrationConversation(orchestrationId)
+    setOrchestrationConversation(payload.items || [])
+
+    const normalizedObjective = normalizeObjectivePackage(payload.objectivePackage || {})
+    setObjectivePackage(normalizedObjective)
+    setObjectiveErrors(validateObjectivePackage(normalizedObjective, { requireComplete: false }).errors)
+  }, [])
+
+  const loadOrchestrationExecutionQueues = useCallback(async (executionId) => {
+    if (!executionId) {
+      setOrchestrationTasks([])
+      setOrchestrationReassignments([])
+      return
+    }
+
+    const [tasks, reassignments] = await Promise.all([
+      loadExecutionTasks(executionId).catch(() => []),
+      loadExecutionReassignments(executionId).catch(() => []),
+    ])
+
+    setOrchestrationTasks(tasks)
+    setOrchestrationReassignments(reassignments)
+  }, [])
+
+  const loadOrchestrationExecutionSnapshot = useCallback(async (executionId) => {
+    if (!executionId) {
+      setOrchestrationExecution(null)
+      setOrchestrationRuntimeGraph(null)
+      setOrchestrationTimeline([])
+      setOrchestrationLoopState(null)
+      setOrchestrationTasks([])
+      setOrchestrationReassignments([])
+      return null
+    }
+
+    try {
+      const snapshot = await getOrchestrationExecutionSnapshot(executionId)
+      setOrchestrationExecution(snapshot.execution || null)
+      setOrchestrationRuntimeGraph(snapshot.graph || null)
+      setOrchestrationTimeline(Array.isArray(snapshot.timeline) ? snapshot.timeline : [])
+      setOrchestrationLoopState(snapshot.loopState || snapshot.execution?.loopState || null)
+
+      if (Array.isArray(snapshot.tasks)) setOrchestrationTasks(snapshot.tasks)
+      else setOrchestrationTasks([])
+
+      if (Array.isArray(snapshot.reassignments)) setOrchestrationReassignments(snapshot.reassignments)
+      else setOrchestrationReassignments([])
+
+      if (!Array.isArray(snapshot.tasks) || !Array.isArray(snapshot.reassignments)) {
+        await loadOrchestrationExecutionQueues(executionId)
+      }
+
+      return snapshot
+    } catch {
+      const [execution, graph, timeline] = await Promise.all([
+        getOrchestrationExecution(executionId).catch(() => null),
+        getOrchestrationExecutionGraph(executionId).catch(() => null),
+        getOrchestrationExecutionTimeline(executionId, 200).catch(() => []),
+      ])
+      setOrchestrationExecution(execution)
+      setOrchestrationRuntimeGraph(graph)
+      setOrchestrationTimeline(Array.isArray(timeline) ? timeline : [])
+      setOrchestrationLoopState(execution?.loopState || null)
+      await loadOrchestrationExecutionQueues(executionId)
+      return { execution, graph, timeline }
+    }
+  }, [loadOrchestrationExecutionQueues])
+
+  const loadOrchestrationExecutionHistory = useCallback(async (orchestrationId) => {
+    if (!orchestrationId) {
+      setOrchestrationExecutionHistory([])
+      setOrchestrationExecutionId('')
+      return []
+    }
+
+    const items = await listOrchestrationExecutions(orchestrationId, 40)
+    setOrchestrationExecutionHistory(items)
+
+    if (!items.length) {
+      setOrchestrationExecutionId('')
+      return items
+    }
+
+    if (!orchestrationExecutionId) {
+      const latestId = String(items[0]?.executionId || items[0]?.id || '')
+      if (latestId) setOrchestrationExecutionId(latestId)
+      return items
+    }
+
+    const exists = items.some((item) => String(item.executionId || item.id) === String(orchestrationExecutionId))
+    if (!exists) {
+      const latestId = String(items[0]?.executionId || items[0]?.id || '')
+      setOrchestrationExecutionId(latestId)
+    }
+
+    return items
+  }, [orchestrationExecutionId])
+
+  useEffect(() => {
+    if (!selectedOrchestrationId) return
+    loadOrchestrationConversation(selectedOrchestrationId).catch(() => {})
+    loadOrchestrationExecutionHistory(selectedOrchestrationId).catch(() => {})
+  }, [selectedOrchestrationId, loadOrchestrationConversation, loadOrchestrationExecutionHistory])
+
+  useEffect(() => {
+    if (!orchestrationExecutionId) return
+    loadOrchestrationExecutionSnapshot(orchestrationExecutionId).catch(() => {})
+  }, [orchestrationExecutionId, loadOrchestrationExecutionSnapshot])
 
   // Load sessions for selected agent
   const loadSessions = useCallback(async () => {
@@ -119,6 +452,264 @@ export function ChatProvider({ children }) {
     setRunError('')
     setCurrentRunId(null)
   }, [])
+
+  const selectMode = useCallback((nextMode) => {
+    const normalized = normalizeMode(nextMode)
+    setMode(normalized)
+
+    if (normalized === 'orchestration' && !selectedOrchestrationId && orchestrations.length > 0) {
+      setSelectedOrchestrationId(String(orchestrations[0]?.id || ''))
+    }
+  }, [orchestrations, selectedOrchestrationId])
+
+  const selectOrchestration = useCallback((orchestrationId) => {
+    const nextId = String(orchestrationId || '')
+    setSelectedOrchestrationId(nextId)
+    setOrchestrationExecutionId('')
+    setOrchestrationExecution(null)
+    setOrchestrationRuntimeGraph(null)
+    setOrchestrationTimeline([])
+    setOrchestrationTasks([])
+    setOrchestrationReassignments([])
+    setOrchestrationLoopState(null)
+  }, [])
+
+  const setOrchestrationPanelTab = useCallback((nextPanel) => {
+    setOrchestrationPanelTabState(normalizePanel(nextPanel))
+  }, [])
+
+  const selectOrchestrationExecution = useCallback((executionId) => {
+    setOrchestrationExecutionId(String(executionId || ''))
+  }, [])
+
+  const updateObjectiveField = useCallback((field, value) => {
+    setObjectivePackage((prev) => {
+      const next = normalizeObjectivePackage({ ...prev, [field]: value })
+      const validation = validateObjectivePackage(next, { requireComplete: false })
+      setObjectiveErrors(validation.errors)
+      return next
+    })
+  }, [])
+
+  const sendOrchestrationMessage = useCallback(async (text) => {
+    const content = String(text || '').trim()
+    if (!selectedOrchestrationId || !content) return null
+
+    return withOrchestrationAction('conversation', async () => {
+      const localMessage = {
+        id: `local-${Date.now()}`,
+        role: 'user',
+        text: content,
+        createdAt: new Date().toISOString(),
+      }
+      setOrchestrationConversation((prev) => [...prev, localMessage])
+
+      const result = await postOrchestrationConversation(selectedOrchestrationId, {
+        message: content,
+        objectivePackage: {
+          ...objectivePackage,
+          contextUrls: contextUrlsToArray(objectivePackage.contextUrls),
+        },
+      })
+
+      if (Array.isArray(result?.items)) {
+        setOrchestrationConversation(result.items)
+      } else if (result?.reply) {
+        setOrchestrationConversation((prev) => ([
+          ...prev,
+          {
+            id: `mgr-${Date.now()}`,
+            role: 'manager',
+            text: result.reply,
+            createdAt: new Date().toISOString(),
+          },
+        ]))
+      }
+
+      if (result?.objectivePackage) {
+        const normalized = normalizeObjectivePackage(result.objectivePackage)
+        setObjectivePackage(normalized)
+        setObjectiveErrors(validateObjectivePackage(normalized, { requireComplete: false }).errors)
+      }
+
+      return result
+    })
+  }, [selectedOrchestrationId, objectivePackage, withOrchestrationAction])
+
+  const executeOrchestrationMode = useCallback(async (runMode = 'live') => {
+    if (!selectedOrchestrationId) return null
+
+    const requireComplete = runMode === 'live'
+    const validation = validateObjectivePackage(objectivePackage, { requireComplete })
+    setObjectiveErrors(validation.errors)
+    if (!validation.valid) {
+      const firstError = Object.values(validation.errors)[0]
+      setOrchestrationRuntimeError(String(firstError || 'Objective package is incomplete.'))
+      return null
+    }
+
+    return withOrchestrationAction(runMode === 'dry_run' ? 'dry-run' : 'execute', async () => {
+      const response = await executeOrchestration(selectedOrchestrationId, {
+        mode: runMode,
+        input: {
+          objective: validation.value.goal || selectedOrchestration?.name || 'Execute orchestration',
+        },
+        objectivePackage: {
+          ...validation.value,
+          contextUrls: contextUrlsToArray(validation.value.contextUrls),
+        },
+        conversationContext: orchestrationConversation.slice(-25),
+      })
+
+      const executionId = String(response.executionId || '')
+      if (executionId) {
+        setOrchestrationExecutionId(executionId)
+        await Promise.all([
+          loadOrchestrationExecutionSnapshot(executionId),
+          loadOrchestrationExecutionHistory(selectedOrchestrationId),
+        ])
+      }
+
+      return response
+    })
+  }, [
+    selectedOrchestrationId,
+    objectivePackage,
+    selectedOrchestration,
+    orchestrationConversation,
+    withOrchestrationAction,
+    loadOrchestrationExecutionHistory,
+    loadOrchestrationExecutionSnapshot,
+  ])
+
+  const pauseOrchestration = useCallback(async () => {
+    if (!orchestrationExecutionId) return null
+    return withOrchestrationAction('pause', async () => {
+      const result = await pauseOrchestrationExecution(orchestrationExecutionId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionSnapshot])
+
+  const resumeOrchestration = useCallback(async () => {
+    if (!orchestrationExecutionId) return null
+    return withOrchestrationAction('resume', async () => {
+      const result = await resumeOrchestrationExecution(orchestrationExecutionId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionSnapshot])
+
+  const cancelOrchestration = useCallback(async () => {
+    if (!orchestrationExecutionId) return null
+    return withOrchestrationAction('cancel', async () => {
+      const result = await cancelOrchestrationExecution(orchestrationExecutionId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      await loadOrchestrationExecutionHistory(selectedOrchestrationId)
+      return result
+    })
+  }, [
+    orchestrationExecutionId,
+    selectedOrchestrationId,
+    withOrchestrationAction,
+    loadOrchestrationExecutionHistory,
+    loadOrchestrationExecutionSnapshot,
+  ])
+
+  const createOrchestrationReassignment = useCallback(async (payload = {}) => {
+    if (!orchestrationExecutionId) {
+      throw new Error('Start an execution before scheduling a reassignment.')
+    }
+
+    const dueAtIso = payload?.dueAt ? new Date(payload.dueAt).toISOString() : ''
+    if (!dueAtIso || Number.isNaN(new Date(dueAtIso).getTime())) {
+      throw new Error('Due time is required.')
+    }
+    if (new Date(dueAtIso).getTime() <= Date.now()) {
+      throw new Error('Due time must be in the future.')
+    }
+
+    const repeatIntervalMinutes = payload?.repeatIntervalMinutes ? Number(payload.repeatIntervalMinutes) : 0
+    const maxRepeats = payload?.maxRepeats ? Number(payload.maxRepeats) : 1
+
+    if (repeatIntervalMinutes && repeatIntervalMinutes <= 0) {
+      throw new Error('Repeat interval must be greater than 0.')
+    }
+    if (repeatIntervalMinutes && (!Number.isFinite(maxRepeats) || maxRepeats < 1)) {
+      throw new Error('Max repeats must be 1 or greater.')
+    }
+
+    const hasRoleTarget = Boolean(String(payload?.targetRole || '').trim())
+    const hasAgentTarget = Boolean(String(payload?.targetAgentId || '').trim())
+    if (hasRoleTarget === hasAgentTarget) {
+      throw new Error('Provide exactly one reassignment target: role or agent.')
+    }
+
+    return withOrchestrationAction('reassign', async () => {
+      const result = await postTaskReassignment(orchestrationExecutionId, payload.taskId, {
+        dueAt: dueAtIso,
+        repeatIntervalMinutes: repeatIntervalMinutes || undefined,
+        maxRepeats: repeatIntervalMinutes ? maxRepeats : undefined,
+        targetRole: hasRoleTarget ? String(payload.targetRole).trim() : undefined,
+        targetAgentId: hasAgentTarget ? String(payload.targetAgentId).trim() : undefined,
+        reason: String(payload.reason || '').trim() || undefined,
+      })
+
+      await loadOrchestrationExecutionQueues(orchestrationExecutionId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionQueues, loadOrchestrationExecutionSnapshot])
+
+  const cancelOrchestrationReassignment = useCallback(async (reassignmentId) => {
+    if (!orchestrationExecutionId || !reassignmentId) return null
+    return withOrchestrationAction('cancel-reassignment', async () => {
+      const result = await removeExecutionReassignment(orchestrationExecutionId, reassignmentId)
+      await loadOrchestrationExecutionQueues(orchestrationExecutionId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionQueues, loadOrchestrationExecutionSnapshot])
+
+  const submitOrchestrationApprovalDecision = useCallback(async (approvalId, decision, reason = '', challengeToken = '') => {
+    if (!orchestrationExecutionId || !approvalId) return null
+    return withOrchestrationAction('approval-decision', async () => {
+      const result = await decideOrchestrationApproval(orchestrationExecutionId, approvalId, {
+        decision,
+        reason,
+        challengeToken,
+      })
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionSnapshot])
+
+  const mutateCurrentExecution = useCallback(async (payload = {}) => {
+    if (!orchestrationExecutionId) throw new Error('Start an execution before mutating runtime.')
+    return withOrchestrationAction('mutate', async () => {
+      const result = await mutateOrchestrationExecution(orchestrationExecutionId, payload)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionSnapshot])
+
+  const retryExecutionNode = useCallback(async (nodeId) => {
+    if (!orchestrationExecutionId || !nodeId) return null
+    return withOrchestrationAction('retry-node', async () => {
+      const result = await retryOrchestrationNode(orchestrationExecutionId, nodeId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionSnapshot])
+
+  const replayExecutionFromNode = useCallback(async (nodeId) => {
+    if (!orchestrationExecutionId || !nodeId) return null
+    return withOrchestrationAction('replay-node', async () => {
+      const result = await replayOrchestrationFromNode(orchestrationExecutionId, nodeId)
+      await loadOrchestrationExecutionSnapshot(orchestrationExecutionId)
+      return result
+    })
+  }, [orchestrationExecutionId, withOrchestrationAction, loadOrchestrationExecutionSnapshot])
 
   // Send message
   const handleSend = useCallback(async (text) => {
@@ -236,7 +827,9 @@ export function ChatProvider({ children }) {
           if (runData.input?.message) reconstructed.push({ id: `hist_${run.runId}_in`, role: 'user', content: runData.input.message, timestamp: runData.createdAt })
           if (runData.output?.reply) reconstructed.push({ id: `hist_${run.runId}_out`, role: 'agent', content: runData.output.reply, timestamp: runData.updatedAt, cost: run.cost ?? null })
           if (runData.error) reconstructed.push({ id: `hist_${run.runId}_err`, role: 'agent', content: runData.error, timestamp: runData.updatedAt, error: true })
-        } catch { /* skip */ }
+        } catch {
+          // skip broken run items
+        }
       }
       setMessages(reconstructed)
       if (session?.status === 'running') connectToSession(sid)
@@ -245,7 +838,8 @@ export function ChatProvider({ children }) {
     }
   }, [connectToSession])
 
-  const toggleTrace = useCallback(() => setTraceOpen((v) => !v), [])
+  const toggleRightPanel = useCallback(() => setRightPanelOpen((prev) => !prev), [])
+  const toggleTrace = toggleRightPanel
 
   return (
     <ChatContext.Provider
@@ -272,8 +866,59 @@ export function ChatProvider({ children }) {
         handleNewSession,
         handleSelectSession,
         connectToSession,
-        traceOpen,
+
+        mode,
+        selectMode,
+        currentUser,
+        rightPanelOpen,
+        setRightPanelOpen,
+        toggleRightPanel,
+        traceOpen: rightPanelOpen,
         toggleTrace,
+
+        orchestrations,
+        orchestrationsLoading,
+        loadOrchestrations,
+        selectedOrchestrationId,
+        selectedOrchestration,
+        selectOrchestration,
+
+        orchestrationConversation,
+        sendOrchestrationMessage,
+        loadOrchestrationConversation,
+
+        objectivePackage,
+        objectiveErrors,
+        updateObjectiveField,
+
+        orchestrationExecutionHistory,
+        orchestrationExecutionId,
+        selectOrchestrationExecution,
+        orchestrationExecution,
+        orchestrationRuntimeGraph,
+        orchestrationTimeline,
+        orchestrationTasks,
+        orchestrationReassignments,
+        orchestrationLoopState,
+        loadOrchestrationExecutionHistory,
+        loadOrchestrationExecutionSnapshot,
+
+        orchestrationPanelTab,
+        setOrchestrationPanelTab,
+
+        orchestrationBusyAction,
+        orchestrationRuntimeError,
+
+        executeOrchestrationMode,
+        pauseOrchestration,
+        resumeOrchestration,
+        cancelOrchestration,
+        createOrchestrationReassignment,
+        cancelOrchestrationReassignment,
+        submitOrchestrationApprovalDecision,
+        mutateCurrentExecution,
+        retryExecutionNode,
+        replayExecutionFromNode,
       }}
     >
       {children}

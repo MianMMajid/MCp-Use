@@ -38,6 +38,7 @@ export function RuntimeCommandBar({
   runtimeMessage,
   runtimeError,
   publishedVersion,
+  loopState,
   validateDefinition,
   publishVersion,
   executeVersion,
@@ -146,6 +147,11 @@ export function RuntimeCommandBar({
           {publishedVersion && (
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
               Published: {publishedVersion}
+            </span>
+          )}
+          {loopState && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              Loop: {loopState.phase || 'plan'} · Iteration {loopState.iteration || 0}/{loopState.maxIterations || '--'}
             </span>
           )}
           <div className="ml-auto flex items-center gap-2">
@@ -267,6 +273,8 @@ export function RuntimeCommandBar({
                 <div key={event.id || `${event.sequence}-${event.eventType}`} className="flex items-start gap-2 rounded border border-zinc-100 px-2 py-1 text-xs dark:border-zinc-800">
                   <Badge color={statusColor(event.eventType || 'info')}>{event.eventType || 'event'}</Badge>
                   <span className="font-mono text-zinc-500">{shortId(event.executionId || currentExecutionId)}</span>
+                  {event.phase ? <span className="text-zinc-500">phase {event.phase}</span> : null}
+                  {event.iteration ? <span className="text-zinc-500">iter {event.iteration}</span> : null}
                   <span className="text-zinc-500">{formatDate(event.timestamp)}</span>
                 </div>
               ))}

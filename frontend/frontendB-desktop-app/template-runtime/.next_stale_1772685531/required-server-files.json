@@ -1,0 +1,480 @@
+{
+  "version": 1,
+  "config": {
+    "env": {},
+    "typescript": {
+      "ignoreBuildErrors": false
+    },
+    "typedRoutes": false,
+    "distDir": ".next",
+    "cleanDistDir": true,
+    "assetPrefix": "",
+    "cacheMaxMemorySize": 52428800,
+    "configOrigin": "next.config.mjs",
+    "useFileSystemPublicRoutes": true,
+    "generateEtags": true,
+    "pageExtensions": [
+      "tsx",
+      "ts",
+      "jsx",
+      "js"
+    ],
+    "poweredByHeader": true,
+    "compress": true,
+    "images": {
+      "deviceSizes": [
+        640,
+        750,
+        828,
+        1080,
+        1200,
+        1920,
+        2048,
+        3840
+      ],
+      "imageSizes": [
+        32,
+        48,
+        64,
+        96,
+        128,
+        256,
+        384
+      ],
+      "path": "/_next/image",
+      "loader": "default",
+      "loaderFile": "",
+      "domains": [],
+      "disableStaticImages": false,
+      "minimumCacheTTL": 14400,
+      "formats": [
+        "image/webp"
+      ],
+      "maximumRedirects": 3,
+      "maximumResponseBody": 50000000,
+      "dangerouslyAllowLocalIP": false,
+      "dangerouslyAllowSVG": false,
+      "contentSecurityPolicy": "script-src 'none'; frame-src 'none'; sandbox;",
+      "contentDispositionType": "attachment",
+      "localPatterns": [
+        {
+          "pathname": "**",
+          "search": ""
+        }
+      ],
+      "remotePatterns": [],
+      "qualities": [
+        75
+      ],
+      "unoptimized": false
+    },
+    "devIndicators": {
+      "position": "bottom-left"
+    },
+    "onDemandEntries": {
+      "maxInactiveAge": 86400000,
+      "pagesBufferLength": 64
+    },
+    "basePath": "",
+    "sassOptions": {},
+    "trailingSlash": false,
+    "i18n": null,
+    "productionBrowserSourceMaps": false,
+    "excludeDefaultMomentLocales": true,
+    "reactProductionProfiling": false,
+    "reactStrictMode": null,
+    "reactMaxHeadersLength": 6000,
+    "httpAgentOptions": {
+      "keepAlive": true
+    },
+    "logging": {},
+    "compiler": {},
+    "expireTime": 31536000,
+    "staticPageGenerationTimeout": 60,
+    "modularizeImports": {
+      "@mui/icons-material": {
+        "transform": "@mui/icons-material/{{member}}"
+      },
+      "lodash": {
+        "transform": "lodash/{{member}}"
+      }
+    },
+    "outputFileTracingRoot": "/Users/omarramadan/Desktop/mcp_firewall",
+    "cacheComponents": false,
+    "cacheLife": {
+      "default": {
+        "stale": 600,
+        "revalidate": 900,
+        "expire": 4294967294
+      },
+      "seconds": {
+        "stale": 30,
+        "revalidate": 1,
+        "expire": 60
+      },
+      "minutes": {
+        "stale": 300,
+        "revalidate": 60,
+        "expire": 3600
+      },
+      "hours": {
+        "stale": 300,
+        "revalidate": 3600,
+        "expire": 86400
+      },
+      "days": {
+        "stale": 300,
+        "revalidate": 86400,
+        "expire": 604800
+      },
+      "weeks": {
+        "stale": 300,
+        "revalidate": 604800,
+        "expire": 2592000
+      },
+      "max": {
+        "stale": 300,
+        "revalidate": 2592000,
+        "expire": 31536000
+      }
+    },
+    "cacheHandlers": {},
+    "experimental": {
+      "useSkewCookie": false,
+      "cssChunking": true,
+      "multiZoneDraftMode": false,
+      "appNavFailHandling": false,
+      "prerenderEarlyExit": true,
+      "serverMinification": true,
+      "linkNoTouchStart": false,
+      "caseSensitiveRoutes": false,
+      "dynamicOnHover": false,
+      "preloadEntriesOnStart": true,
+      "clientRouterFilter": true,
+      "clientRouterFilterRedirects": false,
+      "fetchCacheKeyPrefix": "",
+      "proxyPrefetch": "flexible",
+      "optimisticClientCache": true,
+      "manualClientBasePath": false,
+      "cpus": 13,
+      "memoryBasedWorkersCount": false,
+      "imgOptConcurrency": null,
+      "imgOptTimeoutInSeconds": 7,
+      "imgOptMaxInputPixels": 268402689,
+      "imgOptSequentialRead": null,
+      "imgOptSkipMetadata": null,
+      "isrFlushToDisk": true,
+      "workerThreads": false,
+      "optimizeCss": false,
+      "nextScriptWorkers": false,
+      "scrollRestoration": false,
+      "externalDir": false,
+      "disableOptimizedLoading": false,
+      "gzipSize": true,
+      "craCompat": false,
+      "esmExternals": true,
+      "fullySpecified": false,
+      "swcTraceProfiling": false,
+      "forceSwcTransforms": false,
+      "largePageDataBytes": 128000,
+      "typedEnv": false,
+      "parallelServerCompiles": false,
+      "parallelServerBuildTraces": false,
+      "ppr": false,
+      "authInterrupts": false,
+      "webpackMemoryOptimizations": false,
+      "optimizeServerReact": true,
+      "viewTransition": false,
+      "removeUncaughtErrorAndRejectionListeners": false,
+      "validateRSCRequestHeaders": false,
+      "staleTimes": {
+        "dynamic": 300,
+        "static": 600
+      },
+      "reactDebugChannel": false,
+      "serverComponentsHmrCache": true,
+      "staticGenerationMaxConcurrency": 8,
+      "staticGenerationMinPagesPerWorker": 25,
+      "transitionIndicator": false,
+      "inlineCss": false,
+      "useCache": false,
+      "globalNotFound": false,
+      "browserDebugInfoInTerminal": false,
+      "lockDistDir": true,
+      "isolatedDevBuild": true,
+      "proxyClientMaxBodySize": 10485760,
+      "hideLogsAfterAbort": false,
+      "mcpServer": true,
+      "turbopackFileSystemCacheForDev": true,
+      "turbopackFileSystemCacheForBuild": false,
+      "turbopackInferModuleSideEffects": false,
+      "optimizePackageImports": [
+        "motion",
+        "@headlessui/react",
+        "@heroicons/react",
+        "lucide-react",
+        "date-fns",
+        "lodash-es",
+        "ramda",
+        "antd",
+        "react-bootstrap",
+        "ahooks",
+        "@ant-design/icons",
+        "@headlessui-float/react",
+        "@heroicons/react/20/solid",
+        "@heroicons/react/24/solid",
+        "@heroicons/react/24/outline",
+        "@visx/visx",
+        "@tremor/react",
+        "rxjs",
+        "@mui/material",
+        "@mui/icons-material",
+        "recharts",
+        "react-use",
+        "effect",
+        "@effect/schema",
+        "@effect/platform",
+        "@effect/platform-node",
+        "@effect/platform-browser",
+        "@effect/platform-bun",
+        "@effect/sql",
+        "@effect/sql-mssql",
+        "@effect/sql-mysql2",
+        "@effect/sql-pg",
+        "@effect/sql-sqlite-node",
+        "@effect/sql-sqlite-bun",
+        "@effect/sql-sqlite-wasm",
+        "@effect/sql-sqlite-react-native",
+        "@effect/rpc",
+        "@effect/rpc-http",
+        "@effect/typeclass",
+        "@effect/experimental",
+        "@effect/opentelemetry",
+        "@material-ui/core",
+        "@material-ui/icons",
+        "@tabler/icons-react",
+        "mui-core",
+        "react-icons/ai",
+        "react-icons/bi",
+        "react-icons/bs",
+        "react-icons/cg",
+        "react-icons/ci",
+        "react-icons/di",
+        "react-icons/fa",
+        "react-icons/fa6",
+        "react-icons/fc",
+        "react-icons/fi",
+        "react-icons/gi",
+        "react-icons/go",
+        "react-icons/gr",
+        "react-icons/hi",
+        "react-icons/hi2",
+        "react-icons/im",
+        "react-icons/io",
+        "react-icons/io5",
+        "react-icons/lia",
+        "react-icons/lib",
+        "react-icons/lu",
+        "react-icons/md",
+        "react-icons/pi",
+        "react-icons/ri",
+        "react-icons/rx",
+        "react-icons/si",
+        "react-icons/sl",
+        "react-icons/tb",
+        "react-icons/tfi",
+        "react-icons/ti",
+        "react-icons/vsc",
+        "react-icons/wi"
+      ],
+      "trustHostHeader": false,
+      "isExperimentalCompile": false
+    },
+    "htmlLimitedBots": "[\\w-]+-Google|Google-[\\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight",
+    "bundlePagesRouterDependencies": false,
+    "configFileName": "next.config.mjs",
+    "reactCompiler": true,
+    "turbopack": {
+      "root": "/Users/omarramadan/Desktop/mcp_firewall"
+    },
+    "distDirRoot": ".next",
+    "_originalRewrites": {
+      "beforeFiles": [],
+      "afterFiles": [
+        {
+          "source": "/api/:path*",
+          "destination": "https://maple-gateway-production.up.railway.app/api/:path*"
+        },
+        {
+          "source": "/admin/api/:path*",
+          "destination": "https://maple-gateway-production.up.railway.app:4001/admin/api/:path*"
+        }
+      ],
+      "fallback": []
+    },
+    "_originalRedirects": [
+      {
+        "source": "/events",
+        "destination": "/agents",
+        "permanent": true
+      },
+      {
+        "source": "/events/:id",
+        "destination": "/agents/:id",
+        "permanent": true
+      },
+      {
+        "source": "/sessions",
+        "destination": "/runs",
+        "permanent": true
+      },
+      {
+        "source": "/sessions/:id",
+        "destination": "/runs",
+        "permanent": true
+      },
+      {
+        "source": "/orders",
+        "destination": "/approvals",
+        "permanent": true
+      },
+      {
+        "source": "/orders/:id",
+        "destination": "/approvals/:id",
+        "permanent": true
+      },
+      {
+        "source": "/modifier-approvals",
+        "destination": "/approvals",
+        "permanent": true
+      },
+      {
+        "source": "/modifier-approvals/:id",
+        "destination": "/approvals/:id",
+        "permanent": true
+      },
+      {
+        "source": "/tool-registry",
+        "destination": "/tools",
+        "permanent": true
+      },
+      {
+        "source": "/downstream",
+        "destination": "/tools",
+        "permanent": true
+      },
+      {
+        "source": "/firewall",
+        "destination": "/policies",
+        "permanent": true
+      },
+      {
+        "source": "/modifier-ops",
+        "destination": "/policies",
+        "permanent": true
+      },
+      {
+        "source": "/modifier-ops/policy",
+        "destination": "/policies",
+        "permanent": true
+      },
+      {
+        "source": "/modifier-ops/compliance",
+        "destination": "/audit",
+        "permanent": true
+      },
+      {
+        "source": "/modifier-observability",
+        "destination": "/audit",
+        "permanent": true
+      },
+      {
+        "source": "/admin-console",
+        "destination": "/admin",
+        "permanent": true
+      },
+      {
+        "source": "/billing",
+        "destination": "/settings?tab=billing",
+        "permanent": true
+      },
+      {
+        "source": "/usage",
+        "destination": "/settings?tab=usage",
+        "permanent": true
+      },
+      {
+        "source": "/integrations",
+        "destination": "/settings?tab=integrations",
+        "permanent": true
+      },
+      {
+        "source": "/organization",
+        "destination": "/settings?tab=organization",
+        "permanent": true
+      },
+      {
+        "source": "/api-keys",
+        "destination": "/settings?tab=api-keys",
+        "permanent": true
+      },
+      {
+        "source": "/service-accounts",
+        "destination": "/settings?tab=service-accounts",
+        "permanent": true
+      },
+      {
+        "source": "/profile",
+        "destination": "/settings?tab=account",
+        "permanent": true
+      },
+      {
+        "source": "/cli-tools",
+        "destination": "/settings?tab=developer",
+        "permanent": true
+      },
+      {
+        "source": "/agent-chat",
+        "destination": "/settings?tab=developer",
+        "permanent": true
+      },
+      {
+        "source": "/community",
+        "destination": "/settings?tab=developer",
+        "permanent": true
+      },
+      {
+        "source": "/demo",
+        "destination": "/settings?tab=developer",
+        "permanent": true
+      },
+      {
+        "source": "/diagnostics",
+        "destination": "/settings?tab=diagnostics",
+        "permanent": true
+      }
+    ]
+  },
+  "appDir": "/Users/omarramadan/Desktop/mcp_firewall/frontend/frontendB-desktop-app/template-runtime",
+  "relativeAppDir": "frontend/frontendB-desktop-app/template-runtime",
+  "files": [
+    ".next/routes-manifest.json",
+    ".next/server/pages-manifest.json",
+    ".next/build-manifest.json",
+    ".next/prerender-manifest.json",
+    ".next/server/functions-config-manifest.json",
+    ".next/server/middleware-manifest.json",
+    ".next/server/middleware-build-manifest.js",
+    ".next/server/middleware-react-loadable-manifest.js",
+    ".next/react-loadable-manifest.json",
+    ".next/server/app-paths-manifest.json",
+    ".next/app-path-routes-manifest.json",
+    ".next/server/server-reference-manifest.js",
+    ".next/server/server-reference-manifest.json",
+    ".next/BUILD_ID",
+    ".next/server/next-font-manifest.js",
+    ".next/server/next-font-manifest.json",
+    ".next/required-server-files.json"
+  ],
+  "ignore": []
+}

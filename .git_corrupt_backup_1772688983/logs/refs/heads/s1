@@ -1,0 +1,4 @@
+0000000000000000000000000000000000000000 a4be0724ea1698c02bade644db59d174a20216a4 Omar Ramadan <omar2001ramadan@gmail.com> 1771883104 -0800	branch: Created from HEAD
+a4be0724ea1698c02bade644db59d174a20216a4 dcfa372f0e0d881a564f7fb0faecfde3a3fd809e Omar Ramadan <omar2001ramadan@gmail.com> 1771883241 -0800	commit: sync repo with parent mcp_firewall workspace
+dcfa372f0e0d881a564f7fb0faecfde3a3fd809e edabceca0d22222b049a1839ec22b21e05f027e3 Omar Ramadan <omar2001ramadan@gmail.com> 1771890299 -0800	commit: Align architecture security, TLS routing, and policy plane wiring
+edabceca0d22222b049a1839ec22b21e05f027e3 a97b8a8c7344cdf629c300efa3f4c73cf70a2b4d Omar Ramadan <omar2001ramadan@gmail.com> 1771903244 -0800	commit: Align policy authority and edge audit event wiring

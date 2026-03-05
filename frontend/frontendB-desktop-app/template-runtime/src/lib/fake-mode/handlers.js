@@ -1225,7 +1225,149 @@ function handleToolsAndCli(pathname, method, state, body) {
   return null
 }
 
+function normalizeObjectivePackagePayload(payload = {}, fallbackGoal = '') {
+  const context = Array.isArray(payload.contextUrls)
+    ? payload.contextUrls
+    : String(payload.contextUrls || '')
+      .split(/[\n,]+/g)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  return {
+    goal: String(payload.goal || fallbackGoal || '').trim(),
+    successCriteria: String(payload.successCriteria || '').trim(),
+    runtimeLimitMinutes: Number(payload.runtimeLimitMinutes || 60),
+    budgetUsd: Number(payload.budgetUsd || 0),
+    riskCeiling: String(payload.riskCeiling || 'medium'),
+    contextUrls: context,
+    outputContract: String(payload.outputContract || '').trim(),
+    escalationPolicy: String(payload.escalationPolicy || '').trim(),
+  }
+}
+
+function ensureConversation(state, orchestrationId) {
+  if (!state.orchestrationConversations) state.orchestrationConversations = {}
+  if (!state.orchestrationConversations[orchestrationId]) state.orchestrationConversations[orchestrationId] = []
+  return state.orchestrationConversations[orchestrationId]
+}
+
+function pushConversationMessage(state, messages, role, text) {
+  const message = {
+    id: state.nextId('orch-msg'),
+    role,
+    text,
+    createdAt: nowIso(),
+  }
+  messages.push(message)
+  return message
+}
+
+function buildTasksFromOrchestration(state, executionId, orch) {
+  return (orch?.nodes || []).map((node, idx) => ({
+    id: `${executionId}-task-${idx + 1}`,
+    taskId: `${executionId}-task-${idx + 1}`,
+    executionId,
+    nodeId: node.id,
+    title: `${node.label || node.id} task`,
+    status: idx === 0 ? 'running' : 'queued',
+    ownerRole: node.role || (idx === 0 ? 'manager' : `worker-${idx}`),
+    ownerAgentId: node.agentId || null,
+    dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    history: [{ id: state.nextId('task-history'), type: 'created', timestamp: nowIso() }],
+  }))
+}
+
+function appendExecutionTimeline(state, execution, eventType, message) {
+  execution.timeline.push({
+    id: state.nextId('timeline'),
+    eventType,
+    timestamp: nowIso(),
+    message,
+    phase: execution.loopState?.phase || 'plan',
+    iteration: execution.loopState?.iteration || 1,
+  })
+}
+
+function advanceExecutionLoop(state, execution) {
+  if (!execution || execution.status !== 'running') return
+  if (!execution.loopState) {
+    execution.loopState = { phase: 'plan', iteration: 1, maxIterations: 8 }
+  }
+  const phases = ['plan', 'delegate', 'observe', 're-plan']
+  const current = phases.indexOf(execution.loopState.phase)
+  const nextIndex = current < 0 ? 0 : (current + 1) % phases.length
+  execution.loopState.phase = phases[nextIndex]
+  if (nextIndex === 0) execution.loopState.iteration += 1
+  execution.updatedAt = nowIso()
+
+  if (execution.loopState.iteration >= execution.loopState.maxIterations) {
+    execution.status = 'completed'
+    execution.loopState.phase = 'complete'
+    execution.completedAt = nowIso()
+    if (Array.isArray(execution.tasks)) {
+      execution.tasks = execution.tasks.map((task) => ({ ...task, status: 'completed', updatedAt: nowIso() }))
+    }
+    appendExecutionTimeline(state, execution, 'execution.completed', 'Execution completed after loop guardrail.')
+    return
+  }
+
+  appendExecutionTimeline(state, execution, 'execution.loop.tick', `Loop advanced to ${execution.loopState.phase}.`)
+}
+
 function handleOrchestrations(pathname, method, state, searchParams, body) {
+  if (pathname === '/api/orchestrations/templates' && method === 'GET') {
+    return asJson({ items: state.orchestrationTemplates || [] })
+  }
+
+  let params = matchPath(pathname, '/api/orchestrations/templates/:templateId/create')
+  if (params && method === 'POST') {
+    const payload = parseBody(body)
+    const template = (state.orchestrationTemplates || []).find((item) => String(item.id) === String(params.templateId))
+    if (!template) return asJson({ ok: false, error: 'Template not found' }, 404)
+
+    const bindings = Array.isArray(payload.roleBindings) ? payload.roleBindings : []
+    const byRole = new Map(bindings.map((item) => [item.roleId, item]))
+    const id = state.nextId('orch')
+    const nodes = (template.roles || []).map((role, idx) => {
+      const override = byRole.get(role.roleId) || {}
+      return {
+        id: `node-${role.roleId}`,
+        role: role.roleId,
+        agentId: override.agentId || role.defaultAgentId || `agent-${(idx % 4) + 1}`,
+        label: override.displayName || role.displayName || role.roleId,
+        position: { x: 140 + idx * 220, y: idx === 0 ? 130 : 280 },
+        config: { maxRetries: 2 },
+      }
+    })
+    const edges = (template.edges || []).map(([sourceRole, targetRole]) => ({
+      id: `edge-${sourceRole}-${targetRole}`,
+      source: `node-${sourceRole}`,
+      target: `node-${targetRole}`,
+      delegationPolicy: { riskCeiling: 'medium', requiresApproval: sourceRole.includes('manager') || sourceRole.includes('triage') },
+    }))
+
+    const orchestration = {
+      id,
+      orchestrationId: id,
+      name: payload.name || template.suggestedName || template.name,
+      description: payload.description || template.suggestedDescription || template.description || '',
+      status: 'draft',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      nodes,
+      edges,
+      versions: ['v1'],
+      publishedVersion: 'v1',
+      objectivePackage: normalizeObjectivePackagePayload(payload.objectivePackage, payload.name || template.name),
+      templateId: template.id,
+    }
+    state.orchestrations.unshift(orchestration)
+    const conversation = ensureConversation(state, orchestration.id)
+    pushConversationMessage(state, conversation, 'system', 'Template instantiated. Define objective and launch loop.')
+    return asJson({ ok: true, id: orchestration.id, orchestration })
+  }
+
   if (pathname === '/api/orchestrations' && method === 'GET') {
     return asJson({ items: state.orchestrations })
   }
@@ -1245,12 +1387,47 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
       edges: [],
       versions: ['v1'],
       publishedVersion: 'v1',
+      objectivePackage: normalizeObjectivePackagePayload({}, payload.name || `Orchestration ${id}`),
     }
     state.orchestrations.unshift(item)
+    ensureConversation(state, item.id)
     return asJson(item)
   }
 
-  let params = matchPath(pathname, '/api/orchestrations/:id')
+  params = matchPath(pathname, '/api/orchestrations/:id/conversation')
+  if (params && method === 'GET') {
+    const orch = getOrchestration(state, params.id)
+    if (!orch) return asJson({ ok: false, error: 'Orchestration not found' }, 404)
+    const items = ensureConversation(state, params.id)
+    return asJson({ ok: true, items, objectivePackage: orch.objectivePackage || null })
+  }
+
+  params = matchPath(pathname, '/api/orchestrations/:id/conversation')
+  if (params && method === 'POST') {
+    const orch = getOrchestration(state, params.id)
+    if (!orch) return asJson({ ok: false, error: 'Orchestration not found' }, 404)
+    const payload = parseBody(body)
+    const message = String(payload.message || '').trim()
+    const messages = ensureConversation(state, params.id)
+    if (message) pushConversationMessage(state, messages, 'user', message)
+
+    const nextObjective = normalizeObjectivePackagePayload(
+      payload.objectivePackage || orch.objectivePackage || {},
+      message || orch.name,
+    )
+    if (!nextObjective.goal && message) nextObjective.goal = message
+    if (!nextObjective.successCriteria && message) {
+      nextObjective.successCriteria = 'Manager confirms objective complete and all delegated tasks resolved.'
+    }
+    orch.objectivePackage = nextObjective
+    orch.updatedAt = nowIso()
+
+    const reply = `Manager update: next loop will plan/delegate around "${nextObjective.goal || 'objective'}".`
+    pushConversationMessage(state, messages, 'manager', reply)
+    return asJson({ ok: true, items: messages, reply, objectivePackage: nextObjective })
+  }
+
+  params = matchPath(pathname, '/api/orchestrations/:id')
   if (params && method === 'GET') {
     const item = getOrchestration(state, params.id)
     if (!item) return asJson({ ok: false, error: 'Orchestration not found' }, 404)
@@ -1262,7 +1439,14 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
     const payload = parseBody(body)
     const item = getOrchestration(state, params.id)
     if (!item) return asJson({ ok: false, error: 'Orchestration not found' }, 404)
-    Object.assign(item, payload, { updatedAt: nowIso() })
+    const nextPayload = { ...payload }
+    if (payload?.objectivePackage) {
+      nextPayload.objectivePackage = normalizeObjectivePackagePayload(
+        payload.objectivePackage,
+        payload.objectivePackage.goal || item.name,
+      )
+    }
+    Object.assign(item, nextPayload, { updatedAt: nowIso() })
     return asJson(item)
   }
 
@@ -1270,6 +1454,7 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
   if (params && method === 'DELETE') {
     state.orchestrations = state.orchestrations.filter((o) => String(o.id) !== String(params.id))
     state.orchestrationExecutions = state.orchestrationExecutions.filter((e) => String(e.orchestrationId) !== String(params.id))
+    if (state.orchestrationConversations) delete state.orchestrationConversations[params.id]
     return asJson({ ok: true })
   }
 
@@ -1293,30 +1478,44 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
   params = matchPath(pathname, '/api/orchestrations/:id/execute')
   if (params && method === 'POST') {
     const orch = getOrchestration(state, params.id)
+    if (!orch) return asJson({ ok: false, error: 'Orchestration not found' }, 404)
+    const payload = parseBody(body)
     const executionId = state.nextId('exec')
+    const objectivePackage = normalizeObjectivePackagePayload(
+      payload.objectivePackage || orch.objectivePackage || {},
+      payload?.input?.objective || orch.name,
+    )
     const execution = {
       executionId,
       id: executionId,
       orchestrationId: params.id,
       status: 'running',
-      mode: parseBody(body).mode || 'live',
+      mode: payload.mode || 'live',
       requestedBy: state.user.email,
       createdAt: nowIso(),
       startedAt: nowIso(),
       updatedAt: nowIso(),
       completedAt: null,
+      loopState: {
+        phase: 'plan',
+        iteration: 1,
+        maxIterations: payload.mode === 'dry_run' ? 3 : 8,
+      },
+      objectivePackage,
+      conversationContext: Array.isArray(payload.conversationContext) ? payload.conversationContext : [],
       graph: {
-        nodes: (orch?.nodes || []).map((n, idx) => ({ id: n.id, label: n.label || n.id, agentId: n.agentId, status: idx === 0 ? 'running' : 'pending' })),
-        edges: (orch?.edges || []).map((e) => ({ id: e.id, source: e.source, target: e.target, status: 'active' })),
+        nodes: (orch.nodes || []).map((n, idx) => ({ id: n.id, label: n.label || n.id, role: n.role || null, agentId: n.agentId, status: idx === 0 ? 'running' : 'pending' })),
+        edges: (orch.edges || []).map((e) => ({ id: e.id, source: e.source, target: e.target, status: 'active' })),
         approvals: [],
       },
-      timeline: [
-        { id: state.nextId('timeline'), eventType: 'execution.started', timestamp: nowIso(), message: 'Execution started' },
-      ],
+      tasks: buildTasksFromOrchestration(state, executionId, orch),
+      reassignments: [],
+      timeline: [],
       mutations: [],
     }
+    appendExecutionTimeline(state, execution, 'execution.started', 'Execution started')
     state.orchestrationExecutions.unshift(execution)
-    return asJson({ ok: true, executionId })
+    return asJson({ ok: true, executionId, execution })
   }
 
   if (pathname === '/api/orchestrations/executions' && method === 'GET') {
@@ -1326,6 +1525,98 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
       : state.orchestrationExecutions
     const { page, nextCursor } = paginate(source, searchParams)
     return asJson({ items: page, executions: page, nextCursor })
+  }
+
+  params = matchPath(pathname, '/api/orchestrations/executions/:executionId/tasks')
+  if (params && method === 'GET') {
+    const execution = getExecution(state, params.executionId)
+    if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
+    return asJson({ items: execution.tasks || [] })
+  }
+
+  params = matchPath(pathname, '/api/orchestrations/executions/:executionId/tasks/:taskId/reassign')
+  if (params && method === 'POST') {
+    const execution = getExecution(state, params.executionId)
+    if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
+    if (execution.status === 'completed' || execution.status === 'failed' || execution.status === 'canceled') {
+      return asJson({ ok: false, error: 'Execution is terminal; reassignment disabled.' }, 409)
+    }
+    const task = (execution.tasks || []).find((item) => String(item.id) === String(params.taskId) || String(item.taskId) === String(params.taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+
+    const payload = parseBody(body)
+    const dueAt = new Date(payload.dueAt || '')
+    if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+      return asJson({ ok: false, error: 'dueAt must be in the future.' }, 400)
+    }
+    const repeatProvided = payload.repeatIntervalMinutes != null && payload.repeatIntervalMinutes !== ''
+    const repeatIntervalMinutes = repeatProvided ? Number(payload.repeatIntervalMinutes) : 0
+    const maxRepeats = payload.maxRepeats == null ? 1 : Number(payload.maxRepeats)
+    if (repeatProvided && repeatIntervalMinutes <= 0) return asJson({ ok: false, error: 'repeatIntervalMinutes must be positive.' }, 400)
+    if (repeatIntervalMinutes > 0 && maxRepeats < 1) return asJson({ ok: false, error: 'maxRepeats must be at least 1.' }, 400)
+
+    const targetRole = String(payload.targetRole || '').trim()
+    const targetAgentId = String(payload.targetAgentId || '').trim()
+    if ((targetRole && targetAgentId) || (!targetRole && !targetAgentId)) {
+      return asJson({ ok: false, error: 'Provide exactly one reassignment target: role or agent.' }, 400)
+    }
+
+    const warnings = []
+    if (targetRole) {
+      const mapped = (execution.graph?.nodes || []).some((node) => String(node.role || node.label || '').toLowerCase().includes(targetRole.toLowerCase()))
+      if (!mapped) warnings.push(`No mapped agent exists for role "${targetRole}".`)
+    }
+
+    const reassignment = {
+      id: state.nextId('reassign'),
+      reassignmentId: state.nextId('reassign-ref'),
+      executionId: params.executionId,
+      taskId: task.id,
+      dueAt: dueAt.toISOString(),
+      repeatIntervalMinutes: repeatIntervalMinutes > 0 ? repeatIntervalMinutes : 0,
+      maxRepeats: maxRepeats >= 1 ? maxRepeats : 1,
+      targetRole: targetRole || null,
+      targetAgentId: targetAgentId || null,
+      reason: String(payload.reason || '').trim(),
+      status: 'scheduled',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+
+    if (!Array.isArray(execution.reassignments)) execution.reassignments = []
+    execution.reassignments.unshift(reassignment)
+    task.updatedAt = nowIso()
+    task.history = Array.isArray(task.history) ? task.history : []
+    task.history.push({
+      id: state.nextId('task-history'),
+      type: 'reassignment-scheduled',
+      timestamp: nowIso(),
+      targetRole: reassignment.targetRole,
+      targetAgentId: reassignment.targetAgentId,
+    })
+    appendExecutionTimeline(state, execution, 'task.reassigned', `Task ${task.id} reassigned.`)
+    execution.updatedAt = nowIso()
+    return asJson({ ok: true, reassignment, warnings, message: 'Timed reassignment scheduled.' })
+  }
+
+  params = matchPath(pathname, '/api/orchestrations/executions/:executionId/reassignments')
+  if (params && method === 'GET') {
+    const execution = getExecution(state, params.executionId)
+    if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
+    return asJson({ items: execution.reassignments || [] })
+  }
+
+  params = matchPath(pathname, '/api/orchestrations/executions/:executionId/reassignments/:reassignmentId')
+  if (params && method === 'DELETE') {
+    const execution = getExecution(state, params.executionId)
+    if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
+    const reassignment = (execution.reassignments || []).find((item) => String(item.id) === String(params.reassignmentId) || String(item.reassignmentId) === String(params.reassignmentId))
+    if (!reassignment) return asJson({ ok: false, error: 'Reassignment not found' }, 404)
+    reassignment.status = 'canceled'
+    reassignment.updatedAt = nowIso()
+    appendExecutionTimeline(state, execution, 'task.reassignment.canceled', `Reassignment ${reassignment.id} canceled.`)
+    execution.updatedAt = nowIso()
+    return asJson({ ok: true })
   }
 
   params = matchPath(pathname, '/api/orchestrations/executions/:executionId')
@@ -1339,7 +1630,18 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
   if (params && method === 'GET') {
     const execution = getExecution(state, params.executionId)
     if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
-    return asJson({ ok: true, execution, graph: execution.graph, timeline: execution.timeline, mutations: execution.mutations })
+    advanceExecutionLoop(state, execution)
+    return asJson({
+      ok: true,
+      execution,
+      graph: execution.graph,
+      timeline: execution.timeline,
+      mutations: execution.mutations,
+      loopState: execution.loopState,
+      tasks: execution.tasks || [],
+      reassignments: execution.reassignments || [],
+      objectivePackage: execution.objectivePackage || null,
+    })
   }
 
   params = matchPath(pathname, '/api/orchestrations/executions/:executionId/graph')
@@ -1363,14 +1665,21 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
     const execId = pathname.split('/')[4]
     const execution = getExecution(state, execId)
     if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
-    if (statusAction === '/pause') execution.status = 'paused'
-    if (statusAction === '/resume') execution.status = 'running'
+    if (statusAction === '/pause') {
+      execution.status = 'paused'
+      execution.loopState = { ...(execution.loopState || {}), phase: 'observe' }
+    }
+    if (statusAction === '/resume') {
+      execution.status = 'running'
+      execution.loopState = { ...(execution.loopState || {}), phase: 'delegate' }
+    }
     if (statusAction === '/cancel') {
       execution.status = 'canceled'
       execution.completedAt = nowIso()
+      execution.loopState = { ...(execution.loopState || {}), phase: 'halted' }
     }
     execution.updatedAt = nowIso()
-    execution.timeline.push({ id: state.nextId('timeline'), eventType: `execution${statusAction}`, timestamp: nowIso(), message: `Execution ${statusAction.slice(1)} requested` })
+    appendExecutionTimeline(state, execution, `execution${statusAction.replace('/', '.')}`, `Execution ${statusAction.slice(1)} requested`)
     return asJson({ ok: true, execution })
   }
 
@@ -1384,10 +1693,10 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
 
     if (op === 'add_node') {
       const nodeId = state.nextId('node')
-      execution.graph.nodes.push({ id: nodeId, label: payload.node?.label || nodeId, agentId: payload.node?.agentId || 'agent-1', status: 'pending' })
+      execution.graph.nodes.push({ id: nodeId, label: payload.node?.label || nodeId, role: payload.node?.role || null, agentId: payload.node?.agentId || 'agent-1', status: 'pending' })
     } else if (op === 'spawn_agent') {
       const nodeId = state.nextId('node')
-      execution.graph.nodes.push({ id: nodeId, label: payload.node?.label || `Spawned ${payload.agentId || 'agent'}`, agentId: payload.agentId || 'agent-1', status: 'running' })
+      execution.graph.nodes.push({ id: nodeId, label: payload.node?.label || `Spawned ${payload.agentId || 'agent'}`, role: payload.node?.role || null, agentId: payload.agentId || 'agent-1', status: 'running' })
     } else if (op === 'rewire_edge') {
       const edge = execution.graph.edges.find((e) => String(e.id) === String(payload.edgeId))
       if (edge) {
@@ -1402,7 +1711,7 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
     }
 
     execution.updatedAt = nowIso()
-    execution.timeline.push({ id: state.nextId('timeline'), eventType: 'execution.mutated', timestamp: nowIso(), message: `Mutation applied: ${op}` })
+    appendExecutionTimeline(state, execution, 'execution.mutated', `Mutation applied: ${op}`)
     return asJson({ ok: true, execution })
   }
 
@@ -1413,7 +1722,7 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
     if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
     const node = execution.graph.nodes.find((n) => String(n.id) === String(payload.nodeId))
     if (node) node.status = 'running'
-    execution.timeline.push({ id: state.nextId('timeline'), eventType: 'node.retry', timestamp: nowIso(), message: `Retry node ${payload.nodeId}` })
+    appendExecutionTimeline(state, execution, 'node.retry', `Retry node ${payload.nodeId}`)
     return asJson({ ok: true })
   }
 
@@ -1422,7 +1731,7 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
     const payload = parseBody(body)
     const execution = getExecution(state, params.executionId)
     if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
-    execution.timeline.push({ id: state.nextId('timeline'), eventType: 'node.replay', timestamp: nowIso(), message: `Replay from node ${payload.nodeId}` })
+    appendExecutionTimeline(state, execution, 'node.replay', `Replay from node ${payload.nodeId}`)
     return asJson({ ok: true })
   }
 
@@ -1431,7 +1740,7 @@ function handleOrchestrations(pathname, method, state, searchParams, body) {
     const execution = getExecution(state, params.executionId)
     if (!execution) return asJson({ ok: false, error: 'Execution not found' }, 404)
     execution.graph.approvals = (execution.graph.approvals || []).filter((a) => String(a.approvalId) !== String(params.approvalId))
-    execution.timeline.push({ id: state.nextId('timeline'), eventType: 'approval.decided', timestamp: nowIso(), message: `Approval ${params.approvalId} resolved` })
+    appendExecutionTimeline(state, execution, 'approval.decided', `Approval ${params.approvalId} resolved`)
     return asJson({ ok: true })
   }
 

@@ -19,6 +19,9 @@ import { AgentPalette } from '@/components/orchestration/agent-palette'
 import { NodeConfigPanel } from '@/components/orchestration/node-config-panel'
 import { EdgeConfigPanel } from '@/components/orchestration/edge-config-panel'
 import { RuntimeCommandBar } from '@/components/orchestration/runtime-command-bar'
+import { ObjectiveConsole } from '@/components/orchestration/objective-console'
+import { TimedTaskPanel } from '@/components/orchestration/timed-task-panel'
+import { orchestrationObjectiveConsoleEnabled } from '@/lib/orchestration-flags'
 import { ShareIcon } from '@heroicons/react/24/outline'
 
 const nodeTypes = { agentNode: AgentNode }
@@ -65,9 +68,16 @@ function CanvasInner() {
     runtimeMessage,
     runtimeError,
     publishedVersion,
+    loopState,
+    objectivePackage,
+    objectiveErrors,
+    conversation,
+    tasks,
+    reassignments,
     validateDefinition,
     publishVersion,
     executeVersion,
+    sendConversationMessage,
     pauseExecution,
     resumeExecution,
     cancelExecution,
@@ -75,20 +85,21 @@ function CanvasInner() {
     retryFailedNode,
     replayFromNode,
     submitApprovalDecision,
+    createTimedReassignment,
+    cancelTimedReassignment,
+    updateObjectiveField,
     exportExecutionSnapshot,
     loadExecutionSnapshot,
   } = useOrchestration(id)
 
   const reactFlowWrapper = useRef(null)
 
-  // Node position changes trigger auto-save
   const handleNodesChange = useCallback((changes) => {
     onNodesChange(changes)
     const hasMoved = changes.some((c) => c.type === 'position' && c.dragging === false)
     if (hasMoved) scheduleSave()
   }, [onNodesChange, scheduleSave])
 
-  // Click handlers
   const onNodeClick = useCallback((_event, node) => {
     setSelectedNodeId(node.id)
     setSelectedEdgeId(null)
@@ -104,7 +115,6 @@ function CanvasInner() {
     setSelectedEdgeId(null)
   }, [setSelectedNodeId, setSelectedEdgeId])
 
-  // Drag and drop from palette
   const onDragOver = useCallback((event) => {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
@@ -124,22 +134,17 @@ function CanvasInner() {
     addAgentNode(agentId, position)
   }, [addAgentNode])
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Delete/Backspace - remove selected node or edge
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Don't intercept if user is typing in an input
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return
         if (selectedNodeId) { removeNode(selectedNodeId); return }
         if (selectedEdgeId) { removeEdge(selectedEdgeId); return }
       }
-      // Cmd+S - save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         saveNow()
       }
-      // Escape - deselect / close panel
       if (e.key === 'Escape') {
         setSelectedNodeId(null)
         setSelectedEdgeId(null)
@@ -149,7 +154,6 @@ function CanvasInner() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedNodeId, selectedEdgeId, removeNode, removeEdge, saveNow, setSelectedNodeId, setSelectedEdgeId])
 
-  // Dirty indicator - beforeunload warning
   useEffect(() => {
     const handler = (e) => {
       if (dirty) { e.preventDefault(); e.returnValue = '' }
@@ -197,20 +201,14 @@ function CanvasInner() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left palette */}
         <AgentPalette nodes={nodes} />
 
-        {/* Canvas */}
         <div ref={reactFlowWrapper} className="flex-1">
           {reactFlowDisabled ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 bg-zinc-100 text-center dark:bg-zinc-900">
               <ShareIcon className="h-10 w-10 text-zinc-400 dark:text-zinc-600" />
-              <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                Canvas runtime is in compatibility mode.
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Nodes: {nodes.length} · Edges: {edges.length}
-              </p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">Canvas runtime is in compatibility mode.</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Nodes: {nodes.length} · Edges: {edges.length}</p>
             </div>
           ) : (
             <ReactFlow
@@ -241,14 +239,11 @@ function CanvasInner() {
                 className="!border-zinc-200 !bg-zinc-50 dark:!border-zinc-700 dark:!bg-zinc-900"
               />
 
-              {/* Empty state */}
               {nodes.length === 0 && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
                     <ShareIcon className="h-12 w-12 text-zinc-300 dark:text-zinc-600" />
-                    <p className="text-sm text-zinc-400">
-                      Drag agents from the palette to build your orchestration
-                    </p>
+                    <p className="text-sm text-zinc-400">Drag agents from the palette to build your orchestration</p>
                   </div>
                 </div>
               )}
@@ -256,7 +251,6 @@ function CanvasInner() {
           )}
         </div>
 
-        {/* Right panel */}
         {selectedNode && (
           <NodeConfigPanel
             node={selectedNode}
@@ -277,6 +271,19 @@ function CanvasInner() {
         )}
       </div>
 
+      {orchestrationObjectiveConsoleEnabled ? (
+        <ObjectiveConsole
+          objectivePackage={objectivePackage}
+          objectiveErrors={objectiveErrors}
+          conversation={conversation}
+          runtimeBusyAction={runtimeBusyAction}
+          onObjectiveFieldChange={updateObjectiveField}
+          onSendMessage={sendConversationMessage}
+          onStartLiveLoop={() => executeVersion('live')}
+          onStartDryRun={() => executeVersion('dry_run')}
+        />
+      ) : null}
+
       <RuntimeCommandBar
         executionHistory={executionHistory}
         currentExecutionId={currentExecutionId}
@@ -291,6 +298,7 @@ function CanvasInner() {
         runtimeMessage={runtimeMessage}
         runtimeError={runtimeError}
         publishedVersion={publishedVersion}
+        loopState={loopState}
         validateDefinition={validateDefinition}
         publishVersion={publishVersion}
         executeVersion={executeVersion}
@@ -305,7 +313,16 @@ function CanvasInner() {
         loadExecutionSnapshot={loadExecutionSnapshot}
       />
 
-      {/* Dark mode CSS overrides for ReactFlow */}
+      {orchestrationObjectiveConsoleEnabled && (
+        <TimedTaskPanel
+          tasks={tasks}
+          reassignments={reassignments}
+          runtimeBusyAction={runtimeBusyAction}
+          onCreateReassignment={createTimedReassignment}
+          onCancelReassignment={cancelTimedReassignment}
+        />
+      )}
+
       <style jsx global>{`
         .dark .orchestration-canvas {
           --xy-background-color: #09090b;

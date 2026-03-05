@@ -5,6 +5,7 @@ import { Layout } from '@/components/Layout'
 import { allSections } from '@/app/allSections'
 
 import '@/styles/tailwind.css'
+import '@/styles/maple-workspace.css'
 
 const inter = Inter({
   subsets: ['latin'],

@@ -202,4 +202,94 @@ describe('fake mode runtime', () => {
     const payload = await fakeAfter.json()
     expect(payload).toHaveProperty('mode')
   })
+
+  it('supports Frontend B orchestration templates, objective conversation, and timed reassignments', async () => {
+    Reflect.deleteProperty(window as Record<string, unknown>, RUNTIME_KEY)
+    initializeFakeModeRuntimeB()
+    enableFakeModeB('orchestration-seed')
+
+    const templatesRes = await fetch('/api/orchestrations/templates')
+    expect(templatesRes.ok).toBe(true)
+    const templatesJson = await templatesRes.json()
+    const templateId = templatesJson.items[0]?.id
+    expect(templateId).toBeTruthy()
+
+    const createRes = await fetch(`/api/orchestrations/templates/${templateId}/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Template Runtime Test' }),
+    })
+    const createJson = await createRes.json()
+    const orchestrationId = createJson.orchestration?.id || createJson.id
+    expect(orchestrationId).toBeTruthy()
+
+    const conversationRes = await fetch(`/api/orchestrations/${orchestrationId}/conversation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Please run a coding sprint loop.',
+        objectivePackage: {
+          goal: 'Deliver sprint objective',
+          successCriteria: 'All stories done',
+          runtimeLimitMinutes: 90,
+          budgetUsd: 200,
+          riskCeiling: 'high',
+          contextUrls: ['https://docs.internal/sprint'],
+          outputContract: 'Markdown summary',
+          escalationPolicy: 'Escalate after two failures',
+        },
+      }),
+    })
+    expect(conversationRes.ok).toBe(true)
+    const conversationJson = await conversationRes.json()
+    expect(Array.isArray(conversationJson.items)).toBe(true)
+    expect(conversationJson.items.length).toBeGreaterThan(1)
+
+    const executeRes = await fetch(`/api/orchestrations/${orchestrationId}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'live',
+        objectivePackage: conversationJson.objectivePackage,
+        conversationContext: conversationJson.items.slice(-5),
+      }),
+    })
+    expect(executeRes.ok).toBe(true)
+    const executeJson = await executeRes.json()
+    const executionId = executeJson.executionId
+    expect(executionId).toBeTruthy()
+
+    const tasksRes = await fetch(`/api/orchestrations/executions/${executionId}/tasks`)
+    const tasksJson = await tasksRes.json()
+    const taskId = tasksJson.items[0]?.id
+    expect(taskId).toBeTruthy()
+
+    const dueAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+    const reassignRes = await fetch(`/api/orchestrations/executions/${executionId}/tasks/${taskId}/reassign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dueAt,
+        repeatIntervalMinutes: 10,
+        maxRepeats: 2,
+        targetRole: 'manager',
+      }),
+    })
+    expect(reassignRes.ok).toBe(true)
+    const reassignJson = await reassignRes.json()
+    const reassignmentId = reassignJson.reassignment?.id
+    expect(reassignmentId).toBeTruthy()
+
+    const queueRes = await fetch(`/api/orchestrations/executions/${executionId}/reassignments`)
+    const queueJson = await queueRes.json()
+    expect(queueJson.items.some((item: { id: string }) => item.id === reassignmentId)).toBe(true)
+
+    const cancelRes = await fetch(`/api/orchestrations/executions/${executionId}/reassignments/${reassignmentId}`, { method: 'DELETE' })
+    expect(cancelRes.ok).toBe(true)
+
+    const queueAfterCancel = await fetch(`/api/orchestrations/executions/${executionId}/reassignments`)
+    const queueAfterCancelJson = await queueAfterCancel.json()
+    const canceled = queueAfterCancelJson.items.find((item: { id: string; status: string }) => item.id === reassignmentId)
+    expect(canceled?.status).toBe('canceled')
+  })
 })
