@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
@@ -90,8 +90,12 @@ export function WorkspaceRightPanel() {
     replayExecutionFromNode,
   } = useChat()
 
-  const [width, setWidth] = useState(() => readPanelWidth())
+  const [width, setWidth] = useState(420)
   const [agentPanelTab, setAgentPanelTab] = useState('trace')
+
+  useEffect(() => {
+    setWidth(readPanelWidth())
+  }, [])
   const [taskFilter, setTaskFilter] = useState('assigned')
   const [retryNodeId, setRetryNodeId] = useState('')
   const [replayNodeId, setReplayNodeId] = useState('')

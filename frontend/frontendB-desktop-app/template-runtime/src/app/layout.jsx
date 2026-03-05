@@ -23,8 +23,9 @@ export default async function RootLayout({ children }) {
     <html
       lang="en"
       className="text-zinc-950 antialiased dark:text-white"
+      suppressHydrationWarning
     >
-      <body>
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>
