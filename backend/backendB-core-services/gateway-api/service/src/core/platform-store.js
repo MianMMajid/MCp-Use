@@ -85,6 +85,7 @@ export class PlatformStore {
       );
     }
     if (hasPool(this.database)) {
+      try {
       await this.database.pool.query(`
         CREATE TABLE IF NOT EXISTS business_orgs (
           org_id TEXT PRIMARY KEY,
@@ -170,6 +171,12 @@ export class PlatformStore {
           updated_at TEXT NOT NULL
         );
       `);
+      } catch (err) {
+        // Ignore duplicate-key race from concurrent CREATE TABLE/INDEX
+        if (err?.code !== '23505' && !err?.message?.includes('pg_type_typname_nsp_index')) {
+          throw err;
+        }
+      }
     }
     this.initialized = true;
   }
