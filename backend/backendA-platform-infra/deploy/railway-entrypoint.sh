@@ -359,8 +359,12 @@ case "${MAPLE_SERVICE}" in
         export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
         ;;
     esac
-    echo "[railway-entrypoint] Starting frontendA (IT Console) on port ${FRONTEND_PORT}..."
     cd /app/frontend/frontendA-it-console/template-runtime
+    if [ ! -d ".next" ]; then
+      echo "[railway-entrypoint] .next directory missing — running next build..."
+      npx next build --webpack
+    fi
+    echo "[railway-entrypoint] Starting frontendA (IT Console) on port ${FRONTEND_PORT}..."
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
     ;;
 
@@ -376,8 +380,12 @@ case "${MAPLE_SERVICE}" in
         export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
         ;;
     esac
-    echo "[railway-entrypoint] Starting frontendB (Desktop App) on port ${FRONTEND_PORT}..."
     cd /app/frontend/frontendB-desktop-app/template-runtime
+    if [ ! -d ".next" ]; then
+      echo "[railway-entrypoint] .next directory missing — running next build..."
+      npx next build --webpack
+    fi
+    echo "[railway-entrypoint] Starting frontendB (Desktop App) on port ${FRONTEND_PORT}..."
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
     ;;
 
@@ -392,8 +400,12 @@ case "${MAPLE_SERVICE}" in
         export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
         ;;
     esac
-    echo "[railway-entrypoint] Starting frontendC (Marketing/Download Site) on port ${FRONTEND_PORT}..."
     cd /app/frontend/frontendC-marketing-download-site/template-runtime
+    if [ ! -d ".next" ]; then
+      echo "[railway-entrypoint] .next directory missing — running next build..."
+      npx next build --webpack
+    fi
+    echo "[railway-entrypoint] Starting frontendC (Marketing/Download Site) on port ${FRONTEND_PORT}..."
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
     ;;
 

@@ -41,11 +41,13 @@ RUN npm --prefix frontend/frontendA-it-console/template-runtime ci \
     && npm --prefix frontend/frontendC-marketing-download-site/template-runtime ci
 RUN npm run sync:runtime-assets
 RUN npm run build
-# Frontend builds are optional — skip failures so backend-only deploys aren't blocked
+# Frontend builds are independent — each one succeeds or fails on its own
 RUN npm --prefix frontend/frontendA-it-console/template-runtime run build \
-    && npm --prefix frontend/frontendB-desktop-app/template-runtime run build \
-    && npm --prefix frontend/frontendC-marketing-download-site/template-runtime run build \
-    || echo "[WARN] Frontend build failed — backend-only deploy will proceed"
+    || echo "[WARN] frontendA build failed — skipping"
+RUN npm --prefix frontend/frontendB-desktop-app/template-runtime run build \
+    || echo "[WARN] frontendB build failed — skipping"
+RUN npm --prefix frontend/frontendC-marketing-download-site/template-runtime run build \
+    || echo "[WARN] frontendC build failed — skipping"
 
 ## ---- Production stage ----
 FROM node:22-slim
