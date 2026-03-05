@@ -46,6 +46,10 @@ export const DEFAULT_GRPC_SERVER_OPTIONS = {
  * Returns null if any are unset.
  */
 export function loadGrpcTlsConfig() {
+    const disableTls = ["1","true","yes"].includes(
+        (process.env.MAPLE_DISABLE_TLS ?? "").trim().toLowerCase()
+    );
+    if (disableTls) return null;
     const certPath = process.env.MAPLE_GRPC_TLS_CERT?.trim();
     const keyPath = process.env.MAPLE_GRPC_TLS_KEY?.trim();
     const caPath = process.env.MAPLE_GRPC_TLS_CA?.trim();
@@ -83,7 +87,10 @@ export function createGrpcClientCredentials(tlsConfig) {
  */
 export function createGrpcServerCredentials(tlsConfig) {
     if (!tlsConfig) {
-        if (process.env.NODE_ENV !== "production") {
+        const isTrustedProxy = ["1","true","yes"].includes(
+            (process.env.MAPLE_BEHIND_TRUSTED_PROXY ?? "").trim().toLowerCase()
+        );
+        if (process.env.NODE_ENV !== "production" || isTrustedProxy) {
             return grpc.ServerCredentials.createInsecure();
         }
         throw new Error("gRPC TLS server config missing. Set MAPLE_GRPC_TLS_CERT, MAPLE_GRPC_TLS_KEY, MAPLE_GRPC_TLS_CA.");

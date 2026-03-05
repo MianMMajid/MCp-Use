@@ -87,6 +87,18 @@ test("loadGrpcTlsConfig: returns paths when all three set", () => {
   delete process.env.MAPLE_GRPC_TLS_CA;
 });
 
+test("loadGrpcTlsConfig: returns null when MAPLE_DISABLE_TLS=true even with certs set", () => {
+  process.env.MAPLE_GRPC_TLS_CERT = "/certs/cert.pem";
+  process.env.MAPLE_GRPC_TLS_KEY = "/certs/key.pem";
+  process.env.MAPLE_GRPC_TLS_CA = "/certs/ca.pem";
+  process.env.MAPLE_DISABLE_TLS = "true";
+  assert.equal(loadGrpcTlsConfig(), null);
+  delete process.env.MAPLE_GRPC_TLS_CERT;
+  delete process.env.MAPLE_GRPC_TLS_KEY;
+  delete process.env.MAPLE_GRPC_TLS_CA;
+  delete process.env.MAPLE_DISABLE_TLS;
+});
+
 // ---------------------------------------------------------------------------
 // createGrpcClientCredentials
 // ---------------------------------------------------------------------------
@@ -101,6 +113,16 @@ test("createGrpcClientCredentials: insecure when null and not production", () =>
 // ---------------------------------------------------------------------------
 // createGrpcServerCredentials
 // ---------------------------------------------------------------------------
+
+test("createGrpcServerCredentials: insecure when behind trusted proxy in production", () => {
+  const origEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  process.env.MAPLE_BEHIND_TRUSTED_PROXY = "true";
+  const creds = createGrpcServerCredentials(null);
+  assert.ok(creds !== null && creds !== undefined);
+  process.env.NODE_ENV = origEnv;
+  delete process.env.MAPLE_BEHIND_TRUSTED_PROXY;
+});
 
 test("createGrpcServerCredentials: insecure when null and not production", () => {
   process.env.NODE_ENV = "development";
