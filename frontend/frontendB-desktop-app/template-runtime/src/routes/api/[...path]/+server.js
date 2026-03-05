@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
 function backendBase() {
-  return env.MAYPLE_BACKEND_URL || env.BACKEND_URL || 'http://localhost:8000';
+  return env.MAYPLE_BACKEND_URL || env.BACKEND_URL || env.MAPLE_GATEWAY_ORIGIN || 'http://127.0.0.1:3000';
 }
 
 async function proxy(request, path) {

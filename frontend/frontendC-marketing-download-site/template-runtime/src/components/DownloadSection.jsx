@@ -15,6 +15,7 @@ function detectOS() {
 export function DownloadSection() {
   const [version, setVersion] = useState(null)
   const [os, setOS] = useState('unknown')
+  const [downloadError, setDownloadError] = useState(false)
   const [releasesUrl, setReleasesUrl] = useState(
     'https://github.com/MianMMajid/MCp-Use/releases',
   )
@@ -27,7 +28,7 @@ export function DownloadSection() {
         if (data?.version) setVersion(data.version)
         if (data?.releases_url) setReleasesUrl(data.releases_url)
       })
-      .catch(() => {})
+      .catch(() => { setDownloadError(true) })
   }, [])
 
   const versionLabel = version ? ` ${version}` : ''
@@ -74,6 +75,11 @@ export function DownloadSection() {
           >
             All releases
           </a>
+          {downloadError && (
+            <span className="ml-2 text-amber-600">
+              (Version info unavailable — downloads may still work)
+            </span>
+          )}
         </p>
       </Container>
     </section>

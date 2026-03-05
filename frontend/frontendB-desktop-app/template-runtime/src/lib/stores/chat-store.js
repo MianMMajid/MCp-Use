@@ -494,6 +494,7 @@ function createChatStore() {
           ]
         });
       }
+      invalidateCache(`/api/orchestrations/${orchestrationId}/conversation`);
     } catch (error) {
       patch({ orchestrationError: error instanceof Error ? error.message : String(error) });
     } finally {

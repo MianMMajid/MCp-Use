@@ -8,6 +8,7 @@ import { PrimaryFeatures } from '@/components/PrimaryFeatures'
 import { SecondaryFeatures } from '@/components/SecondaryFeatures'
 import { Container } from '@/components/Container'
 import { DownloadSection } from '@/components/DownloadSection'
+import { Testimonials } from '@/components/Testimonials'
 
 export default function Home() {
   return (
@@ -30,6 +31,7 @@ export default function Home() {
             </ol>
           </Container>
         </section>
+        <Testimonials />
         <CallToAction />
         <Pricing />
         <DownloadSection />

@@ -139,7 +139,7 @@ function ResetPasswordForm() {
 
 export default function ResetPassword() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="flex min-h-dvh items-center justify-center"><p className="text-sm text-zinc-500">Loading...</p></div>}>
       <ResetPasswordForm />
     </Suspense>
   )

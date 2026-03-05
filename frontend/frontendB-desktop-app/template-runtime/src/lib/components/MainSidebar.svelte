@@ -13,7 +13,7 @@
   let searchInputEl;
 
   const navItems = [
-    { key: 'skills', label: 'Skils', icon: 'skills', href: '/skills' },
+    { key: 'skills', label: 'Skills', icon: 'skills', href: '/skills' },
     { key: 'agents', label: 'Agents', icon: 'agent', href: '/agents' },
     { key: 'builder', label: 'Builder', icon: 'builder', href: '/orchestrate' },
     { key: 'firewalls', label: 'Firewalls', icon: 'firewall', href: '/firewalls' },

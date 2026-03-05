@@ -255,18 +255,26 @@
   async function loadExecutionSnapshot(executionId) {
     if (!executionId) return;
     const payload = await loadJson(`/api/orchestrations/executions/${executionId}/snapshot`).catch(() => null);
-    if (!payload?.ok) return;
+    if (!payload) return;
     runtimeStatus = payload?.execution?.status || 'unknown';
     runtimeLoop = payload?.loopState || null;
   }
 
   function closeExecutionStream() {
+    if (streamRetryTimer) {
+      clearTimeout(streamRetryTimer);
+      streamRetryTimer = null;
+    }
     if (executionStream) {
       executionStream.close();
       executionStream = null;
       streamBoundExecutionId = '';
     }
   }
+
+  let streamRetryCount = 0;
+  const MAX_STREAM_RETRIES = 5;
+  let streamRetryTimer = null;
 
   function openExecutionStream(executionId) {
     if (typeof window === 'undefined') return;
@@ -277,10 +285,16 @@
     if (streamBoundExecutionId === executionId && executionStream) return;
 
     closeExecutionStream();
+    streamRetryCount = 0;
+    connectExecutionStream(executionId);
+  }
+
+  function connectExecutionStream(executionId) {
     streamBoundExecutionId = executionId;
     executionStream = new EventSource(`/api/orchestrations/executions/${executionId}/stream`);
     executionStream.onmessage = (event) => {
       try {
+        streamRetryCount = 0;
         const payload = JSON.parse(event.data || '{}');
         if (payload.loopState) runtimeLoop = payload.loopState;
         if (payload.status) runtimeStatus = payload.status;
@@ -288,7 +302,14 @@
         // Ignore malformed payloads.
       }
     };
-    executionStream.onerror = () => closeExecutionStream();
+    executionStream.onerror = () => {
+      closeExecutionStream();
+      if (streamRetryCount < MAX_STREAM_RETRIES) {
+        streamRetryCount++;
+        const delay = Math.min(1000 * Math.pow(2, streamRetryCount - 1), 16000);
+        streamRetryTimer = setTimeout(() => connectExecutionStream(executionId), delay);
+      }
+    };
   }
 
   onMount(loadOrchestration);

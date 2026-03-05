@@ -125,14 +125,14 @@
         {#each $chatStore.orchestrationConversation as item}
           <article class="bubble" class:user={item.role === 'user'}>
             <strong>{item.role}</strong>
-            <p>{item.text}</p>
+            <p>{item.text || item.content}</p>
           </article>
         {/each}
       {:else}
         {#each $chatStore.messages as item}
           <article class="bubble" class:user={item.role === 'user'}>
             <strong>{item.role}</strong>
-            <p>{item.content}</p>
+            <p>{item.content || item.text}</p>
           </article>
         {/each}
       {/if}
