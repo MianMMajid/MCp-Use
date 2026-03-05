@@ -18,6 +18,12 @@ async function proxyRequest({ request, fetch, targetUrl }) {
   const response = await fetch(targetUrl, init)
   const proxiedHeaders = new Headers(response.headers)
 
+  // Node's fetch auto-decompresses gzip/br responses but keeps the
+  // content-encoding header.  Forwarding that header causes browsers to
+  // try to decompress already-decompressed data → "cannot decode raw data".
+  proxiedHeaders.delete('content-encoding')
+  proxiedHeaders.delete('content-length')
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

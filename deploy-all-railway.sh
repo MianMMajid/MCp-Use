@@ -49,7 +49,7 @@ echo ""
 # Format: <service-name>.railway.internal:<grpc-port>
 CW_ADDR="maple-context-wall.railway.internal:9000"
 MP_ADDR="maple-mcp-proxy.railway.internal:9200"
-CP_ADDR="maple-cyber-proxy.railway.internal:8080"
+CP_ADDR="maple-cyber-proxy.railway.internal:8090"
 AW_ADDR="maple-audit-writer.railway.internal:9400"
 GW_ADDR="maple-gateway.railway.internal:3000"
 
