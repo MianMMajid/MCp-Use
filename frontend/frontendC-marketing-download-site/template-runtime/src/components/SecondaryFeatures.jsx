@@ -8,10 +8,11 @@ import { Container } from '@/components/Container'
 
 const features = [
   {
-    name: 'Trace Auditing',
-    summary: 'Every agent action recorded with full context.',
+    name: 'Trace history',
+    summary: 'Clear timeline of what each agent did.',
     description:
-      'Search, filter, and replay any trace. Full audit trails give you complete visibility into what your agents did, when, and why.',
+      'Search and replay past sessions so your team can quickly understand mistakes and prove what happened.',
+    preview: 'trace-chain',
     icon: function ReportingIcon() {
       let id = useId()
       return (
@@ -41,10 +42,10 @@ const features = [
     },
   },
   {
-    name: 'Risk Scoring',
-    summary: 'ML-powered anomaly detection for agent behavior.',
+    name: 'Risk alerts',
+    summary: 'Spot unusual behavior early.',
     description:
-      'Automatic risk scoring flags unusual patterns before they cause damage. Set severity thresholds and get alerted to critical anomalies in real-time.',
+      'Maple flags suspicious patterns in real time so operators can step in before a risky action causes damage.',
     icon: function InventoryIcon() {
       return (
         <>
@@ -67,10 +68,10 @@ const features = [
     },
   },
   {
-    name: 'Policy Management',
-    summary: 'Define and enforce rules for agent actions in real-time.',
+    name: 'Policy rules',
+    summary: 'Set simple allow, block, or approval rules.',
     description:
-      'Create allow, block, and require-approval rules for any agent action. Policies evaluate against live requests and enforce decisions instantly.',
+      'Apply rules to live requests instantly, so teams can keep moving while high-risk actions get extra review.',
     icon: function ContactsIcon() {
       return (
         <>
@@ -88,6 +89,43 @@ const features = [
     },
   },
 ]
+
+const traceSteps = [
+  {
+    id: '01',
+    actor: 'router-agent',
+    action: 'Received request and opened session maple-live-42.',
+    type: 'plan',
+    risk: 'low',
+  },
+  {
+    id: '02',
+    actor: 'finance-agent',
+    action: 'Called billing.getInvoice for INV-1042.',
+    type: 'tool',
+    risk: 'low',
+  },
+  {
+    id: '03',
+    actor: 'ops-agent',
+    action: 'Tried shell command: curl external endpoint.',
+    type: 'command',
+    risk: 'high',
+  },
+  {
+    id: '04',
+    actor: 'policy-engine',
+    action: 'Blocked action and sent approval request to reviewer.',
+    type: 'guard',
+    risk: 'medium',
+  },
+]
+
+const riskToneClasses = {
+  low: 'bg-emerald-400/20 text-emerald-100 ring-1 ring-emerald-300/25',
+  medium: 'bg-amber-400/20 text-amber-100 ring-1 ring-amber-300/25',
+  high: 'bg-rose-400/20 text-rose-100 ring-1 ring-rose-300/25',
+}
 
 function Feature({ feature, isActive, className, ...props }) {
   return (
@@ -121,6 +159,72 @@ function Feature({ feature, isActive, className, ...props }) {
   )
 }
 
+function TraceChainPreview() {
+  return (
+    <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+      <div className="border-b border-zinc-700/70 bg-zinc-900/60 px-6 py-4">
+        <p className="text-xs font-medium tracking-wide text-zinc-300 uppercase">
+          Trace Session
+        </p>
+        <div className="mt-2 flex items-center justify-between gap-4">
+          <p className="font-display text-lg text-white">maple-live-42</p>
+          <span className="rounded-full bg-zinc-700 px-3 py-1 text-xs text-zinc-200">
+            4 actions tracked
+          </span>
+        </div>
+      </div>
+      <ol className="space-y-4 px-6 py-6">
+        {traceSteps.map((step, index) => (
+          <li key={step.id} className="relative pl-10">
+            {index !== traceSteps.length - 1 ? (
+              <span className="absolute top-8 left-4 h-[calc(100%+0.75rem)] w-px bg-zinc-600/70" />
+            ) : null}
+            <span className="absolute top-1 left-0 inline-flex h-8 w-8 items-center justify-center rounded-md bg-zinc-700 text-xs font-semibold text-zinc-100">
+              {step.id}
+            </span>
+            <div className="rounded-lg border border-zinc-600/80 bg-zinc-800/80 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-[11px] text-zinc-100">
+                  {step.type}
+                </span>
+                <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-[11px] text-zinc-100">
+                  {step.actor}
+                </span>
+                <span
+                  className={clsx(
+                    'rounded-full px-2 py-0.5 text-[11px]',
+                    riskToneClasses[step.risk],
+                  )}
+                >
+                  risk {step.risk}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-200">{step.action}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+function FeaturePreview({ feature }) {
+  if (feature.preview === 'trace-chain') {
+    return <TraceChainPreview />
+  }
+
+  return (
+    <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <h4 className="font-display text-xl text-white">{feature.name}</h4>
+        <p className="mt-4 max-w-md text-sm text-zinc-300">
+          {feature.description}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function FeaturesMobile() {
   return (
     <div className="-mx-4 mt-20 flex flex-col gap-y-10 overflow-hidden px-4 sm:-mx-6 sm:px-6 lg:hidden">
@@ -129,12 +233,8 @@ function FeaturesMobile() {
           <Feature feature={feature} className="mx-auto max-w-2xl" isActive />
           <div className="relative mt-10 pb-10">
             <div className="absolute -inset-x-4 top-8 bottom-0 bg-zinc-200 sm:-inset-x-6" />
-            <div className="relative mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
-              <div className="flex items-center justify-center p-8 text-center">
-                <p className="font-display text-lg text-white">
-                  {feature.name}
-                </p>
-              </div>
+            <div className="relative">
+              <FeaturePreview feature={feature} />
             </div>
           </div>
         </div>
@@ -179,16 +279,7 @@ function FeaturesDesktop() {
                   style={{ transform: `translateX(-${selectedIndex * 100}%)` }}
                   aria-hidden={featureIndex !== selectedIndex}
                 >
-                  <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
-                    <div className="flex flex-col items-center justify-center p-12 text-center">
-                      <h4 className="font-display text-xl text-white">
-                        {feature.name}
-                      </h4>
-                      <p className="mt-4 max-w-md text-sm text-zinc-300">
-                        {feature.description}
-                      </p>
-                    </div>
-                  </div>
+                  <FeaturePreview feature={feature} />
                 </TabPanel>
               ))}
             </div>
@@ -204,17 +295,17 @@ export function SecondaryFeatures() {
   return (
     <section
       id="secondary-features"
-      aria-label="Features for governing AI agents"
+      aria-label="Features for running AI agents safely"
       className="pt-20 pb-14 sm:pt-32 sm:pb-20 lg:pb-32"
     >
       <Container>
         <div className="mx-auto max-w-2xl md:text-center">
           <h2 className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl">
-            Everything you need to govern AI agents.
+            Everything you need to run agents safely.
           </h2>
           <p className="mt-4 text-lg tracking-tight text-zinc-700">
-            Maple provides comprehensive tools for monitoring, controlling, and
-            auditing your AI agent operations.
+            Simple controls for visibility, approvals, and audit history in one
+            workflow.
           </p>
         </div>
         <FeaturesMobile />

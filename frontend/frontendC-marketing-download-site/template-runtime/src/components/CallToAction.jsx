@@ -21,18 +21,18 @@ export function CallToAction() {
       <Container className="relative">
         <div className="mx-auto max-w-lg text-center">
           <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl">
-            Launch the full A/B workflow
+            Start protecting your agent workflows
           </h2>
           <p className="mt-4 text-lg tracking-tight text-white">
-            Download Catalyst desktop to orchestrate with OpenClaw, then switch
-            to Protocol console for observability, audit, and governance.
+            Install Maple, connect your agents, and add clear guardrails in
+            minutes.
           </p>
           <div className="mt-10 flex justify-center gap-3">
             <Button href="/register" color="white">
               Start free trial
             </Button>
             <Button href="#download" color="white">
-              Download desktop
+              Download app
             </Button>
           </div>
         </div>

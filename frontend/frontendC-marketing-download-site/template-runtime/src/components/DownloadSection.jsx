@@ -32,11 +32,11 @@ export function DownloadSection() {
     <section id="download" className="py-20 sm:py-24">
       <Container className="rounded-3xl bg-zinc-50 p-8 ring-1 ring-zinc-900/5 sm:p-12">
         <h3 className="font-display text-2xl tracking-tight text-zinc-900">
-          Download Catalyst Desktop (B)
+          Download Maple Desktop
         </h3>
         <p className="mt-3 max-w-2xl text-sm text-zinc-700">
-          Build, publish, and execute agent orchestrations in desktop.
-          Use Protocol console for observability, audit chain, and compliance operations.
+          Run and monitor agent workflows with built-in policy checks and audit
+          history.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           {os !== 'win' ? (
@@ -59,7 +59,7 @@ export function DownloadSection() {
             </>
           )}
           <Button href="/login" variant="outline">
-            Open Protocol Console (A)
+            Open dashboard
           </Button>
         </div>
         <p className="mt-3 text-xs text-zinc-500">

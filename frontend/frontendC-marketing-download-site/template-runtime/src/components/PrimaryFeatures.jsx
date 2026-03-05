@@ -14,27 +14,27 @@ import screenshotVatReturns from '@/images/screenshots/vat-returns.png'
 
 const features = [
   {
-    title: 'Desktop orchestration (B)',
+    title: 'Set up in minutes',
     description:
-      'Design, publish, execute, mutate, and approve OpenClaw orchestration runs from the Catalyst desktop control plane.',
+      'Connect your current agent stack without rewriting it. Maple runs as a proxy layer in front of your tools.',
     image: screenshotPayroll,
   },
   {
-    title: 'Runtime graph mutation',
+    title: 'See every action live',
     description:
-      'Insert nodes, spawn agents, rewire edges, and replay failed branches during active execution with governed runtime controls.',
+      'Track tool calls, commands, and request context in real time so operators understand exactly what agents are doing.',
     image: screenshotExpenses,
   },
   {
-    title: 'Human-in-the-loop approvals',
+    title: 'Approve risky actions',
     description:
-      'Route runtime decisions to operators with explicit approve/reject flows and step-up verification.',
+      'Pause sensitive actions and send them to a human reviewer. Approve or block with full context in one place.',
     image: screenshotVatReturns,
   },
   {
-    title: 'Console observability (A)',
+    title: 'Audit and replay sessions',
     description:
-      'Monitor SLOs, audit chains, retention, dead-letter replay, and webhook alerts in Protocol console.',
+      'Keep complete audit logs and replay incidents to investigate what happened and prevent the same issue later.',
     image: screenshotReporting,
   },
 ]
@@ -60,11 +60,11 @@ export function PrimaryFeatures() {
   return (
     <section
       id="features"
-      aria-label="Features for operating agentic teams"
+      aria-label="Features for safer AI operations"
       className="relative overflow-hidden bg-orange-600 pt-20 pb-28 sm:py-32"
     >
       <Image
-        className="absolute top-1/2 left-1/2 max-w-none tranzinc-x-[-44%] tranzinc-y-[-42%]"
+        className="absolute top-1/2 left-1/2 max-w-none -translate-x-[44%] -translate-y-[42%]"
         src={backgroundImage}
         alt=""
         width={2245}
@@ -74,11 +74,11 @@ export function PrimaryFeatures() {
       <Container className="relative">
         <div className="max-w-2xl md:mx-auto md:text-center xl:max-w-none">
           <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">
-            Purpose-built split: orchestrate in B, observe in A.
+            Control your agents without slowing your team down.
           </h2>
           <p className="mt-6 text-lg tracking-tight text-orange-100">
-            Frontend C markets and routes. Frontend B executes orchestration.
-            Frontend A handles observability, governance, and compliance.
+            Maple gives you one place to monitor activity, enforce rules, and
+            keep a clear audit trail.
           </p>
         </div>
         <TabGroup

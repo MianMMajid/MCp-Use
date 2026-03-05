@@ -111,21 +111,20 @@ export function Pricing() {
             for every stage.
           </h2>
           <p className="mt-4 text-lg text-zinc-400">
-            Choose the right control and collaboration tier for your agentic
-            operations.
+            Pick the plan that matches your team size and risk needs.
           </p>
         </div>
         <div className="-mx-4 mt-16 grid max-w-2xl grid-cols-1 gap-y-10 sm:mx-auto lg:-mx-8 lg:max-w-none lg:grid-cols-3 xl:mx-0 xl:gap-x-8">
           <Plan
             name="Pro"
             price="$9"
-            description="For individuals and small teams launching agent workflows."
+            description="For individuals and small teams getting started."
             href="/register"
             features={[
-              'Core agent orchestration',
-              'Tool policy controls',
-              'Runtime capability checks',
-              'Audit event timeline',
+              'Core safety controls',
+              'Allow and block policies',
+              'Basic activity timeline',
+              'Session history',
               'Email support',
             ]}
           />
@@ -133,28 +132,28 @@ export function Pricing() {
             featured
             name="Team"
             price="$15"
-            description="For multi-operator teams managing HITL and policy boundaries."
+            description="For teams that need human approvals and shared workflows."
             href="/register"
             features={[
               'Everything in Pro',
-              'HITL approval queue',
-              'Role-based access controls',
-              'Extended trace retention',
+              'Approval queue',
+              'Role-based access',
+              'Longer history retention',
               'Priority support',
-              'Desktop orchestration surface',
+              'Desktop and web workflow',
             ]}
           />
           <Plan
             name="Enterprise"
             price="$39"
-            description="For regulated teams requiring strict security and custom controls."
+            description="For organizations with advanced security and compliance needs."
             href="/register"
             features={[
               'Everything in Team',
               'Custom policy packs',
-              'Dedicated environment',
-              'Advanced compliance reporting',
-              'Enterprise support SLA',
+              'Dedicated environment options',
+              'Compliance reporting',
+              'Enterprise support',
             ]}
           />
         </div>

@@ -8,51 +8,51 @@ const faqs = [
     {
       question: 'What is Maple?',
       answer:
-        'Maple is an agent governance platform that provides policy controls, human-in-the-loop approvals, and trace auditing for AI agents. It works as a transparent proxy between your agents and the tools they use.',
+        'Maple helps teams run AI agents safely. It sits between your agents and tools so you can watch actions, enforce rules, and keep clear logs.',
     },
     {
-      question: 'How does HITL approval work?',
+      question: 'How do approvals work?',
       answer:
-        'When an agent action matches a policy rule requiring approval, the agent pauses execution. A human reviewer sees the full context and can approve or deny the action. The agent then resumes or aborts based on the decision.',
+        'When an action matches an approval rule, Maple pauses it and sends it to a human reviewer. The reviewer can approve or block it with full context.',
     },
     {
       question: 'What agents does Maple support?',
       answer:
-        'Maple works with any MCP-compatible agent. It also includes built-in support for OpenClaw agents. Since Maple operates as a proxy layer, it\'s agent-framework agnostic.',
+        'Maple works with MCP-compatible agents and can protect existing setups without requiring a full rewrite.',
     },
   ],
   [
     {
       question: 'Is my data secure?',
       answer:
-        'Yes. Maple supports on-premise deployment, uses encrypted storage for all sensitive data, and maintains complete audit trails. All inter-service communication uses mTLS encryption.',
+        'Yes. Maple supports secure deployments, encrypted data handling, and complete audit trails.',
     },
     {
       question: 'Do I need to modify my agents?',
       answer:
-        'No. Maple works as a transparent proxy, so your existing agents connect through Maple without any code changes. Policies and guard actions are configured separately.',
+        'Usually no. Maple is designed as a proxy layer, so most teams connect existing agents and configure rules separately.',
     },
     {
       question: 'What\'s the pricing?',
       answer:
-        'Maple offers a free tier for individual developers, Pro for small teams, Team for growing organizations, and Enterprise for custom deployments. See our pricing section for details.',
+        'Maple has plans for individuals, teams, and enterprise deployments. See the pricing section for current options.',
     },
   ],
   [
     {
       question: 'Can I self-host Maple?',
       answer:
-        'Yes. Maple provides Kubernetes deployment manifests and Docker images for self-hosted installations. We also offer managed cloud hosting if you prefer.',
+        'Yes. You can self-host Maple, or run it as a managed setup depending on your team\'s needs.',
     },
     {
       question: 'How do I get started?',
       answer:
-        'Download the Maple Desktop app for local development, or deploy to your cloud infrastructure using our K8s manifests. The setup wizard guides you through connecting your first agent.',
+        'Download Maple, connect your first agent, and start with basic allow, block, and approval policies.',
     },
     {
-      question: 'What\'s the difference between policies and guard actions?',
+      question: 'What are policies?',
       answer:
-        'Policies are declarative rules that define what agents can and cannot do. Guard actions are runtime decisions — they evaluate policies against live agent actions and enforce allow, block, or require-approval outcomes.',
+        'Policies are rules that decide whether actions are allowed, blocked, or require human approval.',
     },
   ],
 ]
@@ -65,7 +65,7 @@ export function Faqs() {
       className="relative overflow-hidden bg-zinc-50 py-20 sm:py-32"
     >
       <Image
-        className="absolute top-0 left-1/2 max-w-none tranzinc-x-[-30%] -tranzinc-y-1/4"
+        className="absolute top-0 left-1/2 max-w-none -translate-x-[30%] -translate-y-1/4"
         src={backgroundImage}
         alt=""
         width={1558}

@@ -39,6 +39,7 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, '../../../'),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
+  devIndicators: false,
   async rewrites() {
     return [
       {

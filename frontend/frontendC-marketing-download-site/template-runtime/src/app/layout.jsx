@@ -5,11 +5,19 @@ import '@/styles/tailwind.css'
 
 export const metadata = {
   title: {
-    template: '%s - Mayple',
-    default: 'Mayple - Agentic Workforce Platform',
+    template: '%s - Maple',
+    default: 'Maple - Safe AI Agent Operations',
   },
   description:
-    'Mayple split surfaces: Catalyst Desktop (B) for orchestration, Protocol Console (A) for observability, and Salient (C) for onboarding and download.',
+    'Maple helps teams monitor AI agents, enforce policy controls, and keep a complete audit trail.',
+  icons: {
+    icon: [
+      { url: '/maple-favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico' },
+    ],
+    shortcut: [{ url: '/maple-favicon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/maple-favicon.svg', type: 'image/svg+xml' }],
+  },
 }
 
 const inter = Inter({
