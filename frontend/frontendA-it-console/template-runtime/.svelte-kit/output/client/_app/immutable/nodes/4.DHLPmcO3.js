@@ -1,0 +1,1 @@
+import"../chunks/Lw7-F3fC.js";import{i as p}from"../chunks/pawvQQtv.js";import{p as r,a as s}from"../chunks/CumqLj6T.js";import{D as m}from"../chunks/D9bi5j9V.js";import{d as i}from"../chunks/2rHXOVXQ.js";function g(o,t){r(t,!1);const a=i["/attachments"];p(),m(o,{get doc(){return a}}),s()}export{g as component};

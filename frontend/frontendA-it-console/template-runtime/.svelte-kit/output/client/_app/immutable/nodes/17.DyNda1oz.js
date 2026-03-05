@@ -1,0 +1,1 @@
+import"../chunks/Lw7-F3fC.js";import{i as r}from"../chunks/pawvQQtv.js";import{p as s,a}from"../chunks/CumqLj6T.js";import{D as m}from"../chunks/D9bi5j9V.js";import{d as i}from"../chunks/2rHXOVXQ.js";function g(o,t){s(t,!1);const p=i["/webhooks"];r(),m(o,{get doc(){return p}}),a()}export{g as component};
