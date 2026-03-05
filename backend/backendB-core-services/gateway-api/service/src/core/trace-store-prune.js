@@ -14,7 +14,12 @@ export function pruneTraceStore(options) {
         options.removeTrace(traceId);
     }
     while (options.traces.size > options.maxTraces) {
-        const oldest = [...options.traces.values()].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))[0];
+        let oldest = undefined;
+        for (const trace of options.traces.values()) {
+            if (!oldest || trace.updatedAt.localeCompare(oldest.updatedAt) < 0) {
+                oldest = trace;
+            }
+        }
         if (!oldest) {
             break;
         }

@@ -4,21 +4,49 @@ import { buildSessionCookie, } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { hashPassword, verifyPassword } from "@maple/security";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
-import { applyBusinessApiProxyHeaders, businessApiUnavailableResponse, isBusinessApiRequired, proxyBusinessApiRequest, } from "../core/business-api-client.js";
+
+// In-memory rate limiter for auth endpoints
+const loginAttempts = new Map(); // key: IP, value: { count, resetAt }
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkRateLimit(ip) {
+    const now = Date.now();
+    const entry = loginAttempts.get(ip);
+    if (!entry || now > entry.resetAt) {
+        loginAttempts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+        return null;
+    }
+    entry.count++;
+    if (entry.count > RATE_LIMIT_MAX) {
+        const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+        return retryAfter;
+    }
+    return null;
+}
+
+function resetRateLimit(ip) {
+    loginAttempts.delete(ip);
+}
+
+// Periodic cleanup of expired entries (every 5 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of loginAttempts) {
+        if (now > entry.resetAt) loginAttempts.delete(ip);
+    }
+}, 5 * 60 * 1000).unref();
+
 export function registerAuthLoginRegisterRoutes(app) {
     app.post("/api/auth/login", async (c) => {
+        const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+        const retryAfter = checkRateLimit(ip);
+        if (retryAfter) {
+            c.header('Retry-After', String(retryAfter));
+            return c.json({ error: "Too many login attempts. Please try again later." }, 429);
+        }
+
         const body = await readJsonBody(c);
-        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/login", {
-            method: "POST",
-            body,
-        });
-        if (proxied.proxied) {
-            applyBusinessApiProxyHeaders(c, proxied);
-            return c.json(proxied.payload, proxied.status);
-        }
-        if (isBusinessApiRequired()) {
-            return businessApiUnavailableResponse(c, proxied, "auth.login");
-        }
         const username = asString(body.username);
         const password = asString(body.password);
         if (!username || !password) {
@@ -28,27 +56,24 @@ export function registerAuthLoginRegisterRoutes(app) {
         if (!user || !verifyPassword(password, user.passwordHash)) {
             return c.json({ error: "Invalid username or password." }, 401);
         }
+        resetRateLimit(ip);
         const session = await database.createSession(user.id, sessionTtlSeconds);
         c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
         return c.json(buildSessionAuthResponse(user, session));
     });
     app.post("/api/auth/register", async (c) => {
-        const body = await readJsonBody(c);
-        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/register", {
-            method: "POST",
-            body,
-        });
-        if (proxied.proxied) {
-            applyBusinessApiProxyHeaders(c, proxied);
-            return c.json(proxied.payload, proxied.status);
+        const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+        const retryAfter = checkRateLimit(ip);
+        if (retryAfter) {
+            c.header('Retry-After', String(retryAfter));
+            return c.json({ error: "Too many registration attempts. Please try again later." }, 429);
         }
-        if (isBusinessApiRequired()) {
-            return businessApiUnavailableResponse(c, proxied, "auth.register");
-        }
+
         const existingUsers = await database.countUsers();
         if (!allowSelfSignup && existingUsers > 0) {
             return c.json({ error: "Self-signup is disabled." }, 403);
         }
+        const body = await readJsonBody(c);
         const username = asString(body.username);
         const password = asString(body.password);
         const email = asString(body.email);
@@ -71,4 +96,3 @@ export function registerAuthLoginRegisterRoutes(app) {
         return c.json(buildSessionAuthResponse(user, session));
     });
 }
-//# sourceMappingURL=auth-routes-login-register.js.map

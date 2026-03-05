@@ -6,6 +6,11 @@ export class AuditStore {
     maxInMemory = 10000;
     pool = null;
     pgReady = false;
+    writeBuffer = [];
+    flushTimer = null;
+    flushInProgress = false;
+    maxBufferSize = 100;
+    flushIntervalMs = 200;
     async initialize(databaseUrl) {
         try {
             this.pool = new Pool({
@@ -13,6 +18,11 @@ export class AuditStore {
                 max: 10,
                 idleTimeoutMillis: 30000,
                 connectionTimeoutMillis: 5000,
+                maxUses: 7500,
+                application_name: 'maple-audit-writer',
+            });
+            this.pool.on('connect', (client) => {
+                client.query('SET synchronous_commit = off').catch(() => {});
             });
             // Verify connectivity
             const client = await this.pool.connect();
@@ -52,6 +62,9 @@ export class AuditStore {
             failed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           );
           CREATE INDEX IF NOT EXISTS idx_dead_letter_failed ON audit_dead_letter(failed_at);
+
+          CREATE INDEX IF NOT EXISTS idx_audit_ts_brin
+            ON audit_events USING BRIN (timestamp) WITH (pages_per_range = 32);
         `);
                 // Load recent events into in-memory cache
                 const result = await client.query(`SELECT event_id, event_type, timestamp, source_service,
@@ -92,20 +105,78 @@ export class AuditStore {
         if (this.events.length > this.maxInMemory) {
             this.events = this.events.slice(-this.maxInMemory);
         }
-        try {
-            await this.insertEventPg(event);
-        } catch (err) {
-            mapleLog("error", "audit_append_to_dead_letter", { eventId: event.eventId, error: err.message });
-            await this.insertDeadLetter(event, err.message);
-        }
+        this.bufferEvent(event);
         return event.eventId;
     }
-    async appendBatch(events) {
-        const eventIds = [];
-        for (const event of events) {
-            eventIds.push(await this.append(event));
+    bufferEvent(event) {
+        this.writeBuffer.push(event);
+        if (this.writeBuffer.length >= this.maxBufferSize) {
+            if (!this.flushInProgress) {
+                this.flushBuffer().catch(() => {});
+            }
+            return;
         }
-        return eventIds;
+        if (!this.flushTimer) {
+            this.flushTimer = setTimeout(() => {
+                if (!this.flushInProgress) {
+                    this.flushBuffer().catch(() => {});
+                }
+            }, this.flushIntervalMs);
+        }
+    }
+    async flushBuffer() {
+        if (this.flushInProgress) return;
+        this.flushInProgress = true;
+        if (this.flushTimer) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = null;
+        }
+        const batch = this.writeBuffer.splice(0, this.writeBuffer.length);
+        if (batch.length === 0) {
+            this.flushInProgress = false;
+            return;
+        }
+        try {
+            await this.insertEventsPgBatch(batch);
+        } catch (err) {
+            mapleLog("error", "audit_flush_batch_failed", { error: err.message, count: batch.length });
+            for (const event of batch) {
+                try {
+                    await this.insertEventPg(event);
+                } catch (insertErr) {
+                    await this.insertDeadLetter(event, insertErr.message);
+                }
+            }
+        } finally {
+            this.flushInProgress = false;
+        }
+    }
+    async appendBatch(events) {
+        if (!events || events.length === 0) return [];
+        if (!this.pgReady || !this.pool) {
+            throw new Error("AuditStore PostgreSQL backend is not ready.");
+        }
+        for (const event of events) {
+            if (!event.eventId) event.eventId = randomUUID();
+            if (!event.timestamp) event.timestamp = new Date().toISOString();
+            this.events.push(event);
+        }
+        if (this.events.length > this.maxInMemory) {
+            this.events = this.events.slice(-this.maxInMemory);
+        }
+        try {
+            await this.insertEventsPgBatch(events);
+        } catch (err) {
+            mapleLog("error", "audit_append_batch_falling_back", { error: err.message, count: events.length });
+            for (const event of events) {
+                try {
+                    await this.insertEventPg(event);
+                } catch (insertErr) {
+                    await this.insertDeadLetter(event, insertErr.message);
+                }
+            }
+        }
+        return events.map((e) => e.eventId);
     }
     async query(filters) {
         if (!this.pgReady || !this.pool) {
@@ -117,6 +188,11 @@ export class AuditStore {
         return [...this.events];
     }
     async shutdown() {
+        if (this.flushTimer) {
+            clearTimeout(this.flushTimer);
+            this.flushTimer = null;
+        }
+        await this.flushBuffer();
         if (this.pool) {
             await this.pool.end();
             this.pool = null;
@@ -236,6 +312,34 @@ export class AuditStore {
             event.severity ?? null,
             event.summary ?? null,
         ]);
+    }
+    async insertEventsPgBatch(events) {
+        if (events.length === 0) return;
+        const COLS = 12;
+        const placeholders = [];
+        const params = [];
+        for (let i = 0; i < events.length; i++) {
+            const offset = i * COLS;
+            placeholders.push(
+                `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12})`
+            );
+            const e = events[i];
+            params.push(
+                e.eventId, e.eventType, e.timestamp, e.sourceService,
+                e.traceId ?? null, e.sessionId ?? null, e.requestId ?? null, e.userId ?? null,
+                e.keyFingerprint ?? null, e.payload ? JSON.stringify(e.payload) : null,
+                e.severity ?? null, e.summary ?? null,
+            );
+        }
+        await this.pool.query(
+            `INSERT INTO audit_events
+             (event_id, event_type, timestamp, source_service,
+              trace_id, session_id, request_id, user_id,
+              key_fingerprint, payload_json, severity, summary)
+             VALUES ${placeholders.join(", ")}
+             ON CONFLICT (event_id) DO NOTHING`,
+            params
+        );
     }
     async queryPg(filters) {
         const conditions = [];

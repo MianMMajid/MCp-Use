@@ -111,11 +111,11 @@ export class K8sJobDispatcher {
                 activeDeadlineSeconds: 120,
                 template: {
                     metadata: {
-                        labels: { app: "tool-runner-job", "maple-job-id": jobId },
+                        labels: { app: "mcp-proxy-job", "maple-job-id": jobId },
                     },
                     spec: {
                         restartPolicy: "Never",
-                        serviceAccountName: "tool-runner-job",
+                        serviceAccountName: "mcp-proxy-job",
                         securityContext: {
                             runAsNonRoot: true,
                             runAsUser: 1000,
@@ -124,7 +124,7 @@ export class K8sJobDispatcher {
                         },
                         containers: [
                             {
-                                name: "tool-runner",
+                                name: "mcp-proxy-tool",
                                 image: this.image,
                                 command: ["node", "dist/job-entrypoint.js"],
                                 env: [

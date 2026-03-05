@@ -12,12 +12,9 @@ This folder contains a Northflank template and helper scripts to deploy the Mapl
 ## Services in Template
 
 - `gateway-api` (public)
-- `admin-console-api` (public)
-- `business-api`
 - `context-wall`
 - `mcp-proxy`
 - `cyber-proxy`
-- `tool-runner`
 - `audit-writer`
 - `openclaw-gateway`
 - `openclaw-bridge`

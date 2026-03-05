@@ -1,267 +1,418 @@
-import { readJsonBody } from "../helpers.js";
-import {
-  businessApiUnavailableResponse,
-  proxyBusinessApiRequest,
-} from "../core/business-api-client.js";
+import { asString, readJsonBody } from "../helpers.js";
+import { findRequestSession } from "../auth.js";
+import { database } from "../state.js";
+import { PlatformStore } from "../core/platform-store.js";
 
-function buildPathWithQuery(basePath, c) {
-  const url = new URL(c.req.url);
-  const query = url.searchParams.toString();
-  if (!query) {
-    return basePath;
+function parseIntOrUndefined(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
   }
-  return `${basePath}?${query}`;
+  return Math.trunc(parsed);
 }
 
-async function proxyGet(c, businessPath, operation) {
-  const proxied = await proxyBusinessApiRequest(c, businessPath);
-  if (proxied.proxied) {
-    return c.json(proxied.payload, proxied.status);
+function positiveIntOrUndefined(value) {
+  const parsed = parseIntOrUndefined(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
   }
-  return businessApiUnavailableResponse(c, proxied, operation);
+  return parsed;
 }
 
-async function proxyGetPayload(c, businessPath) {
-  return proxyBusinessApiRequest(c, businessPath);
+async function requireSession(c) {
+  const session = await findRequestSession(database, c.req.header("cookie"));
+  if (!session) {
+    return { error: c.json({ error: "Authentication required." }, 401) };
+  }
+  return { session };
 }
 
-async function proxyPost(c, businessPath, operation) {
-  const body = await readJsonBody(c);
-  const proxied = await proxyBusinessApiRequest(c, businessPath, {
-    method: "POST",
-    body,
-  });
-  if (proxied.proxied) {
-    return c.json(proxied.payload, proxied.status);
-  }
-  return businessApiUnavailableResponse(c, proxied, operation);
+function normalizeOrgSummary(org) {
+  return {
+    orgId: org.orgId,
+    name: org.name,
+    ownerUserId: org.ownerUserId,
+    createdAt: org.createdAt,
+    updatedAt: org.updatedAt,
+    membersCount: org.membersCount,
+  };
 }
 
-async function proxyPatch(c, businessPath, operation) {
-  const body = await readJsonBody(c);
-  const proxied = await proxyBusinessApiRequest(c, businessPath, {
-    method: "PATCH",
-    body,
-  });
-  if (proxied.proxied) {
-    return c.json(proxied.payload, proxied.status);
+let _store;
+function getStore() {
+  if (!_store) {
+    _store = new PlatformStore({ database });
   }
-  return businessApiUnavailableResponse(c, proxied, operation);
-}
-
-async function proxyDelete(c, businessPath, operation) {
-  const proxied = await proxyBusinessApiRequest(c, businessPath, {
-    method: "DELETE",
-  });
-  if (proxied.proxied) {
-    return c.json(proxied.payload, proxied.status);
-  }
-  return businessApiUnavailableResponse(c, proxied, operation);
+  return _store;
 }
 
 export function registerPlatformProxyRoutes(app) {
-  app.get("/api/integrations/catalog", async (c) =>
-    proxyGet(c, "/api/business/integrations/catalog", "integrations.catalog")
-  );
-  app.get("/api/integrations", async (c) =>
-    proxyGet(c, "/api/business/integrations", "integrations.list")
-  );
-  app.post("/api/integrations/:provider/connect", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/connect`,
-      "integrations.connect"
-    )
-  );
-  app.post("/api/integrations/:provider/disconnect", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/disconnect`,
-      "integrations.disconnect"
-    )
-  );
-  app.get("/api/integrations/:provider/oauth/start", async (c) => {
-    const path = buildPathWithQuery(
-      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/start`,
-      c
-    );
-    const proxied = await proxyGetPayload(c, path);
-    if (!proxied.proxied) {
-      return businessApiUnavailableResponse(c, proxied, "integrations.oauth.start");
+  // ── Organization routes ──────────────────────────────────────────────────
+  app.get("/api/org", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
     }
-    const shouldRedirect = ["1", "true", "yes"].includes(
-      String(c.req.query("redirect") ?? "")
-        .trim()
-        .toLowerCase()
-    );
-    const authorizationUrl = proxied.payload?.authorizationUrl;
-    if (shouldRedirect && typeof authorizationUrl === "string" && authorizationUrl) {
-      return c.redirect(authorizationUrl, 302);
-    }
-    return c.json(proxied.payload, proxied.status);
+    const store = getStore();
+    const items = await store.listOrganizationsForUser(auth.session.user.id);
+    return c.json({ ok: true, items: items.map((org) => normalizeOrgSummary(org)) });
   });
-  app.get("/api/integrations/:provider/oauth/callback", async (c) => {
-    const requestUrl = new URL(c.req.url);
-    requestUrl.searchParams.set("format", "json");
-    const path = `${`/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/callback`}?${requestUrl.searchParams.toString()}`;
-    const proxied = await proxyGetPayload(c, path);
-    if (!proxied.proxied) {
-      return businessApiUnavailableResponse(c, proxied, "integrations.oauth.callback");
+
+  app.post("/api/org", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
     }
-    const wantsJson = String(c.req.query("format") ?? "")
-      .trim()
-      .toLowerCase() === "json";
-    const redirectUrl = proxied.payload?.redirectUrl;
-    if (!wantsJson && typeof redirectUrl === "string" && redirectUrl) {
-      return c.redirect(redirectUrl, 302);
-    }
-    return c.json(proxied.payload, proxied.status);
+    const store = getStore();
+    const body = await readJsonBody(c);
+    const name = asString(body.name) ?? `Org ${auth.session.user.username}`;
+    const org = await store.createOrganization({
+      name,
+      ownerUserId: auth.session.user.id,
+    });
+    return c.json({ ok: true, org: normalizeOrgSummary(org) }, 201);
   });
-  app.post("/api/integrations/:provider/oauth/refresh", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/refresh`,
-      "integrations.oauth.refresh"
-    )
-  );
-  app.post("/api/integrations/:provider/oauth/revoke", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/integrations/${encodeURIComponent(c.req.param("provider"))}/oauth/revoke`,
-      "integrations.oauth.revoke"
-    )
-  );
 
-  app.get("/api/org", async (c) =>
-    proxyGet(c, "/api/business/org", "org.list")
-  );
-  app.post("/api/org", async (c) =>
-    proxyPost(c, "/api/business/org", "org.create")
-  );
-  app.patch("/api/org/:orgId", async (c) =>
-    proxyPatch(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}`,
-      "org.update"
-    )
-  );
-  app.get("/api/org/:orgId/members", async (c) =>
-    proxyGet(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/members`,
-      "org.members.list"
-    )
-  );
-  app.get("/api/org/:orgId/invites", async (c) =>
-    proxyGet(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/invites`,
-      "org.invites.list"
-    )
-  );
-  app.post("/api/org/:orgId/invites", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/invites`,
-      "org.invites.create"
-    )
-  );
-  app.post("/api/org/invites/:inviteId/accept", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/org/invites/${encodeURIComponent(c.req.param("inviteId"))}/accept`,
-      "org.invites.accept"
-    )
-  );
-  app.delete("/api/org/:orgId/members/:userId", async (c) =>
-    proxyDelete(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/members/${encodeURIComponent(c.req.param("userId"))}`,
-      "org.members.remove"
-    )
-  );
-  app.get("/api/org/:orgId/roles", async (c) =>
-    proxyGet(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/roles`,
-      "org.roles.list"
-    )
-  );
-  app.post("/api/org/:orgId/roles/:roleId/assign", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/roles/${encodeURIComponent(c.req.param("roleId"))}/assign`,
-      "org.roles.assign"
-    )
-  );
+  app.patch("/api/org/:orgId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    if (!orgId) {
+      return c.json({ error: "orgId is required." }, 400);
+    }
+    const existing = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!existing) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const name = asString(body.name);
+    if (!name) {
+      return c.json({ error: "name is required." }, 400);
+    }
+    const updated = await store.updateOrganizationName(orgId, name);
+    return c.json({ ok: true, org: normalizeOrgSummary(updated) });
+  });
 
-  app.get("/api/user/api-keys", async (c) =>
-    proxyGet(c, "/api/business/user/api-keys", "user.api_keys.list")
-  );
-  app.post("/api/user/api-keys", async (c) =>
-    proxyPost(c, "/api/business/user/api-keys", "user.api_keys.create")
-  );
-  app.delete("/api/user/api-keys/:keyId", async (c) =>
-    proxyDelete(
-      c,
-      `/api/business/user/api-keys/${encodeURIComponent(c.req.param("keyId"))}`,
-      "user.api_keys.delete"
-    )
-  );
+  app.get("/api/org/:orgId/members", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const items = await store.listOrganizationMembers(org.orgId);
+    return c.json({ ok: true, items });
+  });
 
-  app.get("/api/org/:orgId/service-accounts", async (c) =>
-    proxyGet(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts`,
-      "org.service_accounts.list"
-    )
-  );
-  app.post("/api/org/:orgId/service-accounts", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts`,
-      "org.service_accounts.create"
-    )
-  );
-  app.get("/api/org/:orgId/service-accounts/:id/keys", async (c) =>
-    proxyGet(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts/${encodeURIComponent(c.req.param("id"))}/keys`,
-      "org.service_account_keys.list"
-    )
-  );
-  app.post("/api/org/:orgId/service-accounts/:id/keys", async (c) =>
-    proxyPost(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts/${encodeURIComponent(c.req.param("id"))}/keys`,
-      "org.service_account_keys.create"
-    )
-  );
-  app.delete("/api/org/:orgId/service-accounts/:id/keys/:keyId", async (c) =>
-    proxyDelete(
-      c,
-      `/api/business/org/${encodeURIComponent(c.req.param("orgId"))}/service-accounts/${encodeURIComponent(c.req.param("id"))}/keys/${encodeURIComponent(c.req.param("keyId"))}`,
-      "org.service_account_keys.delete"
-    )
-  );
+  app.get("/api/org/:orgId/invites", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const items = await store.listOrganizationInvites(org.orgId);
+    return c.json({ ok: true, items });
+  });
 
-  app.get("/api/entitlements", async (c) =>
-    proxyGet(c, "/api/business/entitlements", "entitlements.get")
-  );
-  app.get("/api/usage/summary", async (c) =>
-    proxyGet(c, "/api/business/usage/summary", "usage.summary")
-  );
-  app.get("/api/usage/timeseries", async (c) =>
-    proxyGet(
-      c,
-      buildPathWithQuery("/api/business/usage/timeseries", c),
-      "usage.timeseries"
-    )
-  );
-  app.get("/api/limits", async (c) =>
-    proxyGet(c, "/api/business/limits", "limits.get")
-  );
-  app.post("/api/limits/override", async (c) =>
-    proxyPost(c, "/api/business/limits/override", "limits.override")
-  );
+  app.post("/api/org/:orgId/invites", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const invite = await store.createOrganizationInvite({
+      orgId: org.orgId,
+      issuedBy: auth.session.user.id,
+      roleId: asString(body.roleId) ?? "member",
+      email: asString(body.email) ?? "",
+    });
+    return c.json({ ok: true, invite }, 201);
+  });
+
+  app.post("/api/org/invites/:inviteId/accept", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const inviteId = asString(c.req.param("inviteId"));
+    if (!inviteId) {
+      return c.json({ error: "inviteId is required." }, 400);
+    }
+    const invite = await store.acceptOrganizationInvite(inviteId, auth.session.user.id);
+    if (!invite) {
+      return c.json({ error: "Invite not found." }, 404);
+    }
+    const org = await store.getOrganizationForUser(invite.orgId, auth.session.user.id);
+    return c.json({
+      ok: true,
+      org: org ? normalizeOrgSummary(org) : null,
+      invite,
+    });
+  });
+
+  app.delete("/api/org/:orgId/members/:userId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const userId = asString(c.req.param("userId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    if (!userId) {
+      return c.json({ error: "userId is required." }, 400);
+    }
+    if (org.ownerUserId === userId) {
+      return c.json({ error: "Cannot remove organization owner." }, 409);
+    }
+    const removed = await store.removeOrganizationMember(org.orgId, userId);
+    if (!removed) {
+      return c.json({ error: "Member not found." }, 404);
+    }
+    return c.json({ ok: true, removedUserId: userId });
+  });
+
+  app.get("/api/org/:orgId/roles", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const items = await store.listOrganizationRoles(org.orgId);
+    return c.json({ ok: true, items });
+  });
+
+  app.post("/api/org/:orgId/roles/:roleId/assign", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const roleId = asString(c.req.param("roleId")) ?? "member";
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const userId = asString(body.userId);
+    if (!userId) {
+      return c.json({ error: "userId is required." }, 400);
+    }
+    const assigned = await store.assignOrganizationRole(org.orgId, userId, roleId);
+    return c.json({ ok: true, ...assigned });
+  });
+
+  // ── User API keys ────────────────────────────────────────────────────────
+  app.get("/api/user/api-keys", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const items = await store.listUserApiKeys(auth.session.user.id);
+    return c.json({ ok: true, items });
+  });
+
+  app.post("/api/user/api-keys", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const body = await readJsonBody(c);
+    const created = await store.createUserApiKey(auth.session.user.id, {
+      name: asString(body.name),
+      expiresAt: asString(body.expiresAt),
+    });
+    return c.json({ ok: true, key: created }, 201);
+  });
+
+  app.delete("/api/user/api-keys/:keyId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const keyId = asString(c.req.param("keyId"));
+    const deleted = await store.deleteUserApiKey(auth.session.user.id, keyId);
+    if (!deleted) {
+      return c.json({ error: "API key not found." }, 404);
+    }
+    return c.json({ ok: true, keyId });
+  });
+
+  // ── Service accounts ─────────────────────────────────────────────────────
+  app.get("/api/org/:orgId/service-accounts", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const items = await store.listServiceAccounts(org.orgId);
+    return c.json({ ok: true, items });
+  });
+
+  app.post("/api/org/:orgId/service-accounts", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const account = await store.createServiceAccount(org.orgId, asString(body.name));
+    return c.json({ ok: true, account }, 201);
+  });
+
+  app.get("/api/org/:orgId/service-accounts/:id/keys", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const accountId = asString(c.req.param("id"));
+    const items = await store.listServiceAccountKeys(org.orgId, accountId);
+    return c.json({ ok: true, items });
+  });
+
+  app.post("/api/org/:orgId/service-accounts/:id/keys", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const accountId = asString(c.req.param("id"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const key = await store.createServiceAccountKey(org.orgId, accountId, {
+      expiresAt: asString(body.expiresAt),
+    });
+    if (!key) {
+      return c.json({ error: "Service account not found." }, 404);
+    }
+    return c.json({ ok: true, key }, 201);
+  });
+
+  app.delete("/api/org/:orgId/service-accounts/:id/keys/:keyId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const orgId = asString(c.req.param("orgId"));
+    const accountId = asString(c.req.param("id"));
+    const keyId = asString(c.req.param("keyId"));
+    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
+    if (!org) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
+    const deleted = await store.deleteServiceAccountKey(org.orgId, accountId, keyId);
+    if (!deleted) {
+      return c.json({ error: "Service account key not found." }, 404);
+    }
+    return c.json({ ok: true, keyId });
+  });
+
+  // ── Entitlements, usage & limits ─────────────────────────────────────────
+  app.get("/api/entitlements", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const result = await store.getEntitlementsForUser(auth.session.user.id);
+    return c.json({ ok: true, ...result });
+  });
+
+  app.get("/api/usage/summary", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const summary = await store.getUsageSummary(auth.session.user.id);
+    return c.json({ ok: true, summary });
+  });
+
+  app.get("/api/usage/timeseries", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const days = positiveIntOrUndefined(c.req.query("days")) ?? 14;
+    const points = await store.getUsageTimeseries(auth.session.user.id, days);
+    return c.json({ ok: true, points });
+  });
+
+  app.get("/api/limits", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const limits = await store.getLimitsForUser(auth.session.user.id);
+    return c.json({ ok: true, limits });
+  });
+
+  app.post("/api/limits/override", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const store = getStore();
+    const body = await readJsonBody(c);
+    const limits = await store.updateLimitsForUser(auth.session.user.id, {
+      maxRunsPerDay: positiveIntOrUndefined(body.maxRunsPerDay),
+      maxToolCallsPerDay: positiveIntOrUndefined(body.maxToolCallsPerDay),
+      maxConcurrentLongform: positiveIntOrUndefined(body.maxConcurrentLongform),
+    });
+    return c.json({ ok: true, limits });
+  });
 }

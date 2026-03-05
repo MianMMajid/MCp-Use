@@ -31,6 +31,9 @@ set_default MAPLE_SKIP_AUTH_BOOTSTRAP 1
 set_default MAPLE_ADMIN_ALLOW_NO_AUTH 1
 set_default MAPLE_DISABLE_HITL_BROKER 1
 set_default MAPLE_AUTH_ALLOW_SELF_SIGNUP 0
+set_default MAPLE_FIREWALL_LOG_DIR /tmp/maple-firewall-logs
+set_default MAPLE_INTEGRATION_OAUTH_STATE_SECRET local-dev-oauth-state-secret-32chars
+set_default MAPLE_INTEGRATION_OAUTH_ENCRYPTION_KEY local-dev-oauth-encryption-key-32c
 
 set_default DATABASE_URL postgresql://maple:maple@127.0.0.1:5432/maple
 set_default MAPLE_REDIS_URL redis://127.0.0.1:6379
@@ -42,15 +45,6 @@ set_default MAPLE_GRPC_TLS_CA "${CERT_DIR}/ca.crt"
 set_default MAPLE_GATEWAY_TLS_CERT "${CERT_DIR}/tls.crt"
 set_default MAPLE_GATEWAY_TLS_KEY "${CERT_DIR}/tls.key"
 set_default MAPLE_GATEWAY_TLS_CA "${CERT_DIR}/ca.crt"
-set_default MAPLE_ADMIN_TLS_CERT "${CERT_DIR}/tls.crt"
-set_default MAPLE_ADMIN_TLS_KEY "${CERT_DIR}/tls.key"
-set_default MAPLE_ADMIN_TLS_CA "${CERT_DIR}/ca.crt"
-set_default MAPLE_BUSINESS_API_TLS_CERT "${CERT_DIR}/tls.crt"
-set_default MAPLE_BUSINESS_API_TLS_KEY "${CERT_DIR}/tls.key"
-set_default MAPLE_BUSINESS_API_TLS_CA "${CERT_DIR}/ca.crt"
-set_default MAPLE_BUSINESS_API_CA "${CERT_DIR}/ca.crt"
-set_default MAPLE_BUSINESS_API_CERT "${CERT_DIR}/tls.crt"
-set_default MAPLE_BUSINESS_API_KEY "${CERT_DIR}/tls.key"
 
 set_default GATEWAY_PORT 3000
 set_default GATEWAY_HOST 0.0.0.0
@@ -58,31 +52,17 @@ set_default CONTEXT_WALL_PORT 19000
 set_default CONTEXT_WALL_HOST 0.0.0.0
 set_default MCP_PROXY_PORT 19200
 set_default MCP_PROXY_HOST 0.0.0.0
-set_default TOOL_RUNNER_PORT 19250
-set_default TOOL_RUNNER_HOST 0.0.0.0
 set_default CYBER_PROXY_PORT 18080
 set_default CYBER_PROXY_HOST 0.0.0.0
 set_default AUDIT_WRITER_PORT 19400
 set_default AUDIT_WRITER_HTTP_PORT 19401
 set_default AUDIT_WRITER_HOST 0.0.0.0
-set_default ADMIN_CONSOLE_PORT 19443
-set_default ADMIN_CONSOLE_HOST 0.0.0.0
-set_default BUSINESS_API_PORT 19550
-set_default BUSINESS_API_HOST 0.0.0.0
 
 set_default CONTEXT_WALL_ADDRESS 127.0.0.1:${CONTEXT_WALL_PORT}
 set_default MCP_PROXY_ADDRESS 127.0.0.1:${MCP_PROXY_PORT}
-set_default TOOL_RUNNER_ADDRESS 127.0.0.1:${TOOL_RUNNER_PORT}
 set_default CYBER_PROXY_ADDRESS 127.0.0.1:${CYBER_PROXY_PORT}
 set_default AUDIT_WRITER_ADDRESS 127.0.0.1:${AUDIT_WRITER_PORT}
-set_default MAPLE_BUSINESS_API_BASE_URL https://127.0.0.1:${BUSINESS_API_PORT}
-set_default MAPLE_BUSINESS_API_REQUIRED 0
-set_default MAPLE_BUSINESS_API_TIMEOUT_MS 3000
-set_default MAPLE_BUSINESS_API_MTLS_REQUIRED 0
-set_default MAPLE_BUSINESS_API_SKIP_DB_INIT 0
 set_default CORS_ORIGIN "*"
-set_default MAPLE_MODEL_ROUTER_RETIRED 1
-set_default MAPLE_SECRETS_BROKER_RETIRED 1
 
 set_default MAPLE_ALLOW_BRIDGE_OVERRIDE 0
 set_default MAPLE_LOCK_BRIDGE_TARGET 0

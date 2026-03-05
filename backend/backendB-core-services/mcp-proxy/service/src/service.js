@@ -2,28 +2,28 @@
  * MCP Proxy Service
  *
  * This service acts as the tool execution layer for Maple's microservice
- * architecture. In the current design, mcp-proxy directly executes tool calls
- * against downstream MCP servers by delegating execution to the tool-runner
- * plane with two security enforcement layers:
+ * architecture. mcp-proxy directly executes tool calls against downstream MCP
+ * servers with two security enforcement layers:
  *
- * 1. **secrets-broker**: Before each tool execution, a short-lived scoped
- *    credential is minted via gRPC. This ensures every tool invocation has
- *    an auditable credential with bounded TTL and explicit scopes.
+ * 1. **Retired credential minting**: A short-lived scoped credential is minted
+ *    locally (secrets-broker has been retired; context-wall scoped credential
+ *    delegation is the replacement).
  *
- * 2. **tool-runner + cyber-proxy**: mcp-proxy forwards execution requests to
- *    tool-runner, which routes all outbound traffic through cyber-proxy for
- *    SSRF guards, domain allowlists/blocklists, and content scanning.
+ * 2. **cyber-proxy**: mcp-proxy routes all outbound tool execution traffic
+ *    directly through cyber-proxy for SSRF guards, domain allowlists/blocklists,
+ *    and content scanning. The former tool-runner service has been merged into
+ *    mcp-proxy.
  */
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
-import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecure, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 // ── Lightweight audit event emitter ──────────────────────────────────────────
 function emitAuditEvent(opts) {
     try {
-        grpcUnary(getAuditWriter(), "appendEvent", {
+        auditWriterBreaker.execute(() => grpcUnary(getAuditWriter(), "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -34,15 +34,13 @@ function emitAuditEvent(opts) {
                 severity: "RISK_SEVERITY_LOW",
                 summary: opts.summary,
             },
-        }).catch((err) => {
-            mapleLog("warn", "audit_emit_failed", { error: err.message });
-        });
+        })).catch(() => {});
     }
     catch {
         // Audit emission is fire-and-forget
     }
 }
-// ── gRPC clients for secrets-broker and tool-runner ──────────────────────────
+// ── gRPC clients for cyber-proxy and audit-writer ────────────────────────────
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
 function loadServiceClient(protoFile, servicePath, address) {
@@ -58,9 +56,10 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let secretsBrokerClient;
-let toolRunnerClient;
+let cyberProxyClient;
 let auditWriterClient;
+const cyberProxyBreaker = new CircuitBreaker("mcp-proxy->cyber-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
+const auditWriterBreaker = new CircuitBreaker("mcp-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
 function closeGrpcClient(client) {
     if (!client || typeof client.close !== "function") {
         return;
@@ -72,20 +71,11 @@ function closeGrpcClient(client) {
         // best effort
     }
 }
-function getSecretsBroker() {
-    if (config.secretsBrokerRetired || !String(config.secretsBrokerAddress || "").trim()) {
-        throw new Error("secrets-broker has been retired. Replacement: context-wall scoped credential delegation.");
+function getCyberProxy() {
+    if (!cyberProxyClient) {
+        cyberProxyClient = loadServiceClient("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
     }
-    if (!secretsBrokerClient) {
-        secretsBrokerClient = loadServiceClient("maple/secrets/v1/secrets_broker.proto", "maple.secrets.v1.SecretsBrokerService", config.secretsBrokerAddress);
-    }
-    return secretsBrokerClient;
-}
-function getToolRunner() {
-    if (!toolRunnerClient) {
-        toolRunnerClient = loadServiceClient("maple/tools/v1/tool_runner.proto", "maple.tools.v1.ToolRunnerService", config.toolRunnerAddress);
-    }
-    return toolRunnerClient;
+    return cyberProxyClient;
 }
 function getAuditWriter() {
     if (!auditWriterClient) {
@@ -94,11 +84,9 @@ function getAuditWriter() {
     return auditWriterClient;
 }
 export function closeMcpProxyClients() {
-    closeGrpcClient(secretsBrokerClient);
-    closeGrpcClient(toolRunnerClient);
+    closeGrpcClient(cyberProxyClient);
     closeGrpcClient(auditWriterClient);
-    secretsBrokerClient = undefined;
-    toolRunnerClient = undefined;
+    cyberProxyClient = undefined;
     auditWriterClient = undefined;
 }
 class CredentialMintError extends Error {
@@ -134,32 +122,44 @@ function scopeToCredentialScopes(scope) {
     return [...new Set(scopes)];
 }
 async function mintCredentialForToolWithScopes(toolName, appId, scopes) {
-    if (config.secretsBrokerRetired || !String(config.secretsBrokerAddress || "").trim()) {
-        return createRetiredCredential(toolName, appId, scopes);
-    }
-    try {
-        const response = await grpcUnary(getSecretsBroker(), "mintCredential", {
-            toolName,
-            appId,
-            scopes,
-            ttlSeconds: 300,
-        });
-        const credentialId = response?.credential?.credentialId ?? "";
-        const token = response?.token ? String(response.token) : "";
-        if (!credentialId || !token) {
-            throw new CredentialMintError(`Scoped credential mint returned incomplete data for ${appId}.${toolName}.`);
-        }
-        mapleLog("info", "credential_minted", { toolName, appId, credentialId });
-        return { credentialId, token, scopes };
-    }
-    catch (err) {
-        mapleLog("error", "credential_mint_failed", { toolName, appId, error: err.message });
-        throw new CredentialMintError(`Scoped credential mint failed for ${appId}.${toolName}: ${err.message}`);
-    }
+    // secrets-broker has been retired; always use local retired credential minting.
+    // Replacement: context-wall scoped credential delegation.
+    return createRetiredCredential(toolName, appId, scopes);
 }
 let jobDispatcher = null;
 function setJobDispatcher(dispatcher) {
     jobDispatcher = dispatcher;
+}
+// ── Helpers ported from tool-runner (now inlined) ────────────────────────────
+function inferToolNameFromJsonRpcPayload(payload) {
+    const method = String(payload.method || "").trim();
+    if (method === "tools/call") {
+        const params = payload.params && typeof payload.params === "object" && !Array.isArray(payload.params)
+            ? payload.params
+            : {};
+        const toolName = String(params.name || "").trim();
+        if (toolName) {
+            return toolName;
+        }
+    }
+    if (method) {
+        return `jsonrpc.${method}`;
+    }
+    return "jsonrpc.forward";
+}
+function toCyberReport(response, statusCode) {
+    const threatsFound = Array.isArray(response?.threatsFound)
+        ? response.threatsFound.map((threat) => String(threat))
+        : [];
+    return {
+        urlReputation: statusCode >= 400 ? "blocked" : "ok",
+        sanitized: Boolean(response?.sanitized),
+        malware: Boolean(response?.malwareDetected) || threatsFound.length > 0,
+        quarantined: Boolean(response?.quarantined),
+        threatsFound,
+        quarantineReason: String(response?.quarantineReason || response?.policyReason || ""),
+        resolvedIp: String(response?.resolvedIp || ""),
+    };
 }
 function normalizeCyberReport(raw, statusCode) {
     const threatsFound = Array.isArray(raw?.threatsFound)
@@ -176,7 +176,7 @@ function normalizeCyberReport(raw, statusCode) {
     };
 }
 async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, credential) {
-    // Job mode: dispatch as isolated K8s Job
+    // Job mode: dispatch as isolated K8s Job (preserved — does not use gRPC client)
     if (config.toolRunnerMode === "job" && jobDispatcher) {
         try {
             const result = await jobDispatcher.dispatch({
@@ -209,43 +209,80 @@ async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, crede
             throw err;
         }
     }
-    // Service mode: use persistent tool-runner gRPC service
+    // Service mode: call cyber-proxy directly (tool-runner merged into mcp-proxy)
     try {
-        const response = await grpcUnary(getToolRunner(), "executeJsonRpc", {
+        const payloadJson = JSON.stringify(body);
+        const toolName = inferToolNameFromJsonRpcPayload(body);
+        const outboundHeaders = {
+            "content-type": "application/json",
+            accept: "application/json",
+        };
+        if (credential?.credentialId) {
+            outboundHeaders["x-maple-credential-id"] = credential.credentialId;
+        }
+        if (credential?.token) {
+            outboundHeaders["x-maple-credential-token"] = credential.token;
+        }
+        if (credential?.scopes && credential.scopes.length > 0) {
+            outboundHeaders["x-maple-credential-scopes"] = credential.scopes.join(",");
+        }
+        const response = await cyberProxyBreaker.execute(() => grpcUnary(getCyberProxy(), "proxyHttpRequest", {
             context: {
                 traceId: traceId || "",
                 sourceService: "mcp-proxy",
             },
+            method: "POST",
+            url,
+            headers: outboundHeaders,
+            body: Buffer.from(payloadJson),
+            toolName,
             appId,
-            targetUrl: url,
-            payloadJson: Buffer.from(JSON.stringify(body)),
             timeoutMs,
-            credentialId: credential?.credentialId ?? "",
-            credentialToken: credential?.token ?? "",
-            credentialScopes: credential?.scopes ?? [],
-        });
-        const responseRaw = response?.responseJson;
-        const responseJson = responseRaw
-            ? (typeof responseRaw === "string" ? responseRaw : Buffer.from(responseRaw).toString("utf-8"))
+        }));
+        const statusCode = Number(response?.statusCode ?? 502);
+        const responseBody = response?.body
+            ? (Buffer.isBuffer(response.body) ? response.body.toString("utf-8") : Buffer.from(response.body).toString("utf-8"))
             : "{}";
         let payload = {};
         try {
-            payload = JSON.parse(responseJson);
+            payload = JSON.parse(responseBody);
         }
         catch {
             payload = {};
         }
-        const statusCode = Number(response?.statusCode ?? 0);
+        const cyberReport = toCyberReport(response, statusCode);
+        if (statusCode >= 400) {
+            const errorMessage = `cyber-proxy returned HTTP ${statusCode}`;
+            emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_TOOL_FAILED",
+                summary: errorMessage,
+                traceId,
+                payload: { appId, targetUrl: url, statusCode, toolName },
+            });
+            return {
+                success: false,
+                payload,
+                statusCode,
+                errorMessage,
+                cyberReport,
+            };
+        }
+        emitAuditEvent({
+            eventType: "AUDIT_EVENT_TYPE_TOOL_COMPLETED",
+            summary: `mcp-proxy executed JSON-RPC for ${appId || "dynamic-target"}`,
+            traceId,
+            payload: { appId, targetUrl: url, statusCode, toolName },
+        });
         return {
-            success: Boolean(response?.success),
+            success: true,
             payload,
             statusCode,
-            errorMessage: String(response?.errorMessage || ""),
-            cyberReport: normalizeCyberReport(response?.cyberReport, statusCode),
+            errorMessage: "",
+            cyberReport,
         };
     }
     catch (err) {
-        mapleLog("warn", "tool_runner_dispatch_failed", { appId, url, error: err.message });
+        mapleLog("warn", "cyber_proxy_dispatch_failed", { appId, url, error: err.message });
         throw err;
     }
 }
@@ -366,7 +403,7 @@ const proxyProto = proto.maple.proxy.v1;
 export function createMcpProxyService(registry, dispatcher) {
     if (dispatcher)
         setJobDispatcher(dispatcher);
-    const server = new grpc.Server();
+    const server = createGrpcServer();
     const serviceImpl = {
         async ExecuteTool(call, callback) {
             try {
@@ -441,22 +478,22 @@ export function createMcpProxyService(registry, dispatcher) {
                         }
                     }
                 }
-                // Route all tool execution through tool-runner.
+                // Route all tool execution through cyber-proxy.
                 let dispatched;
                 try {
                     dispatched = await dispatchViaToolRunner(appId, target.url, jsonRpcRequest, config.toolExecutionTimeoutMs, traceId, mintedCredential);
-                    mapleLog("debug", "tool_execute_via_tool_runner", { appId, toolName, targetUrl: target.url });
+                    mapleLog("debug", "tool_execute_via_cyber_proxy", { appId, toolName, targetUrl: target.url });
                 }
                 catch (proxyErr) {
-                    mapleLog("error", "tool_execute_tool_runner_unavailable", { appId, toolName, targetUrl: target.url, error: proxyErr.message });
-                    callback({ code: grpc.status.UNAVAILABLE, message: `Tool-runner unreachable: ${proxyErr.message}` });
+                    mapleLog("error", "tool_execute_cyber_proxy_unavailable", { appId, toolName, targetUrl: target.url, error: proxyErr.message });
+                    callback({ code: grpc.status.UNAVAILABLE, message: `Cyber-proxy unreachable: ${proxyErr.message}` });
                     return;
                 }
                 const durationMs = Date.now() - start;
                 const rpcResponse = dispatched.payload;
                 if (!dispatched.success) {
                     const toolStatus = dispatched.statusCode === 403 ? "blocked" : "error";
-                    const errorMessage = dispatched.errorMessage || `Tool runner returned HTTP ${dispatched.statusCode}`;
+                    const errorMessage = dispatched.errorMessage || `Cyber-proxy returned HTTP ${dispatched.statusCode}`;
                     callback(null, {
                         success: false,
                         resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage })),
@@ -610,7 +647,7 @@ export function createMcpProxyService(registry, dispatcher) {
                                 appId,
                                 toolName,
                                 toolCallId,
-                                errorMessage: response.errorMessage || `Tool runner returned HTTP ${response.statusCode}`,
+                                errorMessage: response.errorMessage || `Cyber-proxy returned HTTP ${response.statusCode}`,
                                 status,
                                 cyberReport: response.cyberReport,
                             });
@@ -785,7 +822,7 @@ export function createMcpProxyService(registry, dispatcher) {
                 callback(null, {
                     responseJson: Buffer.from(JSON.stringify(responseBody)),
                     success: Boolean(response.success),
-                    errorMessage: response.success ? "" : (response.errorMessage || `Tool runner returned HTTP ${response.statusCode}`),
+                    errorMessage: response.success ? "" : (response.errorMessage || `Cyber-proxy returned HTTP ${response.statusCode}`),
                 });
             }
             catch (err) {

@@ -65,9 +65,6 @@ const runtimeVariables = {
   MAPLE_ENFORCE_STARTUP_DEPENDENCIES: "${args.enforceStartupDependencies}",
 
   MAPLE_ALLOW_NO_AUTH: "0",
-  MAPLE_ADMIN_ALLOW_NO_AUTH: "0",
-  MAPLE_BUSINESS_API_REQUIRED: "1",
-  MAPLE_BUSINESS_API_MTLS_REQUIRED: "1",
 
   MAPLE_GRPC_TLS_CERT: "/etc/maple/tls/tls.crt",
   MAPLE_GRPC_TLS_KEY: "/etc/maple/tls/tls.key",
@@ -77,26 +74,10 @@ const runtimeVariables = {
   MAPLE_GATEWAY_TLS_KEY: "/etc/maple/tls/tls.key",
   MAPLE_GATEWAY_TLS_CA: "/etc/maple/tls/ca.crt",
 
-  MAPLE_ADMIN_TLS_CERT: "/etc/maple/tls/tls.crt",
-  MAPLE_ADMIN_TLS_KEY: "/etc/maple/tls/tls.key",
-  MAPLE_ADMIN_TLS_CA: "/etc/maple/tls/ca.crt",
-
-  MAPLE_BUSINESS_API_TLS_CERT: "/etc/maple/tls/tls.crt",
-  MAPLE_BUSINESS_API_TLS_KEY: "/etc/maple/tls/tls.key",
-  MAPLE_BUSINESS_API_TLS_CA: "/etc/maple/tls/ca.crt",
-
-  MAPLE_BUSINESS_API_CA: "/etc/maple/tls/ca.crt",
-  MAPLE_BUSINESS_API_CERT: "/etc/maple/tls/tls.crt",
-  MAPLE_BUSINESS_API_KEY: "/etc/maple/tls/tls.key",
-
   CONTEXT_WALL_ADDRESS: "context-wall:9000",
   MCP_PROXY_ADDRESS: "mcp-proxy:9200",
-  TOOL_RUNNER_ADDRESS: "tool-runner:9250",
   CYBER_PROXY_ADDRESS: "cyber-proxy:8080",
   AUDIT_WRITER_ADDRESS: "audit-writer:9400",
-  MAPLE_MODEL_ROUTER_RETIRED: "1",
-  MAPLE_SECRETS_BROKER_RETIRED: "1",
-  MAPLE_BUSINESS_API_BASE_URL: "https://business-api:9550",
 
   OPENCLAW_BRIDGE_MODE: "gateway",
   OPENCLAW_BRIDGE_URL: "http://openclaw-bridge:8787",
@@ -369,17 +350,6 @@ const template = {
           publicPortNames: [8443]
         }),
         deploymentFromInternal({
-          name: "business-api",
-          command: "node backend/backendC-saas-services/business-api/service/dist/main.js",
-          ports: [{ number: 9550, protocol: "HTTP" }]
-        }),
-        deploymentFromInternal({
-          name: "admin-console-api",
-          command: "node backend/backendB-core-services/admin-console-api/service/dist/main.js",
-          ports: [{ number: 9443, protocol: "HTTP" }],
-          publicPortNames: [9443]
-        }),
-        deploymentFromInternal({
           name: "context-wall",
           command: "node backend/backendB-core-services/context-wall/service/dist/main.js",
           ports: [{ number: 9000, protocol: "HTTP/2" }]
@@ -393,11 +363,6 @@ const template = {
           name: "cyber-proxy",
           command: "node backend/backendB-core-services/cyber-proxy/service/dist/main.js",
           ports: [{ number: 8080, protocol: "HTTP/2" }]
-        }),
-        deploymentFromInternal({
-          name: "tool-runner",
-          command: "node backend/backendB-core-services/tool-runner/service/dist/main.js",
-          ports: [{ number: 9250, protocol: "HTTP/2" }]
         }),
         deploymentFromInternal({
           name: "audit-writer",

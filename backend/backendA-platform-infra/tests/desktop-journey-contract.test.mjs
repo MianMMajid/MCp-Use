@@ -16,11 +16,6 @@ const GATEWAY_ROUTES_DIR = resolve(
   REPO_ROOT,
   "backend/backendB-core-services/gateway-api/service/src/routes"
 );
-const BUSINESS_ROUTES_DIR = resolve(
-  REPO_ROOT,
-  "backend/backendC-saas-services/business-api/service/src/routes"
-);
-
 function collectJsFiles(dir) {
   const entries = readdirSync(dir);
   const files = [];
@@ -73,9 +68,6 @@ test("backend route handlers exist for desktop journey flow", () => {
   const gatewaySources = collectJsFiles(GATEWAY_ROUTES_DIR).map((filePath) =>
     readFileSync(filePath, "utf8")
   );
-  const businessSources = collectJsFiles(BUSINESS_ROUTES_DIR).map((filePath) =>
-    readFileSync(filePath, "utf8")
-  );
 
   const gatewayEndpoints = [
     "POST /api/auth/login",
@@ -91,17 +83,5 @@ test("backend route handlers exist for desktop journey flow", () => {
     const regex = endpointRegex(method.toLowerCase(), pathTemplate);
     const matched = gatewaySources.some((content) => regex.test(content));
     assert.equal(matched, true, `Missing gateway endpoint: ${endpoint}`);
-  }
-
-  const businessEndpoints = [
-    "GET /api/business/integrations",
-    "POST /api/business/integrations/:provider/connect",
-    "POST /api/business/integrations/:provider/disconnect",
-  ];
-  for (const endpoint of businessEndpoints) {
-    const [method, pathTemplate] = endpoint.split(" ");
-    const regex = endpointRegex(method.toLowerCase(), pathTemplate);
-    const matched = businessSources.some((content) => regex.test(content));
-    assert.equal(matched, true, `Missing business endpoint: ${endpoint}`);
   }
 });

@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import Stripe from "stripe";
 
 const LIVE_PROVIDERS_ENABLED =
@@ -47,51 +45,6 @@ function toBaseUrl(rawUrl) {
   assert.ok(normalized, "Live provider URL cannot be empty.");
   return normalized.endsWith("/") ? normalized : `${normalized}/`;
 }
-
-runLiveTest("Google live provider: verify test ID token against Google certs", async (t) => {
-  const googleClientId = requiredEnv("GOOGLE_CLIENT_ID", ["MAPLE_GOOGLE_CLIENT_ID"]);
-  const idToken = firstEnv([
-    "MAPLE_LIVE_GOOGLE_TEST_ID_TOKEN",
-    "GOOGLE_TEST_ID_TOKEN",
-    "MAPLE_GOOGLE_TEST_ID_TOKEN",
-  ]);
-  if (!idToken) {
-    const certsResponse = await fetch("https://www.googleapis.com/oauth2/v3/certs");
-    assert.equal(certsResponse.status, 200);
-    const certsPayload = await certsResponse.json();
-    assert.equal(Array.isArray(certsPayload?.keys), true);
-    t.diagnostic(
-      "MAPLE_LIVE_GOOGLE_TEST_ID_TOKEN missing; ran cert reachability check instead of token verification."
-    );
-    return;
-  }
-
-  const previousClientId = process.env.GOOGLE_CLIENT_ID;
-  process.env.GOOGLE_CLIENT_ID = googleClientId;
-
-  try {
-    const authGoogleUrl = pathToFileURL(
-      resolve(
-        process.cwd(),
-        "backend/backendC-saas-services/business-api/service/src/auth-google.js"
-      )
-    ).href;
-    const { verifyGoogleJwt } = await import(
-      `${authGoogleUrl}?cacheBust=${Date.now()}-${Math.random()}`
-    );
-    const verified = await verifyGoogleJwt(idToken);
-    assert.ok(
-      typeof verified?.email === "string" && verified.email.includes("@"),
-      "Google token verified but email claim was missing."
-    );
-  } finally {
-    if (previousClientId === undefined) {
-      delete process.env.GOOGLE_CLIENT_ID;
-    } else {
-      process.env.GOOGLE_CLIENT_ID = previousClientId;
-    }
-  }
-});
 
 runLiveTest("Stripe live provider: account + price ids are valid", async () => {
   const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");

@@ -78,13 +78,6 @@ function resolveGatewayUrl() {
   ]) || LOCAL_GATEWAY_URL_DEFAULT;
 }
 
-function resolveBusinessUrl() {
-  return firstEnv([
-    "MAPLE_LIVE_BUSINESS_URL",
-    "MAPLE_BUSINESS_API_BASE_URL",
-  ]);
-}
-
 runLiveTest("live dependency matrix: gateway runtime endpoints are healthy", async (t) => {
   const gatewayUrlRaw = resolveGatewayUrl();
   const gatewayUrl = normalizeBaseUrl(gatewayUrlRaw);
@@ -151,52 +144,11 @@ runLiveTest("live dependency matrix: gateway runtime endpoints are healthy", asy
 });
 
 runLiveTest(
-  "live dependency matrix: business readiness and optional authenticated surfaces",
+  "live dependency matrix: optional authenticated surfaces",
   async (t) => {
     const gatewayUrlRaw = resolveGatewayUrl();
-    const businessUrlRaw = resolveBusinessUrl();
-    const businessUrl = businessUrlRaw ? normalizeBaseUrl(businessUrlRaw) : "";
     const gatewayUrl = normalizeBaseUrl(gatewayUrlRaw);
     const sessionCookie = optionalEnv("MAPLE_LIVE_SESSION_COOKIE");
-
-    if (businessUrl) {
-      let ready;
-      try {
-        ready = await fetchJson(`${businessUrl}/ready`, {
-          headers: { accept: "application/json" },
-        });
-      } catch (error) {
-        const message = `Business live endpoint unreachable (${businessUrl}): ${connectionErrorMessage(error)}`;
-        if (LIVE_MATRIX_STRICT) {
-          assert.fail(message);
-        }
-        t.diagnostic(message);
-        ready = null;
-      }
-      if (ready) {
-        assert.equal([200, 503].includes(ready.response.status), true);
-        assert.equal(typeof ready.payload.ready, "boolean");
-      }
-
-      const health = await fetchJson(`${businessUrl}/health`, {
-        headers: { accept: "application/json" },
-      }).catch((error) => {
-        const message = `Business health endpoint unreachable (${businessUrl}): ${connectionErrorMessage(error)}`;
-        if (LIVE_MATRIX_STRICT) {
-          assert.fail(message);
-        }
-        t.diagnostic(message);
-        return null;
-      });
-      if (health) {
-        assert.equal(health.response.status, 200);
-        assert.equal(health.payload.status, "ok");
-      }
-    } else {
-      t.diagnostic(
-        "No business URL configured. Set MAPLE_LIVE_BUSINESS_URL for direct business readiness checks."
-      );
-    }
 
     const headers = {
       accept: "application/json",

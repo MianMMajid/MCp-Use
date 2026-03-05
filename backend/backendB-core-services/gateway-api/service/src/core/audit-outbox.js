@@ -330,11 +330,16 @@ export function startAuditOutboxWorker(options = {}) {
 }
 
 /**
- * Stop the outbox flush worker.
+ * Stop the outbox flush worker, flushing pending events first.
  */
-export function stopAuditOutboxWorker() {
+export async function stopAuditOutboxWorker() {
   if (_flushTimer) {
     clearInterval(_flushTimer);
     _flushTimer = null;
+  }
+  try {
+    await flushOutbox();
+  } catch {
+    // best effort on shutdown
   }
 }

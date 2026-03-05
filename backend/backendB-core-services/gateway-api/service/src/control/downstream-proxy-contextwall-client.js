@@ -64,7 +64,7 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
         const tenantId = ctx?.tenantId ?? gatewayRequestContext.tenantId;
         const recordMediatedToolCall = (status) => {
             const latencyMs = Date.now() - startedAt;
-            for (const service of ["mcp-proxy", "tool-runner", "cyber-proxy"]) {
+            for (const service of ["mcp-proxy", "cyber-proxy"]) {
                 recordServiceCall({
                     caller: "gateway-api",
                     service,

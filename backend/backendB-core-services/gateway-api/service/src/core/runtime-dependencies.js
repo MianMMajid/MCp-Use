@@ -1,15 +1,8 @@
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { access, constants } from "node:fs/promises";
 import net from "node:net";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
 import { loadGrpcTlsConfig } from "@maple/common";
 import { grpcUnary } from "../grpc-clients.js";
 import {
-  businessApiBaseUrl,
-  businessApiProxyCaPath,
-  businessApiProxyCertPath,
-  businessApiProxyKeyPath,
-  businessApiRequired,
   cyberProxyAddress,
   gatewayTlsCaPath,
   gatewayTlsCertPath,
@@ -18,7 +11,6 @@ import {
   mcpProxyAddress,
   openclawAgentRequired,
   stripeSecretKey,
-  toolRunnerAddress,
 } from "../config.js";
 import { getGrpcClients } from "../state.js";
 import { getOpenClawRuntimeStatus } from "./openclaw-agent-runtime.js";
@@ -67,9 +59,9 @@ function resolveFeatureRequired(rawEnvName, defaultValue) {
   return parseBooleanEnv(process.env[rawEnvName], defaultValue);
 }
 
-function checkReadableFile(pathname) {
+async function checkReadableFile(pathname) {
   try {
-    accessSync(pathname, constants.R_OK);
+    await access(pathname, constants.R_OK);
     return { ok: true };
   } catch (error) {
     return {
@@ -112,98 +104,6 @@ async function checkGrpcCall(client, method, request) {
   }
 }
 
-function loadOptionalPem(pathname) {
-  if (!pathname) {
-    return undefined;
-  }
-  if (!existsSync(pathname)) {
-    return undefined;
-  }
-  return readFileSync(pathname);
-}
-
-function resolveBusinessApiReadyUrl(baseUrl) {
-  const normalized = String(baseUrl ?? "").trim();
-  if (!normalized) {
-    return undefined;
-  }
-  const suffix = normalized.endsWith("/") ? "" : "/";
-  return `${normalized}${suffix}ready`;
-}
-
-async function checkBusinessApi(baseUrl) {
-  const readyUrl = resolveBusinessApiReadyUrl(baseUrl);
-  if (!readyUrl) {
-    return {
-      ok: false,
-      reason: "MAPLE_BUSINESS_API_BASE_URL is not configured.",
-    };
-  }
-
-  const url = new URL(readyUrl);
-  const isHttps = url.protocol === "https:";
-  const requestFn = isHttps ? httpsRequest : httpRequest;
-
-  try {
-    const tlsOptions =
-      isHttps
-        ? {
-            ca: loadOptionalPem(businessApiProxyCaPath),
-            cert: loadOptionalPem(businessApiProxyCertPath),
-            key: loadOptionalPem(businessApiProxyKeyPath),
-            rejectUnauthorized: true,
-          }
-        : {};
-    const response = await withTimeout(
-      new Promise((resolve, reject) => {
-        const request = requestFn(
-          {
-            protocol: url.protocol,
-            hostname: url.hostname,
-            port: url.port || (isHttps ? 443 : 80),
-            method: "GET",
-            path: url.pathname + url.search,
-            timeout: 2_000,
-            ...tlsOptions,
-          },
-          (res) => {
-            let body = "";
-            res.setEncoding("utf8");
-            res.on("data", (chunk) => {
-              body += chunk;
-            });
-            res.on("end", () => {
-              resolve({
-                statusCode: res.statusCode ?? 502,
-                body,
-              });
-            });
-          }
-        );
-        request.on("error", reject);
-        request.on("timeout", () => {
-          request.destroy(new Error("Business API readiness probe timed out."));
-        });
-        request.end();
-      }),
-      2_500,
-      "Business API readiness probe timed out."
-    );
-    const isOkStatus = response.statusCode >= 200 && response.statusCode < 300;
-    if (!isOkStatus) {
-      return {
-        ok: false,
-        reason: `Business API ready probe returned HTTP ${response.statusCode}.`,
-      };
-    }
-    return { ok: true };
-  } catch (error) {
-    return {
-      ok: false,
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
 
 function checkTcpAddress(address) {
   return new Promise((resolve) => {
@@ -276,25 +176,17 @@ function capabilityFromDependencies(name, requiredDeps, checkMap) {
 
 function resolveGoogleAuthCapability(checkMap) {
   const googleConfigured = checkMap.get("config.google_client_id")?.ok === true;
-  const businessApiReady = checkMap.get("http.business_api")?.ok === true;
-  const enabled = googleConfigured || businessApiReady;
-  let reason = "ok";
-  if (!enabled) {
-    reason =
-      "Google auth unavailable: configure GOOGLE_CLIENT_ID or enable business-api reachability.";
-  }
   return {
-    enabled,
-    reason,
+    enabled: googleConfigured,
+    reason: googleConfigured
+      ? "ok"
+      : "Google auth unavailable: configure GOOGLE_CLIENT_ID.",
     requiredDeps: ["config.google_client_id"],
   };
 }
 
 export function buildFeatureCapabilitiesFromDependencyReport(report) {
   const checkMap = new Map(report.checks.map((check) => [check.id, check]));
-  const businessApiCheck = checkMap.get("http.business_api");
-  const businessApiRequired = businessApiCheck?.required === true;
-  const businessApiReady = businessApiCheck?.ok === true;
   const features = {
     openclawAgent: capabilityFromDependencies(
       "openclawAgent",
@@ -316,7 +208,6 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       [
         "grpc.context_wall",
         "grpc.mcp_proxy",
-        "grpc.tool_runner",
         "grpc.cyber_proxy",
       ],
       checkMap
@@ -327,33 +218,24 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       requiredDeps: [],
     },
     authSession: {
-      enabled: businessApiRequired ? businessApiReady : true,
-      reason:
-        businessApiRequired && !businessApiReady
-          ? businessApiCheck?.reason ?? "Business API unavailable."
-          : "ok",
-      requiredDeps: businessApiRequired ? ["http.business_api"] : [],
+      enabled: true,
+      reason: "ok",
+      requiredDeps: [],
     },
     billing: {
-      enabled: businessApiReady,
-      reason: businessApiReady
-        ? "ok"
-        : businessApiCheck?.reason ?? "Business API unavailable.",
-      requiredDeps: ["http.business_api"],
+      enabled: true,
+      reason: "ok",
+      requiredDeps: [],
     },
     orgRbac: {
-      enabled: businessApiReady,
-      reason: businessApiReady
-        ? "ok"
-        : businessApiCheck?.reason ?? "Business API unavailable.",
-      requiredDeps: ["http.business_api"],
+      enabled: true,
+      reason: "ok",
+      requiredDeps: [],
     },
     integrations: {
-      enabled: businessApiReady,
-      reason: businessApiReady
-        ? "ok"
-        : businessApiCheck?.reason ?? "Business API unavailable.",
-      requiredDeps: ["http.business_api"],
+      enabled: true,
+      reason: "ok",
+      requiredDeps: [],
     },
     googleAuth: resolveGoogleAuthCapability(checkMap),
   };
@@ -388,12 +270,7 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
     "MAPLE_DEP_REQUIRE_CONTEXT_WALL",
     strict
   );
-  const requireBusinessApi = resolveFeatureRequired(
-    "MAPLE_DEP_REQUIRE_BUSINESS_API",
-    strict || businessApiRequired
-  );
   const requireMcpProxy = resolveFeatureRequired("MAPLE_DEP_REQUIRE_MCP_PROXY", strict);
-  const requireToolRunner = resolveFeatureRequired("MAPLE_DEP_REQUIRE_TOOL_RUNNER", strict);
   const requireCyberProxy = resolveFeatureRequired("MAPLE_DEP_REQUIRE_CYBER_PROXY", strict);
   const requireStripe = resolveFeatureRequired("MAPLE_DEP_REQUIRE_STRIPE", strict);
   const requireGoogle = resolveFeatureRequired("MAPLE_DEP_REQUIRE_GOOGLE_AUTH", strict);
@@ -403,7 +280,7 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
       "tls.gateway_cert",
       "Gateway TLS certificate",
       strict,
-      checkReadableFile(gatewayTlsCertPath)
+      await checkReadableFile(gatewayTlsCertPath)
     )
   );
   checks.push(
@@ -411,7 +288,7 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
       "tls.gateway_key",
       "Gateway TLS private key",
       strict,
-      checkReadableFile(gatewayTlsKeyPath)
+      await checkReadableFile(gatewayTlsKeyPath)
     )
   );
   checks.push(
@@ -419,7 +296,7 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
       "tls.gateway_ca",
       "Gateway TLS CA",
       strict,
-      checkReadableFile(gatewayTlsCaPath)
+      await checkReadableFile(gatewayTlsCaPath)
     )
   );
   checks.push(
@@ -430,9 +307,9 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
       grpcTlsConfig
         ? {
             ok:
-              checkReadableFile(grpcTlsConfig.certPath).ok &&
-              checkReadableFile(grpcTlsConfig.keyPath).ok &&
-              checkReadableFile(grpcTlsConfig.caPath).ok,
+              (await checkReadableFile(grpcTlsConfig.certPath)).ok &&
+              (await checkReadableFile(grpcTlsConfig.keyPath)).ok &&
+              (await checkReadableFile(grpcTlsConfig.caPath)).ok,
             reason: "ok",
           }
         : {
@@ -477,29 +354,12 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
   );
   checks.push(
     buildCheckRecord(
-      "grpc.tool_runner",
-      "Tool-runner TCP reachability",
-      requireToolRunner,
-      await checkTcpAddress(String(process.env.TOOL_RUNNER_ADDRESS ?? toolRunnerAddress).trim())
-    )
-  );
-  checks.push(
-    buildCheckRecord(
       "grpc.cyber_proxy",
       "Cyber-proxy TCP reachability",
       requireCyberProxy,
       await checkTcpAddress(String(process.env.CYBER_PROXY_ADDRESS ?? cyberProxyAddress).trim())
     )
   );
-  checks.push(
-    buildCheckRecord(
-      "http.business_api",
-      "Business API readiness",
-      requireBusinessApi,
-      await checkBusinessApi(businessApiBaseUrl)
-    )
-  );
-
   checks.push(
     buildCheckRecord(
       "config.stripe",

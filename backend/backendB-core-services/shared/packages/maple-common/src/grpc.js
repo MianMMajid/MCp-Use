@@ -3,6 +3,32 @@ import * as protoLoader from "@grpc/proto-loader";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { mapleLog } from "./logging.js";
+
+export const DEFAULT_GRPC_CHANNEL_OPTIONS = {
+  'grpc.keepalive_time_ms': 30000,
+  'grpc.keepalive_timeout_ms': 10000,
+  'grpc.keepalive_permit_without_calls': 1,
+  'grpc.max_send_message_length': 10 * 1024 * 1024,
+  'grpc.max_receive_message_length': 10 * 1024 * 1024,
+  'grpc.max_concurrent_streams': 100,
+  'grpc.initial_reconnect_backoff_ms': 1000,
+  'grpc.max_reconnect_backoff_ms': 10000,
+  'grpc.dns_min_time_between_resolutions_ms': 30000,
+  'grpc.default_compression_algorithm': 2,
+  'grpc.enable_retries': 1,
+  'grpc.service_config': JSON.stringify({
+    loadBalancingConfig: [{ round_robin: {} }],
+  }),
+};
+
+export const DEFAULT_GRPC_SERVER_OPTIONS = {
+  'grpc.keepalive_time_ms': 30000,
+  'grpc.keepalive_timeout_ms': 10000,
+  'grpc.keepalive_permit_without_calls': 1,
+  'grpc.max_send_message_length': 10 * 1024 * 1024,
+  'grpc.max_receive_message_length': 10 * 1024 * 1024,
+  'grpc.max_concurrent_streams': 100,
+};
 /**
  * Load TLS config from MAPLE_GRPC_TLS_CERT, MAPLE_GRPC_TLS_KEY, MAPLE_GRPC_TLS_CA env vars.
  * Returns null if any are unset.
@@ -63,7 +89,7 @@ export function createGrpcServerCredentials(tlsConfig) {
 /**
  * Centralized gRPC client factory with optional TLS support.
  */
-export function loadServiceClientSecure(protoFile, servicePath, address, protoRoot, tlsConfig) {
+export function loadServiceClientSecure(protoFile, servicePath, address, protoRoot, tlsConfig, channelOptions = {}) {
     const protoPath = resolve(protoRoot, protoFile);
     const packageDefinition = protoLoader.loadSync(protoPath, {
         keepCase: false, longs: String, enums: String, defaults: true, oneofs: true,
@@ -75,7 +101,7 @@ export function loadServiceClientSecure(protoFile, servicePath, address, protoRo
     for (const part of parts)
         service = service[part];
     const credentials = createGrpcClientCredentials(tlsConfig);
-    return new service(address, credentials);
+    return new service(address, credentials, { ...DEFAULT_GRPC_CHANNEL_OPTIONS, ...channelOptions });
 }
 export async function startGrpcServer(server, options) {
     const { port, host = "0.0.0.0", serviceName } = options;
@@ -93,9 +119,12 @@ export async function startGrpcServer(server, options) {
         });
     });
 }
-export function createGrpcChannel(address) {
+export function createGrpcChannel(address, channelOptions = {}) {
     const credentials = createGrpcClientCredentials(loadGrpcTlsConfig());
-    return new grpc.Channel(address, credentials, {});
+    return new grpc.Channel(address, credentials, { ...DEFAULT_GRPC_CHANNEL_OPTIONS, ...channelOptions });
+}
+export function createGrpcServer(options = {}) {
+    return new grpc.Server({ ...DEFAULT_GRPC_SERVER_OPTIONS, ...options });
 }
 export function requireEnv(key) {
     const value = process.env[key]?.trim();

@@ -40,7 +40,7 @@ if rg -n --no-heading --color=never '@maple/(common|persistence|security)/src/' 
   fail "Found direct shared-package deep source import (@maple/*/src/...)."
 fi
 
-RETIRED_SERVICES_REGEX='model-router|secrets-broker'
+RETIRED_SERVICES_REGEX='model-router|secrets-broker|tool-runner|admin-console-api|business-api'
 REQUIRED_RUNTIME_FILES=(
   "$ROOT_DIR/backend/backendA-platform-infra/scripts/service-mesh-manifest.mjs"
   "$ROOT_DIR/backend/backendA-platform-infra/k8s/deployment.yaml"

@@ -329,29 +329,7 @@ if (!snapshot || typeof snapshot !== "object") {
 const callsByService = snapshot.callsByService && typeof snapshot.callsByService === "object"
   ? snapshot.callsByService
   : {};
-const existing = callsByService["admin-console-api"] || {};
-const currentTotal = Number(existing.total ?? existing.count ?? 0);
-callsByService["admin-console-api"] = {
-  total: Math.max(1, currentTotal),
-  ok: Number(existing.ok ?? 0) > 0 ? Number(existing.ok) : 1,
-  error: Number(existing.error ?? 0),
-};
 snapshot.callsByService = callsByService;
-
-const events = Array.isArray(snapshot.events) ? snapshot.events : [];
-events.push({
-  eventType: "service_utilization_evidence",
-  timestamp: new Date().toISOString(),
-  routeId: "k8s.admin-console-health",
-  service: "admin-console-api",
-  operation: "health_probe",
-  traceId: "",
-  tenantId: "",
-  status: "ok",
-  latencyMs: 0,
-  caller: "k8s-validation",
-});
-snapshot.events = events;
 
 const nextPayload = payload && typeof payload.snapshot === "object"
   ? { ...payload, snapshot }

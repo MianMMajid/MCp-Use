@@ -110,14 +110,11 @@ test("frontend template surfaces include required API endpoint references", () =
   }
 });
 
-test("required user journeys resolve to real gateway/business API handlers", () => {
+test("required user journeys resolve to real gateway API handlers", () => {
   const gatewayRouteFiles = collectTextFiles(
     resolve(REPO_ROOT, "backend/backendB-core-services/gateway-api/service/src/routes")
   );
-  const businessRouteFiles = collectTextFiles(
-    resolve(REPO_ROOT, "backend/backendC-saas-services/business-api/service/src/routes")
-  );
-  const sources = [...gatewayRouteFiles, ...businessRouteFiles].map((path) =>
+  const sources = gatewayRouteFiles.map((path) =>
     readFileSync(path, "utf8")
   );
 

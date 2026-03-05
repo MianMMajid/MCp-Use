@@ -6,6 +6,12 @@ import { registerAgentManagementRoutes } from "./agent-management-routes.js";
 import { registerSearchRoutes } from "./search-routes.js";
 import { registerNotificationRoutes } from "./notification-routes.js";
 import { registerOrchestrationRoutes } from "./orchestration-routes.js";
+import { registerAdminConsoleRoutes } from "./admin-console-routes.js";
+import { createAdminStaticRoutes } from "./admin-static-routes.js";
+import { registerIntegrationRoutes } from "./integration-routes.js";
+import { database } from "../state.js";
+import { emitAuditEvent } from "../audit-emitter.js";
+import { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin } from "../config.js";
 
 const SIDE_EFFECT_ROUTE_MODULES = [
   "../middleware.js",
@@ -43,4 +49,11 @@ export async function registerGatewayRoutes(app) {
   registerSearchRoutes(app);
   registerNotificationRoutes(app);
   registerOrchestrationRoutes(app);
+
+  // Admin console routes (merged from admin-console-api)
+  registerAdminConsoleRoutes(app, { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin });
+  app.route("/", createAdminStaticRoutes());
+
+  // Integration routes (merged from business-api)
+  registerIntegrationRoutes(app, { database, auditEmitter: emitAuditEvent });
 }

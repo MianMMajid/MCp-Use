@@ -7,6 +7,7 @@ process.env.MAPLE_LOG_REQUESTS = process.env.MAPLE_LOG_REQUESTS || "0";
 process.env.MAPLE_LOG_INCLUDE_BODIES = process.env.MAPLE_LOG_INCLUDE_BODIES || "0";
 process.env.MAPLE_LOG_BODY_MAX_CHARS = process.env.MAPLE_LOG_BODY_MAX_CHARS || "4000";
 process.env.NODE_ENV = process.env.NODE_ENV || "test";
+process.env.MAPLE_FIREWALL_LOG_DIR = process.env.MAPLE_FIREWALL_LOG_DIR || "/tmp/maple-firewall-logs";
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder";
 process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "whsec_test";
 process.env.STRIPE_PRICE_PRO = process.env.STRIPE_PRICE_PRO || "price_pro";
@@ -92,18 +93,9 @@ process.env.MAPLE_GATEWAY_TLS_KEY = process.env.MAPLE_GATEWAY_TLS_KEY || "/etc/m
 process.env.MAPLE_GATEWAY_TLS_CA = process.env.MAPLE_GATEWAY_TLS_CA || "/etc/maple/gateway-tls/ca.crt";
 process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://maple:maple@127.0.0.1:5432/maple_test";
 process.env.CONTEXT_WALL_ADDRESS = process.env.CONTEXT_WALL_ADDRESS || "localhost:9000";
-process.env.MODEL_ROUTER_ADDRESS = process.env.MODEL_ROUTER_ADDRESS || "localhost:9100";
 process.env.MCP_PROXY_ADDRESS = process.env.MCP_PROXY_ADDRESS || "localhost:9200";
-process.env.TOOL_RUNNER_ADDRESS = process.env.TOOL_RUNNER_ADDRESS || "localhost:9250";
 process.env.CYBER_PROXY_ADDRESS = process.env.CYBER_PROXY_ADDRESS || "localhost:8080";
-process.env.SECRETS_BROKER_ADDRESS = process.env.SECRETS_BROKER_ADDRESS || "localhost:9300";
 process.env.AUDIT_WRITER_ADDRESS = process.env.AUDIT_WRITER_ADDRESS || "localhost:9400";
-process.env.MAPLE_BUSINESS_API_BASE_URL = process.env.MAPLE_BUSINESS_API_BASE_URL || "http://localhost:9550";
-process.env.MAPLE_BUSINESS_API_REQUIRED = process.env.MAPLE_BUSINESS_API_REQUIRED || "0";
-process.env.MAPLE_BUSINESS_API_CA = process.env.MAPLE_BUSINESS_API_CA || "/etc/maple/tls/ca.crt";
-process.env.MAPLE_BUSINESS_API_CERT = process.env.MAPLE_BUSINESS_API_CERT || "/etc/maple/gateway-tls/tls.crt";
-process.env.MAPLE_BUSINESS_API_KEY = process.env.MAPLE_BUSINESS_API_KEY || "/etc/maple/gateway-tls/tls.key";
-process.env.MAPLE_BUSINESS_API_TIMEOUT_MS = process.env.MAPLE_BUSINESS_API_TIMEOUT_MS || "3000";
 process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 process.env.MCP_URL = process.env.MCP_URL || "http://localhost:3000";
 
@@ -114,7 +106,6 @@ test("gateway-api config requires all env vars and loads successfully", async ()
   assert.equal(typeof module.gatewayHost, "string");
   assert.equal(typeof module.contextWallAddress, "string");
   assert.equal(typeof module.mcpProxyAddress, "string");
-  assert.equal(typeof module.toolRunnerAddress, "string");
   assert.equal(typeof module.cyberProxyAddress, "string");
   assert.equal(typeof module.databaseUrl, "string");
 });

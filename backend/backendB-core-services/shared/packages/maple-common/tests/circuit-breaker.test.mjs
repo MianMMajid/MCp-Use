@@ -1,7 +1,13 @@
+// Env setup before imports — @maple/common logging.js requires MAPLE_LOG_LEVEL
+process.env.MAPLE_LOG_LEVEL = process.env.MAPLE_LOG_LEVEL || "error";
+process.env.MAPLE_LOG_REQUESTS = process.env.MAPLE_LOG_REQUESTS || "0";
+process.env.MAPLE_LOG_INCLUDE_BODIES = process.env.MAPLE_LOG_INCLUDE_BODIES || "0";
+process.env.MAPLE_LOG_BODY_MAX_CHARS = process.env.MAPLE_LOG_BODY_MAX_CHARS || "4000";
+
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CircuitBreaker } from "../src/circuit-breaker.js";
+const { CircuitBreaker } = await import("../src/circuit-breaker.js");
 
 test("CircuitBreaker: starts in closed state", () => {
   const cb = new CircuitBreaker("test-1");

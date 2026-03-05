@@ -2,7 +2,7 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
-import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecure, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII } from "@maple/security";
 import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
 import { generateOpenAI } from "./providers/openai.js";
@@ -34,9 +34,10 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let modelRouterClient;
 let mcpProxyClient;
 let auditWriterClient;
+const mcpProxyBreaker = new CircuitBreaker("context-wall->mcp-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
+const auditWriterBreaker = new CircuitBreaker("context-wall->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
 function closeGrpcClient(client) {
     if (!client || typeof client.close !== "function") {
         return;
@@ -47,18 +48,6 @@ function closeGrpcClient(client) {
     catch {
         // best effort
     }
-}
-function getModelRouter() {
-    if (config.modelRouterRetired) {
-        throw new Error("model-router has been retired. Replacement: context-wall local provider routing");
-    }
-    if (!String(config.modelRouterAddress || "").trim()) {
-        throw new Error("model-router address not configured. Replacement: context-wall local provider routing");
-    }
-    if (!modelRouterClient) {
-        modelRouterClient = loadServiceClient("maple/model/v1/model_router.proto", "maple.model.v1.ModelRouterService", config.modelRouterAddress);
-    }
-    return modelRouterClient;
 }
 function getMcpProxy() {
     if (!mcpProxyClient) {
@@ -182,31 +171,18 @@ async function generateViaLocalProviders(request) {
     throw new Error(`Local provider routing failed: ${reason}`);
 }
 async function generateChatModelResponse(request) {
-    if (config.modelRouterRetired) {
-        return generateViaLocalProviders(request);
-    }
-    try {
-        return await grpcUnary(getModelRouter(), "generate", request);
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!config.modelRouterRetired) {
-            throw err;
-        }
-        throw new Error(`Model router path failed after retirement: ${message}`);
-    }
+    // model-router has been retired; always use local provider routing.
+    return generateViaLocalProviders(request);
 }
 export function closeContextWallClients() {
-    closeGrpcClient(modelRouterClient);
     closeGrpcClient(mcpProxyClient);
     closeGrpcClient(auditWriterClient);
-    modelRouterClient = undefined;
     mcpProxyClient = undefined;
     auditWriterClient = undefined;
 }
 function emitAuditEvent(opts) {
     try {
-        grpcUnary(getAuditWriter(), "appendEvent", {
+        auditWriterBreaker.execute(() => grpcUnary(getAuditWriter(), "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -217,9 +193,7 @@ function emitAuditEvent(opts) {
                 severity: opts.severity ?? "RISK_SEVERITY_LOW",
                 summary: opts.summary,
             },
-        }).catch((err) => {
-            mapleLog("warn", "context_wall_audit_emit_failed", { error: err.message });
-        });
+        })).catch(() => {});
     }
     catch {
         // fire-and-forget
@@ -480,7 +454,7 @@ async function loadOrchestrationToolsFromMcpProxy() {
     if (orchestrationToolsCache && orchestrationToolsCache.expiresAt > Date.now()) {
         return orchestrationToolsCache.tools;
     }
-    const response = await grpcUnary(getMcpProxy(), "listTools", { appId: "" });
+    const response = await mcpProxyBreaker.execute(() => grpcUnary(getMcpProxy(), "listTools", { appId: "" }));
     const rawTools = Array.isArray(response?.tools) ? response.tools : [];
     const seenNames = new Set();
     const tools = [];
@@ -506,7 +480,7 @@ async function loadOrchestrationToolsFromMcpProxy() {
 }
 export function createContextWallService(approvalQueue, policyStore) {
     const getExternalRules = () => policyStore?.getExternalRules();
-    const server = new grpc.Server();
+    const server = createGrpcServer();
     const executeToolWithPolicyInternal = async (request) => {
         const normalizedContext = normalizeRequestContext(request.context);
         const appId = String(request.appId || "");
@@ -640,7 +614,7 @@ export function createContextWallService(approvalQueue, policyStore) {
         const requestedScope = request.scope;
         const derivedScope = deriveScopeFromArguments(parsedArgs);
         const mergedScope = requestedScope ?? derivedScope;
-        const response = await grpcUnary(getMcpProxy(), "executeTool", {
+        const response = await mcpProxyBreaker.execute(() => grpcUnary(getMcpProxy(), "executeTool", {
             context: normalizedContext,
             appId,
             toolName,
@@ -654,7 +628,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 maxBytes: mergedScope.maxBytes ?? 0,
                 allowFileDownload: Boolean(mergedScope.allowFileDownload),
             } : undefined,
-        });
+        }));
         emitAuditEvent({
             eventType: response?.success ? "AUDIT_EVENT_TYPE_TOOL_COMPLETED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",
             summary: `Tool ${appId}.${toolName} executed via context-wall`,
@@ -1230,12 +1204,12 @@ export function createContextWallService(approvalQueue, policyStore) {
                     });
                     return;
                 }
-                const response = await grpcUnary(getMcpProxy(), "forwardJsonRpc", {
+                const response = await mcpProxyBreaker.execute(() => grpcUnary(getMcpProxy(), "forwardJsonRpc", {
                     context: requestContext,
                     appId,
                     payloadJson: Buffer.from(JSON.stringify(payload)),
                     targetUrl,
-                });
+                }));
                 emitAuditEvent({
                     eventType: response?.success ? "AUDIT_EVENT_TYPE_POLICY_EVALUATED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",
                     summary: `JSON-RPC forward ${appId} ${response?.success ? "completed" : "failed"}`,

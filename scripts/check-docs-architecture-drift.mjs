@@ -78,11 +78,7 @@ function servicePathsFromCatalog() {
       if (archivePath) archived.push(archivePath);
       continue;
     }
-    if (service === "business-api") {
-      active.push("backend/backendC-saas-services/business-api");
-    } else {
-      active.push(`backend/backendB-core-services/${service}`);
-    }
+    active.push(`backend/backendB-core-services/${service}`);
   }
   return { active: [...new Set(active)], archived: [...new Set(archived)] };
 }

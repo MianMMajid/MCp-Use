@@ -4,6 +4,14 @@ import { loadDownstreamAppsFromEnv, } from "./control/downstream-proxy.js";
 import { loadApiKeysFromEnv } from "@maple/security";
 import { requireEnv, requireEnvPort } from "@maple/common";
 
+function loadAdminApiKeys(env = process.env) {
+    return loadApiKeysFromEnv({
+        ...env,
+        MAPLE_API_KEY: env.MAPLE_ADMIN_API_KEY ?? env.MAPLE_API_KEY,
+        MAPLE_API_KEYS: env.MAPLE_ADMIN_API_KEYS ?? env.MAPLE_API_KEYS,
+    });
+}
+
 function requireEnvBool(key) {
     const raw = requireEnv(key).toLowerCase();
     if (raw === "1" || raw === "true" || raw === "yes") return true;
@@ -199,20 +207,33 @@ export const gatewayTlsKeyPath = requireEnv("MAPLE_GATEWAY_TLS_KEY");
 export const gatewayTlsCaPath = requireEnv("MAPLE_GATEWAY_TLS_CA");
 export const databaseUrl = requireEnv("DATABASE_URL");
 export const contextWallAddress = requireEnv("CONTEXT_WALL_ADDRESS");
-/** @deprecated Gateway no longer calls model-router directly; all LLM calls route through context-wall */
-export const modelRouterAddress = optionalEnv("MODEL_ROUTER_ADDRESS");
 export const mcpProxyAddress = requireEnv("MCP_PROXY_ADDRESS");
-export const toolRunnerAddress = requireEnv("TOOL_RUNNER_ADDRESS");
 export const cyberProxyAddress = requireEnv("CYBER_PROXY_ADDRESS");
-export const secretsBrokerAddress = optionalEnv("SECRETS_BROKER_ADDRESS");
-export const modelRouterRetired = optionalEnvBool("MAPLE_MODEL_ROUTER_RETIRED", true);
-export const secretsBrokerRetired = optionalEnvBool("MAPLE_SECRETS_BROKER_RETIRED", true);
 export const auditWriterAddress = requireEnv("AUDIT_WRITER_ADDRESS");
-export const businessApiBaseUrl = (process.env.MAPLE_BUSINESS_API_BASE_URL ?? "").trim() || "";
-export const businessApiRequired = requireEnvBool("MAPLE_BUSINESS_API_REQUIRED");
-export const businessApiProxyCaPath = requireEnv("MAPLE_BUSINESS_API_CA");
-export const businessApiProxyCertPath = requireEnv("MAPLE_BUSINESS_API_CERT");
-export const businessApiProxyKeyPath = requireEnv("MAPLE_BUSINESS_API_KEY");
-export const businessApiProxyTimeoutMs = requireEnvInt("MAPLE_BUSINESS_API_TIMEOUT_MS", { min: 250, max: 15000 });
 export const corsOrigin = requireEnv("CORS_ORIGIN");
+// ── Admin console config (merged from admin-console-api) ──────────────────
+export const adminApiKeys = loadAdminApiKeys();
+export const adminAllowNoAuth = optionalEnvBool("MAPLE_ADMIN_ALLOW_NO_AUTH", false);
+export const auditWriterHttpOrigin = optionalEnv("AUDIT_WRITER_HTTP_ORIGIN");
+// ── Recovery config (merged from business-api) ────────────────────────────
+function optionalProvider(key, allowedValues, fallback) {
+    const raw = (process.env[key] ?? "").trim().toLowerCase();
+    if (!raw) return fallback;
+    if (!allowedValues.includes(raw)) return fallback;
+    return raw;
+}
+export const recoveryDeliveryRequired = optionalEnvBool("MAPLE_RECOVERY_DELIVERY_REQUIRED", false);
+export const recoveryEmailProvider = optionalProvider("MAPLE_RECOVERY_EMAIL_PROVIDER", ["none", "sendgrid", "resend"], "none");
+export const recoveryEmailFrom = optionalEnv("MAPLE_RECOVERY_EMAIL_FROM");
+export const recoveryEmailReplyTo = optionalEnv("MAPLE_RECOVERY_EMAIL_REPLY_TO");
+export const recoveryEmailSubjectPrefix = optionalEnv("MAPLE_RECOVERY_EMAIL_SUBJECT_PREFIX", "Maple");
+export const recoveryResetBaseUrl = optionalEnv("MAPLE_RECOVERY_RESET_BASE_URL");
+export const recoveryVerifyBaseUrl = optionalEnv("MAPLE_RECOVERY_VERIFY_BASE_URL");
+export const recoverySendgridApiKey = optionalEnv("SENDGRID_API_KEY");
+export const recoveryResendApiKey = optionalEnv("RESEND_API_KEY");
+export const recoverySmsProvider = optionalProvider("MAPLE_RECOVERY_SMS_PROVIDER", ["none", "twilio"], "none");
+export const recoverySmsTo = optionalEnv("MAPLE_RECOVERY_SMS_TO");
+export const recoverySmsFrom = optionalEnv("MAPLE_RECOVERY_SMS_FROM");
+export const twilioAccountSid = optionalEnv("TWILIO_ACCOUNT_SID");
+export const twilioAuthToken = optionalEnv("TWILIO_AUTH_TOKEN");
 //# sourceMappingURL=config.js.map

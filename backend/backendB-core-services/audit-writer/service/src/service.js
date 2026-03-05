@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
-import { mapleLog } from "@maple/common";
+import { createGrpcServer, mapleLog } from "@maple/common";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const PROTO_PATH = resolve(PROTO_ROOT, "maple/audit/v1/audit_writer.proto");
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
@@ -15,7 +15,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const auditProto = proto.maple.audit.v1;
 export function createAuditWriterService(store) {
-    const server = new grpc.Server();
+    const server = createGrpcServer();
     const serviceImpl = {
         async AppendEvent(call, callback) {
             try {

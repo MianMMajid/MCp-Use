@@ -35,7 +35,7 @@ export function firewallRoutes(clients) {
         try {
             const body = await c.req.json();
             const messages = body.messages || [{ role: "CHAT_ROLE_USER", content: body.message || "" }];
-            const response = await grpcUnary(clients.modelRouter, "Generate", {
+            const response = await grpcUnary(clients.contextWall, "OrchestrateChatRequest", {
                 context: { requestId: c.get("requestId"), sessionId: body.sessionId },
                 messages: messages.map((m) => ({
                     role: m.role === "user" ? "CHAT_ROLE_USER" : m.role === "assistant" ? "CHAT_ROLE_ASSISTANT" : m.role === "system" ? "CHAT_ROLE_SYSTEM" : "CHAT_ROLE_USER",

@@ -43,12 +43,9 @@ const gatewayBaseEnv = {
   DATABASE_URL: "postgresql://maple:maple@127.0.0.1:5432/maple_test",
   MAPLE_DEP_REQUIRE_CONTEXT_WALL: "0",
   MAPLE_DEP_REQUIRE_MCP_PROXY: "0",
-  MAPLE_DEP_REQUIRE_TOOL_RUNNER: "0",
   MAPLE_DEP_REQUIRE_CYBER_PROXY: "0",
-  MAPLE_DEP_REQUIRE_BUSINESS_API: "0",
   MAPLE_DEP_REQUIRE_STRIPE: "0",
   MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "0",
-  MAPLE_DEP_REQUIRE_MODEL_ROUTER: "0",
   // ── gateway-api config requirements ──
   MAPLE_LOG_LEVEL: "error",
   MAPLE_LOG_REQUESTS: "0",
@@ -64,11 +61,8 @@ const gatewayBaseEnv = {
   MAPLE_GRPC_TLS_KEY: "/tmp/maple-test-tls/tls.key",
   MAPLE_GRPC_TLS_CA: "/tmp/maple-test-tls/ca.crt",
   CONTEXT_WALL_ADDRESS: "localhost:9000",
-  MODEL_ROUTER_ADDRESS: "localhost:9100",
   MCP_PROXY_ADDRESS: "localhost:9200",
-  TOOL_RUNNER_ADDRESS: "localhost:9250",
   CYBER_PROXY_ADDRESS: "localhost:8080",
-  SECRETS_BROKER_ADDRESS: "localhost:9300",
   AUDIT_WRITER_ADDRESS: "localhost:9400",
   MAPLE_ALLOW_NO_AUTH: "0",
   MAPLE_ALLOW_BRIDGE_OVERRIDE: "0",
@@ -149,60 +143,9 @@ const gatewayBaseEnv = {
   STRIPE_PRICE_TEAM: "price_team",
   STRIPE_PRICE_ENTERPRISE: "price_enterprise",
   STRIPE_PUBLISHABLE_KEY: "pk_test_placeholder",
-  MAPLE_BUSINESS_API_BASE_URL: "http://localhost:9550",
-  MAPLE_BUSINESS_API_REQUIRED: "0",
-  MAPLE_BUSINESS_API_CA: "/tmp/maple-test-tls/ca.crt",
-  MAPLE_BUSINESS_API_CERT: "/tmp/maple-test-tls/tls.crt",
-  MAPLE_BUSINESS_API_KEY: "/tmp/maple-test-tls/tls.key",
-  MAPLE_BUSINESS_API_TIMEOUT_MS: "3000",
   CORS_ORIGIN: "*",
   MCP_URL: "http://localhost:3000",
   DOWNSTREAM_APPS: "none",
-};
-
-const businessBaseEnv = {
-  NODE_ENV: "production",
-  MAPLE_RUNTIME_STRICT_DEPENDENCIES: "0",
-  DATABASE_URL: "postgresql://maple:maple@127.0.0.1:5432/maple_test",
-  // ── business-api config requirements ──
-  MAPLE_LOG_LEVEL: "error",
-  MAPLE_LOG_REQUESTS: "0",
-  MAPLE_LOG_INCLUDE_BODIES: "0",
-  MAPLE_LOG_BODY_MAX_CHARS: "4000",
-  BUSINESS_API_HOST: "0.0.0.0",
-  BUSINESS_API_PORT: "9550",
-  MAPLE_BUSINESS_API_TLS_CERT: "/tmp/maple-test-tls/tls.crt",
-  MAPLE_BUSINESS_API_TLS_KEY: "/tmp/maple-test-tls/tls.key",
-  MAPLE_BUSINESS_API_TLS_CA: "/tmp/maple-test-tls/ca.crt",
-  MAPLE_BUSINESS_API_MTLS_REQUIRED: "1",
-  MAPLE_BUSINESS_API_SKIP_DB_INIT: "0",
-  MAPLE_ALLOW_NO_AUTH: "0",
-  MAPLE_SESSION_COOKIE_NAME: "maple_session",
-  MAPLE_SESSION_TTL_SECONDS: "604800",
-  MAPLE_AUTH_ALLOW_SELF_SIGNUP: "0",
-  MAPLE_SESSION_OWNER_SCOPE: "auto",
-  GOOGLE_CLIENT_ID: "test-google-client-id",
-  STRIPE_SECRET_KEY: "sk_test_placeholder",
-  STRIPE_WEBHOOK_SECRET: "whsec_test",
-  STRIPE_PRICE_PRO: "price_pro",
-  STRIPE_PRICE_TEAM: "price_team",
-  STRIPE_PRICE_ENTERPRISE: "price_enterprise",
-  AUDIT_WRITER_ADDRESS: "localhost:9400",
-  MAPLE_RECOVERY_DELIVERY_REQUIRED: "0",
-  MAPLE_RECOVERY_EMAIL_PROVIDER: "none",
-  MAPLE_RECOVERY_EMAIL_FROM: "noreply@test.com",
-  MAPLE_RECOVERY_EMAIL_REPLY_TO: "support@test.com",
-  MAPLE_RECOVERY_EMAIL_SUBJECT_PREFIX: "[Maple]",
-  MAPLE_RECOVERY_RESET_BASE_URL: "http://localhost:3000/reset",
-  MAPLE_RECOVERY_VERIFY_BASE_URL: "http://localhost:3000/verify",
-  SENDGRID_API_KEY: "test-sendgrid-key",
-  RESEND_API_KEY: "test-resend-key",
-  MAPLE_RECOVERY_SMS_PROVIDER: "none",
-  MAPLE_RECOVERY_SMS_TO: "+1234567890",
-  MAPLE_RECOVERY_SMS_FROM: "+0987654321",
-  TWILIO_ACCOUNT_SID: "test-twilio-sid",
-  TWILIO_AUTH_TOKEN: "test-twilio-token",
-  MAPLE_DISABLE_AUDIT_EMIT: "1",
 };
 
 test("gateway dependency matrix fails closed when OpenClaw is required and runtime is unavailable", () => {
@@ -233,115 +176,3 @@ test("gateway dependency matrix does not block readiness when OpenClaw is option
   assert.equal(hasFailure(report, "openclaw.runtime"), false);
 });
 
-test("business dependency matrix fails closed when Stripe keys are empty (config.js rejects at load time)", () => {
-  // With requireEnv(), empty Stripe keys cause config.js to throw at load time.
-  // This IS the fail-closed behavior — the process cannot start without valid config.
-  assert.throws(
-    () =>
-      runDependencyReport({
-        modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
-        exportName: "evaluateBusinessRuntimeDependencies",
-        env: {
-          ...businessBaseEnv,
-          MAPLE_DEP_REQUIRE_STRIPE: "1",
-          STRIPE_SECRET_KEY: "",
-          STRIPE_WEBHOOK_SECRET: "",
-          STRIPE_PRICE_PRO: "",
-          STRIPE_PRICE_TEAM: "",
-          STRIPE_PRICE_ENTERPRISE: "",
-        },
-      }),
-    /Missing required environment variable: STRIPE_SECRET_KEY|Dependency report script failed/
-  );
-});
-
-test("business dependency matrix passes when Stripe requirement is met", () => {
-  const report = runDependencyReport({
-    modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
-    exportName: "evaluateBusinessRuntimeDependencies",
-    env: {
-      ...businessBaseEnv,
-      MAPLE_DEP_REQUIRE_STRIPE: "1",
-      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "0",
-      STRIPE_SECRET_KEY: "sk_test_maple",
-      STRIPE_WEBHOOK_SECRET: "whsec_maple",
-      STRIPE_PRICE_PRO: "price_pro",
-      STRIPE_PRICE_TEAM: "price_team",
-      STRIPE_PRICE_ENTERPRISE: "price_enterprise",
-    },
-  });
-
-  assert.equal(report.ready, true);
-  assert.equal(hasFailure(report, "config.stripe"), false);
-});
-
-test("business dependency matrix fails closed when Google client id is empty (config.js rejects at load time)", () => {
-  // With requireEnv(), empty GOOGLE_CLIENT_ID causes config.js to throw at load time.
-  assert.throws(
-    () =>
-      runDependencyReport({
-        modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
-        exportName: "evaluateBusinessRuntimeDependencies",
-        env: {
-          ...businessBaseEnv,
-          MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "1",
-          MAPLE_DEP_REQUIRE_STRIPE: "0",
-          GOOGLE_CLIENT_ID: "",
-        },
-      }),
-    /Missing required environment variable: GOOGLE_CLIENT_ID|Dependency report script failed/
-  );
-});
-
-test("business dependency matrix passes when Google auth requirement is met", () => {
-  const report = runDependencyReport({
-    modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
-    exportName: "evaluateBusinessRuntimeDependencies",
-    env: {
-      ...businessBaseEnv,
-      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "1",
-      MAPLE_DEP_REQUIRE_STRIPE: "0",
-      GOOGLE_CLIENT_ID: "google-client-id.apps.googleusercontent.com",
-    },
-  });
-
-  assert.equal(report.ready, true);
-  assert.equal(hasFailure(report, "config.google_client_id"), false);
-});
-
-test("business dependency matrix fails closed when recovery delivery is required and provider is missing", () => {
-  const report = runDependencyReport({
-    modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
-    exportName: "evaluateBusinessRuntimeDependencies",
-    env: {
-      ...businessBaseEnv,
-      MAPLE_DEP_REQUIRE_RECOVERY_DELIVERY: "1",
-      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "0",
-      MAPLE_DEP_REQUIRE_STRIPE: "0",
-      MAPLE_RECOVERY_EMAIL_PROVIDER: "none",
-      MAPLE_RECOVERY_SMS_PROVIDER: "none",
-    },
-  });
-
-  assert.equal(report.ready, false);
-  assert.equal(hasFailure(report, "config.recovery_delivery"), true);
-});
-
-test("business dependency matrix passes when recovery delivery requirement is met", () => {
-  const report = runDependencyReport({
-    modulePath: "backend/backendC-saas-services/business-api/service/src/runtime-dependencies.js",
-    exportName: "evaluateBusinessRuntimeDependencies",
-    env: {
-      ...businessBaseEnv,
-      MAPLE_DEP_REQUIRE_RECOVERY_DELIVERY: "1",
-      MAPLE_DEP_REQUIRE_GOOGLE_AUTH: "0",
-      MAPLE_DEP_REQUIRE_STRIPE: "0",
-      MAPLE_RECOVERY_EMAIL_PROVIDER: "sendgrid",
-      MAPLE_RECOVERY_EMAIL_FROM: "no-reply@maple.test",
-      SENDGRID_API_KEY: "sg_test_key",
-    },
-  });
-
-  assert.equal(report.ready, true);
-  assert.equal(hasFailure(report, "config.recovery_delivery"), false);
-});

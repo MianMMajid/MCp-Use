@@ -18,13 +18,13 @@ const OTEL_SEVERITY_NUMBER = {
     debug: 5,
     trace: 1,
 };
-export function emitOtelLog(level, envelope) {
-    if (!otelLogsEndpoint) {
-        return;
-    }
-    const redacted = redactForLogs(envelope);
-    const bodyText = typeof redacted === "string" ? redacted : JSON.stringify(redacted);
-    const nowNanos = `${Date.now()}000000`;
+const OTEL_FLUSH_INTERVAL_MS = 2000;
+const OTEL_FLUSH_THRESHOLD = 100;
+const otelLogBuffer = [];
+let otelFlushTimer = null;
+function flushOtelLogBuffer() {
+    if (otelLogBuffer.length === 0) return;
+    const records = otelLogBuffer.splice(0, otelLogBuffer.length);
     const payload = {
         resourceLogs: [
             {
@@ -39,14 +39,7 @@ export function emitOtelLog(level, envelope) {
                 scopeLogs: [
                     {
                         scope: { name: "gateway-api" },
-                        logRecords: [
-                            {
-                                timeUnixNano: nowNanos,
-                                severityNumber: OTEL_SEVERITY_NUMBER[level],
-                                severityText: level.toUpperCase(),
-                                body: { stringValue: bodyText },
-                            },
-                        ],
+                        logRecords: records,
                     },
                 ],
             },
@@ -61,5 +54,32 @@ export function emitOtelLog(level, envelope) {
     }).catch(() => {
         // fire-and-forget
     });
+}
+function scheduleOtelFlush() {
+    if (otelFlushTimer) return;
+    otelFlushTimer = setTimeout(() => {
+        otelFlushTimer = null;
+        flushOtelLogBuffer();
+    }, OTEL_FLUSH_INTERVAL_MS);
+    if (otelFlushTimer.unref) otelFlushTimer.unref();
+}
+export function emitOtelLog(level, envelope) {
+    if (!otelLogsEndpoint) {
+        return;
+    }
+    const redacted = redactForLogs(envelope);
+    const bodyText = typeof redacted === "string" ? redacted : JSON.stringify(redacted);
+    const nowNanos = `${Date.now()}000000`;
+    otelLogBuffer.push({
+        timeUnixNano: nowNanos,
+        severityNumber: OTEL_SEVERITY_NUMBER[level],
+        severityText: level.toUpperCase(),
+        body: { stringValue: bodyText },
+    });
+    if (otelLogBuffer.length >= OTEL_FLUSH_THRESHOLD) {
+        flushOtelLogBuffer();
+    } else {
+        scheduleOtelFlush();
+    }
 }
 //# sourceMappingURL=logging-otel.js.map

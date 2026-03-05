@@ -19,6 +19,12 @@ import { mapleLog } from "../logging.js";
 
 const execFileAsync = promisify(execFile);
 
+const MAX_SESSIONS = 1000;
+const MAX_RUNS = 5000;
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const RUN_TTL_MS = 1 * 60 * 60 * 1000; // 1 hour
+const EVICTION_SWEEP_MS = 60_000;
+
 const runtimeState = {
   enabled: openclawAgentEnabled,
   mode: openclawAgentMode,
@@ -36,6 +42,33 @@ let sessionEventSequence = 0;
 const sessionStore = new Map();
 const runStore = new Map();
 const sessionWatchers = new Map();
+
+function evictOldest(store, maxSize) {
+  while (store.size > maxSize) {
+    const firstKey = store.keys().next().value;
+    store.delete(firstKey);
+  }
+}
+
+function sweepExpired() {
+  const now = Date.now();
+  for (const [key, session] of sessionStore) {
+    const updatedMs = Date.parse(session.updatedAt);
+    if (Number.isFinite(updatedMs) && now - updatedMs > SESSION_TTL_MS) {
+      sessionStore.delete(key);
+      sessionWatchers.delete(key);
+    }
+  }
+  for (const [key, run] of runStore) {
+    const updatedMs = Date.parse(run.updatedAt);
+    if (Number.isFinite(updatedMs) && now - updatedMs > RUN_TTL_MS) {
+      runStore.delete(key);
+    }
+  }
+}
+
+const _evictionTimer = setInterval(sweepExpired, EVICTION_SWEEP_MS);
+if (_evictionTimer.unref) _evictionTimer.unref();
 
 function nowIso() {
   return new Date().toISOString();
@@ -77,6 +110,7 @@ function ensureSessionRecord(sessionId) {
     cancelRequested: false,
     events: [],
   };
+  evictOldest(sessionStore, MAX_SESSIONS);
   sessionStore.set(normalizedSessionId, created);
   return created;
 }
@@ -130,6 +164,7 @@ function createRunRecord({ type, sessionId, input, parentRunId }) {
     parentRunId: parentRunId || null,
     childRunIds: [],
   };
+  evictOldest(runStore, MAX_RUNS);
   runStore.set(runId, run);
 
   if (parentRunId) {

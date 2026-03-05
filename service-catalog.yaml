@@ -24,21 +24,22 @@ services:
   - service: admin-console-api
     owner: backendB-core
     tier: operations
-    archiveStatus: active
+    lifecycle: retired
+    archiveStatus: archived
     archivePath: ""
-    required: true
+    required: false
     requiresActiveRouteCoverage: false
     runtimeEvidenceSource: external
     featureAlignment: 95
     criticalFlows:
       - A audit and operations administration
-    replacement: gateway-api
-    decommissionAfter: ""
+    replacement: "gateway-api /admin/api/* routes"
+    decommissionAfter: "2026-03-04T00:00:00Z"
     necessity:
-      criticalPath: 70
-      uniqueCapability: 65
-      complianceSecurity: 80
-      operationalEfficiency: 70
+      criticalPath: 0
+      uniqueCapability: 0
+      complianceSecurity: 0
+      operationalEfficiency: 0
 
   - service: context-wall
     owner: backendB-core
@@ -100,20 +101,21 @@ services:
   - service: tool-runner
     owner: backendB-core
     tier: execution
-    archiveStatus: active
+    lifecycle: retired
+    archiveStatus: archived
     archivePath: ""
-    required: true
+    required: false
     requiresActiveRouteCoverage: false
     featureAlignment: 100
     criticalFlows:
       - Tool execution runtime
-    replacement: ""
-    decommissionAfter: ""
+    replacement: "mcp-proxy inlined tool execution"
+    decommissionAfter: "2026-03-04T00:00:00Z"
     necessity:
-      criticalPath: 80
-      uniqueCapability: 75
-      complianceSecurity: 70
-      operationalEfficiency: 70
+      criticalPath: 0
+      uniqueCapability: 0
+      complianceSecurity: 0
+      operationalEfficiency: 0
 
   - service: cyber-proxy
     owner: backendB-core
@@ -174,17 +176,18 @@ services:
   - service: business-api
     owner: backendC-saas
     tier: business
-    archiveStatus: active
+    lifecycle: retired
+    archiveStatus: archived
     archivePath: ""
-    required: true
-    requiresActiveRouteCoverage: true
+    required: false
+    requiresActiveRouteCoverage: false
     featureAlignment: 100
     criticalFlows:
       - Auth, billing, org, entitlement source of truth
-    replacement: ""
-    decommissionAfter: ""
+    replacement: "gateway-api direct database logic"
+    decommissionAfter: "2026-03-04T00:00:00Z"
     necessity:
-      criticalPath: 95
-      uniqueCapability: 95
-      complianceSecurity: 85
-      operationalEfficiency: 75
+      criticalPath: 0
+      uniqueCapability: 0
+      complianceSecurity: 0
+      operationalEfficiency: 0

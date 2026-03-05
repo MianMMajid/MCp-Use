@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { mapleLog } from "../logging.js";
 
@@ -12,6 +12,10 @@ const serviceLastSeenMs = new Map();
 const serviceEvents = [];
 
 let evidenceFilePrepared = false;
+const evidenceBuffer = [];
+const EVIDENCE_FLUSH_INTERVAL_MS = 2000;
+const EVIDENCE_FLUSH_THRESHOLD = 50;
+let evidenceFlushTimer = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -39,11 +43,32 @@ function serviceEventFilePath() {
   return resolve(process.cwd(), String(raw));
 }
 
-function ensureEvidenceFileReady() {
+async function ensureEvidenceFileReady() {
   if (evidenceFilePrepared) return;
   const filePath = serviceEventFilePath();
-  mkdirSync(dirname(filePath), { recursive: true });
+  await mkdir(dirname(filePath), { recursive: true });
   evidenceFilePrepared = true;
+}
+
+async function flushEvidenceBuffer() {
+  if (evidenceBuffer.length === 0) return;
+  const batch = evidenceBuffer.splice(0, evidenceBuffer.length);
+  try {
+    await ensureEvidenceFileReady();
+    const lines = batch.map((e) => JSON.stringify(e)).join("\n") + "\n";
+    await appendFile(serviceEventFilePath(), lines);
+  } catch {
+    // best effort
+  }
+}
+
+function scheduleEvidenceFlush() {
+  if (evidenceFlushTimer) return;
+  evidenceFlushTimer = setTimeout(() => {
+    evidenceFlushTimer = null;
+    flushEvidenceBuffer();
+  }, EVIDENCE_FLUSH_INTERVAL_MS);
+  if (evidenceFlushTimer.unref) evidenceFlushTimer.unref();
 }
 
 function addToHistogram(summary, latencyMs) {
@@ -98,11 +123,11 @@ function maybeWriteEvidenceEvent(event) {
   if (!asBoolean(process.env.MAPLE_SERVICE_UTILIZATION_EVIDENCE_ENABLED, true)) {
     return;
   }
-  try {
-    ensureEvidenceFileReady();
-    appendFileSync(serviceEventFilePath(), `${JSON.stringify(event)}\n`);
-  } catch {
-    // best effort
+  evidenceBuffer.push(event);
+  if (evidenceBuffer.length >= EVIDENCE_FLUSH_THRESHOLD) {
+    flushEvidenceBuffer();
+  } else {
+    scheduleEvidenceFlush();
   }
 }
 
@@ -155,13 +180,10 @@ function csvToList(rawValue, fallback = []) {
 function defaultRetainedServices() {
   return [
     "gateway-api",
-    "admin-console-api",
     "context-wall",
     "mcp-proxy",
-    "tool-runner",
     "cyber-proxy",
     "audit-writer",
-    "business-api",
   ];
 }
 

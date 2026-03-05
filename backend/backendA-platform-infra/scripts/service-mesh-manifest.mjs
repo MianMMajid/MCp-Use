@@ -1,9 +1,5 @@
 export const SERVICE_MESH_TARGETS = [
   {
-    name: "admin-console-api",
-    servicePath: "backend/backendB-core-services/admin-console-api/service",
-  },
-  {
     name: "audit-writer",
     servicePath: "backend/backendB-core-services/audit-writer/service",
   },
@@ -22,14 +18,6 @@ export const SERVICE_MESH_TARGETS = [
   {
     name: "mcp-proxy",
     servicePath: "backend/backendB-core-services/mcp-proxy/service",
-  },
-  {
-    name: "tool-runner",
-    servicePath: "backend/backendB-core-services/tool-runner/service",
-  },
-  {
-    name: "business-api",
-    servicePath: "backend/backendC-saas-services/business-api/service",
   },
 ];
 

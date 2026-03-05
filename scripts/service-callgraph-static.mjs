@@ -113,19 +113,9 @@ function detectServiceEdges(content, filePath) {
   if (/(clients\??\.\s*auditWriter|appendEvent\(|QueryEvents\()/m.test(content)) {
     addEdge("audit-writer", "direct", "audit-writer client usage");
   }
-  if (/(clients\??\.\s*secretsBroker|getGrpcClients\(\)\?\.\s*secretsBroker)/m.test(content)) {
-    addEdge("secrets-broker", "direct", "secrets-broker client usage");
-  }
-  if (/(proxyBusinessApiRequest|\/api\/business\/|business-api-client)/m.test(content)) {
-    addEdge("business-api", "direct", "business-api proxy usage");
-  }
-  if (/(clients\??\.\s*modelRouter|grpcUnary\(\s*clients\.modelRouter)/m.test(content)) {
-    addEdge("model-router", "direct", "model-router reference");
-  }
   if (/(executeToolWithPolicy|forwardJsonRpcWithPolicy)/m.test(content)) {
     addEdge("context-wall", "direct", "policy-plane mediation calls");
     addEdge("mcp-proxy", "mediated", "context-wall forwards MCP JSON-RPC");
-    addEdge("tool-runner", "mediated", "context-wall tool execution mediation");
     addEdge("cyber-proxy", "mediated", "context-wall cyber guard mediation");
   }
 

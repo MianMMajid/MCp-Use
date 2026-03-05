@@ -13,10 +13,7 @@ spec:
           - context-wall
           - mcp-proxy
           - cyber-proxy
-          - tool-runner
           - audit-writer
-          - admin-console-api
-          - business-api
           - postgres
           - openclaw-gateway
   policyTypes:
@@ -38,10 +35,7 @@ spec:
           - context-wall
           - mcp-proxy
           - cyber-proxy
-          - tool-runner
           - audit-writer
-          - admin-console-api
-          - business-api
           - openclaw-gateway
   policyTypes:
     - Egress
@@ -105,13 +99,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: business-api
-      ports:
-        - protocol: TCP
-          port: 9550
-    - to:
-        - podSelector:
-            matchLabels:
               app: openclaw-gateway
       ports:
         - protocol: TCP
@@ -140,9 +127,6 @@ spec:
         - podSelector:
             matchLabels:
               app: gateway-api
-        - podSelector:
-            matchLabels:
-              app: admin-console-api
       ports:
         - protocol: TCP
           port: 9000
@@ -186,42 +170,6 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              app: tool-runner
-      ports:
-        - protocol: TCP
-          port: 9250
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: tool-runner-network
-  namespace: maple
-spec:
-  podSelector:
-    matchLabels:
-      app: tool-runner
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: mcp-proxy
-      ports:
-        - protocol: TCP
-          port: 9250
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
               app: cyber-proxy
       ports:
         - protocol: TCP
@@ -250,7 +198,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app: tool-runner
+              app: mcp-proxy
       ports:
         - protocol: TCP
           port: 8080
@@ -294,9 +242,6 @@ spec:
                   - context-wall
                   - mcp-proxy
                   - cyber-proxy
-                  - tool-runner
-                  - admin-console-api
-                  - business-api
       ports:
         - protocol: TCP
           port: 9400
@@ -369,96 +314,9 @@ spec:
         - podSelector:
             matchLabels:
               app: audit-writer
-        - podSelector:
-            matchLabels:
-              app: business-api
       ports:
         - protocol: TCP
           port: 5432
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: admin-console-api-network
-  namespace: maple
-spec:
-  podSelector:
-    matchLabels:
-      app: admin-console-api
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 9443
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: context-wall
-      ports:
-        - protocol: TCP
-          port: 9000
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
-    - to:
-        - podSelector:
-            matchLabels:
-              app: gateway-api
-      ports:
-        - protocol: TCP
-          port: 3000
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: business-api-network
-  namespace: maple
-spec:
-  podSelector:
-    matchLabels:
-      app: business-api
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app: gateway-api
-      ports:
-        - protocol: TCP
-          port: 9550
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: postgres
-      ports:
-        - protocol: TCP
-          port: 5432
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -136,6 +136,7 @@ export class MaplePostgresDatabase {
             max: 20,
             idleTimeoutMillis: 30_000,
             connectionTimeoutMillis: 10_000,
+            maxUses: 7500,
             // NOTE: rejectUnauthorized is set to false only for Railway.app deployments
             // and when sslmode=require is explicitly set. This is acceptable for those
             // managed environments. For stricter enforcement in other deployments,
@@ -1046,34 +1047,33 @@ export class MaplePostgresDatabase {
     }
     async appendOrchestrationTimelineEvents(executionId, orchestrationId, events = []) {
         if (!Array.isArray(events) || events.length === 0) return 0;
-        let inserted = 0;
-        for (const event of events) {
-            const eventId = event.id ?? randomUUID();
-            await this.pool.query(
-                `INSERT INTO orchestration_timeline_events (
-                  id,
-                  execution_id,
-                  orchestration_id,
-                  sequence,
-                  event_type,
-                  payload_json,
-                  event_ts
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (id) DO NOTHING`,
-                [
-                    eventId,
-                    executionId,
-                    orchestrationId,
-                    Number(event.sequence ?? 0),
-                    event.eventType ?? event.type ?? "event",
-                    JSON.stringify(event.payload ?? event),
-                    event.timestamp ?? new Date().toISOString(),
-                ]
+        const COLS = 7;
+        const placeholders = [];
+        const params = [];
+        for (let i = 0; i < events.length; i++) {
+            const offset = i * COLS;
+            placeholders.push(
+                `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7})`
             );
-            inserted += 1;
+            const event = events[i];
+            params.push(
+                event.id ?? randomUUID(),
+                executionId,
+                orchestrationId,
+                Number(event.sequence ?? 0),
+                event.eventType ?? event.type ?? "event",
+                JSON.stringify(event.payload ?? event),
+                event.timestamp ?? new Date().toISOString(),
+            );
         }
-        return inserted;
+        await this.pool.query(
+            `INSERT INTO orchestration_timeline_events (
+              id, execution_id, orchestration_id, sequence, event_type, payload_json, event_ts
+            ) VALUES ${placeholders.join(", ")}
+            ON CONFLICT (id) DO NOTHING`,
+            params
+        );
+        return events.length;
     }
     async archiveOrchestration(id) {
         return this.updateOrchestration(id, { status: "archived" });

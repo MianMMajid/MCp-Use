@@ -7,9 +7,11 @@ set -euo pipefail
 # env vars, and starts the service specified by MAPLE_SERVICE.
 #
 # Supported MAPLE_SERVICE values:
-#   gateway-api (default), admin-console-api, context-wall, mcp-proxy,
-#   tool-runner, cyber-proxy, audit-writer, business-api,
+#   gateway-api (default), context-wall, mcp-proxy,
+#   cyber-proxy, audit-writer,
 #   frontendA, frontendB, frontendC
+# Retired (stub only): tool-runner, admin-console-api, business-api,
+#   model-router, secrets-broker
 # ──────────────────────────────────────────────────────────────────────────────
 
 MAPLE_SERVICE="${MAPLE_SERVICE:-gateway-api}"
@@ -132,7 +134,6 @@ export MAPLE_FIREWALL_CHAT_STRICT_MODE="${MAPLE_FIREWALL_CHAT_STRICT_MODE:-false
 # ── gRPC service addresses (overridden per-service in Railway) ───────────────
 export CONTEXT_WALL_ADDRESS="${CONTEXT_WALL_ADDRESS:-localhost:9000}"
 export MCP_PROXY_ADDRESS="${MCP_PROXY_ADDRESS:-localhost:9200}"
-export TOOL_RUNNER_ADDRESS="${TOOL_RUNNER_ADDRESS:-localhost:9250}"
 export CYBER_PROXY_ADDRESS="${CYBER_PROXY_ADDRESS:-localhost:8090}"
 # Note: cyber-proxy defaults to port 8090 to avoid conflict with Railway's PORT (8080)
 export AUDIT_WRITER_ADDRESS="${AUDIT_WRITER_ADDRESS:-localhost:9400}"
@@ -258,15 +259,7 @@ case "${MAPLE_SERVICE}" in
     export STRIPE_PRICE_ENTERPRISE="${STRIPE_PRICE_ENTERPRISE:-price_not_configured}"
     export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-pk_test_not_configured}"
 
-    # Business API (deployed in Railway for topology parity)
-    if [ -z "$(printf '%s' "${MAPLE_BUSINESS_API_BASE_URL:-}" | tr -d '[:space:]')" ]; then
-      export MAPLE_BUSINESS_API_BASE_URL="https://business-api.railway.internal:9550"
-    fi
-    export MAPLE_BUSINESS_API_REQUIRED="${MAPLE_BUSINESS_API_REQUIRED:-true}"
-    export MAPLE_BUSINESS_API_CA="${MAPLE_BUSINESS_API_CA:-${TLS_DIR}/ca.crt}"
-    export MAPLE_BUSINESS_API_CERT="${MAPLE_BUSINESS_API_CERT:-${TLS_DIR}/tls.crt}"
-    export MAPLE_BUSINESS_API_KEY="${MAPLE_BUSINESS_API_KEY:-${TLS_DIR}/tls.key}"
-    export MAPLE_BUSINESS_API_TIMEOUT_MS="${MAPLE_BUSINESS_API_TIMEOUT_MS:-5000}"
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=64 --max-old-space-size=1536}"
 
     echo "[railway-entrypoint] Starting gateway-api on port ${GATEWAY_PORT}..."
     echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."
@@ -276,13 +269,7 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
   admin-console-api)
   # ────────────────────────────────────────────────────────────────────────────
-    export ADMIN_CONSOLE_PORT="${PORT:-${ADMIN_CONSOLE_PORT:-9443}}"
-    export ADMIN_CONSOLE_HOST="${ADMIN_CONSOLE_HOST:-0.0.0.0}"
-    export MAPLE_ADMIN_ALLOW_NO_AUTH="${MAPLE_ADMIN_ALLOW_NO_AUTH:-true}"
-    export GATEWAY_API_URL="${GATEWAY_API_URL:-}"
-
-    echo "[railway-entrypoint] Starting admin-console-api on port ${ADMIN_CONSOLE_PORT}..."
-    exec node backend/backendB-core-services/admin-console-api/service/src/main.js
+    run_retired_service_stub "admin-console-api" "gateway-api /admin/api/* routes"
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -291,6 +278,8 @@ case "${MAPLE_SERVICE}" in
     export CONTEXT_WALL_PORT="${CONTEXT_WALL_PORT:-9000}"
     export CONTEXT_WALL_HOST="${CONTEXT_WALL_HOST:-0.0.0.0}"
     export CONTEXT_WALL_HITL_TIMEOUT_MS="${CONTEXT_WALL_HITL_TIMEOUT_MS:-30000}"
+
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=32 --max-old-space-size=384}"
 
     start_health_sidecar "${PORT:-3000}"
     echo "[railway-entrypoint] Starting context-wall (gRPC=${CONTEXT_WALL_PORT}, health=${PORT:-3000})..."
@@ -308,6 +297,8 @@ case "${MAPLE_SERVICE}" in
     export MAPLE_TOOL_RUNNER_IMAGE="${MAPLE_TOOL_RUNNER_IMAGE:-none}"
     export MAPLE_TOOL_RUNNER_JOB_NAMESPACE="${MAPLE_TOOL_RUNNER_JOB_NAMESPACE:-default}"
 
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=32 --max-old-space-size=384}"
+
     start_health_sidecar "${PORT:-3000}"
     echo "[railway-entrypoint] Starting mcp-proxy (gRPC=${MCP_PROXY_PORT}, health=${PORT:-3000})..."
     exec node backend/backendB-core-services/mcp-proxy/service/src/main.js
@@ -316,12 +307,7 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
   tool-runner)
   # ────────────────────────────────────────────────────────────────────────────
-    export TOOL_RUNNER_PORT="${TOOL_RUNNER_PORT:-9250}"
-    export TOOL_RUNNER_HOST="${TOOL_RUNNER_HOST:-0.0.0.0}"
-
-    start_health_sidecar "${PORT:-3000}"
-    echo "[railway-entrypoint] Starting tool-runner (gRPC=${TOOL_RUNNER_PORT}, health=${PORT:-3000})..."
-    exec node backend/backendB-core-services/tool-runner/service/src/main.js
+    run_retired_service_stub "tool-runner" "mcp-proxy inlined tool execution"
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -335,6 +321,8 @@ case "${MAPLE_SERVICE}" in
     export CYBER_MAX_RESPONSE_BYTES="${CYBER_MAX_RESPONSE_BYTES:-10485760}"
     export CYBER_QUARANTINE_ENABLED="${CYBER_QUARANTINE_ENABLED:-false}"
 
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=32 --max-old-space-size=384}"
+
     start_health_sidecar "${PORT:-3000}"
     echo "[railway-entrypoint] Starting cyber-proxy (gRPC=${CYBER_PROXY_PORT}, health=${PORT:-3000})..."
     exec node backend/backendB-core-services/cyber-proxy/service/src/main.js
@@ -346,6 +334,8 @@ case "${MAPLE_SERVICE}" in
     export AUDIT_WRITER_HTTP_PORT="${AUDIT_WRITER_HTTP_PORT:-9401}"
     export AUDIT_WRITER_HOST="${AUDIT_WRITER_HOST:-0.0.0.0}"
 
+    export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=32 --max-old-space-size=384}"
+
     start_health_sidecar "${PORT:-3000}"
     echo "[railway-entrypoint] Starting audit-writer (gRPC=${AUDIT_WRITER_PORT}, health=${PORT:-3000})..."
     echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."
@@ -355,17 +345,7 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
   business-api)
   # ────────────────────────────────────────────────────────────────────────────
-    export BUSINESS_API_PORT="${PORT:-${BUSINESS_API_PORT:-9550}}"
-    export BUSINESS_API_HOST="${BUSINESS_API_HOST:-0.0.0.0}"
-    export MAPLE_BUSINESS_API_MTLS_REQUIRED="${MAPLE_BUSINESS_API_MTLS_REQUIRED:-true}"
-    export MAPLE_BUSINESS_API_TLS_CERT="${MAPLE_BUSINESS_API_TLS_CERT:-${TLS_DIR}/tls.crt}"
-    export MAPLE_BUSINESS_API_TLS_KEY="${MAPLE_BUSINESS_API_TLS_KEY:-${TLS_DIR}/tls.key}"
-    export MAPLE_BUSINESS_API_TLS_CA="${MAPLE_BUSINESS_API_TLS_CA:-${TLS_DIR}/ca.crt}"
-    export MAPLE_BUSINESS_API_SKIP_DB_INIT="${MAPLE_BUSINESS_API_SKIP_DB_INIT:-false}"
-
-    echo "[railway-entrypoint] Starting business-api on port ${BUSINESS_API_PORT}..."
-    echo "[railway-entrypoint] DB: ${DATABASE_URL%%@*}@..."
-    exec node backend/backendC-saas-services/business-api/service/src/main.js
+    run_retired_service_stub "business-api" "gateway-api direct database logic"
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -432,9 +412,10 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
   *)
     echo "[railway-entrypoint] ERROR: Unknown MAPLE_SERVICE='${MAPLE_SERVICE}'"
-    echo "Valid values: gateway-api, admin-console-api, context-wall,"
-    echo "  mcp-proxy, tool-runner, cyber-proxy, audit-writer, business-api,"
-    echo "  frontendA, frontendB, frontendC, model-router(retired), secrets-broker(retired)"
+    echo "Valid values: gateway-api, context-wall, mcp-proxy, cyber-proxy, audit-writer,"
+    echo "  frontendA, frontendB, frontendC,"
+    echo "  tool-runner(retired), admin-console-api(retired), business-api(retired),"
+    echo "  model-router(retired), secrets-broker(retired)"
     exit 1
     ;;
 esac

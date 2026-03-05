@@ -2,12 +2,13 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecure, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { checkUrl, scanContent } from "./ssrf-guard.js";
 import { config } from "./config.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
 let auditWriterClient;
+const auditWriterBreaker = new CircuitBreaker("cyber-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
 function closeGrpcClient(client) {
     if (!client || typeof client.close !== "function") {
         return;
@@ -26,9 +27,17 @@ function getAuditWriter() {
     return auditWriterClient;
 }
 // ── Lightweight audit event emitter ──────────────────────────────────────────
+function grpcUnaryPromise(client, method, request) {
+    return new Promise((resolve, reject) => {
+        client[method](request, (err, response) => {
+            if (err) reject(err);
+            else resolve(response);
+        });
+    });
+}
 function emitAuditEvent(opts) {
     try {
-        getAuditWriter().appendEvent({
+        auditWriterBreaker.execute(() => grpcUnaryPromise(getAuditWriter(), "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -38,7 +47,7 @@ function emitAuditEvent(opts) {
                 severity: "RISK_SEVERITY_MEDIUM",
                 summary: opts.summary,
             },
-        }, () => { });
+        })).catch(() => {});
     }
     catch {
         // Audit emission is fire-and-forget
@@ -202,7 +211,7 @@ async function evaluateUrlPolicy(url, toolName, scopedAllowedDomains) {
     };
 }
 export function createCyberProxyService() {
-    const server = new grpc.Server();
+    const server = createGrpcServer();
     const serviceImpl = {
         async CheckUrl(call, callback) {
             try {

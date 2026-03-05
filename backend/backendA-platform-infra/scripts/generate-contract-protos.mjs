@@ -12,7 +12,6 @@ const canonicalProtoRoot = path.resolve(rootDir, "backend/proto");
 const mirrorProtoRoots = [
   path.resolve(rootDir, "backend/backendB-core-services/proto"),
   path.resolve(rootDir, "backend/backendB-core-services/contracts/proto"),
-  path.resolve(rootDir, "backend/backendB-core-services/admin-console-api/proto"),
 ];
 
 function toPosix(input) {

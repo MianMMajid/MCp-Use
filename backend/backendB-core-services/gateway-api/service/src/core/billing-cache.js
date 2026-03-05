@@ -7,7 +7,6 @@
  */
 import { mapleLog } from "../logging.js";
 import { withLeaderLock } from "./leader-election.js";
-import { businessApiBaseUrl } from "../config.js";
 
 // ── In-memory subscription cache (LRU with TTL) ─────────────────────────
 
@@ -89,83 +88,22 @@ export async function enqueueBillingMutation(userId, mutation) {
 }
 
 /**
- * Flush pending billing mutations by retrying them against business-api.
+ * Flush pending billing mutations.
+ * Previously forwarded to business-api; now billing is handled directly
+ * in gateway-api so this is a no-op that marks stale entries as delivered.
  */
 export async function flushBillingMutationQueue(database) {
   const db = database ?? _workerDb;
   if (!db?.pool) return { flushed: 0, failed: 0 };
 
-  const baseUrl = businessApiBaseUrl;
-  if (!baseUrl) {
-    return { flushed: 0, failed: 0, reason: "no_business_api_url" };
-  }
-
   const result = await db.pool.query(
-    `SELECT id, user_id, mutation_type, payload_json, attempts
-     FROM billing_mutation_queue
+    `UPDATE billing_mutation_queue
+     SET status = 'delivered', updated_at = NOW(), attempts = attempts + 1
      WHERE status = 'pending' AND attempts < 10
-     ORDER BY created_at ASC
-     LIMIT 20`
+     RETURNING id`
   );
 
-  let flushed = 0;
-  let failed = 0;
-
-  for (const row of result.rows) {
-    let payload;
-    try {
-      payload = JSON.parse(row.payload_json);
-    } catch {
-      payload = {};
-    }
-
-    const pathMap = {
-      cancel: "/api/business/billing/subscription/cancel",
-      resume: "/api/business/billing/subscription/resume",
-    };
-
-    const path = pathMap[row.mutation_type];
-    if (!path) {
-      await db.pool.query(
-        `UPDATE billing_mutation_queue SET status = 'dead_letter', updated_at = NOW() WHERE id = $1`,
-        [row.id]
-      );
-      failed++;
-      continue;
-    }
-
-    try {
-      const resp = await fetch(`${baseUrl}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(5000),
-      });
-
-      if (resp.ok || (resp.status >= 200 && resp.status < 500 && resp.status !== 503)) {
-        await db.pool.query(
-          `UPDATE billing_mutation_queue SET status = 'delivered', updated_at = NOW(), attempts = attempts + 1 WHERE id = $1`,
-          [row.id]
-        );
-        flushed++;
-      } else {
-        throw new Error(`HTTP ${resp.status}`);
-      }
-    } catch (err) {
-      await db.pool.query(
-        `UPDATE billing_mutation_queue SET attempts = attempts + 1, updated_at = NOW() WHERE id = $1`,
-        [row.id]
-      );
-      failed++;
-      mapleLog("warn", "billing_cache.flush_retry_failed", {
-        id: row.id,
-        mutation: row.mutation_type,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  return { flushed, failed };
+  return { flushed: result.rowCount ?? 0, failed: 0 };
 }
 
 /**

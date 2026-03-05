@@ -20,7 +20,7 @@ if [ "${MAPLE_FORCE_CERT_REGEN:-0}" = "1" ]; then
 fi
 
 if [ -f "${TLS_CRT}" ]; then
-  if ! openssl x509 -in "${TLS_CRT}" -noout -text 2>/dev/null | grep -q "DNS:business-api.maple.svc.cluster.local"; then
+  if ! openssl x509 -in "${TLS_CRT}" -noout -text 2>/dev/null | grep -q "DNS:gateway-api.maple.svc.cluster.local"; then
     rm -f "${TLS_KEY}" "${TLS_CSR}" "${TLS_CRT}" "${TLS_SRL}" "${TLS_EXT}"
   fi
 fi
@@ -43,14 +43,11 @@ keyUsage = digitalSignature, keyEncipherment
 DNS.1 = localhost
 DNS.2 = *.maple.svc.cluster.local
 DNS.3 = gateway-api.maple.svc.cluster.local
-DNS.4 = admin-console-api.maple.svc.cluster.local
-DNS.5 = context-wall.maple.svc.cluster.local
-DNS.6 = mcp-proxy.maple.svc.cluster.local
-DNS.7 = cyber-proxy.maple.svc.cluster.local
-DNS.8 = tool-runner.maple.svc.cluster.local
-DNS.9 = audit-writer.maple.svc.cluster.local
-DNS.10 = postgres.maple.svc.cluster.local
-DNS.11 = business-api.maple.svc.cluster.local
+DNS.4 = context-wall.maple.svc.cluster.local
+DNS.5 = mcp-proxy.maple.svc.cluster.local
+DNS.6 = cyber-proxy.maple.svc.cluster.local
+DNS.7 = audit-writer.maple.svc.cluster.local
+DNS.8 = postgres.maple.svc.cluster.local
 IP.1 = 127.0.0.1
 EOT
 

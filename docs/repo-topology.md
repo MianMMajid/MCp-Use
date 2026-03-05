@@ -5,16 +5,10 @@
 ### Core runtime services
 
 - `backend/backendB-core-services/gateway-api`
-- `backend/backendB-core-services/admin-console-api`
 - `backend/backendB-core-services/context-wall`
 - `backend/backendB-core-services/mcp-proxy`
-- `backend/backendB-core-services/tool-runner`
 - `backend/backendB-core-services/cyber-proxy`
 - `backend/backendB-core-services/audit-writer`
-
-### SaaS runtime services
-
-- `backend/backendC-saas-services/business-api`
 
 ### Platform/infra orchestration
 

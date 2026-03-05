@@ -97,6 +97,33 @@ spec:
         maple-image: managed
     spec:
       serviceAccountName: gateway-api-sa
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+          - name: single-request-reopen
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: gateway-api
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: gateway-api
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: gateway-api
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: app
           image: maple-local:dev
@@ -115,6 +142,8 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
+            - name: NODE_OPTIONS
+              value: "--max-semi-space-size=64 --max-old-space-size=1536"
             - name: GATEWAY_PORT
               value: "3000"
             - name: MAPLE_STATE_DIR
@@ -125,12 +154,6 @@ spec:
               value: /etc/maple/tls/tls.key
             - name: MAPLE_GATEWAY_TLS_CA
               value: /etc/maple/tls/ca.crt
-            - name: MAPLE_BUSINESS_API_CA
-              value: /etc/maple/tls/ca.crt
-            - name: MAPLE_BUSINESS_API_CERT
-              value: /etc/maple/tls/tls.crt
-            - name: MAPLE_BUSINESS_API_KEY
-              value: /etc/maple/tls/tls.key
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -138,9 +161,9 @@ spec:
             - name: MAPLE_GRPC_TLS_CA
               value: /etc/maple/tls/ca.crt
             - name: CONTEXT_WALL_ADDRESS
-              value: context-wall.maple.svc.cluster.local:9000
+              value: dns:///context-wall.maple.svc.cluster.local:9000
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
+              value: dns:///audit-writer.maple.svc.cluster.local:9400
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -238,118 +261,6 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: business-api
-  namespace: maple
-  labels:
-    app: business-api
-    app.kubernetes.io/part-of: maple-stack
-    maple-image: managed
-spec:
-  # replicas managed by HPA
-  selector:
-    matchLabels:
-      app: business-api
-  template:
-    metadata:
-      labels:
-        app: business-api
-        app.kubernetes.io/part-of: maple-stack
-        maple-image: managed
-    spec:
-      serviceAccountName: business-api-sa
-      containers:
-        - name: app
-          image: maple-local:dev
-          imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendC-saas-services/business-api/service/src/main.js"]
-          ports:
-            - name: https
-              containerPort: 9550
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          env:
-            - name: BUSINESS_API_PORT
-              value: "9550"
-            - name: MAPLE_BUSINESS_API_MTLS_REQUIRED
-              value: "false"
-            - name: MAPLE_BUSINESS_API_TLS_CERT
-              value: /etc/maple/tls/tls.crt
-            - name: MAPLE_BUSINESS_API_TLS_KEY
-              value: /etc/maple/tls/tls.key
-            - name: MAPLE_BUSINESS_API_TLS_CA
-              value: /etc/maple/tls/ca.crt
-            - name: MAPLE_GRPC_TLS_CERT
-              value: /etc/maple/tls/tls.crt
-            - name: MAPLE_GRPC_TLS_KEY
-              value: /etc/maple/tls/tls.key
-            - name: MAPLE_GRPC_TLS_CA
-              value: /etc/maple/tls/ca.crt
-            - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: maple-secrets
-                  key: POSTGRES_USER
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: maple-secrets
-                  key: POSTGRES_PASSWORD
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: maple-secrets
-                  key: POSTGRES_DB
-            - name: DATABASE_URL
-              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.maple.svc.cluster.local:5432/$(POSTGRES_DB)
-          envFrom:
-            - configMapRef:
-                name: maple-config
-            - secretRef:
-                name: maple-secrets
-          volumeMounts:
-            - name: maple-tls
-              mountPath: /etc/maple/tls
-              readOnly: true
-            - name: tmp
-              mountPath: /tmp
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: 9550
-              scheme: HTTPS
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 9550
-              scheme: HTTPS
-            initialDelaySeconds: 30
-            periodSeconds: 15
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              memory: 256Mi
-      volumes:
-        - name: maple-tls
-          secret:
-            secretName: maple-tls
-        - name: tmp
-          emptyDir: {}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: openclaw-gateway
   namespace: maple
   labels:
@@ -427,6 +338,19 @@ spec:
         maple-image: managed
     spec:
       serviceAccountName: context-wall-sa
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: context-wall
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: context-wall
       containers:
         - name: app
           image: maple-local:dev
@@ -444,12 +368,14 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
+            - name: NODE_OPTIONS
+              value: "--max-semi-space-size=32 --max-old-space-size=384"
             - name: CONTEXT_WALL_PORT
               value: "9000"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
+              value: dns:///audit-writer.maple.svc.cluster.local:9400
             - name: MCP_PROXY_ADDRESS
-              value: mcp-proxy.maple.svc.cluster.local:9200
+              value: dns:///mcp-proxy.maple.svc.cluster.local:9200
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -474,10 +400,10 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
-              memory: 256Mi
+              memory: 512Mi
       volumes:
         - name: maple-tls
           secret:
@@ -524,16 +450,16 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
+            - name: NODE_OPTIONS
+              value: "--max-semi-space-size=32 --max-old-space-size=384"
             - name: MCP_PROXY_PORT
               value: "9200"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
+              value: dns:///audit-writer.maple.svc.cluster.local:9400
             - name: CONTEXT_WALL_ADDRESS
-              value: context-wall.maple.svc.cluster.local:9000
-            - name: TOOL_RUNNER_ADDRESS
-              value: tool-runner.maple.svc.cluster.local:9250
+              value: dns:///context-wall.maple.svc.cluster.local:9000
             - name: CYBER_PROXY_ADDRESS
-              value: cyber-proxy.maple.svc.cluster.local:8080
+              value: dns:///cyber-proxy.maple.svc.cluster.local:8080
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -558,10 +484,10 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
-              memory: 256Mi
+              memory: 512Mi
       volumes:
         - name: maple-tls
           secret:
@@ -591,6 +517,11 @@ spec:
         maple-image: managed
     spec:
       serviceAccountName: cyber-proxy-sa
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+          - name: single-request-reopen
       containers:
         - name: app
           image: maple-local:dev
@@ -608,10 +539,12 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
+            - name: NODE_OPTIONS
+              value: "--max-semi-space-size=32 --max-old-space-size=384"
             - name: CYBER_PROXY_PORT
               value: "8080"
             - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
+              value: dns:///audit-writer.maple.svc.cluster.local:9400
             - name: MAPLE_GRPC_TLS_CERT
               value: /etc/maple/tls/tls.crt
             - name: MAPLE_GRPC_TLS_KEY
@@ -636,90 +569,10 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
-              memory: 256Mi
-      volumes:
-        - name: maple-tls
-          secret:
-            secretName: maple-tls
-        - name: tmp
-          emptyDir: {}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: tool-runner
-  namespace: maple
-  labels:
-    app: tool-runner
-    app.kubernetes.io/part-of: maple-stack
-    maple-image: managed
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: tool-runner
-  template:
-    metadata:
-      labels:
-        app: tool-runner
-        app.kubernetes.io/part-of: maple-stack
-        maple-image: managed
-    spec:
-      serviceAccountName: tool-runner-sa
-      containers:
-        - name: app
-          image: maple-local:dev
-          imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendB-core-services/tool-runner/service/src/main.js"]
-          ports:
-            - name: grpc
-              containerPort: 9250
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          env:
-            - name: TOOL_RUNNER_PORT
-              value: "9250"
-            - name: CYBER_PROXY_ADDRESS
-              value: cyber-proxy.maple.svc.cluster.local:8080
-            - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
-            - name: MAPLE_GRPC_TLS_CERT
-              value: /etc/maple/tls/tls.crt
-            - name: MAPLE_GRPC_TLS_KEY
-              value: /etc/maple/tls/tls.key
-            - name: MAPLE_GRPC_TLS_CA
-              value: /etc/maple/tls/ca.crt
-          envFrom:
-            - configMapRef:
-                name: maple-config
-            - secretRef:
-                name: maple-secrets
-          volumeMounts:
-            - name: maple-tls
-              mountPath: /etc/maple/tls
-              readOnly: true
-            - name: tmp
-              mountPath: /tmp
-          readinessProbe:
-            tcpSocket:
-              port: grpc
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              memory: 256Mi
+              memory: 512Mi
       volumes:
         - name: maple-tls
           secret:
@@ -768,6 +621,8 @@ spec:
             capabilities:
               drop: ["ALL"]
           env:
+            - name: NODE_OPTIONS
+              value: "--max-semi-space-size=32 --max-old-space-size=384"
             - name: AUDIT_WRITER_PORT
               value: "9400"
             - name: AUDIT_WRITER_HTTP_PORT
@@ -813,98 +668,10 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 100m
+              memory: 128Mi
             limits:
-              memory: 256Mi
-      volumes:
-        - name: maple-tls
-          secret:
-            secretName: maple-tls
-        - name: tmp
-          emptyDir: {}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: admin-console-api
-  namespace: maple
-  labels:
-    app: admin-console-api
-    app.kubernetes.io/part-of: maple-stack
-    maple-image: managed
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: admin-console-api
-  template:
-    metadata:
-      labels:
-        app: admin-console-api
-        app.kubernetes.io/part-of: maple-stack
-        maple-image: managed
-    spec:
-      serviceAccountName: admin-console-api-sa
-      containers:
-        - name: app
-          image: maple-local:dev
-          imagePullPolicy: IfNotPresent
-          command: ["node", "backend/backendB-core-services/admin-console-api/service/src/main.js"]
-          ports:
-            - name: https
-              containerPort: 9443
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          env:
-            - name: ADMIN_CONSOLE_PORT
-              value: "9443"
-            - name: AUDIT_WRITER_ADDRESS
-              value: audit-writer.maple.svc.cluster.local:9400
-            - name: CONTEXT_WALL_ADDRESS
-              value: context-wall.maple.svc.cluster.local:9000
-            - name: MAPLE_ADMIN_TLS_CERT
-              value: /etc/maple/tls/tls.crt
-            - name: MAPLE_ADMIN_TLS_KEY
-              value: /etc/maple/tls/tls.key
-            - name: MAPLE_ADMIN_TLS_CA
-              value: /etc/maple/tls/ca.crt
-            - name: MAPLE_GRPC_TLS_CERT
-              value: /etc/maple/tls/tls.crt
-            - name: MAPLE_GRPC_TLS_KEY
-              value: /etc/maple/tls/tls.key
-            - name: MAPLE_GRPC_TLS_CA
-              value: /etc/maple/tls/ca.crt
-            - name: GATEWAY_API_URL
-              value: https://gateway-api.maple.svc.cluster.local:3000
-          envFrom:
-            - configMapRef:
-                name: maple-config
-            - secretRef:
-                name: maple-secrets
-          volumeMounts:
-            - name: maple-tls
-              mountPath: /etc/maple/tls
-              readOnly: true
-            - name: tmp
-              mountPath: /tmp
-          readinessProbe:
-            tcpSocket:
-              port: https
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              memory: 256Mi
+              memory: 512Mi
       volumes:
         - name: maple-tls
           secret:

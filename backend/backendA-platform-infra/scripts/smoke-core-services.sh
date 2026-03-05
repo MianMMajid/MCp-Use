@@ -119,25 +119,4 @@ run_service "cyber-proxy" "19300" \
   "${ROOT_DIR}/backend/backendB-core-services/cyber-proxy/service/src/main.js" \
   "CYBER_PROXY_PORT=19300"
 
-run_service "tool-runner" "19400" \
-  "${ROOT_DIR}/backend/backendB-core-services/tool-runner/service/src/main.js" \
-  "TOOL_RUNNER_PORT=19400"
-
-run_service "admin-console-api" "19600" \
-  "${ROOT_DIR}/backend/backendB-core-services/admin-console-api/service/src/main.js" \
-  "ADMIN_CONSOLE_PORT=19600" \
-  "MAPLE_ADMIN_TLS_CERT=${CERT_DIR}/tls.crt" \
-  "MAPLE_ADMIN_TLS_KEY=${CERT_DIR}/tls.key" \
-  "MAPLE_ADMIN_TLS_CA=${CERT_DIR}/ca.crt"
-
-run_service "business-api" "19700" \
-  "${ROOT_DIR}/backend/backendC-saas-services/business-api/service/src/main.js" \
-  "BUSINESS_API_PORT=19700" \
-  "DATABASE_URL=${DATABASE_URL}" \
-  "MAPLE_BUSINESS_API_TLS_CERT=${CERT_DIR}/tls.crt" \
-  "MAPLE_BUSINESS_API_TLS_KEY=${CERT_DIR}/tls.key" \
-  "MAPLE_BUSINESS_API_TLS_CA=${CERT_DIR}/ca.crt" \
-  "MAPLE_BUSINESS_API_MTLS_REQUIRED=1" \
-  "MAPLE_DISABLE_AUDIT_EMIT=1"
-
 echo "Core service smoke checks passed: ${pass_count}"

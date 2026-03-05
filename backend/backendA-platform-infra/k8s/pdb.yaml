@@ -15,13 +15,55 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: business-api
+  name: context-wall
   namespace: maple
   labels:
-    app: business-api
+    app: context-wall
     app.kubernetes.io/part-of: maple-stack
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: business-api
+      app: context-wall
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-proxy
+  namespace: maple
+  labels:
+    app: mcp-proxy
+    app.kubernetes.io/part-of: maple-stack
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: mcp-proxy
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cyber-proxy
+  namespace: maple
+  labels:
+    app: cyber-proxy
+    app.kubernetes.io/part-of: maple-stack
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: cyber-proxy
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: audit-writer
+  namespace: maple
+  labels:
+    app: audit-writer
+    app.kubernetes.io/part-of: maple-stack
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: audit-writer

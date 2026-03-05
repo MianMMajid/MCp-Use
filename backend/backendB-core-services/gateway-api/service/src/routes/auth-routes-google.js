@@ -4,17 +4,9 @@ import { sessionTtlSeconds, googleClientId, } from "../config.js";
 import { buildSessionCookie, verifyGoogleJwt, } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
-import { applyBusinessApiProxyHeaders, businessApiUnavailableResponse, isBusinessApiRequired, proxyBusinessApiRequest, } from "../core/business-api-client.js";
 export function registerAuthGoogleRoutes(app) {
     const resolvedGoogleClientId = asString(process.env.GOOGLE_CLIENT_ID) ?? googleClientId;
     app.get("/api/auth/google/client-id", async (c) => {
-        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/google/client-id");
-        if (proxied.proxied) {
-            return c.json(proxied.payload, proxied.status);
-        }
-        if (isBusinessApiRequired()) {
-            return businessApiUnavailableResponse(c, proxied, "auth.google_client_id");
-        }
         return c.json({
             clientId: resolvedGoogleClientId,
             configured: Boolean(resolvedGoogleClientId),
@@ -22,17 +14,6 @@ export function registerAuthGoogleRoutes(app) {
     });
     app.post("/api/auth/google", async (c) => {
         const body = await readJsonBody(c);
-        const proxied = await proxyBusinessApiRequest(c, "/api/business/auth/google", {
-            method: "POST",
-            body,
-        });
-        if (proxied.proxied) {
-            applyBusinessApiProxyHeaders(c, proxied);
-            return c.json(proxied.payload, proxied.status);
-        }
-        if (isBusinessApiRequired()) {
-            return businessApiUnavailableResponse(c, proxied, "auth.google");
-        }
         let googleUser;
         if (!resolvedGoogleClientId) {
             return c.json({ error: "Google sign-in is unavailable." }, 503);
@@ -72,4 +53,3 @@ export function registerAuthGoogleRoutes(app) {
         });
     });
 }
-//# sourceMappingURL=auth-routes-google.js.map

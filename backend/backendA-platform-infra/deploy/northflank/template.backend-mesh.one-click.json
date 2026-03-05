@@ -94,32 +94,16 @@
                 "MAPLE_RUNTIME_STRICT_DEPENDENCIES": "${args.runtimeStrictDependencies}",
                 "MAPLE_ENFORCE_STARTUP_DEPENDENCIES": "${args.enforceStartupDependencies}",
                 "MAPLE_ALLOW_NO_AUTH": "0",
-                "MAPLE_ADMIN_ALLOW_NO_AUTH": "0",
-                "MAPLE_BUSINESS_API_REQUIRED": "1",
-                "MAPLE_BUSINESS_API_MTLS_REQUIRED": "1",
                 "MAPLE_GRPC_TLS_CERT": "/etc/maple/tls/tls.crt",
                 "MAPLE_GRPC_TLS_KEY": "/etc/maple/tls/tls.key",
                 "MAPLE_GRPC_TLS_CA": "/etc/maple/tls/ca.crt",
                 "MAPLE_GATEWAY_TLS_CERT": "/etc/maple/tls/tls.crt",
                 "MAPLE_GATEWAY_TLS_KEY": "/etc/maple/tls/tls.key",
                 "MAPLE_GATEWAY_TLS_CA": "/etc/maple/tls/ca.crt",
-                "MAPLE_ADMIN_TLS_CERT": "/etc/maple/tls/tls.crt",
-                "MAPLE_ADMIN_TLS_KEY": "/etc/maple/tls/tls.key",
-                "MAPLE_ADMIN_TLS_CA": "/etc/maple/tls/ca.crt",
-                "MAPLE_BUSINESS_API_TLS_CERT": "/etc/maple/tls/tls.crt",
-                "MAPLE_BUSINESS_API_TLS_KEY": "/etc/maple/tls/tls.key",
-                "MAPLE_BUSINESS_API_TLS_CA": "/etc/maple/tls/ca.crt",
-                "MAPLE_BUSINESS_API_CA": "/etc/maple/tls/ca.crt",
-                "MAPLE_BUSINESS_API_CERT": "/etc/maple/tls/tls.crt",
-                "MAPLE_BUSINESS_API_KEY": "/etc/maple/tls/tls.key",
                 "CONTEXT_WALL_ADDRESS": "context-wall:9000",
                 "MCP_PROXY_ADDRESS": "mcp-proxy:9200",
-                "TOOL_RUNNER_ADDRESS": "tool-runner:9250",
                 "CYBER_PROXY_ADDRESS": "cyber-proxy:8080",
                 "AUDIT_WRITER_ADDRESS": "audit-writer:9400",
-                "MAPLE_MODEL_ROUTER_RETIRED": "1",
-                "MAPLE_SECRETS_BROKER_RETIRED": "1",
-                "MAPLE_BUSINESS_API_BASE_URL": "https://business-api:9550",
                 "OPENCLAW_BRIDGE_MODE": "gateway",
                 "OPENCLAW_BRIDGE_URL": "http://openclaw-bridge:8787",
                 "OPENCLAW_BRIDGE_TOKEN": "${args.openclawBridgeToken}",
@@ -253,66 +237,6 @@
         {
           "kind": "DeploymentService",
           "spec": {
-            "name": "business-api",
-            "projectId": "${refs.project.id}",
-            "billing": {
-              "deploymentPlan": "${args.deploymentPlan}"
-            },
-            "deployment": {
-              "instances": 1,
-              "internal": {
-                "id": "${refs.runtimeBuild.id}",
-                "branch": "${args.repoBranch}",
-                "buildSHA": "latest"
-              },
-              "docker": {
-                "configType": "customCommand",
-                "customCommand": "node backend/backendC-saas-services/business-api/service/dist/main.js"
-              }
-            },
-            "ports": [
-              {
-                "name": "p01",
-                "internalPort": 9550,
-                "public": false,
-                "protocol": "HTTP"
-              }
-            ]
-          }
-        },
-        {
-          "kind": "DeploymentService",
-          "spec": {
-            "name": "admin-console-api",
-            "projectId": "${refs.project.id}",
-            "billing": {
-              "deploymentPlan": "${args.deploymentPlan}"
-            },
-            "deployment": {
-              "instances": 1,
-              "internal": {
-                "id": "${refs.runtimeBuild.id}",
-                "branch": "${args.repoBranch}",
-                "buildSHA": "latest"
-              },
-              "docker": {
-                "configType": "customCommand",
-                "customCommand": "node backend/backendB-core-services/admin-console-api/service/dist/main.js"
-              }
-            },
-            "ports": [
-              {
-                "name": "p01",
-                "internalPort": 9443,
-                "public": true,
-                "protocol": "HTTP"
-              }
-            ]
-          }
-        },
-        {
-          "kind": "DeploymentService",
-          "spec": {
             "name": "context-wall",
             "projectId": "${refs.project.id}",
             "billing": {
@@ -394,36 +318,6 @@
               {
                 "name": "p01",
                 "internalPort": 8080,
-                "public": false,
-                "protocol": "HTTP/2"
-              }
-            ]
-          }
-        },
-        {
-          "kind": "DeploymentService",
-          "spec": {
-            "name": "tool-runner",
-            "projectId": "${refs.project.id}",
-            "billing": {
-              "deploymentPlan": "${args.deploymentPlan}"
-            },
-            "deployment": {
-              "instances": 1,
-              "internal": {
-                "id": "${refs.runtimeBuild.id}",
-                "branch": "${args.repoBranch}",
-                "buildSHA": "latest"
-              },
-              "docker": {
-                "configType": "customCommand",
-                "customCommand": "node backend/backendB-core-services/tool-runner/service/dist/main.js"
-              }
-            },
-            "ports": [
-              {
-                "name": "p01",
-                "internalPort": 9250,
                 "public": false,
                 "protocol": "HTTP/2"
               }

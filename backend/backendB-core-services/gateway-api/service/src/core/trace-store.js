@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { parsePositiveInt, parsePositiveMs } from "./trace-store-config.js";
 import { loadPersistedTracesIntoIndex, persistTrace, removePersistedTrace, } from "./trace-store-persistence.js";
 import { pruneTraceStore } from "./trace-store-prune.js";
+const PRUNE_DEBOUNCE_MS = 5000;
 export class TraceStore {
     traces = new Map();
     sessionIndex = new Map();
@@ -9,6 +10,7 @@ export class TraceStore {
     maxTracesPerSession;
     ttlMs;
     persistence;
+    _pruneTimer = null;
     constructor(options = {}, env = process.env) {
         this.maxTraces = options.maxTraces ?? parsePositiveInt(env.MAPLE_MAX_TRACES, 2000);
         this.maxTracesPerSession =
@@ -22,7 +24,7 @@ export class TraceStore {
             traces: this.traces,
             sessionIndex: this.sessionIndex,
         });
-        this.pruneStore();
+        this.pruneStoreImmediate();
     }
     createTrace(base, ownerKeyFingerprint) {
         const now = new Date().toISOString();
@@ -160,6 +162,25 @@ export class TraceStore {
         return trace.ownerKeyFingerprint === ownerKeyFingerprint;
     }
     pruneStore() {
+        if (this._pruneTimer) return;
+        this._pruneTimer = setTimeout(() => {
+            this._pruneTimer = null;
+            pruneTraceStore({
+                traces: this.traces,
+                sessionIndex: this.sessionIndex,
+                maxTraces: this.maxTraces,
+                maxTracesPerSession: this.maxTracesPerSession,
+                ttlMs: this.ttlMs,
+                removeTrace: (traceId) => this.removeTrace(traceId),
+            });
+        }, PRUNE_DEBOUNCE_MS);
+        if (this._pruneTimer.unref) this._pruneTimer.unref();
+    }
+    pruneStoreImmediate() {
+        if (this._pruneTimer) {
+            clearTimeout(this._pruneTimer);
+            this._pruneTimer = null;
+        }
         pruneTraceStore({
             traces: this.traces,
             sessionIndex: this.sessionIndex,
