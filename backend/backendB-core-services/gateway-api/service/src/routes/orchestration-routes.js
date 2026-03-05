@@ -21,6 +21,70 @@ import {
 
 const executionPersistenceWatchers = new Map();
 
+// ── In-memory stores for conversations, tasks, reassignments ──────────────
+const conversations = new Map();
+const objectivePackages = new Map();
+const executionTasks = new Map();
+const executionReassignments = new Map();
+let reassignCounter = 0;
+
+const BUILTIN_TEMPLATES = [
+  {
+    id: "tpl-manager-coding-3",
+    name: "Manager + 3 Coding Workers",
+    description: "Manager agent delegates implementation, review, and test tasks to coding workers.",
+    suggestedName: "Coding Delivery Loop",
+    suggestedDescription: "Continuous planning and delivery with code-focused workers.",
+    roles: [
+      { roleId: "manager", displayName: "Manager", defaultAgentId: "agent-1" },
+      { roleId: "coder-1", displayName: "Coding Worker 1", defaultAgentId: "agent-2" },
+      { roleId: "coder-2", displayName: "Coding Worker 2", defaultAgentId: "agent-3" },
+      { roleId: "coder-3", displayName: "Coding Worker 3", defaultAgentId: "agent-4" },
+    ],
+    edges: [
+      ["manager", "coder-1"],
+      ["manager", "coder-2"],
+      ["manager", "coder-3"],
+    ],
+  },
+  {
+    id: "tpl-manager-email-3",
+    name: "Manager + 3 Email Workers",
+    description: "Manager coordinates drafting, QA, and follow-up email workers.",
+    suggestedName: "Email Operations Loop",
+    suggestedDescription: "Repeated outbound and response triage orchestration.",
+    roles: [
+      { roleId: "manager", displayName: "Manager", defaultAgentId: "agent-1" },
+      { roleId: "email-draft", displayName: "Email Drafter", defaultAgentId: "agent-2" },
+      { roleId: "email-qa", displayName: "Email QA", defaultAgentId: "agent-3" },
+      { roleId: "email-followup", displayName: "Follow-up Worker", defaultAgentId: "agent-4" },
+    ],
+    edges: [
+      ["manager", "email-draft"],
+      ["manager", "email-qa"],
+      ["manager", "email-followup"],
+    ],
+  },
+  {
+    id: "tpl-security-triage",
+    name: "Security Triage Manager Pattern",
+    description: "Security triage manager delegates policy, comms, and remediation workers.",
+    suggestedName: "Security Triage Loop",
+    suggestedDescription: "Persistent triage loop for security incidents and guardrails.",
+    roles: [
+      { roleId: "triage-manager", displayName: "Triage Manager", defaultAgentId: "agent-1" },
+      { roleId: "policy-worker", displayName: "Policy Worker", defaultAgentId: "agent-2" },
+      { roleId: "comms-worker", displayName: "Comms Worker", defaultAgentId: "agent-3" },
+      { roleId: "remediation-worker", displayName: "Remediation Worker", defaultAgentId: "agent-4" },
+    ],
+    edges: [
+      ["triage-manager", "policy-worker"],
+      ["triage-manager", "comms-worker"],
+      ["triage-manager", "remediation-worker"],
+    ],
+  },
+];
+
 function parseBoundedInteger(value, fallback, min, max) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -948,6 +1012,344 @@ export function registerOrchestrationRoutes(app) {
     if (!result.ok) return c.json(result, 400);
     await syncExecutionRecord(getOrchestrationExecution(executionId));
     return c.json(result);
+  });
+
+  // ── Templates ────────────────────────────────────────────────────────────
+
+  // GET /api/orchestrations/templates — list built-in templates
+  app.get("/api/orchestrations/templates", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+    return c.json({ items: BUILTIN_TEMPLATES });
+  });
+
+  // POST /api/orchestrations/templates/:templateId/create — instantiate template
+  app.post("/api/orchestrations/templates/:templateId/create", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const templateId = asString(c.req.param("templateId")) ?? "";
+    const template = BUILTIN_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) {
+      return c.json({ ok: false, error: "Template not found" }, 404);
+    }
+
+    const body = await readJsonBody(c);
+    const authContext = authContextStorage.getStore();
+    const bindings = Array.isArray(body.roleBindings) ? body.roleBindings : [];
+    const byRole = new Map(bindings.map((b) => [b.roleId, b]));
+
+    const nodes = (template.roles || []).map((role, idx) => {
+      const override = byRole.get(role.roleId) || {};
+      return {
+        id: `node-${role.roleId}`,
+        role: role.roleId,
+        agentId: override.agentId || role.defaultAgentId || `agent-${(idx % 4) + 1}`,
+        label: override.displayName || role.displayName || role.roleId,
+        position: { x: 140 + idx * 220, y: idx === 0 ? 130 : 280 },
+        config: { maxRetries: 2 },
+      };
+    });
+    const edges = (template.edges || []).map(([sourceRole, targetRole]) => ({
+      id: `edge-${sourceRole}-${targetRole}`,
+      source: `node-${sourceRole}`,
+      target: `node-${targetRole}`,
+      delegationPolicy: {
+        riskCeiling: "medium",
+        requiresApproval: sourceRole.includes("manager") || sourceRole.includes("triage"),
+      },
+    }));
+
+    try {
+      const orchestration = await database.createOrchestration({
+        name: asString(body.name) || template.suggestedName || template.name,
+        description: asString(body.description) || template.suggestedDescription || template.description || "",
+        ownerId: authContext?.userId ?? null,
+        status: "draft",
+        nodes,
+        edges,
+      });
+      mapleLog("info", "orchestration.template_created", {
+        templateId,
+        orchestrationId: orchestration.id,
+      });
+      return c.json({ ok: true, id: orchestration.id, orchestration });
+    } catch (err) {
+      mapleLog("error", "orchestration.template_create_failed", { templateId, error: err.message });
+      return c.json({ error: "Failed to create orchestration from template", details: err.message }, 500);
+    }
+  });
+
+  // ── Conversations ───────────────────────────────────────────────────────
+
+  // GET /api/orchestrations/:id/conversation — get planning conversation
+  app.get("/api/orchestrations/:id/conversation", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const id = asString(c.req.param("id")) ?? "";
+    const orchestration = await database.findOrchestrationById(id);
+    if (!orchestration) {
+      return c.json({ ok: false, error: "Orchestration not found" }, 404);
+    }
+
+    const items = conversations.get(id) || [];
+    const objPkg = objectivePackages.get(id) || null;
+    return c.json({ ok: true, items, objectivePackage: objPkg });
+  });
+
+  // POST /api/orchestrations/:id/conversation — send message in planning conversation
+  app.post("/api/orchestrations/:id/conversation", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const id = asString(c.req.param("id")) ?? "";
+    const orchestration = await database.findOrchestrationById(id);
+    if (!orchestration) {
+      return c.json({ ok: false, error: "Orchestration not found" }, 404);
+    }
+
+    const body = await readJsonBody(c);
+    const message = String(body.message || "").trim();
+
+    if (!conversations.has(id)) {
+      conversations.set(id, []);
+    }
+    const items = conversations.get(id);
+
+    if (message) {
+      items.push({
+        id: `conv-${id}-${items.length + 1}`,
+        role: "user",
+        text: message,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Compute objective package
+    const incoming = body.objectivePackage || objectivePackages.get(id) || {};
+    const contextUrls = Array.isArray(incoming.contextUrls)
+      ? incoming.contextUrls
+      : String(incoming.contextUrls || "")
+          .split(/[\n,]+/g)
+          .map((s) => s.trim())
+          .filter(Boolean);
+    const nextObjective = {
+      goal: String(incoming.goal || message || "").trim(),
+      successCriteria: String(incoming.successCriteria || "").trim()
+        || (message ? "Manager confirms objective complete and all delegated tasks resolved." : ""),
+      runtimeLimitMinutes: Number(incoming.runtimeLimitMinutes || 60),
+      budgetUsd: Number(incoming.budgetUsd || 0),
+      riskCeiling: String(incoming.riskCeiling || "medium"),
+      contextUrls,
+      outputContract: String(incoming.outputContract || "").trim(),
+      escalationPolicy: String(incoming.escalationPolicy || "").trim(),
+    };
+    objectivePackages.set(id, nextObjective);
+
+    const reply = `Manager update: next loop will plan/delegate around "${nextObjective.goal || "objective"}".`;
+    items.push({
+      id: `conv-${id}-${items.length + 1}`,
+      role: "manager",
+      text: reply,
+      createdAt: new Date().toISOString(),
+    });
+
+    return c.json({ ok: true, items, reply, objectivePackage: nextObjective });
+  });
+
+  // ── Execution Tasks ─────────────────────────────────────────────────────
+
+  // GET /api/orchestrations/executions/:executionId/tasks — list tasks for execution
+  app.get("/api/orchestrations/executions/:executionId/tasks", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const executionId = asString(c.req.param("executionId")) ?? "";
+    const execution = (await readExecutionFromDb(executionId)) ?? getOrchestrationExecution(executionId);
+    if (!execution) {
+      return c.json({ ok: false, error: "Execution not found" }, 404);
+    }
+
+    if (!executionTasks.has(executionId)) {
+      // Auto-generate tasks from execution graph nodes
+      const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
+      const nodes = graph?.nodes || [];
+      const now = new Date().toISOString();
+      const tasks = nodes.map((node, idx) => ({
+        id: `${executionId}-task-${idx + 1}`,
+        taskId: `${executionId}-task-${idx + 1}`,
+        executionId,
+        nodeId: node.id,
+        title: `${node.label || node.id} task`,
+        status: idx === 0 ? "running" : "queued",
+        ownerRole: node.role || (idx === 0 ? "manager" : `worker-${idx}`),
+        ownerAgentId: node.agentId || null,
+        dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
+        createdAt: now,
+        updatedAt: now,
+        history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
+      }));
+      executionTasks.set(executionId, tasks);
+    }
+
+    return c.json({ items: executionTasks.get(executionId) });
+  });
+
+  // ── Reassignments ───────────────────────────────────────────────────────
+
+  // POST /api/orchestrations/executions/:executionId/tasks/:taskId/reassign
+  app.post("/api/orchestrations/executions/:executionId/tasks/:taskId/reassign", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const executionId = asString(c.req.param("executionId")) ?? "";
+    const taskId = asString(c.req.param("taskId")) ?? "";
+
+    const execution = (await readExecutionFromDb(executionId)) ?? getOrchestrationExecution(executionId);
+    if (!execution) {
+      return c.json({ ok: false, error: "Execution not found" }, 404);
+    }
+
+    const terminalStatuses = ["completed", "failed", "canceled"];
+    if (terminalStatuses.includes(execution.status)) {
+      return c.json({ ok: false, error: "Execution is terminal; reassignment disabled." }, 409);
+    }
+
+    // Ensure tasks exist
+    if (!executionTasks.has(executionId)) {
+      const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
+      const nodes = graph?.nodes || [];
+      const now = new Date().toISOString();
+      executionTasks.set(executionId, nodes.map((node, idx) => ({
+        id: `${executionId}-task-${idx + 1}`,
+        taskId: `${executionId}-task-${idx + 1}`,
+        executionId,
+        nodeId: node.id,
+        title: `${node.label || node.id} task`,
+        status: idx === 0 ? "running" : "queued",
+        ownerRole: node.role || (idx === 0 ? "manager" : `worker-${idx}`),
+        ownerAgentId: node.agentId || null,
+        dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
+        createdAt: now,
+        updatedAt: now,
+        history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
+      })));
+    }
+
+    const tasks = executionTasks.get(executionId);
+    const task = tasks.find((t) => String(t.id) === taskId || String(t.taskId) === taskId);
+    if (!task) {
+      return c.json({ ok: false, error: "Task not found" }, 404);
+    }
+
+    const body = await readJsonBody(c);
+    const dueAt = new Date(body.dueAt || "");
+    if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+      return c.json({ ok: false, error: "dueAt must be in the future." }, 400);
+    }
+
+    const repeatProvided = body.repeatIntervalMinutes != null && body.repeatIntervalMinutes !== "";
+    const repeatIntervalMinutes = repeatProvided ? Number(body.repeatIntervalMinutes) : 0;
+    const maxRepeats = body.maxRepeats == null ? 1 : Number(body.maxRepeats);
+    if (repeatProvided && repeatIntervalMinutes <= 0) {
+      return c.json({ ok: false, error: "repeatIntervalMinutes must be positive." }, 400);
+    }
+    if (repeatIntervalMinutes > 0 && maxRepeats < 1) {
+      return c.json({ ok: false, error: "maxRepeats must be at least 1." }, 400);
+    }
+
+    const targetRole = String(body.targetRole || "").trim();
+    const targetAgentId = String(body.targetAgentId || "").trim();
+    if ((targetRole && targetAgentId) || (!targetRole && !targetAgentId)) {
+      return c.json({ ok: false, error: "Provide exactly one reassignment target: role or agent." }, 400);
+    }
+
+    const warnings = [];
+    if (targetRole) {
+      const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
+      const graphNodes = graph?.nodes || [];
+      const mapped = graphNodes.some((node) =>
+        String(node.role || node.label || "").toLowerCase().includes(targetRole.toLowerCase()),
+      );
+      if (!mapped) warnings.push(`No mapped agent exists for role "${targetRole}".`);
+    }
+
+    reassignCounter += 1;
+    const now = new Date().toISOString();
+    const reassignment = {
+      id: `reassign-${reassignCounter}`,
+      reassignmentId: `reassign-ref-${reassignCounter}`,
+      executionId,
+      taskId: task.id,
+      dueAt: dueAt.toISOString(),
+      repeatIntervalMinutes: repeatIntervalMinutes > 0 ? repeatIntervalMinutes : 0,
+      maxRepeats: maxRepeats >= 1 ? maxRepeats : 1,
+      targetRole: targetRole || null,
+      targetAgentId: targetAgentId || null,
+      reason: String(body.reason || "").trim(),
+      status: "scheduled",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (!executionReassignments.has(executionId)) {
+      executionReassignments.set(executionId, []);
+    }
+    executionReassignments.get(executionId).unshift(reassignment);
+
+    task.updatedAt = now;
+    if (!Array.isArray(task.history)) task.history = [];
+    task.history.push({
+      id: `${task.id}-h${task.history.length + 1}`,
+      type: "reassignment-scheduled",
+      timestamp: now,
+      targetRole: reassignment.targetRole,
+      targetAgentId: reassignment.targetAgentId,
+    });
+
+    return c.json({ ok: true, reassignment, warnings, message: "Timed reassignment scheduled." });
+  });
+
+  // GET /api/orchestrations/executions/:executionId/reassignments — list reassignments
+  app.get("/api/orchestrations/executions/:executionId/reassignments", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const executionId = asString(c.req.param("executionId")) ?? "";
+    const execution = (await readExecutionFromDb(executionId)) ?? getOrchestrationExecution(executionId);
+    if (!execution) {
+      return c.json({ ok: false, error: "Execution not found" }, 404);
+    }
+
+    const items = executionReassignments.get(executionId) || [];
+    return c.json({ items });
+  });
+
+  // DELETE /api/orchestrations/executions/:executionId/reassignments/:reassignmentId
+  app.delete("/api/orchestrations/executions/:executionId/reassignments/:reassignmentId", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const executionId = asString(c.req.param("executionId")) ?? "";
+    const reassignmentId = asString(c.req.param("reassignmentId")) ?? "";
+
+    const execution = (await readExecutionFromDb(executionId)) ?? getOrchestrationExecution(executionId);
+    if (!execution) {
+      return c.json({ ok: false, error: "Execution not found" }, 404);
+    }
+
+    const reassignments = executionReassignments.get(executionId) || [];
+    const reassignment = reassignments.find(
+      (r) => String(r.id) === reassignmentId || String(r.reassignmentId) === reassignmentId,
+    );
+    if (!reassignment) {
+      return c.json({ ok: false, error: "Reassignment not found" }, 404);
+    }
+
+    reassignment.status = "canceled";
+    reassignment.updatedAt = new Date().toISOString();
+    return c.json({ ok: true });
   });
 
   // POST /api/orchestrations/:id/validate — validate definition
