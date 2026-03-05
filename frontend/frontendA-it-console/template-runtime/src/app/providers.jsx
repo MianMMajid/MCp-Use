@@ -1,9 +1,7 @@
 'use client'
 
 import { ThemeProvider, useTheme } from 'next-themes'
-import { useEffect, useLayoutEffect } from 'react'
-import { FakeModeControl } from '@/components/FakeModeControl'
-import { initializeFakeModeRuntime } from '@/lib/fake-mode/runtime'
+import { useEffect } from 'react'
 
 function ThemeWatcher() {
   let { resolvedTheme, setTheme } = useTheme()
@@ -30,15 +28,10 @@ function ThemeWatcher() {
 }
 
 export function Providers({ children }) {
-  useLayoutEffect(() => {
-    initializeFakeModeRuntime()
-  }, [])
-
   return (
     <ThemeProvider attribute="class" disableTransitionOnChange>
       <ThemeWatcher />
       {children}
-      <FakeModeControl />
     </ThemeProvider>
   )
 }

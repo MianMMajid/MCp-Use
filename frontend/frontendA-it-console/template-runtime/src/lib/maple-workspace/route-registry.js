@@ -119,15 +119,6 @@ const MAPLE_ROUTE_DEFINITIONS = [
     preferredView: 'control',
   },
   {
-    path: '/maple/demo',
-    title: 'Demo Playground',
-    category: 'analyze',
-    tabLabel: 'Demo Playground',
-    description: 'Run deterministic demos for trace, audit, block, and fork paths.',
-    apiEndpoints: ['/api/demo/start', '/api/demo/full', '/api/demo/guard'],
-    preferredView: 'control',
-  },
-  {
     path: '/maple/downstream',
     title: 'Downstream MCP',
     category: 'analyze',

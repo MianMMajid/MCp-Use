@@ -26,12 +26,6 @@ export const allSections = {
     { title: 'Firewall chat', id: 'firewall-chat' },
     { title: 'Capabilities', id: 'capabilities' },
   ],
-  '/maple/demo': [
-    { title: 'Sessions', id: 'demo-sessions' },
-    { title: 'Quick actions', id: 'quick-actions' },
-    { title: 'Community actions', id: 'community-actions' },
-    { title: 'Result', id: 'result' },
-  ],
   '/maple/downstream': [
     { title: 'Connected apps', id: 'connected-apps' },
     { title: 'Dispatch', id: 'dispatch' },

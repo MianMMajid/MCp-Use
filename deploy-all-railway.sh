@@ -129,7 +129,7 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "gateway" || "${FILTER}" == "backen
     "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
     "CORS_ORIGIN=*" \
     "MAPLE_ALLOW_NO_AUTH=true" \
-    "MAPLE_ENABLE_DEMO_ROUTES=true" \
+    "MAPLE_ENABLE_DEMO_ROUTES=false" \
     "MAPLE_EVENT_TRANSPORT_BACKEND=pg"
 fi
 

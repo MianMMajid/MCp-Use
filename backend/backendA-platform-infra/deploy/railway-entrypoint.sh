@@ -244,7 +244,7 @@ case "${MAPLE_SERVICE}" in
     export MAPLE_MCP_ROUTE_LOCK="${MAPLE_MCP_ROUTE_LOCK:-false}"
 
     # Feature Flags
-    export MAPLE_ENABLE_DEMO_ROUTES="${MAPLE_ENABLE_DEMO_ROUTES:-true}"
+    export MAPLE_ENABLE_DEMO_ROUTES="${MAPLE_ENABLE_DEMO_ROUTES:-false}"
     export MAPLE_ENABLE_JUDGE_UI="${MAPLE_ENABLE_JUDGE_UI:-true}"
 
     # MCP Server base URL (state.js requires this)

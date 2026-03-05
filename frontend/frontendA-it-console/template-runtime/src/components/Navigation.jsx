@@ -251,7 +251,6 @@ export const navigation = [
     links: [
       { title: 'Agent Management', href: '/maple/agent' },
       { title: 'Community', href: '/maple/community' },
-      { title: 'Demo Playground', href: '/maple/demo' },
     ],
   },
   {
