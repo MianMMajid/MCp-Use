@@ -24,18 +24,33 @@ export async function createApp() {
         return c.json({ error: "Internal Server Error" }, 500);
     });
     // Database + auth bootstrap
-    await initializeDatabase();
-    await registerEnterpriseModules({ database });
+    // DB init is non-fatal so the gateway can still serve stateless routes
+    // (firewall, chat, gRPC proxying) even when PostgreSQL is unreachable.
+    let dbReady = false;
+    try {
+        await initializeDatabase();
+        dbReady = true;
+    } catch (err) {
+        mapleLog("warn", "gateway_api.database_init_failed", {
+            error: err.message,
+            hint: "Gateway will serve stateless routes; DB-dependent features are unavailable.",
+        });
+    }
+    if (dbReady) {
+        await registerEnterpriseModules({ database });
+    }
     const stopWorkers = startGatewayWorkers({
         database,
         transportBackend: eventTransportBackend,
         redisUrl,
     });
     await bootstrapOpenClawRuntime();
-    const skipAuthBootstrap = String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim().toLowerCase() === "true" ||
-        String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim() === "1";
-    if (!skipAuthBootstrap) {
-        await bootstrapAuthUsers(database);
+    if (dbReady) {
+        const skipAuthBootstrap = String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim().toLowerCase() === "true" ||
+            String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim() === "1";
+        if (!skipAuthBootstrap) {
+            await bootstrapAuthUsers(database);
+        }
     }
     const shutdown = async () => {
         await stopWorkers();
