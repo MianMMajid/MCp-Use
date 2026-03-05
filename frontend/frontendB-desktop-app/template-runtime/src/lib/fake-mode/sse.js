@@ -113,6 +113,17 @@ function resolveSession(pathname, state) {
   return { params, session }
 }
 
+function resolveExecution(pathname, state) {
+  const params = matchPath(pathname, '/api/orchestrations/executions/:executionId/stream')
+  if (!params) return null
+  const execution = (state.orchestrationExecutions || []).find(
+    (item) =>
+      String(item.executionId) === String(params.executionId) ||
+      String(item.id) === String(params.executionId),
+  )
+  return { params, execution }
+}
+
 function makeMessageEvent(target, type, data) {
   const payload = typeof data === 'string' ? data : JSON.stringify(data)
   return {
@@ -212,6 +223,12 @@ class FakeEventSource {
       return
     }
 
+    const executionInfo = resolveExecution(this._pathname, this._state)
+    if (executionInfo) {
+      this._startExecutionStream(executionInfo)
+      return
+    }
+
     const approvalBucket = resolveApprovalBucket(this._pathname, this._state)
     if (approvalBucket) {
       this._startApprovalStream()
@@ -286,6 +303,79 @@ class FakeEventSource {
 
     this._schedule(emit, 180)
   }
+
+  _startExecutionStream(executionInfo) {
+    const executionId = executionInfo.params.executionId
+    const execution = executionInfo.execution
+    if (!execution) {
+      this._dispatch('error', { error: 'Execution not found' })
+      this.close()
+      return
+    }
+
+    const phases = ['plan', 'delegate', 'observe', 're-plan']
+
+    const tick = () => {
+      if (this._closed) return
+
+      if (execution.status !== 'running') {
+        this._dispatch('message', {
+          type: 'execution.status',
+          executionId,
+          status: execution.status,
+          timestamp: nowIso(),
+        })
+        this.close()
+        return
+      }
+
+      if (!execution.loopState) {
+        execution.loopState = { phase: 'plan', iteration: 1, maxIterations: 8 }
+      }
+
+      const currentIdx = phases.indexOf(execution.loopState.phase)
+      const nextIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % phases.length
+      execution.loopState.phase = phases[nextIdx]
+      if (nextIdx === 0) execution.loopState.iteration += 1
+      execution.updatedAt = nowIso()
+
+      if (Array.isArray(execution.tasks) && execution.tasks.length > 0) {
+        const activeTask = execution.tasks.find((item) => item.status === 'running') || execution.tasks[0]
+        if (activeTask) {
+          activeTask.status = execution.loopState.phase === 'observe' ? 'completed' : 'running'
+          activeTask.updatedAt = nowIso()
+        }
+      }
+
+      this._dispatch('message', {
+        type: 'execution.tick',
+        executionId,
+        status: execution.status,
+        loopState: execution.loopState,
+        tasks: execution.tasks || [],
+        reassignments: execution.reassignments || [],
+        timestamp: nowIso(),
+      })
+
+      if (execution.loopState.iteration >= (execution.loopState.maxIterations || 8)) {
+        execution.status = 'completed'
+        execution.completedAt = nowIso()
+        this._dispatch('message', {
+          type: 'execution.done',
+          executionId,
+          status: execution.status,
+          loopState: execution.loopState,
+          timestamp: nowIso(),
+        })
+        this.close()
+        return
+      }
+
+      this._schedule(tick, randomDelay())
+    }
+
+    this._schedule(tick, 150)
+  }
 }
 
 FakeEventSource.CONNECTING = 0
@@ -297,6 +387,7 @@ export function isFakeSsePath(pathname) {
   if (normalized === '/admin/api/approvals/watch') return true
   if (normalized === '/api/hitl/approvals/watch') return true
   if (normalized === '/api/operations/orchestrations/approvals/stream') return true
+  if (matchPath(normalized, '/api/orchestrations/executions/:executionId/stream')) return true
   return Boolean(matchPath(normalized, '/api/openclaw/agent/sessions/:sessionId/stream'))
 }
 

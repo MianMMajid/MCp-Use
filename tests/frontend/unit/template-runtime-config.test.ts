@@ -9,17 +9,30 @@ function read(relativePath: string): string {
 }
 
 describe("template runtime config wiring", () => {
-  it("all template runtimes rewrite /api through gateway and /admin/api through admin console", () => {
-    const frontendANextConfig = read("frontend/frontendA-it-console/template-runtime/next.config.mjs");
-    const frontendBNextConfig = read("frontend/frontendB-desktop-app/template-runtime/next.config.mjs");
+  it("frontend A/B expose Svelte proxy handlers and frontend C keeps next rewrite contracts", () => {
+    const frontendAApiProxy = read("frontend/frontendA-it-console/template-runtime/src/routes/api/[...path]/+server.js");
+    const frontendAAdminProxy = read("frontend/frontendA-it-console/template-runtime/src/routes/admin/api/[...path]/+server.js");
+    const frontendAHooks = read("frontend/frontendA-it-console/template-runtime/src/hooks.server.js");
     const frontendCNextConfig = read("frontend/frontendC-marketing-download-site/template-runtime/next.config.js");
+    const frontendBApiProxy = read("frontend/frontendB-desktop-app/template-runtime/src/routes/api/[...path]/+server.js");
+    const frontendBAdminProxy = read("frontend/frontendB-desktop-app/template-runtime/src/routes/admin/api/[...path]/+server.js");
+    const frontendBHooks = read("frontend/frontendB-desktop-app/template-runtime/src/hooks.server.js");
 
-    for (const source of [frontendANextConfig, frontendBNextConfig, frontendCNextConfig]) {
+    for (const source of [frontendCNextConfig]) {
       expect(source).toContain("source: '/api/:path*'");
       expect(source).toContain("destination: `${mapleGatewayOrigin}/api/:path*`");
       expect(source).toContain("source: '/admin/api/:path*'");
       expect(source).toContain("destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`");
     }
+
+    expect(frontendAApiProxy).toContain("`${getGatewayOrigin()}/api/${joined}${url.search}`");
+    expect(frontendAAdminProxy).toContain("`${getAdminOrigin()}/admin/api/${joined}${url.search}`");
+    expect(frontendAHooks).toContain("if (!pathname.startsWith('/maple'))");
+
+    expect(frontendBApiProxy).toContain("new URL(`/api/${path}`");
+    expect(frontendBAdminProxy).toContain("new URL(`/admin/api/${path}`");
+    expect(frontendBHooks).toContain("pathname === '/runs'");
+    expect(frontendBHooks).toContain("pathname.match(/^\\/runs\\/([^/]+)$/)");
   });
 
   it("desktop electron shell points at template runtime UI by default", () => {

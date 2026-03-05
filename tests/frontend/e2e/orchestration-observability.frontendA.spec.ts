@@ -11,7 +11,7 @@ function json(data: JsonValue) {
 }
 
 test.describe("frontend A monitoring + intervention workspace", () => {
-  test("canonical /maple workspace renders chat-first home and observability modules", async ({ page }) => {
+  test("canonical /maple workspace renders home and monitor live modules", async ({ page }) => {
     const baseURL = String(test.info().project.use.baseURL);
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
@@ -93,30 +93,23 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     });
 
     await page.goto("/maple");
-    await page.waitForURL(/category=observe/);
 
     await expect(page.getByTestId("maple-workspace-layout")).toBeVisible();
     await expect(page.getByTestId("maple-workspace-shell")).toBeVisible();
     await expect(page.getByRole("heading", { name: /What can I help with\?/i })).toBeVisible();
     await page
       .getByRole("navigation", { name: /workspace categories/i })
-      .getByRole("tab", { name: /^Observe$/i })
+      .getByRole("tab", { name: /^Monitor$/i })
       .click();
     await expect(page.getByRole("heading", { name: /Observability & Alerts/i })).toBeVisible();
     await expect(page.getByTestId("monitoring-context-explainer")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Intervention Command Bar/i })).toBeVisible();
-    await expect(page.locator("#contextSubTabs button", { hasText: "Chat" })).toBeVisible();
-    await page.goto("/maple/observability?category=observe&view=chat");
-    await page.waitForURL(/view=chat/);
-    await expect(page.getByRole("heading", { name: /Observe Chat/i })).toBeVisible();
-    await page
-      .locator(".observe-chat-view")
-      .getByRole("button", { name: /monitoring status update/i })
-      .click();
+    await page.goto("/maple?category=monitor&view=chat&route=%2Fmaple%2Fobservability");
+    await expect(page).toHaveURL(/category=chat/);
+    await expect(page).toHaveURL(/view=chat/);
+    await expect(page.getByRole("heading", { name: /What can I help with\?/i })).toBeVisible();
     expect(hits.has("GET /api/observability/orchestrations/summary")).toBeTruthy();
     expect(hits.has("GET /api/observability/orchestrations/slo")).toBeTruthy();
     expect(hits.has("GET /api/observability/orchestrations/audit-log")).toBeTruthy();
-    expect(hits.has("POST /api/firewall/chat")).toBeTruthy();
   });
 
   test("legacy /maple/audit deep-links into canonical workspace and intervention actions call APIs", async ({ page }) => {
@@ -186,12 +179,12 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     await expect(page).toHaveURL(/\/maple\?/);
     await expect(page.getByRole("heading", { name: /Audit & Compliance Operations/i })).toBeVisible();
 
-    await page.getByLabel("Execution ID").fill("exec-parent-1");
+    await page.getByLabel("Trace or Session ID").fill("exec-parent-1");
     await page.getByRole("button", { name: "Pause" }).click();
     await page.getByRole("button", { name: "Resume" }).click();
 
     await page.getByLabel(/Reason/i).fill("unsafe output in runtime");
-    await page.getByRole("button", { name: "Cancel" }).first().click();
+    await page.getByRole("button", { name: "Stop" }).click();
     await page.getByRole("button", { name: "Confirm" }).click();
 
     expect(hits.has("POST /api/orchestrations/executions/exec-parent-1/pause")).toBeTruthy();
@@ -210,7 +203,6 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     });
 
     await page.goto("/maple");
-    await page.waitForURL(/category=observe/);
 
     await page
       .getByRole("navigation", { name: /workspace categories/i })

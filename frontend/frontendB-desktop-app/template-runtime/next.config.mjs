@@ -44,6 +44,7 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 const nextConfig = {
+  distDir: '.mayple-next',
   ...(outputTracingRoot ? { outputFileTracingRoot: outputTracingRoot } : {}),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   reactCompiler: true,
@@ -65,27 +66,7 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-          config: [fileURLToPath(import.meta.url)],
-        },
-      }
-      config.output.pathinfo = false
-      config.optimization.removeAvailableModules = false
-      config.optimization.removeEmptyChunks = false
-      config.optimization.splitChunks = false
-      config.optimization.runtimeChunk = true
-      config.resolve.extensions = ['.jsx', '.js', '.mjs', '.json']
-      config.watchOptions = {
-        ...config.watchOptions,
-        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
-      }
-    }
-    return config
-  },
+  webpack: (config) => config,
   async rewrites() {
     return [
       {

@@ -38,17 +38,34 @@ describe('frontend A workspace state resolver', () => {
     expect(state.sessionId).toBe('sess-2')
   })
 
-  it('supports observe chat view in canonical workspace state', () => {
+  it('normalizes legacy category/view aliases into consolidated workspace state', () => {
     const state = resolveWorkspaceState({
       pathname: '/maple',
       searchParams: new URLSearchParams(
-        'category=observe&view=chat&route=/maple/observability',
+        'category=monitor&view=chat&route=/maple/observability',
       ),
     })
 
-    expect(state.category).toBe('observe')
+    expect(state.category).toBe('chat')
     expect(state.view).toBe('chat')
     expect(state.routePath).toBe('/maple/observability')
+  })
+
+  it('normalizes old recovery/integrations aliases to restored pills', () => {
+    const governState = resolveWorkspaceState({
+      pathname: '/maple',
+      searchParams: new URLSearchParams('category=policy&view=recovery&route=/maple/tools'),
+    })
+    expect(governState.category).toBe('admin')
+    expect(governState.view).toBe('policy')
+
+    const adminState = resolveWorkspaceState({
+      pathname: '/maple',
+      searchParams: new URLSearchParams('category=system&view=integrations&route=/maple/integrations'),
+    })
+    expect(adminState.category).toBe('admin')
+    expect(adminState.view).toBe('marketplace')
+    expect(adminState.routePath).toBe('/maple/integrations')
   })
 
   it('builds canonical href with required and optional values', () => {

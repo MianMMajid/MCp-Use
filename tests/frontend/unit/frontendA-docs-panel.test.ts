@@ -1,50 +1,29 @@
-import React from 'react'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { MapleDocsPanel } from '../../../frontend/frontendA-it-console/template-runtime/src/components/workspace/MapleDocsPanel.jsx'
 import { getMapleRoute } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/route-registry.js'
+import { docsByPath } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/svelte-docs/content.js'
 import {
   parseStoredDocsPanelPreference,
   resolveInitialDocsPanelState,
 } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/docs-panel-preferences.js'
 
-describe('frontend A docs panel', () => {
-  it('renders route summary, section anchors, endpoints, and legacy docs links', () => {
+describe('frontend A docs contracts', () => {
+  it('keeps route metadata and docs content coverage for observability', () => {
     const routeRecord = getMapleRoute('/maple/observability')
     if (!routeRecord) {
       throw new Error('Missing /maple/observability route metadata.')
     }
 
-    render(
-      React.createElement(MapleDocsPanel, {
-        isDesktop: true,
-        isOpen: true,
-        routeRecord,
-        onClose: vi.fn(),
-      }),
-    )
+    expect(routeRecord.description.length).toBeGreaterThan(0)
+    expect(routeRecord.anchors.length).toBeGreaterThan(0)
+    expect(routeRecord.apiEndpoints.length).toBeGreaterThan(0)
+    expect(routeRecord.legacyDocLinks.length).toBeGreaterThan(0)
+    expect(routeRecord.apiEndpoints[0]?.startsWith('/')).toBe(true)
 
-    expect(screen.getByRole('heading', { name: 'Context Docs' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'A/B Role Split' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Route Summary' })).toBeInTheDocument()
-    expect(screen.getByText(routeRecord.description)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Section Anchors' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'API Endpoints' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Legacy Docs' })).toBeInTheDocument()
-
-    const firstEndpoint = routeRecord.apiEndpoints[0]
-    if (firstEndpoint) {
-      expect(screen.getByText(firstEndpoint)).toBeInTheDocument()
-    }
-
-    const firstAnchor = routeRecord.anchors[0]
-    if (firstAnchor) {
-      expect(screen.getByRole('link', { name: firstAnchor.title })).toHaveAttribute(
-        'href',
-        `${routeRecord.path}#${firstAnchor.id}`,
-      )
-    }
+    const overviewDoc = docsByPath['/']
+    expect(overviewDoc?.title).toBe('Operations Overview')
+    expect(overviewDoc?.sections.length).toBeGreaterThan(0)
+    expect(overviewDoc?.summary).toContain('Mayple')
   })
 
   it('respects desktop/mobile default docs panel state rules', () => {

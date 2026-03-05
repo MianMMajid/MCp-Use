@@ -1,5 +1,3 @@
-import { readdirSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -7,52 +5,13 @@ import {
   MAPLE_WORKSPACE_CATEGORIES,
   MAPLE_WORKSPACE_ROUTE_PATHS,
 } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/route-registry.js'
-
-const repoRoot = process.cwd()
-const mapleAppRoot = resolve(
-  repoRoot,
-  'frontend/frontendA-it-console/template-runtime/src/app/maple',
-)
-
-function collectMaplePageRoutes(dir: string, prefix = '/maple'): string[] {
-  const entries = readdirSync(dir)
-  const routes: string[] = []
-
-  for (const entry of entries) {
-    const absolutePath = resolve(dir, entry)
-    const isDirectory = statSync(absolutePath).isDirectory()
-
-    if (!isDirectory) {
-      continue
-    }
-
-    const jsxPage = resolve(absolutePath, 'page.jsx')
-    const mdxPage = resolve(absolutePath, 'page.mdx')
-    const hasPageFile = [jsxPage, mdxPage].some((pageFile) => {
-      try {
-        return statSync(pageFile).isFile()
-      } catch {
-        return false
-      }
-    })
-
-    const routePath = `${prefix}/${entry}`
-    const isDynamicRoute = entry.includes('[')
-    if (hasPageFile) {
-      if (!isDynamicRoute) {
-        routes.push(routePath)
-      }
-    }
-
-    routes.push(...collectMaplePageRoutes(absolutePath, routePath))
-  }
-
-  return routes
-}
+import { allSections } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/docs/allSections.js'
 
 describe('frontend A maple route registry', () => {
-  it('includes every mapled route page in the registry', () => {
-    const discoveredRoutes = Array.from(new Set(collectMaplePageRoutes(mapleAppRoot))).sort()
+  it('includes every mapled docs section route in the registry', () => {
+    const discoveredRoutes = Object.keys(allSections)
+      .filter((path) => path.startsWith('/maple/'))
+      .sort()
     const registryRoutes = new Set(MAPLE_WORKSPACE_ROUTE_PATHS)
 
     expect(discoveredRoutes.length).toBeGreaterThan(0)
@@ -78,6 +37,13 @@ describe('frontend A maple route registry', () => {
       expect(Array.isArray(route.legacyAliases)).toBe(true)
       expect(Array.isArray(route.docsViews)).toBe(true)
       expect(route.docsViews.length).toBeGreaterThan(0)
+      expect(typeof route.primaryFunction).toBe('string')
+      expect(typeof route.docsContextKey).toBe('string')
+      expect(typeof route.compatAliasBehavior).toBe('string')
+      expect(typeof route.legacyAliasBehavior).toBe('string')
+      expect(typeof route.mappedSurface).toBe('object')
+      expect(typeof route.mappedSurface.category).toBe('string')
+      expect(typeof route.mappedSurface.view).toBe('string')
 
       for (const endpoint of route.apiEndpoints) {
         expect(endpoint.startsWith('/')).toBe(true)

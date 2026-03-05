@@ -10,22 +10,28 @@ function read(relativePath: string): string {
 
 describe("template runtime content coverage", () => {
   it("frontend A includes gateway and policy endpoint references", () => {
-    const gatewayDoc = read("frontend/frontendA-it-console/template-runtime/src/app/maple/gateway/page.jsx");
-    const policiesPage = read("frontend/frontendA-it-console/template-runtime/src/app/maple/policies/page.jsx");
-    const auditPage = read("frontend/frontendA-it-console/template-runtime/src/app/maple/audit/page.jsx");
+    const routeRegistry = read("frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/route-registry.js");
+    const workspaceState = read("frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/workspace-state.js");
 
-    expect(gatewayDoc).toContain("/api/runtime/feature-capabilities");
-    expect(gatewayDoc).toContain("/api/firewall/decision");
-    expect(policiesPage).toContain("redirect('/maple/audit')");
-    expect(auditPage).toContain("/api/observability/orchestrations/audit-log");
+    expect(routeRegistry).toContain("/api/runtime/feature-capabilities");
+    expect(routeRegistry).toContain("/api/firewall/decision");
+    expect(workspaceState).toContain("'/maple/policies': '/maple/audit'");
+    expect(routeRegistry).toContain("/api/observability/orchestrations/audit-log");
   });
 
   it("frontend B workspace binds to runtime and HITL endpoints", () => {
-    const workspace = read("frontend/frontendB-desktop-app/template-runtime/src/app/(app)/maple-workspace.jsx");
-    expect(workspace).toContain("/api/runtime/feature-capabilities");
-    expect(workspace).toContain("/api/firewall/state");
-    expect(workspace).toContain("/api/hitl/approvals");
-    expect(workspace).toContain("Agent Orchestration Console");
+    const workspace = read("frontend/frontendB-desktop-app/template-runtime/src/lib/components/ChatWorkspace.svelte");
+    const chatStore = read("frontend/frontendB-desktop-app/template-runtime/src/lib/stores/chat-store.js");
+    const orchestrationApi = read("frontend/frontendB-desktop-app/template-runtime/src/lib/orchestrations-api.js");
+    const orchestrationPage = read("frontend/frontendB-desktop-app/template-runtime/src/routes/orchestrate/[id]/+page.svelte");
+    expect(chatStore).toContain("/api/agents");
+    expect(chatStore).toContain("/api/auth/me");
+    expect(orchestrationApi).toContain("/api/orchestrations");
+    expect(orchestrationApi).toContain("/api/orchestrations/executions");
+    expect(orchestrationPage).toContain("Runtime Control Plane");
+    expect(orchestrationPage).toContain("Execute Live");
+    expect(workspace).toContain("Agent Chat");
+    expect(workspace).toContain("Orchestration Chat");
   });
 
   it("frontend C landing includes lifecycle and desktop download actions", () => {
@@ -33,7 +39,7 @@ describe("template runtime content coverage", () => {
     const downloadSection = read(
       "frontend/frontendC-marketing-download-site/template-runtime/src/components/DownloadSection.jsx"
     );
-    expect(landing).toContain("A/B/C operating journey");
+    expect(landing).toContain("How teams use Maple");
     expect(downloadSection).toContain("/api/downloads/mac");
     expect(downloadSection).toContain("/api/downloads/win");
   });

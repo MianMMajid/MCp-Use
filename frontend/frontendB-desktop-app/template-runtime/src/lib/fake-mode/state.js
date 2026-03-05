@@ -396,6 +396,45 @@ function buildExecutions(now, orchestrations, nextId) {
   return items
 }
 
+function buildScheduledTasks(now) {
+  return [
+    {
+      id: 'task-1',
+      title: 'Daily incident digest',
+      prompt: 'Summarize incidents and highlight policy breaches.',
+      status: 'running',
+      schedule: {
+        startAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+        timezone: 'America/Los_Angeles',
+        intervalMinutes: 60,
+        maxRepeats: 24,
+      },
+      assignment: { type: 'orchestration', orchestrationId: 'orch-1' },
+      lastRunAt: new Date(now - 20 * 60 * 1000).toISOString(),
+      nextRunAt: new Date(now + 40 * 60 * 1000).toISOString(),
+      createdAt: new Date(now - 2 * DAY_MS).toISOString(),
+      updatedAt: new Date(now - 20 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'task-2',
+      title: 'Hourly policy scan',
+      prompt: 'Run policy scan and report anomalies.',
+      status: 'paused',
+      schedule: {
+        startAt: new Date(now - 10 * 60 * 60 * 1000).toISOString(),
+        timezone: 'America/Los_Angeles',
+        intervalMinutes: 120,
+        maxRepeats: 12,
+      },
+      assignment: { type: 'agent', agentId: 'agent-1' },
+      lastRunAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+      nextRunAt: new Date(now + 30 * 60 * 1000).toISOString(),
+      createdAt: new Date(now - DAY_MS).toISOString(),
+      updatedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+    },
+  ]
+}
+
 function buildNotifications(now, nextId) {
   return [
     { id: nextId('notif'), title: 'Approval required', message: 'A high-risk modifier action needs review.', body: 'A high-risk modifier action needs review.', type: 'approvals', category: 'approvals', read: false, createdAt: new Date(now - 4 * 60 * 1000).toISOString() },
@@ -591,6 +630,7 @@ export function createFakeState(seedInput) {
   const orchestrations = buildOrchestrations(now, nextId)
   const executions = buildExecutions(now, orchestrations, nextId)
   const orchestrationTemplates = buildTemplates()
+  const scheduledTasks = buildScheduledTasks(now)
   const orchestrationConversations = Object.fromEntries(
     orchestrations.map((orch) => [orch.id, createConversationSeed(now, orch)]),
   )
@@ -754,6 +794,7 @@ export function createFakeState(seedInput) {
     },
     orchestrations,
     orchestrationTemplates,
+    scheduledTasks,
     orchestrationConversations,
     orchestrationExecutions: executions,
     traceExports: [],

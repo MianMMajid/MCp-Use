@@ -1763,6 +1763,153 @@ function handleObservabilityMisc(pathname, method, state, body) {
   return null
 }
 
+function handleScheduledTasks(pathname, method, state, body) {
+  if (!Array.isArray(state.scheduledTasks)) state.scheduledTasks = []
+
+  if (pathname === '/api/tasks' && method === 'GET') {
+    return asJson({ items: state.scheduledTasks })
+  }
+
+  if (pathname === '/api/tasks' && method === 'POST') {
+    const payload = parseBody(body)
+    const intervalMinutes = Number(payload?.schedule?.intervalMinutes ?? 0)
+    const maxRepeats = Number(payload?.schedule?.maxRepeats ?? 1)
+    const startAt = payload?.schedule?.startAt || nowIso()
+    const startAtDate = new Date(startAt)
+    const endAt = payload?.schedule?.endAt || null
+    const endAtDate = endAt ? new Date(endAt) : null
+    const timezone = payload?.schedule?.timezone || 'America/Los_Angeles'
+    const assignment = payload?.assignment || {}
+
+    if (!payload?.title) return asJson({ ok: false, error: 'title is required' }, 400)
+    if (!Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+      return asJson({ ok: false, error: 'schedule.intervalMinutes must be positive' }, 400)
+    }
+    if (!Number.isFinite(maxRepeats) || maxRepeats < 1) {
+      return asJson({ ok: false, error: 'schedule.maxRepeats must be at least 1' }, 400)
+    }
+    if (Number.isNaN(startAtDate.getTime()) || startAtDate.getTime() <= Date.now()) {
+      return asJson({ ok: false, error: 'schedule.startAt must be a valid future time' }, 400)
+    }
+    if (endAtDate && Number.isNaN(endAtDate.getTime())) {
+      return asJson({ ok: false, error: 'schedule.endAt must be a valid datetime' }, 400)
+    }
+    if (endAtDate && endAtDate.getTime() <= startAtDate.getTime()) {
+      return asJson({ ok: false, error: 'schedule.endAt must be after schedule.startAt' }, 400)
+    }
+    if ((assignment.agentId && assignment.orchestrationId) || (!assignment.agentId && !assignment.orchestrationId)) {
+      return asJson({ ok: false, error: 'Provide exactly one assignment target: agentId or orchestrationId' }, 400)
+    }
+
+    const task = {
+      id: state.nextId('task'),
+      title: String(payload.title),
+      prompt: String(payload.prompt || payload.objective || ''),
+      status: 'running',
+      schedule: {
+        startAt: startAtDate.toISOString(),
+        timezone,
+        intervalMinutes,
+        maxRepeats,
+        endAt: endAtDate ? endAtDate.toISOString() : null,
+      },
+      assignment: assignment.agentId
+        ? { type: 'agent', agentId: assignment.agentId }
+        : { type: 'orchestration', orchestrationId: assignment.orchestrationId },
+      lastRunAt: null,
+      nextRunAt: new Date(startAtDate.getTime() + intervalMinutes * 60 * 1000).toISOString(),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    state.scheduledTasks.unshift(task)
+    return asJson({ ok: true, task }, 201)
+  }
+
+  let params = matchPath(pathname, '/api/tasks/:taskId')
+  if (params && method === 'PATCH') {
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(params.taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    const payload = parseBody(body)
+    if (payload.title != null) task.title = String(payload.title)
+    if (payload.prompt != null) task.prompt = String(payload.prompt)
+    if (payload.schedule) {
+      const nextStartAt = payload.schedule.startAt ? new Date(payload.schedule.startAt) : new Date(task.schedule?.startAt || Date.now())
+      const nextEndAt = payload.schedule.endAt ? new Date(payload.schedule.endAt) : (task.schedule?.endAt ? new Date(task.schedule.endAt) : null)
+      const nextInterval = payload.schedule.intervalMinutes != null ? Number(payload.schedule.intervalMinutes) : Number(task.schedule?.intervalMinutes || 0)
+      const nextMaxRepeats = payload.schedule.maxRepeats != null ? Number(payload.schedule.maxRepeats) : Number(task.schedule?.maxRepeats || 1)
+      if (Number.isNaN(nextStartAt.getTime()) || nextStartAt.getTime() <= Date.now()) {
+        return asJson({ ok: false, error: 'schedule.startAt must be a valid future time' }, 400)
+      }
+      if (nextEndAt && Number.isNaN(nextEndAt.getTime())) {
+        return asJson({ ok: false, error: 'schedule.endAt must be a valid datetime' }, 400)
+      }
+      if (nextEndAt && nextEndAt.getTime() <= nextStartAt.getTime()) {
+        return asJson({ ok: false, error: 'schedule.endAt must be after schedule.startAt' }, 400)
+      }
+      if (!Number.isFinite(nextInterval) || nextInterval <= 0) {
+        return asJson({ ok: false, error: 'schedule.intervalMinutes must be positive' }, 400)
+      }
+      if (!Number.isFinite(nextMaxRepeats) || nextMaxRepeats < 1) {
+        return asJson({ ok: false, error: 'schedule.maxRepeats must be at least 1' }, 400)
+      }
+      task.schedule = {
+        ...task.schedule,
+        ...payload.schedule,
+        startAt: nextStartAt.toISOString(),
+        endAt: nextEndAt ? nextEndAt.toISOString() : null,
+        intervalMinutes: nextInterval,
+        maxRepeats: nextMaxRepeats,
+      }
+    }
+    task.updatedAt = nowIso()
+    return asJson({ ok: true, task })
+  }
+
+  params = matchPath(pathname, '/api/tasks/:taskId')
+  if (params && method === 'DELETE') {
+    const idx = state.scheduledTasks.findIndex((item) => String(item.id) === String(params.taskId))
+    if (idx < 0) return asJson({ ok: false, error: 'Task not found' }, 404)
+    state.scheduledTasks.splice(idx, 1)
+    return asJson({ ok: true })
+  }
+
+  params = matchPath(pathname, '/api/tasks/:taskId/assign')
+  if (params && method === 'POST') {
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(params.taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    const payload = parseBody(body)
+    const agentId = String(payload.agentId || '').trim()
+    const orchestrationId = String(payload.orchestrationId || '').trim()
+    if ((agentId && orchestrationId) || (!agentId && !orchestrationId)) {
+      return asJson({ ok: false, error: 'Provide exactly one target: agentId or orchestrationId' }, 400)
+    }
+    task.assignment = agentId
+      ? { type: 'agent', agentId }
+      : { type: 'orchestration', orchestrationId }
+    task.updatedAt = nowIso()
+    return asJson({ ok: true, task })
+  }
+
+  const command = ['/pause', '/resume', '/run-now'].find((suffix) => pathname.endsWith(suffix))
+  if (command && method === 'POST') {
+    const taskId = pathname.split('/')[3]
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    if (command === '/pause') task.status = 'paused'
+    if (command === '/resume') task.status = 'running'
+    if (command === '/run-now') {
+      task.status = 'running'
+      task.lastRunAt = nowIso()
+      const intervalMinutes = Number(task.schedule?.intervalMinutes || 60)
+      task.nextRunAt = new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString()
+    }
+    task.updatedAt = nowIso()
+    return asJson({ ok: true, task })
+  }
+
+  return null
+}
+
 function handleLegacyAndMisc(pathname, method) {
   if (pathname === '/api/' && method === 'GET') {
     return asJson({ ok: true })
@@ -1792,6 +1939,7 @@ export async function handleFakeRequest({ method, pathname, searchParams, body, 
     () => handleObservability(normalizedPath, upperMethod, state, searchParams, body),
     () => handleToolsAndCli(normalizedPath, upperMethod, state, body),
     () => handleOrchestrations(normalizedPath, upperMethod, state, searchParams, body),
+    () => handleScheduledTasks(normalizedPath, upperMethod, state, body),
     () => handleObservabilityMisc(normalizedPath, upperMethod, state, body),
   ]
 
@@ -1833,6 +1981,7 @@ export function getHandledRouteManifest() {
     '/api/tools*',
     '/api/openclaw/cli*',
     '/api/orchestrations*',
+    '/api/tasks*',
     '/api/traces/export',
     '/api/openclaw/events',
   ]

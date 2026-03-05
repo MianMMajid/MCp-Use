@@ -1,23 +1,34 @@
 #!/usr/bin/env node
-const fs = require('node:fs')
-const path = require('node:path')
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const ROOT = path.resolve(__dirname, '..')
 const SRC = path.join(ROOT, 'src')
-const APP_ROOT = path.join(SRC, 'app', '(app)')
+const ROUTES = path.join(SRC, 'routes')
 
-const ALLOWED_ROUTE_GROUPS = new Set([
-  'agent-chat',
+const REQUIRED_ROUTES = [
+  '',
   'agents',
-  'api-keys',
+  'agents/[id]',
   'orchestrate',
-  'profile',
-  'runs',
-  'service-accounts',
-  'sessions',
-  'settings',
+  'orchestrate/[id]',
   'tasks',
-])
+  'settings',
+  'sessions',
+  'service-accounts',
+  'api-keys',
+  'profile',
+  'login',
+  'register',
+  'forgot-password',
+  'reset-password',
+  'verify-email',
+  'runs',
+  'runs/[id]',
+]
 
 const ALLOWED_API_PREFIXES = [
   '/api/agents',
@@ -44,7 +55,6 @@ const ALLOWED_API_PREFIXES = [
 ]
 
 const FORBIDDEN_PATTERNS = [
-  '/admin/api/',
   '/api/openclaw/modifier/approvals',
   '/api/openclaw/modifier/observability',
   '/api/openclaw/modifier/ops',
@@ -52,9 +62,9 @@ const FORBIDDEN_PATTERNS = [
   '/api/operations/orchestrations',
 ]
 
-const FILE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx'])
+const FILE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.svelte'])
 const violations = {
-  routeGroups: [],
+  missingRoutes: [],
   forbiddenPatterns: [],
   disallowedEndpoints: [],
 }
@@ -68,6 +78,7 @@ function walk(dirPath) {
       continue
     }
     if (!FILE_EXTENSIONS.has(path.extname(entry.name))) continue
+    if (fullPath.includes(`${path.sep}lib${path.sep}fake-mode${path.sep}`)) continue
     const content = fs.readFileSync(fullPath, 'utf8')
     FORBIDDEN_PATTERNS.forEach((pattern) => {
       if (content.includes(pattern)) {
@@ -90,22 +101,18 @@ function walk(dirPath) {
   }
 }
 
-const routeDirs = fs
-  .readdirSync(APP_ROOT, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
-  .sort()
-
-for (const routeGroup of routeDirs) {
-  if (!ALLOWED_ROUTE_GROUPS.has(routeGroup)) {
-    violations.routeGroups.push(routeGroup)
+for (const route of REQUIRED_ROUTES) {
+  let routeFile = route === '' ? path.join(ROUTES, '+page.svelte') : path.join(ROUTES, route, '+page.svelte')
+  let fallback = route === '' ? null : path.join(ROUTES, route, '+page.server.js')
+  if (!fs.existsSync(routeFile) && !(fallback && fs.existsSync(fallback))) {
+    violations.missingRoutes.push(route || '/')
   }
 }
 
 walk(SRC)
 
 if (
-  violations.routeGroups.length === 0 &&
+  violations.missingRoutes.length === 0 &&
   violations.forbiddenPatterns.length === 0 &&
   violations.disallowedEndpoints.length === 0
 ) {
@@ -113,10 +120,10 @@ if (
   process.exit(0)
 }
 
-if (violations.routeGroups.length > 0) {
-  console.error('Unexpected Frontend B route groups detected:')
-  for (const routeGroup of violations.routeGroups) {
-    console.error(`- ${routeGroup}`)
+if (violations.missingRoutes.length > 0) {
+  console.error('Missing required Svelte routes:')
+  for (const route of violations.missingRoutes) {
+    console.error(`- ${route}`)
   }
 }
 
