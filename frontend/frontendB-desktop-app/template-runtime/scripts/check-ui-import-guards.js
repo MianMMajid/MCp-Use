@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-const fs = require('node:fs')
-const path = require('node:path')
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const ROOT = path.resolve(__dirname, '..', 'src')
 const BADGE_USAGE_RE = /<Badge\b/m
 const BADGE_IMPORT_RE = /import\s+\{[^}]*\bBadge\b[^}]*\}\s+from\s+['"](?:@\/components\/badge|\.\/badge)['"]/m

@@ -1,40 +1,32 @@
 {
-  "name": "maple-desktop",
+  "name": "mayple-frontend-b",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:warm": "next dev --webpack --port 4102 & sleep 3 && node scripts/prewarm-dev.js",
-    "build": "next build --webpack",
-    "start": "next start",
+    "dev": "svelte-kit sync && vite dev --port 3000",
+    "build": "svelte-kit sync && vite build",
+    "preview": "vite preview --port 3000",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "npm run check:ui-import-guards",
     "check:surface": "node scripts/check-orchestration-surface.js",
     "check:ui-import-guards": "node scripts/check-ui-import-guards.js"
   },
   "dependencies": {
-    "@xyflow/react": "^12.6.0",
-    "@headlessui/react": "^2.2.6",
-    "@heroicons/react": "^2.2.0",
-    "babel-plugin-react-compiler": "^1.0.0",
+    "@sveltejs/adapter-auto": "^6.1.0",
+    "@sveltejs/kit": "^2.48.5",
+    "@xyflow/svelte": "^1.5.1",
     "clsx": "^2.1.1",
-    "motion": "^12.23.11",
-    "next": "16.1.6",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "svelte": "^5.43.6"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.0",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "postcss": "^8",
-    "prettier": "^3.6.2",
-    "prettier-plugin-organize-imports": "^4.2.0",
-    "prettier-plugin-tailwindcss": "^0.7.2",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@typescript-eslint/types": "^8.56.1",
+    "postcss": "^8.5.8",
+    "svelte-check": "^4.3.1",
     "tailwindcss": "^4.2.0",
-    "typescript": "^5.8.3"
-  },
-  "overrides": {
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3"
+    "typescript": "^5.8.3",
+    "vite": "^7.1.7"
   }
 }

@@ -1,4 +1,4 @@
-import { allSections } from '../../app/allSections.js'
+import { allSections } from '../docs/allSections.js'
 import {
   MAPLE_WORKSPACE_CATEGORY_IDS,
   isMapleWorkspaceCategory,
@@ -8,11 +8,11 @@ export const MAPLE_WORKSPACE_PATH_PREFIX = '/maple'
 export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
 
 export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
-  { id: 'observe', label: 'Observe', description: 'Live telemetry and runtime snapshots.' },
-  { id: 'analyze', label: 'Analyze', description: 'Inspect decisions, sessions, and execution traces.' },
-  { id: 'govern', label: 'Govern', description: 'Policy workflows, escalations, and controls.' },
-  { id: 'admin', label: 'Admin', description: 'Identity, integrations, and account operations.' },
-  { id: 'docs', label: 'Docs', description: 'Runbooks, endpoint references, and route guidance.' },
+  { id: 'chat', label: 'Chat', description: 'Monitoring agent conversation and live recommendations.' },
+  { id: 'observe', label: 'Monitor', description: 'Live telemetry and runtime snapshots.' },
+  { id: 'admin', label: 'System', description: 'Identity, integrations, and account operations.' },
+  { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
+  { id: 'users', label: 'Users', description: 'User accounts, role assignments, and access governance.' },
 ])
 
 const LEGACY_DOC_LINKS = Object.freeze([
@@ -41,7 +41,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/audit',
     title: 'Audit + Traces',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Audit + Traces',
     description: 'Review immutable audit chains, retention state, and dead-letter replay.',
     apiEndpoints: [
@@ -56,7 +56,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/gateway',
     title: 'Firewall Dashboard',
-    category: 'observe',
+    category: 'firewalls',
     tabLabel: 'Firewall Dashboard',
     description: 'Track firewall status, effective rules, and preview live decisions.',
     apiEndpoints: [
@@ -66,7 +66,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
       '/api/firewall/decision',
       '/api/firewall/chat',
     ],
-    preferredView: 'live',
+    preferredView: 'cybersecurity',
   },
   {
     path: '/maple/runs',
@@ -84,12 +84,12 @@ const MAPLE_ROUTE_DEFINITIONS = [
     tabLabel: 'Community',
     description: 'Browse shared trace signals and anonymized network patterns.',
     apiEndpoints: ['/api/community/stats', '/api/community/traces'],
-    preferredView: 'fork',
+    preferredView: 'timeline',
   },
   {
     path: '/maple/hitl',
     title: 'HITL Queue',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'HITL Queue',
     description: 'Process pending approvals and review high-risk interventions.',
     apiEndpoints: [
@@ -103,7 +103,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/modifier-approvals',
     title: 'Modifier Approvals',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Modifier Approvals',
     description: 'Approve or reject modifier actions requiring explicit authorization.',
     apiEndpoints: ['/api/modifier/approvals', '/api/modifier/decision'],
@@ -112,16 +112,25 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/agent',
     title: 'Agent Management',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Agent Management',
     description: 'Inspect agent status, message streams, and session context.',
     apiEndpoints: ['/api/openclaw/agent/status', '/api/openclaw/agent/turn'],
     preferredView: 'control',
   },
   {
+    path: '/maple/demo',
+    title: 'Demo Playground',
+    category: 'admin',
+    tabLabel: 'Demo Playground',
+    description: 'Run deterministic demos for trace, audit, block, and fork paths.',
+    apiEndpoints: ['/api/demo/start', '/api/demo/full', '/api/demo/guard'],
+    preferredView: 'control',
+  },
+  {
     path: '/maple/downstream',
     title: 'Downstream MCP',
-    category: 'analyze',
+    category: 'admin',
     tabLabel: 'Downstream MCP',
     description: 'Discover connected downstream MCP apps and dispatch tools.',
     apiEndpoints: ['/api/downstream/apps', '/api/downstream/tools', '/api/downstream/dispatch'],
@@ -130,7 +139,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/policies',
     title: 'Policy Center',
-    category: 'govern',
+    category: 'admin',
     tabLabel: 'Policy Center',
     description: 'Policy operations surface (currently redirects to audit workflows).',
     apiEndpoints: ['/api/policies', '/admin/api/policies'],
@@ -139,7 +148,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/runtime',
     title: 'Runtime',
-    category: 'govern',
+    category: 'admin',
     tabLabel: 'Runtime',
     description: 'Runtime dependency and capability controls (redirects to observability).',
     apiEndpoints: ['/api/runtime/feature-capabilities', '/api/runtime/status'],
@@ -149,7 +158,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/tenants',
     title: 'Tenant & Org',
-    category: 'govern',
+    category: 'admin',
     tabLabel: 'Tenant & Org',
     description: 'Tenant scoping and organizational hierarchy controls.',
     apiEndpoints: ['/api/tenants/bindings', '/api/org/hierarchy'],
@@ -158,7 +167,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/tools',
     title: 'Tools Registry',
-    category: 'govern',
+    category: 'admin',
     tabLabel: 'Tools Registry',
     description: 'Manage tool inventory, policy overlays, and execution telemetry.',
     apiEndpoints: ['/api/tools/registry', '/api/tools/policies', '/api/tools/executions'],
@@ -167,16 +176,16 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/escalation',
     title: 'Escalation',
-    category: 'govern',
+    category: 'admin',
     tabLabel: 'Escalation',
     description: 'Configure escalation chains, break-glass controls, and step-up auth.',
     apiEndpoints: ['/api/escalation/chains', '/api/escalation/break-glass'],
-    preferredView: 'guard',
+    preferredView: 'policy',
   },
   {
     path: '/maple/org',
     title: 'Organizations',
-    category: 'govern',
+    category: 'admin',
     tabLabel: 'Organizations',
     description: 'Organization membership lifecycle, invites, and roles.',
     apiEndpoints: ['/api/org', '/api/org/invites', '/api/org/roles'],
@@ -194,11 +203,11 @@ const MAPLE_ROUTE_DEFINITIONS = [
   {
     path: '/maple/auth-admin',
     title: 'Auth Admin',
-    category: 'admin',
+    category: 'users',
     tabLabel: 'Auth Admin',
     description: 'Operate login, registration, recovery, and session endpoints.',
     apiEndpoints: ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/me'],
-    preferredView: 'settings',
+    preferredView: 'access',
   },
   {
     path: '/maple/api-keys',
@@ -251,15 +260,55 @@ function toAnchors(path) {
   }))
 }
 
+const ROUTE_SURFACE_BY_PATH = Object.freeze({
+  '/maple/observability': { category: 'observe', view: 'live' },
+  '/maple/gateway': { category: 'firewalls', view: 'cybersecurity' },
+  '/maple/runs': { category: 'observe', view: 'timeline' },
+  '/maple/community': { category: 'observe', view: 'timeline' },
+  '/maple/chat': { category: 'chat', view: 'chat' },
+  '/maple/audit': { category: 'admin', view: 'control' },
+  '/maple/hitl': { category: 'admin', view: 'control' },
+  '/maple/modifier-approvals': { category: 'admin', view: 'control' },
+  '/maple/agent': { category: 'admin', view: 'control' },
+  '/maple/demo': { category: 'admin', view: 'control' },
+  '/maple/downstream': { category: 'admin', view: 'marketplace' },
+  '/maple/policies': { category: 'admin', view: 'control' },
+  '/maple/runtime': { category: 'admin', view: 'control' },
+  '/maple/tenants': { category: 'admin', view: 'control' },
+  '/maple/tools': { category: 'admin', view: 'control' },
+  '/maple/escalation': { category: 'admin', view: 'control' },
+  '/maple/org': { category: 'admin', view: 'control' },
+  '/maple/admin': { category: 'admin', view: 'control' },
+  '/maple/auth-admin': { category: 'users', view: 'access' },
+  '/maple/api-keys': { category: 'admin', view: 'control' },
+  '/maple/integrations': { category: 'admin', view: 'marketplace' },
+  '/maple/usage': { category: 'admin', view: 'control' },
+  '/maple/desktop': { category: 'admin', view: 'control' },
+})
+
+const PRIMARY_FUNCTION_BY_SURFACE = Object.freeze({
+  'chat:chat': 'monitoring-agent-chat',
+  'observe:topology': 'runtime-topology',
+  'observe:live': 'monitor-now',
+  'observe:timeline': 'chronology',
+  'observe:forks': 'fork-isolation-monitoring',
+  'admin:control': 'intervention-execution',
+  'admin:settings': 'system-health',
+  'admin:policy': 'policy-operations',
+  'admin:marketplace': 'integration-lifecycle',
+  'firewalls:cybersecurity': 'firewall-rules',
+  'firewalls:rules': 'firewall-rules-library',
+  'firewalls:context-leakage': 'context-leakage-controls',
+  'users:access': 'user-role-access',
+  'docs:overview': 'docs-workspace-model',
+  'docs:api': 'docs-endpoints',
+  'docs:runbooks': 'docs-response',
+  'docs:route-help': 'docs-route-context',
+})
+
 function normalizeRouteRecord(route) {
   const category = isMapleWorkspaceCategory(route.category) ? route.category : 'observe'
-  const preferredViewByCategory = {
-    observe: 'live',
-    analyze: 'control',
-    govern: 'guard',
-    admin: 'settings',
-    docs: 'route-help',
-  }
+  const mappedSurface = ROUTE_SURFACE_BY_PATH[route.path] ?? { category, view: 'live' }
   const docsViews = ['overview', 'api', 'runbooks', 'route-help']
   const endpoints = uniqueList(
     Array.isArray(route.apiEndpoints)
@@ -276,7 +325,12 @@ function normalizeRouteRecord(route) {
     anchors: toAnchors(route.path),
     apiEndpoints: endpoints,
     legacyDocLinks: LEGACY_DOC_LINKS.map((link) => ({ ...link })),
-    preferredView: route.preferredView ?? preferredViewByCategory[category] ?? 'live',
+    preferredView: mappedSurface.view,
+    primaryFunction: PRIMARY_FUNCTION_BY_SURFACE[`${mappedSurface.category}:${mappedSurface.view}`] ?? 'monitor-now',
+    mappedSurface,
+    docsContextKey: route.path,
+    compatAliasBehavior: 'canonicalize-via-query',
+    legacyAliasBehavior: 'canonicalize-via-query',
     legacyAliases: Array.isArray(route.legacyAliases)
       ? uniqueList(route.legacyAliases.filter((value) => typeof value === 'string' && value.startsWith('/maple')))
       : [],
