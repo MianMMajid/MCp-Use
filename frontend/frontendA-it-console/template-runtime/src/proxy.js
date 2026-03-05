@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+export const runtime = 'nodejs'
+
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
 const mapleGatewayOrigin =

@@ -58,10 +58,6 @@ const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, '../../../'),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'mdx'],
-  env: {
-    MAPLE_GATEWAY_ORIGIN: process.env.MAPLE_GATEWAY_ORIGIN ?? '',
-    MAPLE_ADMIN_CONSOLE_ORIGIN: process.env.MAPLE_ADMIN_CONSOLE_ORIGIN ?? '',
-  },
   onDemandEntries: {
     maxInactiveAge: 15 * 60 * 1000,
     pagesBufferLength: 24,

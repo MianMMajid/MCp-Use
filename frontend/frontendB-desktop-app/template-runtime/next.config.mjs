@@ -47,10 +47,6 @@ const nextConfig = {
   ...(outputTracingRoot ? { outputFileTracingRoot: outputTracingRoot } : {}),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   reactCompiler: true,
-  env: {
-    MAPLE_GATEWAY_ORIGIN: process.env.MAPLE_GATEWAY_ORIGIN ?? '',
-    MAPLE_ADMIN_CONSOLE_ORIGIN: process.env.MAPLE_ADMIN_CONSOLE_ORIGIN ?? '',
-  },
   onDemandEntries: {
     maxInactiveAge: 24 * 60 * 60 * 1000,
     pagesBufferLength: 64,
