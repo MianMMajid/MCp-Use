@@ -22,7 +22,13 @@
     message = '';
 
     const payload = { email, password };
-    if (mode === 'register') payload.name = name;
+    if (mode === 'login') {
+      payload.username = email;
+    }
+    if (mode === 'register') {
+      payload.username = email;
+      payload.name = name;
+    }
     if (mode === 'forgot') delete payload.password;
 
     try {

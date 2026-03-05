@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "svelte-kit sync && vite dev --port 3000",
     "build": "svelte-kit sync && vite build",
-    "preview": "vite preview --port 3000",
+    "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "npm run check:ui-import-guards",
     "check:surface": "node scripts/check-orchestration-surface.js",

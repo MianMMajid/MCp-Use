@@ -166,7 +166,8 @@ case "${MAPLE_SERVICE}" in
 
     # Auth / Session
     export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
-    export MAPLE_SESSION_COOKIE_DOMAIN="${MAPLE_SESSION_COOKIE_DOMAIN:-.mayple.cloud}"
+    # Default to host-only cookie so session works on Railway staging domains.
+    export MAPLE_SESSION_COOKIE_DOMAIN="${MAPLE_SESSION_COOKIE_DOMAIN:-}"
     export MAPLE_SESSION_COOKIE_NAME="${MAPLE_SESSION_COOKIE_NAME:-maple_session}"
     export MAPLE_SESSION_TTL_SECONDS="${MAPLE_SESSION_TTL_SECONDS:-604800}"
     export MAPLE_AUTH_ALLOW_SELF_SIGNUP="${MAPLE_AUTH_ALLOW_SELF_SIGNUP:-true}"
@@ -355,19 +356,23 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
     FRONTEND_PORT="${PORT:-8080}"
     export NODE_ENV=production
-    case "${MAPLE_GATEWAY_ORIGIN:-}" in
-      *localhost*|*127.0.0.1*)
-        echo "[railway-entrypoint] WARN: MAPLE_GATEWAY_ORIGIN points to localhost — overriding to Railway public URL"
+    export PORT="${FRONTEND_PORT}"
+    export HOST="${HOST:-0.0.0.0}"
+    if [ -z "${MAPLE_GATEWAY_ORIGIN:-}" ] || [[ "${MAPLE_GATEWAY_ORIGIN}" == *localhost* ]] || [[ "${MAPLE_GATEWAY_ORIGIN}" == *127.0.0.1* ]]; then
+      if [ -n "${RAILWAY_SERVICE_MAPLE_GATEWAY_URL:-}" ]; then
+        export MAPLE_GATEWAY_ORIGIN="https://${RAILWAY_SERVICE_MAPLE_GATEWAY_URL}"
+      else
         export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
-        ;;
-    esac
+      fi
+      echo "[railway-entrypoint] MAPLE_GATEWAY_ORIGIN defaulted to ${MAPLE_GATEWAY_ORIGIN}"
+    fi
     cd /app/frontend/frontendA-it-console/template-runtime
-    if [ ! -d ".next" ]; then
-      echo "[railway-entrypoint] .next directory missing — running next build..."
-      npx next build --webpack
+    if [ ! -f ".svelte-kit/output/server/index.js" ]; then
+      echo "[railway-entrypoint] SvelteKit server bundle missing — running vite build..."
+      npm run build
     fi
     echo "[railway-entrypoint] Starting frontendA (IT Console) on port ${FRONTEND_PORT}..."
-    exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
+    exec npm run start -- --host 0.0.0.0 --port "${FRONTEND_PORT}"
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -375,20 +380,26 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
     FRONTEND_PORT="${PORT:-8080}"
     export NODE_ENV=production
-    # Override localhost gateway origins — they can't work inside Railway containers
-    case "${MAPLE_GATEWAY_ORIGIN:-}" in
-      *localhost*|*127.0.0.1*)
-        echo "[railway-entrypoint] WARN: MAPLE_GATEWAY_ORIGIN points to localhost — overriding to Railway public URL"
+    export PORT="${FRONTEND_PORT}"
+    export HOST="${HOST:-0.0.0.0}"
+    # Ensure frontendB always proxies API calls to gateway in Railway.
+    if [ -z "${MAPLE_GATEWAY_ORIGIN:-}" ] || [[ "${MAPLE_GATEWAY_ORIGIN}" == *localhost* ]] || [[ "${MAPLE_GATEWAY_ORIGIN}" == *127.0.0.1* ]]; then
+      if [ -n "${RAILWAY_SERVICE_MAPLE_GATEWAY_URL:-}" ]; then
+        export MAPLE_GATEWAY_ORIGIN="https://${RAILWAY_SERVICE_MAPLE_GATEWAY_URL}"
+      else
         export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
-        ;;
-    esac
+      fi
+      echo "[railway-entrypoint] MAPLE_GATEWAY_ORIGIN defaulted to ${MAPLE_GATEWAY_ORIGIN}"
+    fi
+    export MAYPLE_BACKEND_URL="${MAYPLE_BACKEND_URL:-${MAPLE_GATEWAY_ORIGIN}}"
+    export BACKEND_URL="${BACKEND_URL:-${MAPLE_GATEWAY_ORIGIN}}"
     cd /app/frontend/frontendB-desktop-app/template-runtime
-    if [ ! -d ".next" ]; then
-      echo "[railway-entrypoint] .next directory missing — running next build..."
-      npx next build --webpack
+    if [ ! -f ".svelte-kit/output/server/index.js" ]; then
+      echo "[railway-entrypoint] SvelteKit server bundle missing — running vite build..."
+      npm run build
     fi
     echo "[railway-entrypoint] Starting frontendB (Desktop App) on port ${FRONTEND_PORT}..."
-    exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
+    exec npm run preview -- --host 0.0.0.0 --port "${FRONTEND_PORT}"
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -396,12 +407,14 @@ case "${MAPLE_SERVICE}" in
   # ────────────────────────────────────────────────────────────────────────────
     FRONTEND_PORT="${PORT:-8080}"
     export NODE_ENV=production
-    case "${MAPLE_GATEWAY_ORIGIN:-}" in
-      *localhost*|*127.0.0.1*)
-        echo "[railway-entrypoint] WARN: MAPLE_GATEWAY_ORIGIN points to localhost — overriding to Railway public URL"
+    if [ -z "${MAPLE_GATEWAY_ORIGIN:-}" ] || [[ "${MAPLE_GATEWAY_ORIGIN}" == *localhost* ]] || [[ "${MAPLE_GATEWAY_ORIGIN}" == *127.0.0.1* ]]; then
+      if [ -n "${RAILWAY_SERVICE_MAPLE_GATEWAY_URL:-}" ]; then
+        export MAPLE_GATEWAY_ORIGIN="https://${RAILWAY_SERVICE_MAPLE_GATEWAY_URL}"
+      else
         export MAPLE_GATEWAY_ORIGIN="https://maple-gateway-production.up.railway.app"
-        ;;
-    esac
+      fi
+      echo "[railway-entrypoint] MAPLE_GATEWAY_ORIGIN defaulted to ${MAPLE_GATEWAY_ORIGIN}"
+    fi
     cd /app/frontend/frontendC-marketing-download-site/template-runtime
     if [ ! -d ".next" ]; then
       echo "[railway-entrypoint] .next directory missing — running next build..."

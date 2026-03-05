@@ -14,8 +14,11 @@
     try {
       const me = await fetch('/api/auth/me', { credentials: 'same-origin' })
       if (me.ok) {
-        window.location.assign(DEFAULT_MAPLE_CHAT_HREF)
-        return
+        const payload = await me.json().catch(() => ({}))
+        if (payload?.authenticated) {
+          window.location.assign(DEFAULT_MAPLE_CHAT_HREF)
+          return
+        }
       }
     } catch {
       // frontend-only resilience
@@ -34,6 +37,7 @@
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (loading) return
     error = ''
     loading = true
 

@@ -30,6 +30,7 @@ function LoginForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (loading) return
     setError('')
     setLoading(true)
 
