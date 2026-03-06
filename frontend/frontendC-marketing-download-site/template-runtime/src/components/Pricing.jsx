@@ -2,6 +2,7 @@ import clsx from 'clsx'
 
 import { Button } from '@/components/Button'
 import { Container } from '@/components/Container'
+import { ScrollReveal } from '@/components/ScrollReveal'
 
 function SwirlyDoodle(props) {
   return (
@@ -99,32 +100,34 @@ export function Pricing() {
     <section
       id="pricing"
       aria-label="Pricing"
-      className="bg-zinc-900 py-20 sm:py-32"
+      className="grain grain-dark relative overflow-hidden bg-zinc-900 py-20 sm:py-32"
     >
       <Container>
-        <div className="md:text-center">
-          <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl">
-            <span className="relative whitespace-nowrap">
-              <SwirlyDoodle className="absolute top-1/2 left-0 h-[1em] w-full fill-orange-400" />
-              <span className="relative">Simple pricing,</span>
-            </span>{' '}
-            for every stage.
-          </h2>
-          <p className="mt-4 text-lg text-zinc-400">
-            Pick the plan that matches your team size and risk needs.
-          </p>
-        </div>
+        <ScrollReveal>
+          <div className="md:text-center">
+            <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl">
+              <span className="relative whitespace-nowrap">
+                <SwirlyDoodle className="absolute top-1/2 left-0 h-[1em] w-full fill-orange-400" />
+                <span className="relative">Simple pricing,</span>
+              </span>{' '}
+              for every stage.
+            </h2>
+            <p className="mt-4 text-lg text-zinc-400">
+              Pick the plan that matches your team size and risk needs.
+            </p>
+          </div>
+        </ScrollReveal>
         <div className="-mx-4 mt-16 grid max-w-2xl grid-cols-1 gap-y-10 sm:mx-auto lg:-mx-8 lg:max-w-none lg:grid-cols-3 xl:mx-0 xl:gap-x-8">
           <Plan
             name="Pro"
             price="$9"
-            description="For individuals and small teams getting started."
+            description="For individuals getting started with agent security."
             href="/register"
             features={[
-              'Core safety controls',
+              'MCP firewall for tool calls',
               'Allow and block policies',
-              'Basic activity timeline',
-              'Session history',
+              'Tool-call audit log',
+              'Single-user policies',
               'Email support',
             ]}
           />
@@ -132,27 +135,28 @@ export function Pricing() {
             featured
             name="Team"
             price="$15"
-            description="For teams that need human approvals and shared workflows."
+            description="For teams that need cross-agent governance and approvals."
             href="/register"
             features={[
               'Everything in Pro',
-              'Approval queue',
+              'Human approval queue',
+              'Per-user granular rules',
               'Role-based access',
-              'Longer history retention',
+              'Shared policy library',
               'Priority support',
-              'Desktop and web workflow',
             ]}
           />
           <Plan
             name="Enterprise"
             price="$39"
-            description="For organizations with advanced security and compliance needs."
+            description="For organizations embedding security across their agent stack."
             href="/register"
             features={[
               'Everything in Team',
+              'Embeddable SDK for platforms',
               'Custom policy packs',
-              'Dedicated environment options',
               'Compliance reporting',
+              'SSO and dedicated environments',
               'Enterprise support',
             ]}
           />

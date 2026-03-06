@@ -1,6 +1,7 @@
 import Image from 'next/image'
 
 import { Container } from '@/components/Container'
+import { ScrollReveal } from '@/components/ScrollReveal'
 import backgroundImage from '@/images/background-faqs.jpg'
 
 const faqs = [
@@ -8,51 +9,51 @@ const faqs = [
     {
       question: 'What is Mayple?',
       answer:
-        'Mayple helps teams run AI agents safely. It sits between your agents and tools so you can watch actions, enforce rules, and keep clear logs.',
+        'Mayple is a firewall for AI agent tool calls. It sits between your agents and the tools they use, intercepting every action in real time so you can allow, block, or require approval — all through a no-code interface.',
     },
     {
-      question: 'How do approvals work?',
+      question: 'How is Mayple different from Datadog or LangSmith?',
       answer:
-        'When an action matches an approval rule, Mayple pauses it and sends it to a human reviewer. The reviewer can approve or block it with full context.',
+        'Those are observability tools — they show you what happened after the fact. Mayple is a runtime firewall that blocks risky actions before they execute. We prevent damage, not just report it.',
     },
     {
-      question: 'What agents does Mayple support?',
+      question: 'Does Mayple work with OpenAI, Anthropic, and Google agents?',
       answer:
-        'Mayple works with MCP-compatible agents and can protect existing setups without requiring a full rewrite.',
+        'Yes. Mayple is provider-agnostic and MCP-native. It works across agents from any provider or custom framework — one security layer for your entire agent stack.',
     },
   ],
   [
     {
-      question: 'Is my data secure?',
+      question: 'Why not use Bedrock AgentCore or Copilot Studio?',
       answer:
-        'Yes. Mayple supports secure deployments, encrypted data handling, and complete audit trails.',
+        'Bedrock has strong security but is developer-only and locked to AWS. Copilot Studio policies are per-environment, not per-user, and Microsoft-only. Mayple gives you granular per-user rules with a no-code UI, across any provider.',
     },
     {
       question: 'Do I need to modify my agents?',
       answer:
-        'Usually no. Mayple is designed as a proxy layer, so most teams connect existing agents and configure rules separately.',
+        'No. Mayple runs as a proxy layer in front of your tools. Connect your existing agents and configure rules separately — no rewriting required.',
     },
     {
-      question: 'What\'s the pricing?',
+      question: 'How do approvals work?',
       answer:
-        'Mayple has plans for individuals, teams, and enterprise deployments. See the pricing section for current options.',
+        'When a tool call matches an approval rule, Mayple pauses it and sends it to a human reviewer. The reviewer can approve or block with full context — the agent waits until a decision is made.',
     },
   ],
   [
     {
+      question: 'Can platforms embed Mayple?',
+      answer:
+        'Yes. Platforms building their own agent products can embed Mayple\'s security layer via SDK rather than building a policy engine from scratch. This is the same model that led to $260M+ acquisitions in this space.',
+    },
+    {
       question: 'Can I self-host Mayple?',
       answer:
-        'Yes. You can self-host Mayple, or run it as a managed setup depending on your team\'s needs.',
+        'Yes. You can self-host Mayple or run it as a managed deployment depending on your compliance and infrastructure needs.',
     },
     {
       question: 'How do I get started?',
       answer:
-        'Download Mayple, connect your first agent, and start with basic allow, block, and approval policies.',
-    },
-    {
-      question: 'What are policies?',
-      answer:
-        'Policies are rules that decide whether actions are allowed, blocked, or require human approval.',
+        'Download Mayple, point it at your agents, and set your first allow, block, and approval rules. No code required — most teams are protected in under ten minutes.',
     },
   ],
 ]
@@ -73,18 +74,20 @@ export function Faqs() {
         unoptimized
       />
       <Container className="relative">
-        <div className="mx-auto max-w-2xl lg:mx-0">
-          <h2
-            id="faq-title"
-            className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl"
-          >
-            Frequently asked questions
-          </h2>
-          <p className="mt-4 text-lg tracking-tight text-zinc-700">
-            If you can&apos;t find what you&apos;re looking for, email our
-            support team at support@mayple.cloud.
-          </p>
-        </div>
+        <ScrollReveal>
+          <div className="mx-auto max-w-2xl lg:mx-0">
+            <h2
+              id="faq-title"
+              className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl"
+            >
+              Frequently asked questions
+            </h2>
+            <p className="mt-4 text-lg tracking-tight text-zinc-700">
+              If you can&apos;t find what you&apos;re looking for, email our
+              support team at support@mayple.cloud.
+            </p>
+          </div>
+        </ScrollReveal>
         <ul
           role="list"
           className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 lg:max-w-none lg:grid-cols-3"

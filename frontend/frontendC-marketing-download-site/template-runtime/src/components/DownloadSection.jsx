@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Container } from '@/components/Container'
 import { Button } from '@/components/Button'
+import { ScrollReveal } from '@/components/ScrollReveal'
 
 function detectOS() {
   if (typeof navigator === 'undefined') return 'unknown'
@@ -35,6 +36,7 @@ export function DownloadSection() {
 
   return (
     <section id="download" className="py-20 sm:py-24">
+      <ScrollReveal>
       <Container className="rounded-3xl bg-zinc-50 p-8 ring-1 ring-zinc-900/5 sm:p-12">
         <h3 className="font-display text-2xl tracking-tight text-zinc-900">
           Download Mayple Desktop
@@ -84,6 +86,7 @@ export function DownloadSection() {
           )}
         </p>
       </Container>
+      </ScrollReveal>
     </section>
   )
 }
