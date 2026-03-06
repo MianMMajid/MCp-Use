@@ -72,7 +72,7 @@
         {/each}
       </div>
       <div class="divider"></div>
-      <button class="legacy-row">
+      <button type="button" class="legacy-row" on:click={() => { /* Legacy model selection not yet implemented */ }}>
         <span>Legacy models</span>
         <span>›</span>
       </button>

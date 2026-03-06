@@ -115,7 +115,7 @@
                   ? 'Describe the objective, assign timed tasks, or update constraints...'
                   : 'Send a message...'}
               ></textarea>
-              <button class="send" on:click={submit} aria-label="Send"><Icon name="send" size={17} /></button>
+              <button type="button" class="send" on:click={submit} disabled={$chatStore.streaming || $chatStore.busy} aria-label="Send"><Icon name="send" size={17} /></button>
             </div>
           </div>
         </div>
@@ -158,7 +158,7 @@
             ? 'Describe the objective, assign timed tasks, or update constraints...'
             : 'Send a message...'}
         ></textarea>
-        <button class="send" on:click={submit} aria-label="Send"><Icon name="send" size={17} /></button>
+        <button type="button" class="send" on:click={submit} disabled={$chatStore.streaming || $chatStore.busy} aria-label="Send"><Icon name="send" size={17} /></button>
       </div>
     </footer>
   {/if}

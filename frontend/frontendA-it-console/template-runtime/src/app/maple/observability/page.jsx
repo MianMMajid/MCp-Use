@@ -28,6 +28,7 @@ class SectionErrorBoundary extends Component {
             This section failed to load.
           </p>
           <button
+            type="button"
             className="mt-2 text-xs font-medium text-amber-600 underline dark:text-amber-400"
             onClick={() => this.setState({ hasError: false })}
           >

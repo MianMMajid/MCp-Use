@@ -237,7 +237,7 @@ export default function ApiKeysPage() {
                       return (
                         <div key={saId} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                           <div className="flex items-center justify-between">
-                            <button onClick={() => toggleSAKeys(saId)} className="flex items-center gap-2">
+                            <button type="button" onClick={() => toggleSAKeys(saId)} className="flex items-center gap-2">
                               <span className="text-sm font-medium text-zinc-950 dark:text-white">{sa.name || saId}</span>
                               <Tag color="zinc" variant="small">{sa.status || 'active'}</Tag>
                             </button>

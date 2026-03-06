@@ -109,7 +109,7 @@ export default function DownstreamPage() {
                   return (
                     <div key={appId} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between">
-                        <button onClick={() => setExpanded(expanded === appId ? null : appId)} className="flex items-center gap-2">
+                        <button type="button" onClick={() => setExpanded(expanded === appId ? null : appId)} className="flex items-center gap-2">
                           <span className="text-sm font-medium text-zinc-950 dark:text-white">{app.name || appId}</span>
                           <Tag color={app.status === 'connected' || app.status === 'active' ? 'orange' : 'zinc'} variant="medium">{app.status || 'active'}</Tag>
                         </button>

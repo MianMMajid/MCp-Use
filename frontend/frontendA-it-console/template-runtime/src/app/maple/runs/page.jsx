@@ -121,7 +121,7 @@ export default function RunsPage() {
                     <div key={rid} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <button onClick={() => toggleExpand(rid)} className="font-mono text-sm font-medium text-zinc-950 hover:underline dark:text-white">{shortId}</button>
+                          <button type="button" onClick={() => toggleExpand(rid)} className="font-mono text-sm font-medium text-zinc-950 hover:underline dark:text-white">{shortId}</button>
                           <Tag color={statusTag(st)} variant="medium">{st}</Tag>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-zinc-500">

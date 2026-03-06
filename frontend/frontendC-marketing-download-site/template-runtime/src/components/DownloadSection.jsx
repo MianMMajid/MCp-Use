@@ -71,6 +71,8 @@ export function DownloadSection() {
           Requires macOS 12+ or Windows 10+ &middot;{' '}
           <a
             href={releasesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="underline hover:text-zinc-700"
           >
             All releases
