@@ -164,7 +164,7 @@ function Feature({ feature, isActive, className, ...props }) {
 
 function TraceChainPreview() {
   return (
-    <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+    <div className="mx-auto w-full max-w-[52.75rem] overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
       <div className="border-b border-zinc-700/70 bg-zinc-900/60 px-6 py-4">
         <p className="text-xs font-medium tracking-wide text-zinc-300 uppercase">
           Trace Session
@@ -240,7 +240,7 @@ function BlockingPreview() {
   ]
 
   return (
-    <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+    <div className="mx-auto w-full max-w-[52.75rem] overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
       <div className="border-b border-zinc-700/70 bg-zinc-900/60 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -326,7 +326,7 @@ function PolicyPreview() {
   }
 
   return (
-    <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+    <div className="mx-auto w-full max-w-[52.75rem] overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
       <div className="border-b border-zinc-700/70 bg-zinc-900/60 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -381,7 +381,7 @@ function FeaturePreview({ feature }) {
   if (feature.preview === 'policy') return <PolicyPreview />
 
   return (
-    <div className="mx-auto w-211 overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
+    <div className="mx-auto w-full max-w-[52.75rem] overflow-hidden rounded-xl bg-zinc-800 shadow-lg ring-1 shadow-zinc-900/5 ring-zinc-500/10">
       <div className="flex flex-col items-center justify-center p-12 text-center">
         <h4 className="font-display text-xl text-white">{feature.name}</h4>
         <p className="mt-4 max-w-md text-sm text-zinc-300">

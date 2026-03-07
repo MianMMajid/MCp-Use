@@ -28,7 +28,7 @@ export function Hero() {
       <AmbientGlow />
       <Container className="relative z-10 pt-20 pb-16 text-center lg:pt-32">
         <h1
-          className="animate-fade-in-up mx-auto max-w-4xl font-display text-5xl font-normal tracking-tight text-zinc-900 sm:text-7xl"
+          className="animate-fade-in-up mx-auto max-w-4xl font-display text-4xl font-normal tracking-tight text-zinc-900 sm:text-5xl lg:text-7xl"
           style={{ animationDelay: '0.1s' }}
         >
           The{' '}
@@ -53,7 +53,7 @@ export function Hero() {
           ops team can manage — no engineering tickets required.
         </p>
         <div
-          className="animate-fade-in-up mt-10 flex justify-center gap-x-4"
+          className="animate-fade-in-up mt-10 flex flex-wrap justify-center gap-x-4 gap-y-3"
           style={{ animationDelay: '0.4s' }}
         >
           <Button href="/register">Start trial</Button>

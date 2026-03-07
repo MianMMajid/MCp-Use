@@ -469,7 +469,7 @@ function AgentsDiagram() {
         <div className="flex flex-1 overflow-hidden">
           {/* Agent cards */}
           <div className="flex-1 p-3">
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               {agents.map((agent, i) => (
                 <div
                   key={agent.name}
@@ -894,7 +894,7 @@ function FirewallDiagram() {
         {/* Form area */}
         <div className="flex-1 overflow-hidden p-3">
           {/* Entity name + folder row */}
-          <div className="mb-2 grid grid-cols-2 gap-2">
+          <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div>
               <p className="mb-0.5 text-xs text-zinc-500">Entity Name</p>
               <div className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-zinc-300">
@@ -926,7 +926,7 @@ function FirewallDiagram() {
           </div>
 
           {/* Bottom panels: Simulator + Audit Log */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {/* Simulator */}
             <div className={clsx(
               'rounded-xl border bg-white/[0.03] p-2 transition-all duration-300',
@@ -1090,7 +1090,7 @@ function TaskBuilderDiagram() {
         <div className="flex-1 overflow-hidden p-3">
           {!taskScheduled ? (
             /* ── Creation form ── */
-            <div className="grid h-full grid-cols-2 gap-2.5">
+            <div className="grid h-full grid-cols-1 gap-2.5 sm:grid-cols-2">
               {/* Intent column */}
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
                 <p className="mb-1.5 text-[11px] font-semibold text-white">Intent</p>
@@ -1206,7 +1206,7 @@ function TaskBuilderDiagram() {
                 </div>
 
                 {/* Meta grid */}
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     { label: 'Interval', value: '10080m' },
                     { label: 'Repeats', value: '8' },
