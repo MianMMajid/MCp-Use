@@ -1,71 +1,53 @@
 {
-  "generatedAt": "2026-03-04T20:22:30.819Z",
+  "generatedAt": "2026-03-11T04:40:02.127Z",
   "rootDir": "/Users/omarramadan/Desktop/mcp_firewall",
   "processes": [
     {
       "name": "audit-writer",
-      "pid": 26764,
+      "pid": 32114,
       "command": "node backend/backendB-core-services/audit-writer/service/src/main.js",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/audit-writer.log"
     },
     {
       "name": "context-wall",
-      "pid": 26780,
+      "pid": 32129,
       "command": "node backend/backendB-core-services/context-wall/service/src/main.js",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/context-wall.log"
     },
     {
       "name": "mcp-proxy",
-      "pid": 26799,
+      "pid": 32146,
       "command": "node backend/backendB-core-services/mcp-proxy/service/src/main.js",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/mcp-proxy.log"
     },
     {
-      "name": "tool-runner",
-      "pid": 26816,
-      "command": "node backend/backendB-core-services/tool-runner/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/tool-runner.log"
-    },
-    {
       "name": "cyber-proxy",
-      "pid": 26835,
+      "pid": 32164,
       "command": "node backend/backendB-core-services/cyber-proxy/service/src/main.js",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/cyber-proxy.log"
     },
     {
-      "name": "admin-console-api",
-      "pid": 26852,
-      "command": "node backend/backendB-core-services/admin-console-api/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/admin-console-api.log"
-    },
-    {
-      "name": "business-api",
-      "pid": 26871,
-      "command": "node backend/backendC-saas-services/business-api/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/business-api.log"
-    },
-    {
       "name": "gateway-api",
-      "pid": 26888,
+      "pid": 32180,
       "command": "node backend/backendB-core-services/gateway-api/service/src/main.js",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/gateway-api.log"
     },
     {
       "name": "frontendA",
-      "pid": 26908,
-      "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4111",
+      "pid": 32197,
+      "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendA.log"
     },
     {
       "name": "frontendB",
-      "pid": 26926,
-      "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4112",
+      "pid": 32215,
+      "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendB.log"
     },
     {
       "name": "frontendC",
-      "pid": 26944,
-      "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4113",
+      "pid": 32231,
+      "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103",
       "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendC.log"
     }
   ]
