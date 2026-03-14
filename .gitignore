@@ -55,6 +55,7 @@ mcp-firewall-reference/
 /playwright-report/
 /artifacts/
 /frontend/frontendB-desktop-app/template-runtime/.next.bak.*/
+/frontend/frontendB-desktop-app/template-runtime/.next_stale*/
 
 # Stray package artifact aliases
 **/dist 2
