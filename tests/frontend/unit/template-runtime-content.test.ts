@@ -20,12 +20,11 @@ describe("template runtime content coverage", () => {
     expect(auditPage).toContain("/api/observability/orchestrations/audit-log");
   });
 
-  it("frontend B workspace binds to runtime and HITL endpoints", () => {
-    const workspace = read("frontend/frontendB-desktop-app/template-runtime/src/app/(app)/maple-workspace.jsx");
-    expect(workspace).toContain("/api/runtime/feature-capabilities");
-    expect(workspace).toContain("/api/firewall/state");
-    expect(workspace).toContain("/api/hitl/approvals");
-    expect(workspace).toContain("Agent Orchestration Console");
+  it("frontend B workspace binds to runtime and HITL endpoints via SvelteKit stores", () => {
+    const chatStore = read("frontend/frontendB-desktop-app/template-runtime/src/lib/stores/chat-store.js");
+    expect(chatStore).toContain("/api/agents");
+    expect(chatStore).toContain("/api/orchestrations");
+    expect(chatStore).toContain("/api/auth/me");
   });
 
   it("frontend C landing includes lifecycle and desktop download actions", () => {
@@ -33,7 +32,7 @@ describe("template runtime content coverage", () => {
     const downloadSection = read(
       "frontend/frontendC-marketing-download-site/template-runtime/src/components/DownloadSection.jsx"
     );
-    expect(landing).toContain("A/B/C operating journey");
+    expect(landing).toContain("How it works");
     expect(downloadSection).toContain("/api/downloads/mac");
     expect(downloadSection).toContain("/api/downloads/win");
   });

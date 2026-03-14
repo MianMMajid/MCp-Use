@@ -73,6 +73,7 @@ function MobileNavigation() {
         <MobileNavLink href="/login">Dashboard</MobileNavLink>
         <hr className="m-2 border-zinc-300/40" />
         <MobileNavLink href="/login">Sign in</MobileNavLink>
+        <MobileNavLink href="/logout">Sign out</MobileNavLink>
       </PopoverPanel>
     </Popover>
   )

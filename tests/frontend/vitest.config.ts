@@ -23,8 +23,11 @@ export default defineConfig({
       include: [
         "frontend/frontendA-it-console/public/judges-auth.js",
         "frontend/frontendA-it-console/public/judges-http.js",
+        "frontend/frontendA-it-console/template-runtime/src/lib/**/*.js",
         "frontend/frontendB-desktop-app/app/desktop-ui.js",
+        "frontend/frontendB-desktop-app/template-runtime/src/lib/**/*.js",
         "frontend/frontendC-marketing-download-site/public/landing.js",
+        "frontend/frontendD-mcp-widgets/src/**/*.ts",
       ],
       exclude: ["**/*.d.ts", "**/*.test.*", "**/__tests__/**"],
     },

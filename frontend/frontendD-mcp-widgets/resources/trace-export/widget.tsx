@@ -10,6 +10,22 @@ export const widgetMetadata: WidgetMetadata = {
   metadata: { autoResize: true, prefersBorder: true },
 };
 
+function downloadContent(content: string, format: string, traceId: string) {
+  const ext = format === "markdown" ? "md" : "json";
+  const mimeType = format === "markdown" ? "text/markdown" : "application/json";
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trace-${traceId.slice(0, 12)}.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyToClipboard(content: string) {
+  navigator.clipboard.writeText(content);
+}
+
 const TraceExportWidget: React.FC = () => {
   const { props, isPending } = useWidget<TraceExportWidgetProps>();
 
@@ -22,6 +38,9 @@ const TraceExportWidget: React.FC = () => {
     );
   }
 
+  const content = String(props.content ?? "");
+  const format = String(props.format ?? "json");
+
   return (
     <section className="cc-card">
       <header className="cc-header">
@@ -30,7 +49,7 @@ const TraceExportWidget: React.FC = () => {
           <h2>Trace {props.traceId.slice(0, 12)}</h2>
         </div>
         <div className="cc-summary-grid">
-          <span className="cc-chip">{String(props.format ?? "json").toUpperCase()}</span>
+          <span className="cc-chip">{format.toUpperCase()}</span>
           {props.stepCount != null ? (
             <span className="cc-chip cc-chip-muted">{props.stepCount} steps</span>
           ) : null}
@@ -41,6 +60,22 @@ const TraceExportWidget: React.FC = () => {
       </header>
 
       <div className="cc-pane">
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <button
+            className="cc-chip"
+            style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.15)" }}
+            onClick={() => downloadContent(content, format, props.traceId)}
+          >
+            Download {format.toUpperCase()}
+          </button>
+          <button
+            className="cc-chip cc-chip-muted"
+            style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.1)" }}
+            onClick={() => copyToClipboard(content)}
+          >
+            Copy to clipboard
+          </button>
+        </div>
         <pre
           style={{
             margin: 0,
@@ -55,7 +90,7 @@ const TraceExportWidget: React.FC = () => {
             borderRadius: "6px",
           }}
         >
-          {String(props.content ?? "")}
+          {content}
         </pre>
       </div>
     </section>
