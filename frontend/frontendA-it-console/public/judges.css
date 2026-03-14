@@ -65,8 +65,7 @@ body {
   padding: 0.88rem;
   padding-bottom: 0;
   display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   gap: 0;
   animation: shellFadeIn 500ms ease-out;
 }

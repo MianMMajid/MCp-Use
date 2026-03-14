@@ -9,7 +9,6 @@ import { MAPLE_WORKSPACE_CATEGORIES } from '../../lib/maple-workspace/route-regi
 import {
   MAPLE_WORKSPACE_CATEGORY_VIEWS,
   buildWorkspaceHref,
-  isMapleWorkspacePath,
   resolveWorkspaceState,
 } from '../../lib/maple-workspace/workspace-state.js'
 
@@ -110,10 +109,6 @@ export function MapleWorkspaceShell() {
   }, [searchParams, target.executionId, target.sessionId])
 
   useEffect(() => {
-    if (!isMapleWorkspacePath(pathname)) {
-      return
-    }
-
     const needsCanonicalPath = workspaceState.normalizedPathname !== '/maple'
     const currentCategory = searchParams?.get('category')
     const currentView = searchParams?.get('view')
