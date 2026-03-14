@@ -9,8 +9,14 @@ export class AuditStore {
     writeBuffer = [];
     flushTimer = null;
     flushInProgress = false;
-    maxBufferSize = 100;
-    flushIntervalMs = 200;
+    maxBufferSize;
+    flushIntervalMs;
+    maxWriteBuffer;
+    constructor(options = {}) {
+        this.maxBufferSize = options.maxBufferSize ?? 100;
+        this.flushIntervalMs = options.flushIntervalMs ?? 200;
+        this.maxWriteBuffer = options.maxWriteBuffer ?? 10000;
+    }
     async initialize(databaseUrl) {
         try {
             this.pool = new Pool({
@@ -55,6 +61,9 @@ export class AuditStore {
             source_service TEXT NOT NULL,
             trace_id TEXT,
             session_id TEXT,
+            request_id TEXT,
+            user_id TEXT,
+            key_fingerprint TEXT,
             payload_json JSONB,
             severity TEXT,
             summary TEXT,
@@ -110,6 +119,9 @@ export class AuditStore {
         return event.eventId;
     }
     bufferEvent(event) {
+        if (this.writeBuffer.length >= this.maxWriteBuffer) {
+            this.writeBuffer.shift();
+        }
         this.writeBuffer.push(event);
         if (this.writeBuffer.length >= this.maxBufferSize) {
             if (!this.flushInProgress) {
@@ -207,8 +219,8 @@ export class AuditStore {
         try {
             await this.pool.query(
                 `INSERT INTO audit_dead_letter
-                    (event_id, event_type, timestamp, source_service, trace_id, session_id, payload_json, severity, summary, error, attempts, failed_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, NOW())
+                    (event_id, event_type, timestamp, source_service, trace_id, session_id, request_id, user_id, key_fingerprint, payload_json, severity, summary, error, attempts, failed_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 1, NOW())
                  ON CONFLICT (event_id) DO UPDATE SET
                     attempts = audit_dead_letter.attempts + 1,
                     error = EXCLUDED.error,
@@ -220,6 +232,9 @@ export class AuditStore {
                     event.sourceService,
                     event.traceId ?? null,
                     event.sessionId ?? null,
+                    event.requestId ?? null,
+                    event.userId ?? null,
+                    event.keyFingerprint ?? null,
                     event.payload ? JSON.stringify(event.payload) : null,
                     event.severity ?? null,
                     event.summary ?? null,
@@ -236,7 +251,7 @@ export class AuditStore {
             throw new Error("AuditStore PostgreSQL backend is not ready.");
         }
         const result = await this.pool.query(
-            `SELECT event_id, event_type, timestamp, source_service, trace_id, session_id, payload_json, severity, summary
+            `SELECT event_id, event_type, timestamp, source_service, trace_id, session_id, request_id, user_id, key_fingerprint, payload_json, severity, summary
              FROM audit_dead_letter WHERE event_id = $1`,
             [eventId]
         );
@@ -251,6 +266,9 @@ export class AuditStore {
             sourceService: row.source_service,
             traceId: row.trace_id ?? undefined,
             sessionId: row.session_id ?? undefined,
+            requestId: row.request_id ?? undefined,
+            userId: row.user_id ?? undefined,
+            keyFingerprint: row.key_fingerprint ?? undefined,
             payload: row.payload_json ? (typeof row.payload_json === "string" ? JSON.parse(row.payload_json) : row.payload_json) : undefined,
             severity: row.severity ?? undefined,
             summary: row.summary ?? undefined,

@@ -20,7 +20,7 @@ export async function checkUrl(url, allowedDomains, blockedDomains) {
         return { allowed: false, reason: "Private/local IP blocked", isPrivateIp: true, resolvedIp: hostname, normalizedUrl: parsed.toString() };
     }
     // Domain blocklist check
-    if (blockedDomains.length > 0 && blockedDomains.some((d) => hostname.endsWith(d))) {
+    if (blockedDomains.length > 0 && blockedDomains.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
         return { allowed: false, reason: "Domain on blocklist", isPrivateIp: false, resolvedIp: "", normalizedUrl: parsed.toString() };
     }
     // DNS pinning - resolve and re-check
@@ -38,7 +38,7 @@ export async function checkUrl(url, allowedDomains, blockedDomains) {
     catch {
         // DNS resolution failed, allow if not private
     }
-    if (allowedDomains.length > 0 && !allowedDomains.some((d) => hostname.endsWith(d))) {
+    if (allowedDomains.length > 0 && !allowedDomains.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
         return { allowed: false, reason: "Domain not on allowlist", isPrivateIp: false, resolvedIp, normalizedUrl: parsed.toString() };
     }
     return { allowed: true, reason: "OK", isPrivateIp: false, resolvedIp, normalizedUrl: parsed.toString() };

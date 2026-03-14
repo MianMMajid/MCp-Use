@@ -34,20 +34,14 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let mcpProxyPool;
-let auditWriterPool;
+const mcpProxyPool = loadServiceClientPooled("maple/proxy/v1/mcp_proxy.proto", "maple.proxy.v1.McpProxyService", config.mcpProxyAddress);
+const auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
 const mcpProxyBreaker = new CircuitBreaker("context-wall->mcp-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("context-wall->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
 function getMcpProxy() {
-    if (!mcpProxyPool) {
-        mcpProxyPool = loadServiceClientPooled("maple/proxy/v1/mcp_proxy.proto", "maple.proxy.v1.McpProxyService", config.mcpProxyAddress);
-    }
     return mcpProxyPool.getClient();
 }
 function getAuditWriter() {
-    if (!auditWriterPool) {
-        auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
-    }
     return auditWriterPool.getClient();
 }
 function getPreferredProvider() {
@@ -166,8 +160,6 @@ async function generateChatModelResponse(request) {
 export function closeContextWallClients() {
     mcpProxyPool?.close();
     auditWriterPool?.close();
-    mcpProxyPool = undefined;
-    auditWriterPool = undefined;
 }
 function emitAuditEvent(opts) {
     try {
@@ -783,16 +775,21 @@ export function createContextWallService(approvalQueue, policyStore) {
                     return;
                 }
                 const decision = evaluateFirewallStep(event.step, getExternalRules());
-                call.write({
-                    traceId: event.traceId,
-                    stepIndex: event.stepIndex,
-                    step: toProtoStep(event.step),
-                    pendingDecision: toProtoPolicyDecision(decision),
-                    requestedAt: event.requestedAt,
-                });
+                try {
+                    call.write({
+                        traceId: event.traceId,
+                        stepIndex: event.stepIndex,
+                        step: toProtoStep(event.step),
+                        pendingDecision: toProtoPolicyDecision(decision),
+                        requestedAt: event.requestedAt,
+                    });
+                } catch {
+                    unwatch();
+                }
             });
             call.on("cancelled", unwatch);
             call.on("close", unwatch);
+            call.on("error", unwatch);
         },
         ListPendingApprovals(call, callback) {
             try {

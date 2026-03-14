@@ -50,7 +50,13 @@ export function verifyApiKey(configuredKeys, providedKey) {
         return { ok: false, reason: "misconfigured" };
     if (!providedKey)
         return { ok: false, reason: "missing_key" };
-    const matched = configuredKeys.some((expected) => secureEquals(expected, providedKey));
+    let matched = false;
+    for (const expected of configuredKeys) {
+        if (secureEquals(expected, providedKey)) {
+            matched = true;
+        }
+        // Do NOT break — continue through all keys for constant time
+    }
     if (!matched)
         return { ok: false, reason: "invalid_key" };
     return {
