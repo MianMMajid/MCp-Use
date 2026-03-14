@@ -2,7 +2,7 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecurePooled, mapleLog } from "@maple/common";
 import { config } from "./config.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const PROTO_PATH = resolve(PROTO_ROOT, "maple/tools/v1/tool_runner.proto");
@@ -17,12 +17,14 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const toolRunnerProto = proto.maple.tools.v1;
-function loadServiceClient(protoFile, servicePath, address) {
-    return loadServiceClientSecure(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
+function loadServiceClientPooled(protoFile, servicePath, address) {
+    return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
-function grpcUnary(client, method, request) {
+const DEFAULT_DEADLINE_MS = 5000;
+function grpcUnary(client, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+    const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolvePromise, rejectPromise) => {
-        client[method](request, (err, response) => {
+        client[method](request, { deadline }, (err, response) => {
             if (err)
                 rejectPromise(err);
             else
@@ -30,19 +32,17 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let cyberProxyClient;
-let auditWriterClient;
+const cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
+const auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
 function getCyberProxy() {
-    if (!cyberProxyClient) {
-        cyberProxyClient = loadServiceClient("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
-    }
-    return cyberProxyClient;
+    return cyberProxyPool.getClient();
 }
 function getAuditWriter() {
-    if (!auditWriterClient) {
-        auditWriterClient = loadServiceClient("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
-    }
-    return auditWriterClient;
+    return auditWriterPool.getClient();
+}
+export function closeToolRunnerClients() {
+    cyberProxyPool?.close();
+    auditWriterPool?.close();
 }
 function emitAuditEvent(opts) {
     try {

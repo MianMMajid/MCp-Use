@@ -46,9 +46,11 @@ const grpcTlsConfig = loadGrpcTlsConfig();
 function loadServiceClientPooled(protoFile, servicePath, address) {
     return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
-function grpcUnary(client, method, request) {
+const DEFAULT_DEADLINE_MS = 5000;
+function grpcUnary(client, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+    const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolve, reject) => {
-        client[method](request, (err, response) => {
+        client[method](request, { deadline }, (err, response) => {
             if (err)
                 reject(err);
             else
@@ -56,27 +58,19 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let cyberProxyPool;
-let auditWriterPool;
+const cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
+const auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
 const cyberProxyBreaker = new CircuitBreaker("mcp-proxy->cyber-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("mcp-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
 function getCyberProxy() {
-    if (!cyberProxyPool) {
-        cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
-    }
     return cyberProxyPool.getClient();
 }
 function getAuditWriter() {
-    if (!auditWriterPool) {
-        auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
-    }
     return auditWriterPool.getClient();
 }
 export function closeMcpProxyClients() {
     cyberProxyPool?.close();
     auditWriterPool?.close();
-    cyberProxyPool = undefined;
-    auditWriterPool = undefined;
 }
 class CredentialMintError extends Error {
     constructor(message) {
@@ -715,9 +709,9 @@ export function createMcpProxyService(registry, dispatcher) {
                 }
                 if (!appId) {
                     const appsMissingTools = registry.list(false).filter((app) => app.tools.length === 0);
-                    for (const app of appsMissingTools) {
-                        await discoverToolsForApp(registry, app.appId, call.request?.context?.traceId);
-                    }
+                    await Promise.all(
+                        appsMissingTools.map((app) => discoverToolsForApp(registry, app.appId, call.request?.context?.traceId))
+                    );
                     tools = registry.getAllTools();
                 }
                 callback(null, {

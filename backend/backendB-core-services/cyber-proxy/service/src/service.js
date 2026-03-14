@@ -552,35 +552,39 @@ export function createCyberProxyService() {
                     return;
                 }
                 const finalBody = scanResult.sanitized.length > 0 ? scanResult.sanitized : respBody;
-                call.write({
-                    data: finalBody,
-                    isFinal: true,
-                    statusCode: resp.status,
-                    headers: respHeaders,
-                    sanitized: finalBody !== respBody,
-                    malwareDetected: false,
-                    quarantined: false,
-                    threatsFound: [],
-                    quarantineReason: "",
-                    policyReason: "ok",
-                    resolvedIp: urlCheck.resolvedIp,
-                });
+                try {
+                    call.write({
+                        data: finalBody,
+                        isFinal: true,
+                        statusCode: resp.status,
+                        headers: respHeaders,
+                        sanitized: finalBody !== respBody,
+                        malwareDetected: false,
+                        quarantined: false,
+                        threatsFound: [],
+                        quarantineReason: "",
+                        policyReason: "ok",
+                        resolvedIp: urlCheck.resolvedIp,
+                    });
+                } catch { /* client disconnected */ }
                 call.end();
             }
             catch {
-                call.write({
-                    data: Buffer.from(JSON.stringify({ error: "Upstream request failed" })),
-                    isFinal: true,
-                    statusCode: 502,
-                    headers: {},
-                    sanitized: false,
-                    malwareDetected: false,
-                    quarantined: false,
-                    threatsFound: [],
-                    quarantineReason: "",
-                    policyReason: "upstream_error",
-                    resolvedIp: "",
-                });
+                try {
+                    call.write({
+                        data: Buffer.from(JSON.stringify({ error: "Upstream request failed" })),
+                        isFinal: true,
+                        statusCode: 502,
+                        headers: {},
+                        sanitized: false,
+                        malwareDetected: false,
+                        quarantined: false,
+                        threatsFound: [],
+                        quarantineReason: "",
+                        policyReason: "upstream_error",
+                        resolvedIp: "",
+                    });
+                } catch { /* client disconnected */ }
                 call.end();
             }
         },

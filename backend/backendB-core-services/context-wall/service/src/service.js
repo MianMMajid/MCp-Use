@@ -24,9 +24,11 @@ const contextProto = proto.maple.context.v1;
 function loadServiceClientPooled(protoFile, servicePath, address) {
     return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
-function grpcUnary(client, method, request) {
+const DEFAULT_DEADLINE_MS = 5000;
+function grpcUnary(client, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+    const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolvePromise, rejectPromise) => {
-        client[method](request, (err, response) => {
+        client[method](request, { deadline }, (err, response) => {
             if (err)
                 rejectPromise(err);
             else

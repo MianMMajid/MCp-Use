@@ -120,7 +120,9 @@ export class AuditStore {
     }
     bufferEvent(event) {
         if (this.writeBuffer.length >= this.maxWriteBuffer) {
-            this.writeBuffer.shift();
+            // Drop oldest 10% to amortize the splice cost instead of O(n) shift per event
+            const dropCount = Math.max(1, Math.floor(this.maxWriteBuffer * 0.1));
+            this.writeBuffer.splice(0, dropCount);
         }
         this.writeBuffer.push(event);
         if (this.writeBuffer.length >= this.maxBufferSize) {

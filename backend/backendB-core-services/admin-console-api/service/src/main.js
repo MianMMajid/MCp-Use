@@ -4,18 +4,30 @@ import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer as createHttpsServer } from "node:https";
-import { loadGrpcTlsConfig, loadServiceClientSecure, mapleLog } from "@maple/common";
+import { loadGrpcTlsConfig, loadServiceClientSecurePooled, CircuitBreaker, mapleLog } from "@maple/common";
 import { config } from "./config.js";
 import { createStaticRoutes } from "./static-routes.js";
 // ── gRPC client helpers ─────────────────────────────────────────────────────
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
-function loadProtoClient(protoFile, servicePath, address) {
-    return loadServiceClientSecure(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
+function loadProtoClientPooled(protoFile, servicePath, address) {
+    return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
-function grpcUnary(client, method, request) {
+const DEFAULT_DEADLINE_MS = 5000;
+const serviceBreakers = new Map();
+function getBreaker(name) {
+    let breaker = serviceBreakers.get(name);
+    if (!breaker) {
+        breaker = new CircuitBreaker(`admin-console->${name}`, { failureThreshold: 5, resetTimeoutMs: 30000 });
+        serviceBreakers.set(name, breaker);
+    }
+    return breaker;
+}
+function grpcUnary(clientOrPool, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+    const client = typeof clientOrPool?.getClient === "function" ? clientOrPool.getClient() : clientOrPool;
+    const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolve, reject) => {
-        client[method](request, (err, response) => {
+        client[method](request, { deadline }, (err, response) => {
             if (err)
                 reject(err);
             else
@@ -23,10 +35,14 @@ function grpcUnary(client, method, request) {
         });
     });
 }
+function grpcUnaryProtected(pool, serviceName, method, request, options) {
+    const breaker = getBreaker(serviceName);
+    return breaker.execute(() => grpcUnary(pool, method, request, options));
+}
 // ── Audit event emitter (fire-and-forget) ───────────────────────────────────
-function emitAuditEvent(auditClient, opts) {
+function emitAuditEvent(auditPool, opts) {
     try {
-        grpcUnary(auditClient, "appendEvent", {
+        grpcUnary(auditPool, "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -73,15 +89,15 @@ function approvalEventToApi(event) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
     mapleLog("info", "admin_console_starting", { port: config.port });
-    // Create gRPC clients
-    const contextWall = loadProtoClient("maple/context/v1/context_wall.proto", "maple.context.v1.ContextWallService", config.contextWallAddress);
-    const auditWriter = loadProtoClient("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
+    // Create gRPC client pools
+    const contextWallPool = loadProtoClientPooled("maple/context/v1/context_wall.proto", "maple.context.v1.ContextWallService", config.contextWallAddress);
+    const auditWriterPool = loadProtoClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
     mapleLog("info", "admin_console_grpc_clients_created", {
         contextWall: config.contextWallAddress,
         auditWriter: config.auditWriterAddress,
     });
     // Emit startup audit event
-    emitAuditEvent(auditWriter, {
+    emitAuditEvent(auditWriterPool, {
         eventType: "AUDIT_EVENT_TYPE_SERVICE_STARTED",
         summary: "admin-console service started",
         payload: { port: config.port },
@@ -97,9 +113,9 @@ async function main() {
     // ── Admin API: Policies (proxy to context-wall) ─────────────────────────
     app.get("/admin/api/policies", async (c) => {
         try {
-            const response = await grpcUnary(contextWall, "listPolicyRules", {});
+            const response = await grpcUnaryProtected(contextWallPool, "context-wall", "listPolicyRules", {});
             const rules = Array.isArray(response?.rules) ? response.rules : [];
-            emitAuditEvent(auditWriter, {
+            emitAuditEvent(auditWriterPool, {
                 eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
                 summary: "admin-console: policy state queried",
                 payload: { ruleCount: rules.length },
@@ -134,7 +150,7 @@ async function main() {
             const until = c.req.query("until") || "";
             const limit = parseInt(c.req.query("limit") || "50", 10);
             const cursor = c.req.query("cursor") || "";
-            const response = await grpcUnary(auditWriter, "queryEvents", {
+            const response = await grpcUnaryProtected(auditWriterPool, "audit-writer", "queryEvents", {
                 traceId,
                 sessionId,
                 sourceService: "",
@@ -145,7 +161,7 @@ async function main() {
                 limit,
                 cursor,
             });
-            emitAuditEvent(auditWriter, {
+            emitAuditEvent(auditWriterPool, {
                 eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
                 summary: "admin-console: audit events queried",
                 payload: { traceId, sessionId, limit, resultCount: (response.events || []).length },
@@ -171,7 +187,7 @@ async function main() {
     // ── Admin API: Policy reload (proxy to context-wall) ────────────────────
     app.post("/admin/api/policies/reload", async (c) => {
         try {
-            const response = await grpcUnary(contextWall, "reloadPolicies", {});
+            const response = await grpcUnaryProtected(contextWallPool, "context-wall", "reloadPolicies", {});
             return c.json({
                 success: response.success,
                 ruleCount: response.ruleCount,
@@ -194,7 +210,7 @@ async function main() {
     app.get("/admin/api/approvals", async (c) => {
         try {
             const sessionId = c.req.query("session_id") || "";
-            const response = await grpcUnary(contextWall, "listPendingApprovals", { sessionId });
+            const response = await grpcUnaryProtected(contextWallPool, "context-wall", "listPendingApprovals", { sessionId });
             const approvals = Array.isArray(response?.approvals) ? response.approvals : [];
             return c.json({
                 approvals: approvals.map((event) => approvalEventToApi(event)),
@@ -220,7 +236,7 @@ async function main() {
         const stream = new ReadableStream({
             start(controller) {
                 controller.enqueue(encoder.encode("event: ready\ndata: {}\n\n"));
-                approvalStream = contextWall.watchApprovalQueue({ sessionId });
+                approvalStream = contextWallPool.getClient().watchApprovalQueue({ sessionId });
                 approvalStream.on("data", (event) => {
                     controller.enqueue(encoder.encode(`event: approval\ndata: ${JSON.stringify(approvalEventToApi(event))}\n\n`));
                 });
@@ -265,14 +281,14 @@ async function main() {
             if (grpcAction === "GUARD_ACTION_PENDING") {
                 return c.json({ error: "action must be allow or block" }, 400);
             }
-            const response = await grpcUnary(contextWall, "submitApproval", {
+            const response = await grpcUnaryProtected(contextWallPool, "context-wall", "submitApproval", {
                 traceId,
                 stepIndex: Math.max(0, Math.trunc(stepIndexRaw)),
                 action: grpcAction,
                 reason,
                 approverId,
             });
-            emitAuditEvent(auditWriter, {
+            emitAuditEvent(auditWriterPool, {
                 eventType: grpcAction === "GUARD_ACTION_ALLOW"
                     ? "AUDIT_EVENT_TYPE_HITL_APPROVED"
                     : "AUDIT_EVENT_TYPE_HITL_REJECTED",

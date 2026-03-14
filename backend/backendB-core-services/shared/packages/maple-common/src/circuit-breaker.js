@@ -27,13 +27,17 @@ export class CircuitBreaker {
             if (Date.now() - this.lastFailureTime >= this.resetTimeoutMs) {
                 this._transitionTo(STATE_HALF_OPEN);
             } else {
-                throw new Error(`CircuitBreaker [${this.name}] is OPEN — call rejected`);
+                const err = new Error(`CircuitBreaker [${this.name}] is OPEN — call rejected`);
+                err.code = "UNAVAILABLE";
+                throw err;
             }
         }
 
         if (this.state === STATE_HALF_OPEN && this.halfOpenAttempts >= this.halfOpenMaxAttempts) {
             this._transitionTo(STATE_OPEN);
-            throw new Error(`CircuitBreaker [${this.name}] is OPEN — half-open attempts exhausted`);
+            const err = new Error(`CircuitBreaker [${this.name}] is OPEN — half-open attempts exhausted`);
+            err.code = "UNAVAILABLE";
+            throw err;
         }
 
         try {
