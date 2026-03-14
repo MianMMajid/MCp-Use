@@ -1,5 +1,6 @@
 import { asString, readJsonBody } from "../helpers.js";
 import { findRequestSession } from "../auth.js";
+import { requireApiKeyResponse } from "../auth-api-key.js";
 import { database } from "../state.js";
 import { PlatformStore } from "../core/platform-store.js";
 
@@ -25,6 +26,19 @@ async function requireSession(c) {
     return { error: c.json({ error: "Authentication required." }, 401) };
   }
   return { session };
+}
+
+async function requireOrgRole(c, orgId, userId, minRole) {
+  const store = getStore();
+  const org = await store.getOrganizationForUser(orgId, userId);
+  if (!org) return { error: c.json({ error: "Organization not found." }, 404) };
+  const memberRole = await store.getMemberRole(orgId, userId);
+  if (!memberRole) return { error: c.json({ error: "Not a member." }, 403) };
+  const ROLE_RANK = { owner: 3, admin: 2, member: 1 };
+  if ((ROLE_RANK[memberRole] ?? 0) < (ROLE_RANK[minRole] ?? 0)) {
+    return { error: c.json({ error: `Requires ${minRole} role or higher.` }, 403) };
+  }
+  return { org, role: memberRole };
 }
 
 function normalizeOrgSummary(org) {
@@ -147,15 +161,15 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const orgId = asString(c.req.param("orgId"));
-    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
-    if (!org) {
-      return c.json({ error: "Organization not found." }, 404);
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "admin");
+    if (roleCheck.error) {
+      return roleCheck.error;
     }
+    const store = getStore();
     const body = await readJsonBody(c);
     const invite = await store.createOrganizationInvite({
-      orgId: org.orgId,
+      orgId: roleCheck.org.orgId,
       issuedBy: auth.session.user.id,
       roleId: asString(body.roleId) ?? "member",
       email: asString(body.email) ?? "",
@@ -173,7 +187,7 @@ export function registerPlatformProxyRoutes(app) {
     if (!inviteId) {
       return c.json({ error: "inviteId is required." }, 400);
     }
-    const invite = await store.acceptOrganizationInvite(inviteId, auth.session.user.id);
+    const invite = await store.acceptOrganizationInvite(inviteId, auth.session.user.id, auth.session.user.email);
     if (!invite) {
       return c.json({ error: "Invite not found." }, 404);
     }
@@ -190,20 +204,20 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const orgId = asString(c.req.param("orgId"));
-    const userId = asString(c.req.param("userId"));
-    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
-    if (!org) {
-      return c.json({ error: "Organization not found." }, 404);
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "admin");
+    if (roleCheck.error) {
+      return roleCheck.error;
     }
+    const store = getStore();
+    const userId = asString(c.req.param("userId"));
     if (!userId) {
       return c.json({ error: "userId is required." }, 400);
     }
-    if (org.ownerUserId === userId) {
+    if (roleCheck.org.ownerUserId === userId) {
       return c.json({ error: "Cannot remove organization owner." }, 409);
     }
-    const removed = await store.removeOrganizationMember(org.orgId, userId);
+    const removed = await store.removeOrganizationMember(roleCheck.org.orgId, userId);
     if (!removed) {
       return c.json({ error: "Member not found." }, 404);
     }
@@ -230,19 +244,26 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const orgId = asString(c.req.param("orgId"));
-    const roleId = asString(c.req.param("roleId")) ?? "member";
-    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
-    if (!org) {
-      return c.json({ error: "Organization not found." }, 404);
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "owner");
+    if (roleCheck.error) {
+      return roleCheck.error;
     }
+    const store = getStore();
+    const roleId = asString(c.req.param("roleId")) ?? "member";
     const body = await readJsonBody(c);
     const userId = asString(body.userId);
     if (!userId) {
       return c.json({ error: "userId is required." }, 400);
     }
-    const assigned = await store.assignOrganizationRole(org.orgId, userId, roleId);
+    const ROLE_RANK = { owner: 3, admin: 2, member: 1 };
+    if ((ROLE_RANK[roleId] ?? 0) > (ROLE_RANK[roleCheck.role] ?? 0)) {
+      return c.json({ error: "Cannot assign a role higher than your own." }, 403);
+    }
+    if (userId === auth.session.user.id) {
+      return c.json({ error: "Cannot reassign your own role." }, 403);
+    }
+    const assigned = await store.assignOrganizationRole(roleCheck.org.orgId, userId, roleId);
     return c.json({ ok: true, ...assigned });
   });
 
@@ -306,14 +327,14 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const orgId = asString(c.req.param("orgId"));
-    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
-    if (!org) {
-      return c.json({ error: "Organization not found." }, 404);
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "admin");
+    if (roleCheck.error) {
+      return roleCheck.error;
     }
+    const store = getStore();
     const body = await readJsonBody(c);
-    const account = await store.createServiceAccount(org.orgId, asString(body.name));
+    const account = await store.createServiceAccount(roleCheck.org.orgId, asString(body.name));
     return c.json({ ok: true, account }, 201);
   });
 
@@ -338,15 +359,15 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const orgId = asString(c.req.param("orgId"));
-    const accountId = asString(c.req.param("id"));
-    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
-    if (!org) {
-      return c.json({ error: "Organization not found." }, 404);
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "admin");
+    if (roleCheck.error) {
+      return roleCheck.error;
     }
+    const store = getStore();
+    const accountId = asString(c.req.param("id"));
     const body = await readJsonBody(c);
-    const key = await store.createServiceAccountKey(org.orgId, accountId, {
+    const key = await store.createServiceAccountKey(roleCheck.org.orgId, accountId, {
       expiresAt: asString(body.expiresAt),
     });
     if (!key) {
@@ -360,15 +381,15 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const orgId = asString(c.req.param("orgId"));
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "admin");
+    if (roleCheck.error) {
+      return roleCheck.error;
+    }
+    const store = getStore();
     const accountId = asString(c.req.param("id"));
     const keyId = asString(c.req.param("keyId"));
-    const org = await store.getOrganizationForUser(orgId, auth.session.user.id);
-    if (!org) {
-      return c.json({ error: "Organization not found." }, 404);
-    }
-    const deleted = await store.deleteServiceAccountKey(org.orgId, accountId, keyId);
+    const deleted = await store.deleteServiceAccountKey(roleCheck.org.orgId, accountId, keyId);
     if (!deleted) {
       return c.json({ error: "Service account key not found." }, 404);
     }
@@ -418,13 +439,15 @@ export function registerPlatformProxyRoutes(app) {
   });
 
   app.post("/api/limits/override", async (c) => {
-    const auth = await requireSession(c);
-    if (auth.error) {
-      return auth.error;
-    }
+    const unauthorized = await requireApiKeyResponse(c, database, { requireApiKey: true });
+    if (unauthorized) return unauthorized;
     const store = getStore();
     const body = await readJsonBody(c);
-    const limits = await store.updateLimitsForUser(auth.session.user.id, {
+    const userId = asString(body.userId);
+    if (!userId) {
+      return c.json({ error: "userId is required." }, 400);
+    }
+    const limits = await store.updateLimitsForUser(userId, {
       maxRunsPerDay: positiveIntOrUndefined(body.maxRunsPerDay),
       maxToolCallsPerDay: positiveIntOrUndefined(body.maxToolCallsPerDay),
       maxConcurrentLongform: positiveIntOrUndefined(body.maxConcurrentLongform),

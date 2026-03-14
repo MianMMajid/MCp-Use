@@ -4,6 +4,7 @@ import { isProductionRuntime, isBehindTrustedProxy } from "./config.js";
 import { mapleLogRequestsEnabled, mapleLogIncludeBodies, shouldLogLevel, shouldLogHttpRequestPath, requestBodyPreview, requestContextStorage, mapleLog, } from "./logging.js";
 import { server } from "./state.js";
 import { emitAuditEvent } from "./audit-emitter.js";
+import { authContextStorage } from "./auth-context.js";
 const responseCompression = compress();
 // ── CORS for ChatGPT Apps domains ───────────────────────────────────────────
 const CHATGPT_ALLOWED_ORIGINS = new Set([
@@ -92,17 +93,18 @@ server.app.use("*", async (c, next) => {
                 : status >= 400
                     ? "RISK_SEVERITY_MEDIUM"
                     : "RISK_SEVERITY_LOW";
+            const authCtx = authContextStorage.getStore();
             emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_PROXY_REQUEST",
                 sourceService: "gateway-api",
                 traceId: traceId || undefined,
                 sessionId: sessionId || undefined,
-                userId: forwardedUserId || undefined,
+                userId: authCtx?.userId ?? authCtx?.keyFingerprint ?? "",
                 severity,
                 summary: `Gateway API ${method} ${path} -> ${status}`,
                 payload: {
                     requestId,
-                    tenantId,
+                    tenantId: authCtx?.tenantId ?? tenantId,
                     deviceId,
                     method,
                     path,

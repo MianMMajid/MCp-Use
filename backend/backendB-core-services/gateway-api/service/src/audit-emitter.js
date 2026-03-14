@@ -40,7 +40,7 @@ export function emitAuditEvent(options) {
     };
 
     try {
-        enqueueAuditEvent({ ...options, traceId: span.traceId, spanId: span.spanId });
+        enqueueAuditEvent({ ...options, traceId: span.traceId, spanId: span.spanId }).catch(() => {});
     } catch {
         // Outbox unavailable — fall back to direct gRPC
         const clients = getGrpcClients();

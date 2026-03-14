@@ -30,7 +30,7 @@ function backoffMs(attempts) {
  * Enqueue an audit event into the durable outbox.
  * Falls back to fire-and-forget gRPC if outbox is disabled or no DB.
  */
-export function enqueueAuditEvent(options) {
+export async function enqueueAuditEvent(options) {
   const event = {
     eventId: randomUUID(),
     eventType: options.eventType,
@@ -55,21 +55,21 @@ export function enqueueAuditEvent(options) {
   }
 
   const now = nowIso();
-  _database.pool
-    .query(
+  try {
+    await _database.pool.query(
       `INSERT INTO gateway_audit_outbox (outbox_id, event_json, status, created_at, updated_at, next_attempt_at, delivered_at, attempts, last_error)
        VALUES ($1, $2, 'pending', $3, $3, $3, NULL, 0, '')`,
       [event.eventId, JSON.stringify(event), now]
-    )
-    .catch((err) => {
-      mapleLog("warn", "audit_outbox.enqueue_failed", {
-        eventId: event.eventId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      fireAndForgetGrpc(event);
+    );
+    return { queued: true, eventId: event.eventId };
+  } catch (err) {
+    mapleLog("warn", "audit_outbox.enqueue_failed", {
+      eventId: event.eventId,
+      error: err instanceof Error ? err.message : String(err),
     });
-
-  return { queued: true, eventId: event.eventId };
+    fireAndForgetGrpc(event);
+    return { queued: false, eventId: event.eventId };
+  }
 }
 
 function fireAndForgetGrpc(event) {
@@ -117,7 +117,8 @@ export async function flushOutbox(options = {}) {
        FROM gateway_audit_outbox
        WHERE status = 'pending' AND next_attempt_at <= $1
        ORDER BY created_at ASC
-       LIMIT $2`,
+       LIMIT $2
+       FOR UPDATE SKIP LOCKED`,
       [now, batchSize]
     );
 

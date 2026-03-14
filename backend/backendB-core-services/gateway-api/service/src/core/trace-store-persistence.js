@@ -1,3 +1,4 @@
+import { mapleLog } from "../logging.js";
 function isPromiseLike(value) {
     return Boolean(value) && typeof value.catch === "function";
 }
@@ -5,22 +6,22 @@ export function persistTrace(persistence, trace) {
     try {
         const result = persistence?.saveTrace?.(trace);
         if (isPromiseLike(result)) {
-            result.catch((error) => console.error("[PERSISTENCE] Failed to save trace:", error));
+            result.catch((error) => mapleLog("error", "trace_persistence_failed", { error }));
         }
     }
     catch (error) {
-        console.error("[PERSISTENCE] Failed to save trace:", error);
+        mapleLog("error", "trace_persistence_failed", { error });
     }
 }
 export function removePersistedTrace(persistence, traceId) {
     try {
         const result = persistence?.removeTrace?.(traceId);
         if (isPromiseLike(result)) {
-            result.catch((error) => console.error("[PERSISTENCE] Failed to remove trace:", error));
+            result.catch((error) => mapleLog("error", "trace_persistence_failed", { error }));
         }
     }
     catch (error) {
-        console.error("[PERSISTENCE] Failed to remove trace:", error);
+        mapleLog("error", "trace_persistence_failed", { error });
     }
 }
 export async function loadPersistedTracesIntoIndex(options) {

@@ -43,7 +43,7 @@ export async function ensureStepUpTable(database) {
       tenant_id TEXT NOT NULL DEFAULT '',
       org_id TEXT NOT NULL DEFAULT '',
       method TEXT NOT NULL,
-      verified_at TEXT NOT NULL,
+      verified_at TEXT,
       expires_at TEXT NOT NULL,
       challenge_hash TEXT,
       used_for_approval_id TEXT
@@ -51,6 +51,14 @@ export async function ensureStepUpTable(database) {
     CREATE INDEX IF NOT EXISTS idx_step_up_user_expires
       ON modifier_step_up_verifications(user_id, expires_at DESC);
   `);
+  // Safely migrate existing schema: allow NULL for verified_at
+  try {
+    await db.pool.query(`
+      ALTER TABLE modifier_step_up_verifications ALTER COLUMN verified_at DROP NOT NULL;
+    `);
+  } catch (_) {
+    // Column may already allow NULL or table may not exist yet; ignore.
+  }
 }
 
 /**
@@ -78,13 +86,12 @@ export async function createStepUpChallenge(userId, options = {}) {
     await db.pool.query(
       `INSERT INTO modifier_step_up_verifications
          (id, user_id, tenant_id, org_id, method, verified_at, expires_at, challenge_hash)
-       VALUES ($1, $2, $3, $4, 'challenge', $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, 'challenge', NULL, $5, $6)`,
       [
         id,
         userId,
         options.tenantId ?? "",
         options.orgId ?? "",
-        now,
         expiresAt,
         challengeHash,
       ]
@@ -112,17 +119,40 @@ export async function verifyStepUpChallenge(userId, challengeToken, options = {}
   }
 
   const now = nowIso();
+  const conditions = [
+    "user_id = $1",
+    "challenge_hash = $2",
+    "expires_at > $3",
+    "used_for_approval_id IS NULL",
+  ];
+  const params = [userId, challengeHash, now];
+  let cursor = 4;
+
+  if (options.tenantId) {
+    conditions.push(`tenant_id = $${cursor++}`);
+    params.push(options.tenantId);
+  }
+  if (options.orgId) {
+    conditions.push(`org_id = $${cursor++}`);
+    params.push(options.orgId);
+  }
+
   const result = await db.pool.query(
     `SELECT id, expires_at FROM modifier_step_up_verifications
-     WHERE user_id = $1 AND challenge_hash = $2 AND expires_at > $3
-       AND used_for_approval_id IS NULL
-     ORDER BY verified_at DESC LIMIT 1`,
-    [userId, challengeHash, now]
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY expires_at DESC LIMIT 1`,
+    params
   );
 
   if (result.rows.length === 0) {
     return { verified: false, reason: "invalid_or_expired" };
   }
+
+  // Mark the challenge as verified now
+  await db.pool.query(
+    `UPDATE modifier_step_up_verifications SET verified_at = $2 WHERE id = $1`,
+    [result.rows[0].id, now]
+  );
 
   return { verified: true, stepUpId: result.rows[0].id };
 }
@@ -200,7 +230,12 @@ export async function hasValidStepUp(userId, options = {}) {
   }
 
   const now = nowIso();
-  const conditions = ["user_id = $1", "expires_at > $2"];
+  const conditions = [
+    "user_id = $1",
+    "expires_at > $2",
+    "used_for_approval_id IS NULL",
+    "verified_at IS NOT NULL",
+  ];
   const params = [userId, now];
   let cursor = 3;
 

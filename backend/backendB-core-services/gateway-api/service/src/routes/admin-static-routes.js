@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { readFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
+import { sessionCookieName } from "../config.js";
 
 const CONTENT_TYPES = {
   ".json": "application/json; charset=utf-8",
@@ -75,11 +76,11 @@ function hasValidSessionCookie(cookieHeader) {
   const sessionCookie = cookieHeader
     .split(";")
     .map((c) => c.trim())
-    .find((c) => c.startsWith("maple_session="));
+    .find((c) => c.startsWith(`${sessionCookieName}=`));
   if (!sessionCookie) {
     return false;
   }
-  const value = sessionCookie.slice("maple_session=".length).trim();
+  const value = sessionCookie.slice(`${sessionCookieName}=`.length).trim();
   if (value.length < 36) {
     return false;
   }

@@ -67,8 +67,11 @@ export async function ensureTenantBindingsTable(database) {
  * Sign a tenant claim for a user to prevent spoofing.
  */
 export function signTenantClaim(userId, tenantId, orgId) {
+  if (!_claimSigningKey) {
+    throw new Error("Tenant claim signing key not configured");
+  }
   const payload = `${userId}:${tenantId}:${orgId}`;
-  const hmac = createHmac("sha256", _claimSigningKey ?? "default")
+  const hmac = createHmac("sha256", _claimSigningKey)
     .update(payload)
     .digest("hex");
   return hmac.slice(0, 32);
@@ -174,7 +177,7 @@ export async function listUserTenantBindings(userId, options = {}) {
  */
 async function hasActiveBinding(userId, tenantId, orgId) {
   const db = _database;
-  if (!hasPool(db)) return true; // permissive when no DB
+  if (!hasPool(db)) return false; // fail closed when DB is unavailable
 
   const cacheKey = `${userId}:${tenantId}:${orgId}`;
   const cached = TENANT_BINDING_CACHE.get(cacheKey);

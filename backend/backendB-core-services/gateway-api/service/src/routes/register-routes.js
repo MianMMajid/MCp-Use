@@ -72,13 +72,13 @@ function registerStubRoutes(app) {
   // FrontendA: tenant bindings, org hierarchy, tenant scope
   app.get("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ ok: true, bindings: [] }));
   app.post("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Tenant bindings not yet implemented." }, 501));
-  app.delete("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ ok: true }));
+  app.delete("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Not implemented." }, 501));
   app.get("/api/operations/orchestrations/tenant-scope", (c) => c.json({ ok: true, scope: null }));
   app.get("/api/operations/orchestrations/org/tree", (c) => c.json({ ok: true, tree: [] }));
   app.get("/api/operations/orchestrations/org/:orgId", (c) => c.json({ ok: true, org: null }));
   app.get("/api/operations/orchestrations/org/:orgId/lifecycle", (c) => c.json({ ok: true, events: [] }));
   app.post("/api/operations/orchestrations/org", (c) => c.json({ error: "Org management not yet implemented." }, 501));
-  app.delete("/api/operations/orchestrations/org/:orgId", (c) => c.json({ ok: true }));
+  app.delete("/api/operations/orchestrations/org/:orgId", (c) => c.json({ error: "Not implemented." }, 501));
 
   // FrontendC: downloads (Next.js API routes handle this locally in frontendC,
   // but if the gateway is hit directly, return a proper 404)

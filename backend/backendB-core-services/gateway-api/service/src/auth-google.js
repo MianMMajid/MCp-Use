@@ -40,6 +40,9 @@ export async function verifyGoogleJwt(token) {
     if (!payload.email) {
         throw new Error("No email in token");
     }
+    if (payload.email_verified === false) {
+        throw new Error("Email not verified by Google");
+    }
     const keys = await getGooglePublicKeys();
     const kid = header.kid;
     if (!kid || !keys[kid]) {

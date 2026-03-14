@@ -74,7 +74,8 @@ function getOnRecoveryTokenIssued() {
 
 export function registerAuthRecoveryRoutes(app) {
   app.post("/api/auth/forgot-password", async (c) => {
-    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const xff = c.req.header('x-forwarded-for') ?? '';
+    const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
     const retryAfter = checkRecoveryRateLimit(ip);
     if (retryAfter) {
       c.header('Retry-After', String(retryAfter));
@@ -113,7 +114,8 @@ export function registerAuthRecoveryRoutes(app) {
 
   // Backward-compatible alias used by landing forgot-password flow.
   app.post("/api/auth/password-reset", async (c) => {
-    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const xff = c.req.header('x-forwarded-for') ?? '';
+    const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
     const retryAfter = checkRecoveryRateLimit(ip);
     if (retryAfter) {
       c.header('Retry-After', String(retryAfter));
