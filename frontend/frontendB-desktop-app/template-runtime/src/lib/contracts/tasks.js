@@ -16,7 +16,7 @@
  * @property {string} id
  * @property {string} title
  * @property {string} prompt
- * @property {'running'|'paused'|'completed'|'failed'} status
+ * @property {'scheduled'|'running'|'paused'|'completed'|'failed'} status
  * @property {TaskSchedule} schedule
  * @property {TaskAssignmentTarget} assignment
  * @property {string|null} lastRunAt

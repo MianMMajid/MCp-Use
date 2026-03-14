@@ -8,6 +8,9 @@
     "build": "svelte-kit sync && vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "node ../../../node_modules/vitest/vitest.mjs run",
+    "test:watch": "node ../../../node_modules/vitest/vitest.mjs",
+    "test:e2e": "playwright test",
     "lint": "npm run check:ui-import-guards",
     "check:surface": "node scripts/check-orchestration-surface.js",
     "check:ui-import-guards": "node scripts/check-ui-import-guards.js"

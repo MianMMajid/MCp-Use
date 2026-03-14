@@ -32,6 +32,15 @@ function normalizeOrgSummary(org) {
     orgId: org.orgId,
     name: org.name,
     ownerUserId: org.ownerUserId,
+    bio: org.bio ?? "",
+    email: org.email ?? "",
+    email_is_public: org.email_is_public ?? true,
+    currency: org.currency ?? "usd",
+    address: org.address ?? "",
+    city: org.city ?? "",
+    region: org.region ?? "",
+    postal_code: org.postal_code ?? "",
+    country: org.country ?? "",
     createdAt: org.createdAt,
     updatedAt: org.updatedAt,
     membersCount: org.membersCount,
@@ -88,11 +97,18 @@ export function registerPlatformProxyRoutes(app) {
       return c.json({ error: "Organization not found." }, 404);
     }
     const body = await readJsonBody(c);
-    const name = asString(body.name);
-    if (!name) {
-      return c.json({ error: "name is required." }, 400);
-    }
-    const updated = await store.updateOrganizationName(orgId, name);
+    const updated = await store.updateOrganizationProfile(orgId, {
+      name: body.name !== undefined ? asString(body.name) : existing.name,
+      bio: body.bio,
+      email: body.email,
+      email_is_public: body.email_is_public,
+      currency: body.currency,
+      address: body.address,
+      city: body.city,
+      region: body.region,
+      postal_code: body.postal_code,
+      country: body.country,
+    });
     return c.json({ ok: true, org: normalizeOrgSummary(updated) });
   });
 

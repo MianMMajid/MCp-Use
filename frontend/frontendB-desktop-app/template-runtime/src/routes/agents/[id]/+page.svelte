@@ -7,8 +7,6 @@
 
   export let data;
 
-  const CUSTOM_SKILLS_KEY = 'mayple_custom_skills';
-
   let loading = true;
   let saving = false;
   let error = '';
@@ -16,7 +14,6 @@
   let agentName = '';
   let toolSearch = '';
   let openclawTools = [];
-  let customSkills = [];
   let equippedToolIds = [];
   let draggedSkillId = '';
   let equippedDropActive = false;
@@ -56,12 +53,6 @@
 
   $: allSkills = [
     ...openclawTools,
-    ...customSkills.map((item) => ({
-      toolId: String(item.id),
-      name: item.name,
-      description: item.fileName ? `Imported from ${item.fileName}` : 'Custom skill',
-      source: 'custom',
-    })),
   ];
 
   $: allSkillsById = new Map(allSkills.map((item) => [String(item.toolId || item.name), item]));
@@ -69,8 +60,8 @@
   $: equippedSkills = equippedToolIds.map((id) => allSkillsById.get(String(id)) || {
     toolId: String(id),
     name: String(id),
-    description: 'Custom imported skill',
-    source: 'custom',
+    description: 'Configured backend skill',
+    source: 'registry',
   });
 
   $: filteredAvailableSkills = allSkills.filter((item) => {
@@ -109,17 +100,6 @@
     return 'badge zinc';
   }
 
-  function readCustomSkills() {
-    if (typeof window === 'undefined') return [];
-    try {
-      const raw = window.localStorage.getItem(CUSTOM_SKILLS_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
   async function loadPage() {
     loading = true;
     error = '';
@@ -133,7 +113,6 @@
       openclawTools = Array.isArray(toolsPayload?.items)
         ? toolsPayload.items.map((item) => ({ ...item, toolId: String(item.toolId || item.name) }))
         : [];
-      customSkills = readCustomSkills();
       equippedToolIds = Array.isArray(toolsPayload?.equippedToolIds)
         ? toolsPayload.equippedToolIds.map(String)
         : (Array.isArray(agentPayload?.equippedToolIds) ? agentPayload.equippedToolIds.map(String) : []);
@@ -166,7 +145,6 @@
   }
 
   function catalogCategory(skill) {
-    if (skill?.source === 'custom') return 'custom';
     const id = String(skill?.toolId || skill?.name || '').toLowerCase();
     if (id.includes('slack') || id.includes('email') || id.includes('calendar') || id.includes('message')) return 'communication';
     if (id.includes('github') || id.includes('patch') || id.includes('exec') || id.includes('file')) return 'engineering';

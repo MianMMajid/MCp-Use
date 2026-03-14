@@ -191,18 +191,23 @@ function defaultPolicy() {
   };
 }
 
-function mergePolicy(policyRecord) {
-  const base = defaultPolicy();
-  if (!policyRecord?.policy) {
-    return {
-      ...base,
-      version: null,
-      createdAt: "",
-      createdBy: "",
-      activatedAt: "",
-    };
+export function getDefaultOpenClawModifierPolicy() {
+  return defaultPolicy();
+}
+
+function selectAgentPolicy(policy, agentId) {
+  const normalizedAgentId = asString(agentId) ?? "";
+  if (!normalizedAgentId) {
+    return policy;
   }
-  const policy = policyRecord.policy;
+  const candidate = policy?.agentPolicies?.[normalizedAgentId];
+  if (candidate && typeof candidate === "object") {
+    return candidate;
+  }
+  return policy;
+}
+
+function mergeResolvedPolicy(policy, base) {
   return {
     allowedTools:
       Array.isArray(policy.allowedTools) && policy.allowedTools.length > 0
@@ -235,6 +240,35 @@ function mergePolicy(policyRecord) {
           : base.constraints.approvalTtlSeconds,
     },
     metadata: policy.metadata ?? {},
+  };
+}
+
+function mergePolicy(policyRecord, options = {}) {
+  const base = defaultPolicy();
+  if (!policyRecord?.policy) {
+    return {
+      ...base,
+      agentPolicies: {},
+      version: null,
+      createdAt: "",
+      createdBy: "",
+      activatedAt: "",
+    };
+  }
+  const policy = policyRecord.policy;
+  const resolvedPolicy = selectAgentPolicy(policy, options.agentId);
+  const mergedPolicy = mergeResolvedPolicy(resolvedPolicy, base);
+  const agentPolicies =
+    policy.agentPolicies && typeof policy.agentPolicies === "object"
+      ? Object.fromEntries(
+          Object.entries(policy.agentPolicies)
+            .map(([agentId, value]) => [agentId, mergeResolvedPolicy(value, base)])
+            .filter(([agentId]) => Boolean(agentId))
+        )
+      : {};
+  return {
+    ...mergedPolicy,
+    agentPolicies,
     version: policyRecord.version ?? null,
     createdAt: policyRecord.createdAt ?? "",
     createdBy: policyRecord.createdBy ?? "",
@@ -290,11 +324,12 @@ async function ensureMemberPermissions(actor, requiredPermission) {
   return permissions;
 }
 
-async function resolveEffectivePolicy(actor) {
+async function resolveEffectivePolicy(actor, options = {}) {
   const defaults = defaultPolicy();
   if (!openclawModifierRequireTenantPolicy && (!actor.tenantId || !actor.orgId)) {
     return {
       ...defaults,
+      agentPolicies: {},
       version: null,
       createdAt: "",
       createdBy: "",
@@ -312,6 +347,10 @@ async function resolveEffectivePolicy(actor) {
   );
   if (!policyRecord && openclawModifierRequireTenantPolicy) {
     throw new Error("No active tenant policy found for OpenClaw modifier.");
+  }
+
+  if (options.agentId) {
+    return mergePolicy(policyRecord, { agentId: options.agentId });
   }
 
   // A4: Policy inheritance via org hierarchy
@@ -622,7 +661,9 @@ export async function submitOpenClawModifierApprovalDecision(
 
 export async function getOpenClawModifierPolicy(actorOverrides = {}) {
   const actor = actorFromAuthContext(actorOverrides);
-  const policy = await resolveEffectivePolicy(actor);
+  const policy = await resolveEffectivePolicy(actor, {
+    agentId: asString(actorOverrides?.agentId) ?? "",
+  });
   const pendingApprovals = await runtimeStore.listApprovals({
     tenantId: actor.tenantId,
     orgId: actor.orgId,
@@ -641,9 +682,25 @@ export async function getOpenClawModifierPolicy(actorOverrides = {}) {
       maxBufferMb: Number(policy.constraints.maxBufferMb),
       approvalTtlSeconds: Number(policy.constraints.approvalTtlSeconds),
     },
+    agentPolicies:
+      policy.agentPolicies && typeof policy.agentPolicies === "object"
+        ? Object.fromEntries(
+            Object.entries(policy.agentPolicies).map(([agentId, value]) => [
+              agentId,
+              {
+                allowedTools: [...(value.allowedTools ?? [])],
+                dangerousTools: [...(value.dangerousTools ?? [])],
+                blockedTargetProfiles: [...(value.blockedTargetProfiles ?? [])],
+                constraints: { ...(value.constraints ?? {}) },
+                metadata: { ...(value.metadata ?? {}) },
+              },
+            ])
+          )
+        : {},
     scope: {
       tenantId: actor.tenantId,
       orgId: actor.orgId,
+      agentId: asString(actorOverrides?.agentId) ?? "",
     },
     policyVersion: policy.version,
     policyCreatedAt: policy.createdAt,
@@ -843,7 +900,9 @@ export async function executeOpenClawModifierRequest(requestBody, actorOverrides
   }
 
   await ensureMemberPermissions(actor, "modifier:execute");
-  const policy = await resolveEffectivePolicy(actor);
+  const policy = await resolveEffectivePolicy(actor, {
+    agentId: asString(requestBody?.agentId) ?? asString(actorOverrides?.agentId) ?? "",
+  });
   const plan = buildModifierPlan(requestBody, policy);
   const planAudit = summarizePlanForAudit(plan);
 
@@ -1025,7 +1084,9 @@ export async function evaluateModifierGovernance(toolName, toolArgs, actorOverri
 
   try {
     const actor = actorFromAuthContext(actorOverrides);
-    const policy = await resolveEffectivePolicy(actor);
+    const policy = await resolveEffectivePolicy(actor, {
+      agentId: asString(toolArgs?.agentId) ?? asString(actorOverrides?.agentId) ?? "",
+    });
 
     const tool = String(toolName ?? "").trim().toLowerCase();
     if (!tool) {

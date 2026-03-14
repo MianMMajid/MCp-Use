@@ -9,6 +9,7 @@ import { registerOrchestrationRoutes } from "./orchestration-routes.js";
 import { registerAdminConsoleRoutes } from "./admin-console-routes.js";
 import { createAdminStaticRoutes } from "./admin-static-routes.js";
 import { registerIntegrationRoutes } from "./integration-routes.js";
+import { registerFrontendBRoutes } from "./frontend-b-routes.js";
 import { database } from "../state.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin } from "../config.js";
@@ -49,6 +50,7 @@ export async function registerGatewayRoutes(app) {
   registerSearchRoutes(app);
   registerNotificationRoutes(app);
   registerOrchestrationRoutes(app);
+  registerFrontendBRoutes(app);
 
   // Admin console routes (merged from admin-console-api)
   registerAdminConsoleRoutes(app, { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin });
@@ -67,18 +69,6 @@ export async function registerGatewayRoutes(app) {
 // fully implemented yet.  Returning structured JSON lets the UI show
 // "empty / not available" instead of silently failing on HTML parse.
 function registerStubRoutes(app) {
-  // FrontendB: task management
-  app.get("/api/tasks", (c) => c.json({ ok: true, items: [] }));
-  app.post("/api/tasks", (c) => c.json({ ok: true, item: null, error: "Task creation not yet implemented." }, 501));
-  app.get("/api/tasks/:taskId", (c) => c.json({ error: "Tasks not yet implemented." }, 501));
-  app.patch("/api/tasks/:taskId", (c) => c.json({ error: "Tasks not yet implemented." }, 501));
-  app.delete("/api/tasks/:taskId", (c) => c.json({ ok: true }));
-  app.post("/api/tasks/:taskId/:command", (c) => c.json({ error: "Tasks not yet implemented." }, 501));
-
-  // FrontendB: agent tools
-  app.get("/api/agents/:agentId/tools", (c) => c.json({ ok: true, items: [], equippedToolIds: [] }));
-  app.patch("/api/agents/:agentId/tools", (c) => c.json({ ok: true }));
-
   // FrontendA: tenant bindings, org hierarchy, tenant scope
   app.get("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ ok: true, bindings: [] }));
   app.post("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Tenant bindings not yet implemented." }, 501));

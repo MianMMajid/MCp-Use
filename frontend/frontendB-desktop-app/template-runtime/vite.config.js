@@ -10,4 +10,14 @@ export default defineConfig({
   preview: {
     allowedHosts: true
   },
+  test: {
+    environment: 'jsdom',
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost/',
+      },
+    },
+    setupFiles: ['./vitest.setup.js'],
+    include: ['src/**/*.test.{js,ts}'],
+  },
 });

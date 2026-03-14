@@ -109,16 +109,26 @@ describe("Gateway core API endpoints return JSON", () => {
 
 // ─── 2. Stub routes return JSON (previously returned HTML) ──────────────────
 
-describe("Stub routes return JSON instead of HTML fallback", () => {
+describe("Frontend B session routes return JSON instead of HTML fallback", () => {
+  const jsonOnlyEndpoints = [
+    { path: "/api/tasks", statuses: [200, 401] },
+    { path: "/api/firewalls", statuses: [200, 401] },
+    { path: "/api/skills", statuses: [200, 401] },
+    { path: "/api/agents/stub-test/tools", statuses: [200, 401, 404] },
+  ];
+
+  for (const { path, statuses } of jsonOnlyEndpoints) {
+    it(`GET ${path} → JSON`, async () => {
+      const result = await fetchJson(GATEWAY, path);
+      assertJsonResponse(result, path);
+      assert.ok(
+        statuses.includes(result.status),
+        `${path} should return one of ${statuses.join(", ")} but got ${result.status}`
+      );
+    });
+  }
+
   const stubGetEndpoints = [
-    { path: "/api/tasks", check: (j) => assert.ok(Array.isArray(j.items)) },
-    {
-      path: "/api/agents/stub-test/tools",
-      check: (j) => {
-        assert.ok(Array.isArray(j.items));
-        assert.ok(Array.isArray(j.equippedToolIds));
-      },
-    },
     {
       path: "/api/operations/orchestrations/tenant-bindings",
       check: (j) => assert.ok(Array.isArray(j.bindings)),
@@ -156,14 +166,14 @@ describe("Stub routes return JSON instead of HTML fallback", () => {
     assert.equal(result.status, 404);
   });
 
-  it("POST /api/tasks → 501 JSON (not yet implemented)", async () => {
+  it("POST /api/tasks → JSON (session-authenticated route)", async () => {
     const result = await fetchJson(GATEWAY, "/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "test" }),
     });
     assertJsonResponse(result, "POST /api/tasks");
-    assert.equal(result.status, 501);
+    assert.ok([201, 400, 401].includes(result.status), `Unexpected status: ${result.status}`);
   });
 });
 

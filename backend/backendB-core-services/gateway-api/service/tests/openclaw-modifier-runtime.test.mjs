@@ -324,3 +324,44 @@ test("openclaw modifier policy returns scope and version metadata", async () => 
   assert.equal(policy.scope.tenantId, "tenant-meta");
   assert.equal(policy.scope.orgId, "org-meta");
 });
+
+test("openclaw modifier policy resolves agent-specific overlays", async () => {
+  const actor = { tenantId: "tenant-agent", orgId: "org-agent", userId: "user-agent" };
+
+  await saveOpenClawModifierPolicyVersion(
+    {
+      allowedTools: ["status", "skills"],
+      blockedTargetProfiles: ["root"],
+      constraints: {
+        allowDevProfile: false,
+        maxTimeoutSeconds: 30,
+        maxBufferMb: 4,
+        approvalTtlSeconds: 900,
+      },
+      agentPolicies: {
+        "agent-1": {
+          allowedTools: ["status"],
+          blockedTargetProfiles: ["worker_a"],
+          constraints: {
+            allowDevProfile: false,
+            maxTimeoutSeconds: 20,
+            maxBufferMb: 2,
+            approvalTtlSeconds: 300,
+          },
+        },
+      },
+    },
+    actor
+  );
+
+  const globalPolicy = await getOpenClawModifierPolicy(actor);
+  const agentPolicy = await getOpenClawModifierPolicy({ ...actor, agentId: "agent-1" });
+
+  assert.equal(globalPolicy.allowedTools.includes("skills"), true);
+  assert.equal(globalPolicy.blockedTargetProfiles.includes("worker_a"), false);
+  assert.equal(agentPolicy.allowedTools.includes("skills"), false);
+  assert.equal(agentPolicy.allowedTools.includes("status"), true);
+  assert.equal(agentPolicy.blockedTargetProfiles.includes("worker_a"), true);
+  assert.equal(agentPolicy.scope.agentId, "agent-1");
+  assert.equal(agentPolicy.agentPolicies["agent-1"].allowedTools.includes("status"), true);
+});

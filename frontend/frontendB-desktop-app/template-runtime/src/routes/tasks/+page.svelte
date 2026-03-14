@@ -4,9 +4,6 @@
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api';
 
-  const FIREWALLS_KEY = 'mayple_firewall_objects_v2';
-  const FIREWALL_SELECTED_KEY = 'mayple_firewall_selected_object';
-
   let loading = true;
   let error = '';
   let tasks = [];
@@ -41,30 +38,20 @@
     return Number.isNaN(date.getTime()) ? '' : date.toISOString();
   }
 
-  function readFirewalls() {
-    if (typeof window === 'undefined') return [];
-    try {
-      const raw = window.localStorage.getItem(FIREWALLS_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
   async function refresh() {
     loading = true;
     error = '';
     try {
-      const [taskData, agentData, orchestrationData] = await Promise.all([
+      const [taskData, agentData, orchestrationData, firewallData] = await Promise.all([
         loadJson('/api/tasks'),
         loadJson('/api/agents').catch(() => ({ items: [] })),
         loadJson('/api/orchestrations').catch(() => ({ items: [] })),
+        loadJson('/api/firewalls').catch(() => ({ items: [] })),
       ]);
       tasks = taskData?.items || [];
       agents = agentData?.items || agentData || [];
       orchestrations = orchestrationData?.items || orchestrationData || [];
-      firewallObjects = readFirewalls().filter((item) => !item?.archived);
+      firewallObjects = firewallData?.items?.filter((item) => !item?.archived) || [];
 
       if (!assignmentId) {
         assignmentId = assignmentType === 'agent'
@@ -105,6 +92,7 @@
     if (value.includes('run')) return 'status running';
     if (value.includes('pause')) return 'status paused';
     if (value.includes('fail') || value.includes('error')) return 'status blocked';
+    if (value.includes('schedule')) return 'status queued';
     return 'status queued';
   }
 
@@ -144,10 +132,7 @@
   function openFirewall(task) {
     const fw = firewallForTask(task);
     if (!fw) return;
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(FIREWALL_SELECTED_KEY, String(fw.id));
-    }
-    goto('/firewalls');
+    goto(`/firewalls?firewallId=${encodeURIComponent(fw.id)}`);
   }
 
   async function createTask(event) {

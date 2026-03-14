@@ -1,0 +1,1330 @@
+import { database } from "../state.js";
+import { findRequestSession } from "../auth.js";
+import { asString, readJsonBody } from "../helpers.js";
+import { mapleLog } from "../logging.js";
+import { emitAuditEvent } from "../audit-emitter.js";
+import { FrontendBStore } from "../core/frontend-b-store.js";
+import { ToolGovernanceStore } from "../core/tool-governance-store.js";
+import {
+  listOpenClawCliTools,
+  buildOpenClawCliCommandArgs,
+} from "../core/openclaw-cli-runtime.js";
+import {
+  saveOpenClawModifierPolicyVersion,
+} from "../core/openclaw-modifier-runtime.js";
+import { runOpenClawLongform } from "../core/openclaw-agent-runtime.js";
+import { createOrchestrationExecution } from "../core/orchestration-runtime.js";
+import { parseYaml } from "../core/policy-as-code.js";
+import { simulateModifierPolicy } from "../core/policy-simulator.js";
+import {
+  buildCompiledFirewallBundle,
+  buildModifierPolicyPayloadFromFirewallBundle,
+  compileFrontendBFirewallPolicy,
+  resolveCompiledFirewallPolicy,
+} from "../core/frontend-b-firewall-policy.js";
+
+const frontendBStore = new FrontendBStore({ database });
+const governanceStore = new ToolGovernanceStore({ database });
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function taskShape(task) {
+  if (!task) {
+    return null;
+  }
+  return {
+    id: task.id,
+    title: task.title,
+    prompt: task.prompt,
+    status: task.status,
+    schedule: task.schedule,
+    assignment: task.assignment,
+    lastRunAt: task.lastRunAt,
+    nextRunAt: task.nextRunAt,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+  };
+}
+
+function computeNextRunAt(schedule = {}, completedRuns = 0, floorTime = Date.now()) {
+  const startAtMs = new Date(schedule.startAt).getTime();
+  const intervalMs = Math.max(1, Number(schedule.intervalMinutes ?? 0)) * 60 * 1000;
+  if (!Number.isFinite(startAtMs) || intervalMs <= 0) {
+    return null;
+  }
+  let slot = Math.max(0, Number(completedRuns) || 0);
+  let next = startAtMs + slot * intervalMs;
+  while (next <= floorTime) {
+    slot += 1;
+    next = startAtMs + slot * intervalMs;
+  }
+  const endAtMs = schedule.endAt ? new Date(schedule.endAt).getTime() : NaN;
+  if (Number.isFinite(endAtMs) && next > endAtMs) {
+    return null;
+  }
+  return new Date(next).toISOString();
+}
+
+function terminalTaskState(task, nextRunAt) {
+  const maxRepeats = Math.max(1, Number(task.schedule?.maxRepeats ?? 1));
+  if (Number(task.runCount ?? 0) >= maxRepeats) {
+    return { completed: true, reason: "maxRepeats" };
+  }
+  const endAtMs = task.schedule?.endAt ? new Date(task.schedule.endAt).getTime() : NaN;
+  if (Number.isFinite(endAtMs) && endAtMs <= Date.now()) {
+    return { completed: true, reason: "endAt" };
+  }
+  if (!nextRunAt) {
+    return { completed: true, reason: "schedule_exhausted" };
+  }
+  return { completed: false, reason: "" };
+}
+
+function validateTaskSchedule(schedule = {}, options = {}) {
+  const startAt = new Date(schedule.startAt);
+  const endAt = schedule.endAt ? new Date(schedule.endAt) : null;
+  const timezone = asString(schedule.timezone) ?? "America/Los_Angeles";
+  const intervalMinutes = Number(schedule.intervalMinutes);
+  const maxRepeats = Number(schedule.maxRepeats);
+  if (Number.isNaN(startAt.getTime())) {
+    return { error: "schedule.startAt must be a valid datetime." };
+  }
+  if (!options.allowPastStartAt && startAt.getTime() <= Date.now()) {
+    return { error: "schedule.startAt must be in the future." };
+  }
+  if (endAt && Number.isNaN(endAt.getTime())) {
+    return { error: "schedule.endAt must be a valid datetime." };
+  }
+  if (endAt && endAt.getTime() <= startAt.getTime()) {
+    return { error: "schedule.endAt must be after schedule.startAt." };
+  }
+  if (!Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+    return { error: "schedule.intervalMinutes must be positive." };
+  }
+  if (!Number.isFinite(maxRepeats) || maxRepeats < 1) {
+    return { error: "schedule.maxRepeats must be at least 1." };
+  }
+  return {
+    schedule: {
+      startAt: startAt.toISOString(),
+      endAt: endAt ? endAt.toISOString() : null,
+      timezone,
+      intervalMinutes,
+      maxRepeats,
+    },
+  };
+}
+
+async function requireSession(c) {
+  const session = await findRequestSession(database, c.req.header("cookie"));
+  if (!session) {
+    return { error: c.json({ error: "Authentication required." }, 401) };
+  }
+  return { session };
+}
+
+async function requireOwnedAgent(ownerUserId, agentId) {
+  const agent = await database.findAgentById(agentId);
+  if (!agent || String(agent.ownerId ?? "") !== String(ownerUserId)) {
+    return null;
+  }
+  return agent;
+}
+
+async function requireOwnedOrchestration(ownerUserId, orchestrationId) {
+  const orchestration = await database.findOrchestrationById(orchestrationId);
+  if (!orchestration || String(orchestration.ownerId ?? "") !== String(ownerUserId)) {
+    return null;
+  }
+  return orchestration;
+}
+
+function toolCategory(toolId = "") {
+  const id = String(toolId).toLowerCase();
+  if (id.includes("slack") || id.includes("email") || id.includes("calendar") || id.includes("message")) {
+    return "communication";
+  }
+  if (id.includes("firewall") || id.includes("policy") || id.includes("risk") || id.includes("trace")) {
+    return "security";
+  }
+  if (id.includes("search") || id.includes("fetch") || id.includes("pdf") || id.includes("image")) {
+    return "data";
+  }
+  if (id.includes("cron") || id.includes("spawn") || id.includes("heartbeat") || id.includes("loop")) {
+    return "automation";
+  }
+  return "engineering";
+}
+
+function toolTags(toolId = "", category = "engineering") {
+  const tags = new Set([`#${category}`]);
+  const id = String(toolId).toLowerCase();
+  if (id.includes("github")) tags.add("#github");
+  if (id.includes("slack")) tags.add("#messaging");
+  if (id.includes("email")) tags.add("#email");
+  if (id.includes("calendar")) tags.add("#calendar");
+  if (id.includes("trace")) tags.add("#trace");
+  if (id.includes("firewall") || id.includes("policy")) tags.add("#safety");
+  if (id.includes("cron")) tags.add("#scheduler");
+  return [...tags];
+}
+
+async function loadNormalizedSkillCatalog() {
+  await governanceStore.ensureInitialized();
+  const registryItems = await governanceStore.listTools();
+  const cliItems = listOpenClawCliTools();
+  const byId = new Map();
+
+  for (const item of registryItems) {
+    const toolId = String(item.toolId ?? item.name ?? "").trim();
+    if (!toolId) continue;
+    const category = toolCategory(toolId);
+    byId.set(toolId, {
+      toolId,
+      name: String(item.name ?? toolId),
+      description: String(item.description ?? ""),
+      category,
+      tags: toolTags(toolId, category),
+      status: "connected",
+      source: "registry",
+      schema: item.schema ?? {},
+    });
+  }
+
+  for (const item of cliItems) {
+    const toolId = String(item.tool ?? item.name ?? "").trim();
+    if (!toolId || byId.has(toolId)) continue;
+    const category = toolCategory(toolId);
+    byId.set(toolId, {
+      toolId,
+      name: toolId,
+      description: `OpenClaw CLI tool${item.legacyAlias ? " (legacy alias)" : ""}`,
+      category,
+      tags: toolTags(toolId, category),
+      status: "connected",
+      source: "openclaw-cli",
+      docsUrl: item.docsUrl,
+    });
+  }
+
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function stringifySimulationSnippet(requestBody) {
+  return JSON.stringify(requestBody ?? {}, null, 2).slice(0, 4000);
+}
+
+async function compileAndPersistFirewallVersion(ownerUserId, firewall, version) {
+  const compilation = compileFrontendBFirewallPolicy(version?.text ?? "", {
+    firewallId: firewall.id,
+    firewallName: firewall.name,
+    firewallVersionId: version?.id,
+    scope: firewall.scope,
+    assignedAgentId: firewall.assignedAgentId,
+  });
+  return frontendBStore.updateFirewallVersionCompilation(ownerUserId, firewall.id, version.id, {
+    compileOk: compilation.valid,
+    compiledPolicy: compilation.policy,
+    compileErrors: compilation.errors,
+    compileWarnings: compilation.warnings,
+    compiledAt: compilation.compiledAt,
+  });
+}
+
+async function ensureCompiledFirewallVersion(ownerUserId, firewall, versionId) {
+  const version = await frontendBStore.findFirewallVersion(ownerUserId, firewall.id, versionId);
+  if (!version) {
+    return null;
+  }
+  if (version.compiled !== null && version.compiled !== undefined) {
+    return version;
+  }
+  return compileAndPersistFirewallVersion(ownerUserId, firewall, version);
+}
+
+function compiledFirewallEnvelope(firewall, version, compiledPolicy) {
+  return {
+    firewallId: firewall.id,
+    firewallVersionId: version?.id ?? "",
+    scope: firewall.scope,
+    assignedAgentId: firewall.assignedAgentId,
+    archived: firewall.archived === true,
+    policy: compiledPolicy ?? version?.compiledPolicy ?? null,
+  };
+}
+
+async function listCompiledActiveFirewalls(ownerUserId) {
+  const firewalls = await frontendBStore.listActiveFirewalls(ownerUserId);
+  const compiled = [];
+  const failures = [];
+  for (const firewall of firewalls) {
+    const activeVersion = (firewall.policyVersions ?? []).find((entry) => entry.active);
+    if (!activeVersion) {
+      continue;
+    }
+    const compiledVersion = await ensureCompiledFirewallVersion(ownerUserId, firewall, activeVersion.id);
+    if (!compiledVersion?.compiled || !compiledVersion.compiledPolicy) {
+      failures.push({
+        firewallId: firewall.id,
+        firewallName: firewall.name,
+        versionId: activeVersion.id,
+        errors: compiledVersion?.compileErrors ?? ["Active firewall version is not compilable."],
+      });
+      continue;
+    }
+    compiled.push(compiledFirewallEnvelope(firewall, compiledVersion));
+  }
+  return { compiled, failures };
+}
+
+async function activateCompiledFirewallPolicies(ownerUserId) {
+  const active = await listCompiledActiveFirewalls(ownerUserId);
+  if (active.failures.length > 0) {
+    const detail = active.failures
+      .map((entry) => `${entry.firewallName || entry.firewallId}: ${(entry.errors ?? []).join("; ")}`)
+      .join(" | ");
+    throw new Error(`Active firewall bundle contains non-compilable versions. ${detail}`);
+  }
+  const payload = buildModifierPolicyPayloadFromFirewallBundle(active.compiled);
+  await saveOpenClawModifierPolicyVersion(payload, {
+    userId: ownerUserId,
+    tenantId: `user:${ownerUserId}`,
+    orgId: "default",
+  });
+  return payload;
+}
+
+async function buildFirewallBundlePreview(ownerUserId, firewall, candidateVersion, candidatePolicy) {
+  const active = await listCompiledActiveFirewalls(ownerUserId);
+  const retained = active.compiled.filter((entry) => String(entry.firewallId) !== String(firewall.id));
+  if (candidatePolicy) {
+    retained.push(compiledFirewallEnvelope(firewall, candidateVersion, candidatePolicy));
+  }
+  return buildCompiledFirewallBundle(retained);
+}
+
+function parseSimulationRequestBody(rawValue) {
+  if (rawValue && typeof rawValue === "object") {
+    return rawValue;
+  }
+  return parseYaml(String(rawValue ?? ""));
+}
+
+async function createFrontendBNotification(userId, title, body, type = "system_alerts", data = {}) {
+  if (typeof database.createNotification !== "function") {
+    return null;
+  }
+  return database.createNotification({
+    userId,
+    type,
+    title,
+    body,
+    data,
+  });
+}
+
+async function dispatchTask(ownerUserId, task) {
+  const assignment = task.assignment ?? {};
+  if (assignment.type === "agent" && assignment.agentId) {
+    const agent = await requireOwnedAgent(ownerUserId, assignment.agentId);
+    if (!agent) {
+      throw new Error("Assigned agent not found.");
+    }
+    const result = await runOpenClawLongform({
+      objective: task.prompt || task.title,
+      agentId: agent.id,
+      sessionId: `frontend-b-task:${task.id}`,
+    });
+    return { kind: "agent", id: result.runId };
+  }
+  if (assignment.type === "orchestration" && assignment.orchestrationId) {
+    const orchestration = await requireOwnedOrchestration(ownerUserId, assignment.orchestrationId);
+    if (!orchestration) {
+      throw new Error("Assigned orchestration not found.");
+    }
+    const result = createOrchestrationExecution(orchestration, {
+      mode: "live",
+      input: { objective: task.prompt || task.title },
+      requestedBy: ownerUserId,
+      context: { source: "frontend-b-task", taskId: task.id },
+    });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Execution creation failed.");
+    }
+    if (typeof database.createOrchestrationExecutionRecord === "function") {
+      await database.createOrchestrationExecutionRecord({
+        id: result.executionId,
+        orchestrationId: orchestration.id,
+        versionId: null,
+        status: result.status ?? "queued",
+        mode: "live",
+        requestedBy: ownerUserId,
+        input: { objective: task.prompt || task.title },
+        context: { source: "frontend-b-task", taskId: task.id },
+        runLineage: [],
+        createdAt: result.createdAt,
+        startedAt: result.startedAt || null,
+        completedAt: null,
+      });
+    }
+    return { kind: "orchestration", id: result.executionId };
+  }
+  throw new Error("Assigned target is invalid.");
+}
+
+export function registerFrontendBRoutes(app) {
+  app.get("/api/tasks", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const items = await frontendBStore.listTasks(auth.session.user.id);
+    return c.json({ ok: true, items: items.map((task) => taskShape(task)) });
+  });
+
+  app.get("/api/tasks/:taskId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const task = await frontendBStore.findTask(auth.session.user.id, asString(c.req.param("taskId")));
+    if (!task) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    return c.json({ ok: true, task: taskShape(task) });
+  });
+
+  app.post("/api/tasks", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const body = await readJsonBody(c);
+    const title = asString(body.title);
+    if (!title) {
+      return c.json({ error: "title is required." }, 400);
+    }
+    const parsedSchedule = validateTaskSchedule(body.schedule ?? {});
+    if (parsedSchedule.error) {
+      return c.json({ error: parsedSchedule.error }, 400);
+    }
+    const agentId = asString(body.assignment?.agentId);
+    const orchestrationId = asString(body.assignment?.orchestrationId);
+    if ((agentId && orchestrationId) || (!agentId && !orchestrationId)) {
+      return c.json({ error: "Provide exactly one assignment target." }, 400);
+    }
+    if (agentId && !(await requireOwnedAgent(auth.session.user.id, agentId))) {
+      return c.json({ error: "Assigned agent not found." }, 404);
+    }
+    if (orchestrationId && !(await requireOwnedOrchestration(auth.session.user.id, orchestrationId))) {
+      return c.json({ error: "Assigned orchestration not found." }, 404);
+    }
+    const schedule = parsedSchedule.schedule;
+    const task = await frontendBStore.createTask(auth.session.user.id, {
+      title,
+      prompt: asString(body.prompt) ?? "",
+      schedule,
+      assignment: agentId
+        ? { type: "agent", agentId }
+        : { type: "orchestration", orchestrationId },
+      nextRunAt: schedule.startAt,
+      status: "scheduled",
+    });
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+      sourceService: "gateway-api",
+      userId: auth.session.user.id,
+      summary: `Frontend B task created: ${task.title}`,
+      payload: { ownerUserId: auth.session.user.id, taskId: task.id, schedule },
+    });
+    await createFrontendBNotification(
+      auth.session.user.id,
+      "Task scheduled",
+      `${task.title} was scheduled.`,
+      "system_alerts",
+      { taskId: task.id }
+    );
+    return c.json({ ok: true, task: taskShape(task) }, 201);
+  });
+
+  app.patch("/api/tasks/:taskId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const taskId = asString(c.req.param("taskId"));
+    const existing = await frontendBStore.findTask(auth.session.user.id, taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    let schedule = existing.schedule;
+    if (body.schedule) {
+      const parsedSchedule = validateTaskSchedule(body.schedule, { allowPastStartAt: false });
+      if (parsedSchedule.error) {
+        return c.json({ error: parsedSchedule.error }, 400);
+      }
+      schedule = parsedSchedule.schedule;
+    }
+    const nextRunAt = computeNextRunAt(schedule, existing.runCount, Date.now());
+    const updated = await frontendBStore.updateTask(auth.session.user.id, taskId, {
+      title: body.title !== undefined ? asString(body.title) ?? existing.title : undefined,
+      prompt: body.prompt !== undefined ? asString(body.prompt) ?? "" : undefined,
+      schedule: body.schedule ? schedule : undefined,
+      nextRunAt: body.schedule ? nextRunAt : undefined,
+    });
+    return c.json({ ok: true, task: taskShape(updated) });
+  });
+
+  app.delete("/api/tasks/:taskId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const deleted = await frontendBStore.deleteTask(auth.session.user.id, asString(c.req.param("taskId")));
+    if (!deleted) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/tasks/:taskId/assign", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const taskId = asString(c.req.param("taskId"));
+    const existing = await frontendBStore.findTask(auth.session.user.id, taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const agentId = asString(body.agentId);
+    const orchestrationId = asString(body.orchestrationId);
+    if ((agentId && orchestrationId) || (!agentId && !orchestrationId)) {
+      return c.json({ error: "Provide exactly one assignment target." }, 400);
+    }
+    if (agentId && !(await requireOwnedAgent(auth.session.user.id, agentId))) {
+      return c.json({ error: "Assigned agent not found." }, 404);
+    }
+    if (orchestrationId && !(await requireOwnedOrchestration(auth.session.user.id, orchestrationId))) {
+      return c.json({ error: "Assigned orchestration not found." }, 404);
+    }
+    const updated = await frontendBStore.updateTask(auth.session.user.id, taskId, {
+      assignment: agentId
+        ? { type: "agent", agentId }
+        : { type: "orchestration", orchestrationId },
+    });
+    return c.json({ ok: true, task: taskShape(updated) });
+  });
+
+  app.post("/api/tasks/:taskId/pause", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const taskId = asString(c.req.param("taskId"));
+    const updated = await frontendBStore.updateTask(auth.session.user.id, taskId, {
+      status: "paused",
+    });
+    if (!updated) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    await createFrontendBNotification(auth.session.user.id, "Task paused", `${updated.title} was paused.`, "system_alerts", { taskId });
+    return c.json({ ok: true, task: taskShape(updated) });
+  });
+
+  app.post("/api/tasks/:taskId/resume", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const taskId = asString(c.req.param("taskId"));
+    const existing = await frontendBStore.findTask(auth.session.user.id, taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    const nextRunAt = computeNextRunAt(existing.schedule, existing.runCount, Date.now());
+    const terminal = terminalTaskState(existing, nextRunAt);
+    const updated = await frontendBStore.updateTask(auth.session.user.id, taskId, terminal.completed
+      ? {
+          status: "completed",
+          nextRunAt: null,
+          terminalState: "completed",
+          terminalReason: terminal.reason,
+        }
+      : {
+          status: "scheduled",
+          nextRunAt,
+        });
+    await createFrontendBNotification(
+      auth.session.user.id,
+      terminal.completed ? "Task completed" : "Task resumed",
+      `${updated.title} ${terminal.completed ? "completed." : "was resumed."}`,
+      "system_alerts",
+      { taskId }
+    );
+    return c.json({ ok: true, task: taskShape(updated) });
+  });
+
+  app.post("/api/tasks/:taskId/run-now", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const taskId = asString(c.req.param("taskId"));
+    const existing = await frontendBStore.findTask(auth.session.user.id, taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found." }, 404);
+    }
+    try {
+      await frontendBStore.updateTask(auth.session.user.id, taskId, { status: "running" });
+      const dispatch = await dispatchTask(auth.session.user.id, existing);
+      const nextRunCount = Number(existing.runCount ?? 0) + 1;
+      const nextRunAt = computeNextRunAt(existing.schedule, nextRunCount, Date.now());
+      const terminal = terminalTaskState({ ...existing, runCount: nextRunCount }, nextRunAt);
+      const updated = await frontendBStore.updateTask(auth.session.user.id, taskId, {
+        runCount: nextRunCount,
+        lastRunAt: nowIso(),
+        nextRunAt: terminal.completed ? null : nextRunAt,
+        status: existing.status === "paused"
+          ? "paused"
+          : terminal.completed
+            ? "completed"
+            : "scheduled",
+        terminalState: terminal.completed ? "completed" : "",
+        terminalReason: terminal.completed ? terminal.reason : "",
+      });
+      emitAuditEvent({
+        eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+        sourceService: "gateway-api",
+        userId: auth.session.user.id,
+        summary: `Frontend B task dispatched: ${updated.title}`,
+        payload: { ownerUserId: auth.session.user.id, taskId, dispatch },
+      });
+      await createFrontendBNotification(
+        auth.session.user.id,
+        "Task dispatched",
+        `${updated.title} was dispatched.`,
+        "system_alerts",
+        { taskId, dispatch }
+      );
+      return c.json({ ok: true, task: taskShape(updated) });
+    } catch (error) {
+      const failed = await frontendBStore.updateTask(auth.session.user.id, taskId, {
+        status: "failed",
+        terminalState: "failed",
+        terminalReason: error instanceof Error ? error.message : String(error),
+      });
+      await createFrontendBNotification(
+        auth.session.user.id,
+        "Task failed",
+        `${existing.title} failed to dispatch.`,
+        "run_failures",
+        { taskId, reason: failed?.terminalReason ?? "" }
+      );
+      return c.json({ error: failed?.terminalReason || "Task dispatch failed." }, 409);
+    }
+  });
+
+  app.get("/api/firewalls", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const items = await frontendBStore.listFirewalls(auth.session.user.id);
+    return c.json({ ok: true, items });
+  });
+
+  app.get("/api/firewalls/:id", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, asString(c.req.param("id")));
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    return c.json({ ok: true, firewall });
+  });
+
+  app.post("/api/firewalls", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const body = await readJsonBody(c);
+    const name = asString(body.name);
+    const policyText = asString(body.policyText);
+    const scope = asString(body.scope) === "agent" ? "agent" : "global";
+    const assignedAgentId = scope === "agent" ? asString(body.assignedAgentId) : null;
+    if (!name || !policyText) {
+      return c.json({ error: "name and policyText are required." }, 400);
+    }
+    if (assignedAgentId && !(await requireOwnedAgent(auth.session.user.id, assignedAgentId))) {
+      return c.json({ error: "Assigned agent not found." }, 404);
+    }
+    const firewall = await frontendBStore.createFirewall(auth.session.user.id, {
+      name,
+      folder: asString(body.folder) ?? "root",
+      scope,
+      assignedAgentId,
+      policyText,
+      activeVersionId: null,
+      createdBy: auth.session.user.username || auth.session.user.id,
+    });
+    const draftVersion = firewall?.policyVersions?.[0] ?? null;
+    let compiledVersion = null;
+    if (draftVersion) {
+      compiledVersion = await compileAndPersistFirewallVersion(auth.session.user.id, firewall, draftVersion);
+      await frontendBStore.appendFirewallEvent(auth.session.user.id, firewall.id, {
+        type: compiledVersion.compiled ? "compile_passed" : "compile_failed",
+        level: compiledVersion.compiled ? "safe" : "warn",
+        message: compiledVersion.compiled
+          ? "Firewall revision compiled successfully."
+          : "Firewall revision failed YAML compilation.",
+        payload: {
+          versionId: compiledVersion.id,
+          errors: compiledVersion.compileErrors,
+          warnings: compiledVersion.compileWarnings,
+        },
+      });
+      if (compiledVersion.compiled) {
+        await frontendBStore.updateFirewall(auth.session.user.id, firewall.id, {
+          activeVersionId: compiledVersion.id,
+        });
+        try {
+          await activateCompiledFirewallPolicies(auth.session.user.id);
+          await frontendBStore.appendFirewallEvent(auth.session.user.id, firewall.id, {
+            type: "activated",
+            level: "safe",
+            message: "Firewall version activated.",
+            payload: { versionId: compiledVersion.id },
+          });
+        } catch (error) {
+          await frontendBStore.updateFirewall(auth.session.user.id, firewall.id, {
+            activeVersionId: null,
+          });
+          await frontendBStore.appendFirewallEvent(auth.session.user.id, firewall.id, {
+            type: "activation_failed",
+            level: "warn",
+            message: error instanceof Error ? error.message : String(error),
+            payload: { versionId: compiledVersion.id },
+          });
+        }
+      }
+    }
+    return c.json({
+      ok: true,
+      firewall: await frontendBStore.findFirewall(auth.session.user.id, firewall.id),
+      validation: compiledVersion
+        ? {
+            valid: Boolean(compiledVersion.compiled),
+            errors: compiledVersion.compileErrors,
+            warnings: compiledVersion.compileWarnings,
+          }
+        : null,
+    }, 201);
+  });
+
+  app.patch("/api/firewalls/:id", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const existing = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!existing) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const scope = body.scope !== undefined
+      ? (asString(body.scope) === "agent" ? "agent" : "global")
+      : existing.scope;
+    const assignedAgentId = scope === "agent"
+      ? (body.assignedAgentId !== undefined ? asString(body.assignedAgentId) : existing.assignedAgentId)
+      : null;
+    if (assignedAgentId && !(await requireOwnedAgent(auth.session.user.id, assignedAgentId))) {
+      return c.json({ error: "Assigned agent not found." }, 404);
+    }
+    await frontendBStore.updateFirewall(auth.session.user.id, firewallId, {
+      name: body.name !== undefined ? asString(body.name) ?? existing.name : undefined,
+      folder: body.folder !== undefined ? asString(body.folder) ?? "root" : undefined,
+      scope,
+      assignedAgentId,
+    });
+    let activationError = "";
+    if (body.policyText !== undefined) {
+      const version = await frontendBStore.createFirewallVersion(
+        auth.session.user.id,
+        firewallId,
+        asString(body.policyText) ?? "",
+        auth.session.user.username || auth.session.user.id
+      );
+      await frontendBStore.updateFirewall(auth.session.user.id, firewallId, {
+        activeVersionId: version.id,
+      });
+      await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+        type: "revision_saved",
+        level: "safe",
+        message: "Policy revision saved.",
+      });
+      const compiledVersion = await compileAndPersistFirewallVersion(auth.session.user.id, {
+        ...existing,
+        scope,
+        assignedAgentId,
+      }, version);
+      await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+        type: compiledVersion.compiled ? "compile_passed" : "compile_failed",
+        level: compiledVersion.compiled ? "safe" : "warn",
+        message: compiledVersion.compiled
+          ? "Firewall revision compiled successfully."
+          : "Firewall revision failed YAML compilation.",
+        payload: {
+          versionId: compiledVersion.id,
+          errors: compiledVersion.compileErrors,
+          warnings: compiledVersion.compileWarnings,
+        },
+      });
+      if (compiledVersion.compiled) {
+        const priorActiveVersionId = existing.policyVersions?.find((entry) => entry.active)?.id ?? null;
+        await frontendBStore.updateFirewall(auth.session.user.id, firewallId, {
+          activeVersionId: compiledVersion.id,
+        });
+        try {
+          await activateCompiledFirewallPolicies(auth.session.user.id);
+          await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+            type: "activated",
+            level: "safe",
+            message: "Firewall version activated.",
+            payload: { versionId: compiledVersion.id },
+          });
+        } catch (error) {
+          activationError = error instanceof Error ? error.message : String(error);
+          await frontendBStore.updateFirewall(auth.session.user.id, firewallId, {
+            activeVersionId: priorActiveVersionId,
+          });
+          await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+            type: "activation_failed",
+            level: "warn",
+            message: activationError,
+            payload: { versionId: compiledVersion.id },
+          });
+        }
+      }
+    } else if (
+      scope !== existing.scope
+      || String(assignedAgentId ?? "") !== String(existing.assignedAgentId ?? "")
+    ) {
+      try {
+        await activateCompiledFirewallPolicies(auth.session.user.id);
+      } catch (error) {
+        activationError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    return c.json({
+      ok: !activationError,
+      firewall,
+      error: activationError || undefined,
+    }, activationError ? 409 : 200);
+  });
+
+  app.post("/api/firewalls/:id/archive", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.updateFirewall(auth.session.user.id, firewallId, { archived: true });
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: "archived",
+      level: "info",
+      message: "Firewall archived.",
+    });
+    try {
+      await activateCompiledFirewallPolicies(auth.session.user.id);
+    } catch (error) {
+      await frontendBStore.updateFirewall(auth.session.user.id, firewallId, { archived: false });
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409);
+    }
+    return c.json({ ok: true, firewall: await frontendBStore.findFirewall(auth.session.user.id, firewallId) });
+  });
+
+  app.post("/api/firewalls/:id/restore", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.updateFirewall(auth.session.user.id, firewallId, { archived: false });
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: "restored",
+      level: "safe",
+      message: "Firewall restored.",
+    });
+    try {
+      await activateCompiledFirewallPolicies(auth.session.user.id);
+    } catch (error) {
+      await frontendBStore.updateFirewall(auth.session.user.id, firewallId, { archived: true });
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409);
+    }
+    return c.json({ ok: true, firewall: await frontendBStore.findFirewall(auth.session.user.id, firewallId) });
+  });
+
+  app.get("/api/firewalls/:id/versions", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const items = await frontendBStore.listFirewallVersions(auth.session.user.id, asString(c.req.param("id")));
+    return c.json({ ok: true, items });
+  });
+
+  app.post("/api/firewalls/:id/versions", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const policyText = asString(body.policyText);
+    if (!policyText) {
+      return c.json({ error: "policyText is required." }, 400);
+    }
+    const version = await frontendBStore.createFirewallVersion(
+      auth.session.user.id,
+      firewallId,
+      policyText,
+      auth.session.user.username || auth.session.user.id
+    );
+    const compiledVersion = await compileAndPersistFirewallVersion(auth.session.user.id, firewall, version);
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: "revision_saved",
+      level: "safe",
+      message: "Policy revision saved.",
+    });
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: compiledVersion.compiled ? "compile_passed" : "compile_failed",
+      level: compiledVersion.compiled ? "safe" : "warn",
+      message: compiledVersion.compiled
+        ? "Firewall revision compiled successfully."
+        : "Firewall revision failed YAML compilation.",
+      payload: {
+        versionId: compiledVersion.id,
+        errors: compiledVersion.compileErrors,
+        warnings: compiledVersion.compileWarnings,
+      },
+    });
+    return c.json({ ok: true, version: compiledVersion }, 201);
+  });
+
+  app.post("/api/firewalls/:id/versions/:versionId/activate", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const versionId = asString(c.req.param("versionId"));
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const version = await ensureCompiledFirewallVersion(auth.session.user.id, firewall, versionId);
+    if (!version) {
+      return c.json({ error: "Firewall version not found." }, 404);
+    }
+    if (!version.compiled || !version.compiledPolicy) {
+      await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+        type: "activation_failed",
+        level: "warn",
+        message: "Firewall version cannot be activated until it compiles successfully.",
+        payload: {
+          versionId,
+          errors: version.compileErrors,
+          warnings: version.compileWarnings,
+        },
+      });
+      return c.json({
+        error: "Firewall version failed YAML compilation.",
+        errors: version.compileErrors,
+        warnings: version.compileWarnings,
+      }, 400);
+    }
+    const priorActiveVersionId = firewall.policyVersions?.find((item) => item.active)?.id ?? null;
+    await frontendBStore.updateFirewall(auth.session.user.id, firewallId, { activeVersionId: versionId });
+    try {
+      await activateCompiledFirewallPolicies(auth.session.user.id);
+    } catch (error) {
+      await frontendBStore.updateFirewall(auth.session.user.id, firewallId, {
+        activeVersionId: priorActiveVersionId,
+      });
+      await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+        type: "activation_failed",
+        level: "warn",
+        message: error instanceof Error ? error.message : String(error),
+        payload: { versionId },
+      });
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409);
+    }
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: "activated",
+      level: "safe",
+      message: "Firewall version activated.",
+      payload: { versionId },
+    });
+    return c.json({ ok: true, firewall: await frontendBStore.findFirewall(auth.session.user.id, firewallId) });
+  });
+
+  app.post("/api/firewalls/:id/validate", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const selectedVersionId = asString(body.versionId) ?? "";
+    const version =
+      selectedVersionId
+        ? await frontendBStore.findFirewallVersion(auth.session.user.id, firewallId, selectedVersionId)
+        : (firewall.policyVersions ?? []).find((entry) => entry.active) ?? firewall.policyVersions?.[0] ?? null;
+    if (selectedVersionId && !version) {
+      return c.json({ error: "Firewall version not found." }, 404);
+    }
+    const candidateCompilation = body.policyText !== undefined
+      ? compileFrontendBFirewallPolicy(asString(body.policyText) ?? "", {
+          firewallId: firewall.id,
+          firewallName: firewall.name,
+          firewallVersionId: version?.id ?? "",
+          scope: firewall.scope,
+          assignedAgentId: firewall.assignedAgentId,
+        })
+      : await ensureCompiledFirewallVersion(auth.session.user.id, firewall, version?.id ?? "");
+    if (!candidateCompilation) {
+      return c.json({ error: "Firewall version not found." }, 404);
+    }
+    const compiledPolicy = candidateCompilation.policy ?? candidateCompilation.compiledPolicy ?? null;
+    const previewBundle = await buildFirewallBundlePreview(
+      auth.session.user.id,
+      firewall,
+      version,
+      compiledPolicy
+    );
+    const previewAgentId =
+      firewall.scope === "agent" ? firewall.assignedAgentId : asString(body.agentId) ?? "";
+    const effectivePreview = resolveCompiledFirewallPolicy(previewBundle, previewAgentId);
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: (candidateCompilation.valid ?? candidateCompilation.compiled)
+        ? "validate_passed"
+        : "validate_blocked",
+      level: (candidateCompilation.valid ?? candidateCompilation.compiled) ? "safe" : "warn",
+      message: (candidateCompilation.valid ?? candidateCompilation.compiled)
+        ? "Policy validation passed."
+        : "Policy validation failed.",
+      payload: {
+        errors: candidateCompilation.errors ?? candidateCompilation.compileErrors ?? [],
+        warnings: candidateCompilation.warnings ?? candidateCompilation.compileWarnings ?? [],
+        effectiveScope: effectivePreview.scope,
+      },
+    });
+    return c.json({
+      ok: Boolean(candidateCompilation.valid ?? candidateCompilation.compiled),
+      valid: Boolean(candidateCompilation.valid ?? candidateCompilation.compiled),
+      errors: candidateCompilation.errors ?? candidateCompilation.compileErrors ?? [],
+      warnings: candidateCompilation.warnings ?? candidateCompilation.compileWarnings ?? [],
+      diagnostics: candidateCompilation.diagnostics ?? {
+        compiledAt: candidateCompilation.compiledAt ?? candidateCompilation.compiledAt ?? null,
+      },
+      effectivePolicyPreview: {
+        scope: effectivePreview.scope,
+        policy: effectivePreview.policy,
+      },
+    }, (candidateCompilation.valid ?? candidateCompilation.compiled) ? 200 : 400);
+  });
+
+  app.post("/api/firewalls/:id/simulate", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const prompt = body.request ?? asString(body.prompt);
+    if (!prompt) {
+      return c.json({ error: "prompt is required." }, 400);
+    }
+    const selectedVersionId = asString(body.versionId) ?? "";
+    const version =
+      selectedVersionId
+        ? await frontendBStore.findFirewallVersion(auth.session.user.id, firewallId, selectedVersionId)
+        : (firewall.policyVersions ?? []).find((entry) => entry.active) ?? firewall.policyVersions?.[0] ?? null;
+    if (selectedVersionId && !version) {
+      return c.json({ error: "Firewall version not found." }, 404);
+    }
+    const candidateCompilation = body.policyText !== undefined
+      ? compileFrontendBFirewallPolicy(asString(body.policyText) ?? "", {
+          firewallId: firewall.id,
+          firewallName: firewall.name,
+          firewallVersionId: version?.id ?? "",
+          scope: firewall.scope,
+          assignedAgentId: firewall.assignedAgentId,
+        })
+      : await ensureCompiledFirewallVersion(auth.session.user.id, firewall, version?.id ?? "");
+    if (!candidateCompilation) {
+      return c.json({ error: "Firewall version not found." }, 404);
+    }
+    if (!(candidateCompilation.valid ?? candidateCompilation.compiled) || !(candidateCompilation.policy ?? candidateCompilation.compiledPolicy)) {
+      const errors = candidateCompilation.errors ?? candidateCompilation.compileErrors ?? [];
+      const warnings = candidateCompilation.warnings ?? candidateCompilation.compileWarnings ?? [];
+      await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+        type: "simulate_blocked",
+        level: "warn",
+        message: "Simulation blocked because the candidate policy failed compilation.",
+        payload: {
+          reason: errors.join("; ") || "Policy compilation failed.",
+          destination: "modifier",
+          snippet: String(body.prompt ?? "").slice(0, 4000),
+          warnings,
+        },
+      });
+      return c.json({
+        error: "Firewall version failed YAML compilation.",
+        errors,
+        warnings,
+      }, 400);
+    }
+    let requestBody;
+    try {
+      requestBody = parseSimulationRequestBody(prompt);
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+    const bundle = await buildFirewallBundlePreview(
+      auth.session.user.id,
+      firewall,
+      version,
+      candidateCompilation.policy ?? candidateCompilation.compiledPolicy
+    );
+    const requestedAgentId =
+      firewall.scope === "agent" ? firewall.assignedAgentId : asString(body.agentId) ?? "";
+    const resolved = resolveCompiledFirewallPolicy(bundle, requestedAgentId);
+    const result = simulateModifierPolicy(requestBody, resolved.policy);
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: result.blocked ? "simulate_blocked" : "simulate_allowed",
+      level: result.blocked ? "warn" : "safe",
+      message: result.blocked
+        ? "Simulation request blocked by effective modifier policy."
+        : "Simulation request allowed by effective modifier policy.",
+      payload: {
+        reason: result.reasons?.[0] ?? (result.blocked ? "Blocked by policy." : "Allowed by policy."),
+        destination: resolved.scope,
+        snippet: stringifySimulationSnippet(requestBody),
+        warnings: result.warnings,
+      },
+    });
+    return c.json({
+      ok: true,
+      result: {
+        ...result,
+        resolvedScope: resolved.scope,
+        compiler: {
+          errors: candidateCompilation.errors ?? candidateCompilation.compileErrors ?? [],
+          warnings: candidateCompilation.warnings ?? candidateCompilation.compileWarnings ?? [],
+        },
+        at: nowIso(),
+      },
+    });
+  });
+
+  app.post("/api/firewalls/:id/entries/text", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const preview = asString(body.preview) ?? asString(body.content) ?? "";
+    if (!preview.trim()) {
+      return c.json({ error: "content is required." }, 400);
+    }
+    const entry = await frontendBStore.addFirewallEntry(auth.session.user.id, firewallId, {
+      kind: "text",
+      name: asString(body.name) ?? `policy-context-${Date.now()}.txt`,
+      mimeType: "text/plain",
+      sizeBytes: preview.length,
+      preview: preview.slice(0, 4000),
+    });
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: "entry_added",
+      level: "safe",
+      message: `Policy context snippet "${entry.name}" added.`,
+    });
+    return c.json({ ok: true, entry }, 201);
+  });
+
+  app.post("/api/firewalls/:id/entries/file", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const firewallId = asString(c.req.param("id"));
+    const firewall = await frontendBStore.findFirewall(auth.session.user.id, firewallId);
+    if (!firewall) {
+      return c.json({ error: "Firewall not found." }, 404);
+    }
+    const form = await c.req.formData().catch(() => null);
+    const file = form?.get("file");
+    if (!(file instanceof File)) {
+      return c.json({ error: "file is required." }, 400);
+    }
+    const text = await file.text().catch(() => "");
+    const entry = await frontendBStore.addFirewallEntry(auth.session.user.id, firewallId, {
+      kind: "file",
+      name: file.name || "upload.txt",
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: Number(file.size ?? 0),
+      preview: text.slice(0, 4000),
+    });
+    await frontendBStore.appendFirewallEvent(auth.session.user.id, firewallId, {
+      type: "entry_added",
+      level: "safe",
+      message: `Scanned uploaded reference file "${entry.name}".`,
+    });
+    return c.json({ ok: true, entry }, 201);
+  });
+
+  app.delete("/api/firewalls/:id/entries/:entryId", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const deleted = await frontendBStore.deleteFirewallEntry(
+      auth.session.user.id,
+      asString(c.req.param("id")),
+      asString(c.req.param("entryId"))
+    );
+    if (!deleted) {
+      return c.json({ error: "Firewall entry not found." }, 404);
+    }
+    return c.json({ ok: true });
+  });
+
+  app.get("/api/skills", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    return c.json({ ok: true, items: await loadNormalizedSkillCatalog() });
+  });
+
+  app.post("/api/skills/:skillId/smoke-test", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const skillId = asString(c.req.param("skillId"));
+    const catalog = await loadNormalizedSkillCatalog();
+    const item = catalog.find((tool) => String(tool.toolId) === skillId);
+    if (!item) {
+      return c.json({ error: "Skill not found." }, 404);
+    }
+    const logs = [`Resolving skill '${skillId}'...`];
+    const checks = [];
+    checks.push({ name: "catalog_resolution", passed: true });
+    logs.push("Catalog entry resolved.");
+    if (item.source === "openclaw-cli") {
+      buildOpenClawCliCommandArgs({ tool: item.toolId, help: true });
+      checks.push({ name: "cli_help_available", passed: true });
+      logs.push("CLI help command generated.");
+    } else {
+      const schemaAvailable = Boolean(item.schema && typeof item.schema === "object");
+      checks.push({ name: "schema_available", passed: schemaAvailable });
+      logs.push(schemaAvailable ? "Schema found." : "Schema missing.");
+    }
+    const passed = checks.every((check) => check.passed);
+    return c.json({
+      ok: true,
+      result: {
+        passed,
+        logs,
+        checkedAt: nowIso(),
+        checks,
+      },
+    });
+  });
+
+  app.get("/api/agents/:agentId/tools", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const agentId = asString(c.req.param("agentId"));
+    const agent = await requireOwnedAgent(auth.session.user.id, agentId);
+    if (!agent) {
+      return c.json({ error: "Agent not found." }, 404);
+    }
+    const items = await loadNormalizedSkillCatalog();
+    const equippedToolIds = Array.isArray(agent.config?.toolbelt?.equippedToolIds)
+      ? agent.config.toolbelt.equippedToolIds.map(String)
+      : [];
+    return c.json({ ok: true, items, equippedToolIds });
+  });
+
+  app.patch("/api/agents/:agentId/tools", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const agentId = asString(c.req.param("agentId"));
+    const agent = await requireOwnedAgent(auth.session.user.id, agentId);
+    if (!agent) {
+      return c.json({ error: "Agent not found." }, 404);
+    }
+    const body = await readJsonBody(c);
+    const equippedToolIds = Array.isArray(body.equippedToolIds)
+      ? body.equippedToolIds.map((item) => String(item).trim()).filter(Boolean)
+      : [];
+    const knownIds = new Set((await loadNormalizedSkillCatalog()).map((item) => item.toolId));
+    const unknown = equippedToolIds.filter((item) => !knownIds.has(item));
+    if (unknown.length > 0) {
+      return c.json({ error: `Unknown tool IDs: ${unknown.join(", ")}` }, 400);
+    }
+    const config = agent.config && typeof agent.config === "object" ? { ...agent.config } : {};
+    config.toolbelt = {
+      ...(config.toolbelt && typeof config.toolbelt === "object" ? config.toolbelt : {}),
+      equippedToolIds,
+    };
+    const updated = await database.updateAgent(agent.id, {
+      config,
+      capabilities: equippedToolIds,
+    });
+    return c.json({ ok: true, equippedToolIds, agent: updated });
+  });
+}
+
+export async function runDueTasksOnce() {
+  const dueTasks = await frontendBStore.listDueTasks();
+  for (const task of dueTasks) {
+    const ownerUserId = String(task.ownerUserId ?? "");
+    if (!ownerUserId) {
+      continue;
+    }
+    try {
+      await frontendBStore.updateTask(ownerUserId, task.id, { status: "running" });
+      const dispatch = await dispatchTask(ownerUserId, task);
+      const nextRunCount = Number(task.runCount ?? 0) + 1;
+      const nextRunAt = computeNextRunAt(task.schedule, nextRunCount, Date.now());
+      const terminal = terminalTaskState({ ...task, runCount: nextRunCount }, nextRunAt);
+      const updated = await frontendBStore.updateTask(ownerUserId, task.id, {
+        runCount: nextRunCount,
+        lastRunAt: nowIso(),
+        nextRunAt: terminal.completed ? null : nextRunAt,
+        status: terminal.completed ? "completed" : "scheduled",
+        terminalState: terminal.completed ? "completed" : "",
+        terminalReason: terminal.completed ? terminal.reason : "",
+      });
+      emitAuditEvent({
+        eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+        sourceService: "gateway-api",
+        userId: ownerUserId,
+        summary: `Frontend B task dispatched: ${updated.title}`,
+        payload: { ownerUserId, taskId: task.id, dispatch },
+      });
+      await createFrontendBNotification(
+        ownerUserId,
+        terminal.completed ? "Task completed" : "Task dispatched",
+        `${updated.title} ${terminal.completed ? "completed." : "was dispatched."}`,
+        terminal.completed ? "system_alerts" : "system_alerts",
+        { taskId: task.id, dispatch }
+      );
+    } catch (error) {
+      const failed = await frontendBStore.updateTask(ownerUserId, task.id, {
+        status: "failed",
+        terminalState: "failed",
+        terminalReason: error instanceof Error ? error.message : String(error),
+      });
+      mapleLog("warn", "frontend_b.task_dispatch_failed", {
+        taskId: task.id,
+        ownerUserId,
+        error: failed?.terminalReason ?? String(error),
+      });
+      await createFrontendBNotification(
+        ownerUserId,
+        "Task failed",
+        `${task.title} failed to dispatch.`,
+        "run_failures",
+        { taskId: task.id, reason: failed?.terminalReason ?? "" }
+      );
+    }
+  }
+}

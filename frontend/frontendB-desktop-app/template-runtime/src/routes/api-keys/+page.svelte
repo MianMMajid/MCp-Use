@@ -51,7 +51,7 @@
     try {
       await deleteJson(`/api/user/api-keys/${id}`);
       invalidateCache('/api/user/api-keys');
-      keys = keys.filter((item) => item.id !== id);
+      keys = keys.filter((item) => String(item.keyId ?? item.id) !== String(id));
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
@@ -91,7 +91,7 @@
                 <td><code>{key.fingerprint || '--'}</code></td>
                 <td>{formatDate(key.createdAt)}</td>
                 <td>{key.expiresAt ? formatDate(key.expiresAt) : 'Never'}</td>
-                <td><button class="pill danger" on:click={() => revokeKey(key.id)}>Delete</button></td>
+                <td><button class="pill danger" on:click={() => revokeKey(key.keyId ?? key.id)}>Delete</button></td>
               </tr>
             {/each}
           </tbody>

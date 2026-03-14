@@ -2,13 +2,14 @@
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
-
-  const orgId = 'default';
+  import { loadActiveOrgState, setActiveOrgId } from '@/lib/active-org';
 
   let accounts = [];
   let loading = true;
   let error = '';
   let message = '';
+  let orgId = '';
+  let orgs = [];
 
   let showCreate = false;
   let newName = '';
@@ -23,6 +24,10 @@
     loading = true;
     error = '';
     try {
+      if (!orgId) {
+        accounts = [];
+        return;
+      }
       const data = await loadJson(`/api/org/${orgId}/service-accounts`);
       accounts = Array.isArray(data) ? data : data.accounts ?? data.items ?? [];
     } catch (err) {
@@ -32,7 +37,20 @@
     }
   }
 
-  onMount(fetchAccounts);
+  onMount(async () => {
+    const orgState = await loadActiveOrgState().catch(() => ({ items: [], activeOrgId: '' }));
+    orgs = orgState.items || [];
+    orgId = orgState.activeOrgId || '';
+    await fetchAccounts();
+  });
+
+  async function changeOrg(nextOrgId) {
+    orgId = setActiveOrgId(nextOrgId);
+    expandedId = '';
+    keys = [];
+    message = '';
+    await fetchAccounts();
+  }
 
   async function createAccount() {
     if (!newName.trim()) return;
@@ -90,6 +108,13 @@
     <div class="card section">
       <h1>Service Accounts</h1>
       <div class="toolbar">
+        {#if orgs.length > 0}
+          <select class="org-select" bind:value={orgId} on:change={(event) => changeOrg(event.currentTarget.value)}>
+            {#each orgs as org}
+              <option value={org.orgId || org.id}>{org.name}</option>
+            {/each}
+          </select>
+        {/if}
         <button class="pill" on:click={() => (showCreate = !showCreate)}>{showCreate ? 'Close' : 'New Service Account'}</button>
       </div>
 
@@ -165,6 +190,15 @@
   h1, h2 { margin: 0; }
   h2 { font-size: 14px; }
   .toolbar { margin-top: 10px; }
+  .org-select {
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 12px;
+    background: rgba(20,24,32,.72);
+    color: var(--fg);
+    padding: 9px 11px;
+    outline: none;
+    margin-right: 8px;
+  }
   .toolbar button, .create button, td button { padding: 7px 10px; border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); cursor: pointer; }
   .create { margin-top: 10px; display: grid; gap: 8px; grid-template-columns: 1fr 1fr auto; }
   input {

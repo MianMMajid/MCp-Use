@@ -33,7 +33,8 @@
         prefs = prefsData.categories || {};
         channelPrefs = prefsData.channels || channelPrefs;
       }
-      const items = Array.isArray(historyData) ? historyData
+      const items = Array.isArray(historyData?.items) ? historyData.items
+        : Array.isArray(historyData) ? historyData
         : Array.isArray(historyData?.notifications) ? historyData.notifications
         : [];
       history = items.slice(0, 20);

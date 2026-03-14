@@ -2,14 +2,16 @@
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, patchJson } from '@/lib/api';
+  import { loadActiveOrgState, setActiveOrgId } from '@/lib/active-org';
 
   let loading = true;
   let saving = false;
   let message = '';
   let messageType = 'success';
   let orgId = '';
+  let orgs = [];
 
-  let form = {
+  const defaultForm = {
     accountEmail: '',
     name: 'Mayple',
     bio: '',
@@ -22,30 +24,51 @@
     postal_code: 'A1A 1A1',
     country: 'Canada',
   };
+  let form = { ...defaultForm };
+
+  function applyOrg(org) {
+    form = {
+      ...form,
+      name: org?.name || defaultForm.name,
+      bio: org?.bio || '',
+      email: org?.email || form.accountEmail || '',
+      email_is_public: org?.email_is_public ?? true,
+      currency: org?.currency || defaultForm.currency,
+      address: org?.address || '',
+      city: org?.city || '',
+      region: org?.region || '',
+      postal_code: org?.postal_code || '',
+      country: org?.country || defaultForm.country,
+    };
+  }
 
   onMount(async () => {
     loading = true;
     try {
       const [profileData, orgData] = await Promise.all([
         loadJson('/api/user/profile').catch(() => null),
-        loadJson('/api/org').catch(() => null),
+        loadActiveOrgState().catch(() => ({ items: [], activeOrg: null, activeOrgId: '' })),
       ]);
       const user = profileData?.user || null;
       if (user) {
         form.accountEmail = user.email || user.username || '';
         form.email = user.email || '';
       }
-      const orgs = Array.isArray(orgData?.orgs) ? orgData.orgs : Array.isArray(orgData) ? orgData : [];
-      if (orgs.length > 0) {
-        const first = orgs[0];
-        orgId = first.id || first.orgId || '';
-        form.name = first.name || form.name;
-        form.bio = first.bio || form.bio;
+      orgs = orgData?.items || [];
+      if (orgData?.activeOrg) {
+        orgId = orgData.activeOrgId;
+        applyOrg(orgData.activeOrg);
       }
     } finally {
       loading = false;
     }
   });
+
+  function changeOrg(nextOrgId) {
+    orgId = setActiveOrgId(nextOrgId);
+    applyOrg(orgs.find((item) => String(item.orgId || item.id) === String(orgId)));
+    message = '';
+  }
 
   async function save(event) {
     event.preventDefault();
@@ -85,6 +108,17 @@
       <p class="muted">Loading account settings...</p>
     {:else}
       <form class="form" on:submit={save}>
+        {#if orgs.length > 0}
+          <label>
+            <span>Active Organization</span>
+            <select bind:value={orgId} on:change={(event) => changeOrg(event.currentTarget.value)}>
+              {#each orgs as org}
+                <option value={org.orgId || org.id}>{org.name}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+
         <label>
           <span>Account Email</span>
           <input value={form.accountEmail} disabled />

@@ -414,7 +414,7 @@ function buildScheduledTasks(now) {
       id: 'task-1',
       title: 'Daily incident digest',
       prompt: 'Summarize incidents and highlight policy breaches.',
-      status: 'running',
+      status: 'scheduled',
       schedule: {
         startAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
         timezone: 'America/Los_Angeles',
@@ -443,6 +443,116 @@ function buildScheduledTasks(now) {
       nextRunAt: new Date(now + 30 * 60 * 1000).toISOString(),
       createdAt: new Date(now - DAY_MS).toISOString(),
       updatedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+    },
+  ]
+}
+
+function buildFrontendBFirewalls(now) {
+  return [
+    {
+      id: 'firewall-1',
+      name: 'Global DLP Guard',
+      folder: 'Compliance',
+      scope: 'global',
+      assignedAgentId: null,
+      policyText: 'Never allow payroll records, API keys, or internal tokens to be sent to Slack or email.',
+      archived: false,
+      activeVersionId: 'firewall-1-v2',
+      policyVersions: [
+        {
+          id: 'firewall-1-v1',
+          versionId: 'firewall-1-v1',
+          policyText: 'Block payroll records from external destinations.',
+          createdAt: new Date(now - 6 * DAY_MS).toISOString(),
+          createdBy: 'demo@mayple.dev',
+          active: false,
+        },
+        {
+          id: 'firewall-1-v2',
+          versionId: 'firewall-1-v2',
+          policyText: 'Never allow payroll records, API keys, or internal tokens to be sent to Slack or email.',
+          createdAt: new Date(now - 2 * DAY_MS).toISOString(),
+          createdBy: 'demo@mayple.dev',
+          active: true,
+        },
+      ],
+      entries: [
+        {
+          id: 'firewall-entry-1',
+          entryId: 'firewall-entry-1',
+          type: 'text',
+          name: 'finance-snippet.txt',
+          content: 'Payroll exports, tax IDs, and reimbursement ledgers are always confidential.',
+          previewText: 'Payroll exports, tax IDs, and reimbursement ledgers are always confidential.',
+          createdAt: new Date(now - 2 * DAY_MS).toISOString(),
+        },
+      ],
+      auditLog: [
+        {
+          id: 'firewall-audit-1',
+          type: 'activated',
+          message: 'Activated revision firewall-1-v2.',
+          createdAt: new Date(now - 2 * DAY_MS).toISOString(),
+        },
+        {
+          id: 'firewall-audit-2',
+          type: 'simulated',
+          message: 'Simulation blocked a Slack export containing payroll records.',
+          createdAt: new Date(now - 8 * 60 * 1000).toISOString(),
+        },
+      ],
+      blockedPackets: 14,
+      blockedAttempts: 3,
+      lastEvaluatedAt: new Date(now - 8 * 60 * 1000).toISOString(),
+      createdAt: new Date(now - 9 * DAY_MS).toISOString(),
+      updatedAt: new Date(now - 8 * 60 * 1000).toISOString(),
+      status: 'active_block',
+    },
+    {
+      id: 'firewall-2',
+      name: 'Agent Slack Review',
+      folder: 'Ops',
+      scope: 'agent',
+      assignedAgentId: 'agent-1',
+      policyText: 'Review internal incident notes before they are posted to Slack.',
+      archived: false,
+      activeVersionId: 'firewall-2-v1',
+      policyVersions: [
+        {
+          id: 'firewall-2-v1',
+          versionId: 'firewall-2-v1',
+          policyText: 'Review internal incident notes before they are posted to Slack.',
+          createdAt: new Date(now - 4 * DAY_MS).toISOString(),
+          createdBy: 'demo@mayple.dev',
+          active: true,
+        },
+      ],
+      entries: [
+        {
+          id: 'firewall-entry-2',
+          entryId: 'firewall-entry-2',
+          type: 'file',
+          name: 'incident-policy.md',
+          mimeType: 'text/markdown',
+          size: 2048,
+          previewText: 'Escalate before sharing incident notes externally.',
+          createdAt: new Date(now - DAY_MS).toISOString(),
+        },
+      ],
+      auditLog: [
+        {
+          id: 'firewall-audit-3',
+          type: 'created',
+          message: 'Firewall created for agent-1.',
+          createdAt: new Date(now - 4 * DAY_MS).toISOString(),
+        },
+      ],
+      blockedPackets: 0,
+      blockedAttempts: 1,
+      lastEvaluatedAt: new Date(now - 40 * 60 * 1000).toISOString(),
+      createdAt: new Date(now - 4 * DAY_MS).toISOString(),
+      updatedAt: new Date(now - 40 * 60 * 1000).toISOString(),
+      status: 'review_needed',
     },
   ]
 }
@@ -551,6 +661,15 @@ function buildOrgData(now, nextId) {
       id: 'org-1',
       orgId: 'org-1',
       name: 'Mayple Labs',
+      bio: 'Security and workflow automation for regulated teams.',
+      email: 'ops@mayple.dev',
+      email_is_public: true,
+      currency: 'usd',
+      address: '147 Mayple Ave',
+      city: 'San Francisco',
+      region: 'California',
+      postal_code: '94107',
+      country: 'United States',
       plan: 'enterprise',
       status: 'active',
       memberCount: 3,
@@ -560,6 +679,15 @@ function buildOrgData(now, nextId) {
       id: 'org-2',
       orgId: 'org-2',
       name: 'Catalyst Team',
+      bio: 'Small incident response team for partner operations.',
+      email: 'team@catalyst.dev',
+      email_is_public: false,
+      currency: 'cad',
+      address: '82 Wellington St',
+      city: 'Toronto',
+      region: 'Ontario',
+      postal_code: 'M5J 1H8',
+      country: 'Canada',
       plan: 'pro',
       status: 'active',
       memberCount: 2,
@@ -599,10 +727,6 @@ function buildOrgData(now, nextId) {
   }
 
   const serviceAccountsByOrg = {
-    default: [
-      { id: 'sa-1', name: 'ci-bot', description: 'CI pipeline bot', createdAt: new Date(now - 20 * DAY_MS).toISOString(), keyCount: 1 },
-      { id: 'sa-2', name: 'audit-exporter', description: 'Exports audit logs', createdAt: new Date(now - 12 * DAY_MS).toISOString(), keyCount: 2 },
-    ],
     'org-1': [
       { id: 'sa-1', name: 'ci-bot', description: 'CI pipeline bot', createdAt: new Date(now - 20 * DAY_MS).toISOString(), keyCount: 1 },
       { id: 'sa-2', name: 'audit-exporter', description: 'Exports audit logs', createdAt: new Date(now - 12 * DAY_MS).toISOString(), keyCount: 2 },
@@ -625,15 +749,6 @@ function buildOrgData(now, nextId) {
     'org-2': {
       'sa-3': [
         { id: 'sak-4', keyId: 'sak-4', createdAt: new Date(now - 7 * DAY_MS).toISOString() },
-      ],
-    },
-    default: {
-      'sa-1': [
-        { id: 'sak-1', keyId: 'sak-1', createdAt: new Date(now - 15 * DAY_MS).toISOString() },
-      ],
-      'sa-2': [
-        { id: 'sak-2', keyId: 'sak-2', createdAt: new Date(now - 11 * DAY_MS).toISOString() },
-        { id: 'sak-3', keyId: 'sak-3', createdAt: new Date(now - 2 * DAY_MS).toISOString() },
       ],
     },
   }
@@ -662,6 +777,7 @@ export function createFakeState(seedInput) {
   const executions = buildExecutions(now, orchestrations, nextId)
   const orchestrationTemplates = buildTemplates()
   const scheduledTasks = buildScheduledTasks(now)
+  const frontendBFirewalls = buildFrontendBFirewalls(now)
   const orchestrationConversations = Object.fromEntries(
     orchestrations.map((orch) => [orch.id, createConversationSeed(now, orch)]),
   )
@@ -818,6 +934,7 @@ export function createFakeState(seedInput) {
     },
     observability: buildObservability(now, nextId),
     tools: buildTools(now),
+    frontendBFirewalls,
     demos: {
       sessions: [
         { id: 'demo-session-1', sessionId: 'demo-session-1', status: 'active', createdAt: new Date(now - 90 * 60 * 1000).toISOString() },
