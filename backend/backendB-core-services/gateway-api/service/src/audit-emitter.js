@@ -28,8 +28,10 @@ export function emitAuditEvent(options) {
     // B2: Generate span context for distributed tracing
     const span = createSpanContext(options.traceId);
 
+    // Generate a single eventId to use across outbox and audit chain
+    const eventId = randomUUID();
     const event = {
-        eventId: randomUUID(),
+        eventId,
         eventType: options.eventType,
         timestamp: new Date().toISOString(),
         sourceService: options.sourceService,
@@ -40,7 +42,7 @@ export function emitAuditEvent(options) {
     };
 
     try {
-        enqueueAuditEvent({ ...options, traceId: span.traceId, spanId: span.spanId }).catch(() => {});
+        enqueueAuditEvent({ ...options, eventId, traceId: span.traceId, spanId: span.spanId }).catch(() => {});
     } catch {
         // Outbox unavailable — fall back to direct gRPC
         const clients = getGrpcClients();

@@ -179,6 +179,16 @@ export function registerAuthRecoveryRoutes(app) {
   });
 
   app.post("/api/auth/verify-email/request", async (c) => {
+    // Rate limit verify-email requests to prevent abuse
+    const xff = c.req.header('x-forwarded-for') ?? '';
+    // Use last entry in x-forwarded-for (closest proxy hop)
+    const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
+    const retryAfter = checkRecoveryRateLimit(ip);
+    if (retryAfter) {
+      c.header('Retry-After', String(retryAfter));
+      return c.json({ error: "Too many requests. Please try again later." }, 429);
+    }
+
     const parsed = parseVerifyEmailRequest(await readJsonBody(c));
     if (!parsed.ok) {
       return c.json({ error: parsed.error }, 400);

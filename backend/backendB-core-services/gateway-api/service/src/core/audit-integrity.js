@@ -114,27 +114,38 @@ export async function appendToAuditChain(event, options = {}) {
       : JSON.stringify(event.payload ?? event.payloadJson ?? {}),
   };
 
-  // Get the previous hash
-  const prevResult = await db.pool.query(
-    `SELECT record_hash FROM audit_chain ORDER BY sequence_id DESC LIMIT 1`
-  );
-  const previousHash = prevResult.rows[0]?.record_hash ?? "";
+  // Use a transaction with FOR UPDATE to prevent concurrent hash chain forks
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  const recordHash = computeRecordHash(record, previousHash);
-  const now = nowIso();
+    const prevResult = await client.query(
+      `SELECT record_hash FROM audit_chain ORDER BY sequence_id DESC LIMIT 1 FOR UPDATE`
+    );
+    const previousHash = prevResult.rows[0]?.record_hash ?? "";
 
-  await db.pool.query(
-    `INSERT INTO audit_chain (event_id, event_type, timestamp, source_service, tenant_id, org_id, user_id, severity, summary, payload_json, previous_hash, record_hash, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-     ON CONFLICT (event_id) DO NOTHING`,
-    [
-      record.eventId, record.eventType, record.timestamp, record.sourceService,
-      record.tenantId, record.orgId, record.userId, record.severity,
-      record.summary, record.payloadJson, previousHash, recordHash, now,
-    ]
-  );
+    const recordHash = computeRecordHash(record, previousHash);
+    const now = nowIso();
 
-  return { appended: true, eventId: record.eventId, recordHash, previousHash };
+    await client.query(
+      `INSERT INTO audit_chain (event_id, event_type, timestamp, source_service, tenant_id, org_id, user_id, severity, summary, payload_json, previous_hash, record_hash, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT (event_id) DO NOTHING`,
+      [
+        record.eventId, record.eventType, record.timestamp, record.sourceService,
+        record.tenantId, record.orgId, record.userId, record.severity,
+        record.summary, record.payloadJson, previousHash, recordHash, now,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return { appended: true, eventId: record.eventId, recordHash, previousHash };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

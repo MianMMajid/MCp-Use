@@ -32,7 +32,7 @@ function backoffMs(attempts) {
  */
 export async function enqueueAuditEvent(options) {
   const event = {
-    eventId: randomUUID(),
+    eventId: options.eventId ?? randomUUID(),
     eventType: options.eventType,
     timestamp: new Date().toISOString(),
     sourceService: options.sourceService,
@@ -232,6 +232,13 @@ export async function replayAuditEvents(options = {}) {
   if (statusFilter) {
     conditions.push(`status = $${cursor++}`);
     params.push(statusFilter);
+  }
+
+  // Tenant filter: match tenantId within event_json payload
+  const tenantFilter = options.tenantId ?? null;
+  if (tenantFilter) {
+    conditions.push(`event_json::jsonb->'payload'->>'tenantId' = $${cursor++}`);
+    params.push(tenantFilter);
   }
 
   params.push(limit, offset);

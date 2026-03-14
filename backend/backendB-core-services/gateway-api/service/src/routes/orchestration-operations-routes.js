@@ -53,8 +53,8 @@ server.app.post("/api/operations/orchestrations/step-up/challenge", async (c) =>
   const headerScope = await verifiedScope(c);
   if (headerScope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const challenge = await createStepUpChallenge(actorUserId(), {
-    tenantId: asString(body.tenantId) ?? headerScope.tenantId,
-    orgId: asString(body.orgId) ?? headerScope.orgId,
+    tenantId: headerScope.tenantId,
+    orgId: headerScope.orgId,
     database,
   });
   return c.json({ ok: true, ...challenge });

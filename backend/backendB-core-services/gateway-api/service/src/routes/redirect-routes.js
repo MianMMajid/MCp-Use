@@ -10,6 +10,7 @@ import { grpcUnary } from "../grpc-clients.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { mapleLog, requestContextStorage } from "../logging.js";
 import { authContextStorage } from "../auth.js";
+import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 export const redirectRoutes = new Hono();
 function escapeHtml(str) {
     return str
@@ -40,9 +41,15 @@ redirectRoutes.get("/api/redirect", async (c) => {
     try {
         const authContext = authContextStorage.getStore();
         const requestContext = requestContextStorage.getStore();
-        const tenantId = c.req.header("x-tenant-id") ?? requestContext?.tenantId ?? "default";
-        const userId = c.req.header("x-user-id") ??
-            authContext?.userId ??
+        // Use verified scope for tenantId — do not trust raw headers
+        const scope = await resolveVerifiedTenantScope({
+            tenantId: c.req.header("x-tenant-id") ?? requestContext?.tenantId ?? "",
+            orgId: c.req.header("x-org-id") ?? "",
+            tenantClaimSignature: c.req.header("x-maple-tenant-claim") ?? "",
+        });
+        const tenantId = scope.verified ? scope.tenantId : (requestContext?.tenantId ?? "default");
+        // Use auth context for userId — do not trust x-user-id header
+        const userId = authContext?.userId ??
             authContext?.keyFingerprint ??
             "anonymous";
         const deviceId = c.req.header("x-device-id") ??

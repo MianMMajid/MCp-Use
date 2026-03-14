@@ -222,7 +222,8 @@ export function registerGptOAuthRoutes(app) {
         if (usedCodes.has(codeEntry.jti)) {
             return c.json({ error: "invalid_grant", error_description: "code has already been used" }, 400);
         }
-        if (redirectUri && codeEntry.redirectUri !== redirectUri) {
+        // RFC 6749 §4.1.3: redirect_uri MUST match when it was included in the authorization request
+        if (codeEntry.redirectUri !== (redirectUri ?? "")) {
             return c.json({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
         }
 

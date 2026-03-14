@@ -118,20 +118,22 @@ export async function verifyStepUpChallenge(userId, challengeToken, options = {}
     return { verified: false, reason: "no_database" };
   }
 
+  // Require tenant/org scope to prevent cross-tenant misuse
+  if (!options.tenantId) {
+    return { verified: false, reason: "scope_required" };
+  }
+
   const now = nowIso();
   const conditions = [
     "user_id = $1",
     "challenge_hash = $2",
     "expires_at > $3",
     "used_for_approval_id IS NULL",
+    "tenant_id = $4",
   ];
-  const params = [userId, challengeHash, now];
-  let cursor = 4;
+  const params = [userId, challengeHash, now, options.tenantId];
+  let cursor = 5;
 
-  if (options.tenantId) {
-    conditions.push(`tenant_id = $${cursor++}`);
-    params.push(options.tenantId);
-  }
   if (options.orgId) {
     conditions.push(`org_id = $${cursor++}`);
     params.push(options.orgId);
@@ -148,11 +150,17 @@ export async function verifyStepUpChallenge(userId, challengeToken, options = {}
     return { verified: false, reason: "invalid_or_expired" };
   }
 
-  // Mark the challenge as verified now
-  await db.pool.query(
-    `UPDATE modifier_step_up_verifications SET verified_at = $2 WHERE id = $1`,
+  // Atomically verify and reserve for consumption (prevents race condition)
+  const updateResult = await db.pool.query(
+    `UPDATE modifier_step_up_verifications
+     SET verified_at = $2, used_for_approval_id = 'pending'
+     WHERE id = $1 AND used_for_approval_id IS NULL`,
     [result.rows[0].id, now]
   );
+
+  if ((updateResult.rowCount ?? 0) === 0) {
+    return { verified: false, reason: "already_consumed" };
+  }
 
   return { verified: true, stepUpId: result.rows[0].id };
 }
@@ -229,20 +237,22 @@ export async function hasValidStepUp(userId, options = {}) {
     return { valid: false, reason: "no_database" };
   }
 
+  // Require tenant scope to prevent cross-tenant misuse
+  if (!options.tenantId) {
+    return { valid: false, reason: "scope_required" };
+  }
+
   const now = nowIso();
   const conditions = [
     "user_id = $1",
     "expires_at > $2",
-    "used_for_approval_id IS NULL",
+    "(used_for_approval_id IS NULL OR used_for_approval_id = 'pending')",
     "verified_at IS NOT NULL",
+    "tenant_id = $3",
   ];
-  const params = [userId, now];
-  let cursor = 3;
+  const params = [userId, now, options.tenantId];
+  let cursor = 4;
 
-  if (options.tenantId) {
-    conditions.push(`tenant_id = $${cursor++}`);
-    params.push(options.tenantId);
-  }
   if (options.orgId) {
     conditions.push(`org_id = $${cursor++}`);
     params.push(options.orgId);
@@ -274,11 +284,15 @@ export async function hasValidStepUp(userId, options = {}) {
  */
 export async function consumeStepUpForApproval(stepUpId, approvalId, options = {}) {
   const db = options.database ?? _database;
-  if (!hasPool(db)) return;
-  await db.pool.query(
-    `UPDATE modifier_step_up_verifications SET used_for_approval_id = $2 WHERE id = $1`,
+  if (!hasPool(db)) return { consumed: false, reason: "no_database" };
+  const result = await db.pool.query(
+    `UPDATE modifier_step_up_verifications SET used_for_approval_id = $2 WHERE id = $1 AND used_for_approval_id = 'pending'`,
     [stepUpId, approvalId]
   );
+  if ((result.rowCount ?? 0) === 0) {
+    return { consumed: false, reason: "already_consumed" };
+  }
+  return { consumed: true };
 }
 
 /**

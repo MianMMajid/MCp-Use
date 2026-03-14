@@ -1,5 +1,6 @@
 import { asString, readJsonBody } from "../helpers.js";
 import { findRequestSession } from "../auth.js";
+import { authContextStorage } from "../auth-context.js";
 import { requireApiKeyResponse } from "../auth-api-key.js";
 import { database } from "../state.js";
 import { PlatformStore } from "../core/platform-store.js";
@@ -263,6 +264,11 @@ export function registerPlatformProxyRoutes(app) {
     if (userId === auth.session.user.id) {
       return c.json({ error: "Cannot reassign your own role." }, 403);
     }
+    // Verify target user exists before creating membership
+    const targetUser = await database.findUserById(userId);
+    if (!targetUser) {
+      return c.json({ error: "User not found." }, 404);
+    }
     const assigned = await store.assignOrganizationRole(roleCheck.org.orgId, userId, roleId);
     return c.json({ ok: true, ...assigned });
   });
@@ -441,6 +447,11 @@ export function registerPlatformProxyRoutes(app) {
   app.post("/api/limits/override", async (c) => {
     const unauthorized = await requireApiKeyResponse(c, database, { requireApiKey: true });
     if (unauthorized) return unauthorized;
+    // Require admin session auth — API key alone is insufficient for limits override
+    const ctx = authContextStorage.getStore();
+    if (ctx?.method !== "session") {
+      return c.json({ ok: false, error: "Limits override requires admin session auth." }, 403);
+    }
     const store = getStore();
     const body = await readJsonBody(c);
     const userId = asString(body.userId);

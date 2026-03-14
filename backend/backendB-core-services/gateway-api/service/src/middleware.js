@@ -68,6 +68,7 @@ server.app.use("*", async (c, next) => {
         method,
         path,
         tenantId,
+        tenantVerified: false,
         deviceId,
         sessionId,
         traceId,

@@ -4,11 +4,13 @@ import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, } from "../trace-helpers.js";
 import { buildFeatureCapabilitiesFromDependencyReport, evaluateGatewayRuntimeDependencies, } from "../core/runtime-dependencies.js";
+import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 function resolveFirewallRequestContext(options) {
     const authContext = authContextStorage.getStore();
-    const tenantId = asString(options.body.tenantId) ?? asString(options.request.header("x-tenant-id")) ?? "default";
-    const userId = asString(options.body.userId) ??
-        authContext?.userId ??
+    // Use verified scope for tenantId — ignore body.tenantId to prevent spoofing
+    const tenantId = options.verifiedTenantId ?? "default";
+    // Use auth context for userId — ignore body.userId to prevent spoofing
+    const userId = authContext?.userId ??
         authContext?.keyFingerprint ??
         "anonymous";
     const deviceId = asString(options.body.deviceId) ??
@@ -36,9 +38,15 @@ export function registerFirewallChatRoutes() {
         const sessionId = asString(body.sessionId);
         const includeContext = asBoolean(body.includeContext, false);
         const context = buildFirewallChatContext({ traceId, sessionId });
+        const scope = await resolveVerifiedTenantScope({
+            tenantId: asString(c.req.header("x-tenant-id")) ?? "",
+            orgId: asString(c.req.header("x-org-id")) ?? "",
+            tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+        });
         const requestContext = resolveFirewallRequestContext({
             body,
             request: c.req,
+            verifiedTenantId: scope.verified ? scope.tenantId : "default",
             traceId,
             sessionId,
             fallbackSessionId: context.trace?.sessionId,
@@ -98,9 +106,15 @@ export function registerFirewallChatRoutes() {
         const traceId = asString(body.traceId);
         const sessionId = asString(body.sessionId);
         const context = buildFirewallChatContext({ traceId, sessionId });
+        const streamScope = await resolveVerifiedTenantScope({
+            tenantId: asString(c.req.header("x-tenant-id")) ?? "",
+            orgId: asString(c.req.header("x-org-id")) ?? "",
+            tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+        });
         const requestContext = resolveFirewallRequestContext({
             body,
             request: c.req,
+            verifiedTenantId: streamScope.verified ? streamScope.tenantId : "default",
             traceId,
             sessionId,
             fallbackSessionId: context.trace?.sessionId,

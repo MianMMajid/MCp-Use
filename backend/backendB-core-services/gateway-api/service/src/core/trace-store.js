@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { parsePositiveInt, parsePositiveMs } from "./trace-store-config.js";
 import { loadPersistedTracesIntoIndex, persistTrace, removePersistedTrace, } from "./trace-store-persistence.js";
 import { pruneTraceStore } from "./trace-store-prune.js";
+import { mapleLog } from "../logging.js";
 const PRUNE_DEBOUNCE_MS = 5000;
 export class TraceStore {
     traces = new Map();
@@ -64,7 +65,9 @@ export class TraceStore {
         // Finding 9: Await persistence so retry errors are observed.
         // Use .catch to avoid blocking the synchronous upsert path while
         // still surfacing failures (persistTrace has its own retry logic).
-        persistTrace(this.persistence, trace).catch(() => {});
+        persistTrace(this.persistence, trace).catch((err) => {
+            mapleLog("warn", "trace_persist_failed", { traceId: trace.id, error: err?.message });
+        });
         this.pruneStore();
         return trace;
     }
