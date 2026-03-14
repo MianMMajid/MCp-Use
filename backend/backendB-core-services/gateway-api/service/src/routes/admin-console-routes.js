@@ -164,7 +164,8 @@ async function syncPolicyVersionState(contextWall) {
 
 export function registerAdminConsoleRoutes(app, options = {}) {
   const adminApiKeys = options.adminApiKeys ?? loadAdminApiKeys();
-  const adminAllowNoAuth = options.adminAllowNoAuth === true;
+  // Fix 8: Never allow no-auth bypass in production
+  const adminAllowNoAuth = options.adminAllowNoAuth === true && process.env.NODE_ENV !== "production";
   const auditWriterHttpOrigin = options.auditWriterHttpOrigin ?? "";
 
   // Admin auth middleware for /admin/api/* routes

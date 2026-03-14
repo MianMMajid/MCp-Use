@@ -18,7 +18,7 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 import { config } from "./config.js";
 function jsonBuf(value) {
     return Buffer.from(JSON.stringify(value));
@@ -81,10 +81,16 @@ class CredentialMintError extends Error {
         this.name = "CredentialMintError";
     }
 }
-function createRetiredCredential(toolName, appId, scopes) {
-    const credentialId = `retired-${randomUUID()}`;
-    const token = `retired:${appId}:${toolName}:${Date.now()}`;
-    mapleLog("info", "credential_mint_retired_fallback", {
+// Fix 9: HMAC-signed credentials instead of plaintext retired tokens
+const CREDENTIAL_SIGNING_KEY = process.env.MAPLE_CREDENTIAL_SIGNING_KEY || "maple-credential-key";
+
+function createSignedCredential(toolName, appId, scopes) {
+    const credentialId = `cred-${randomUUID()}`;
+    const payload = `${credentialId}:${appId}:${toolName}:${Date.now()}`;
+    const signature = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
+        .update(payload).digest("hex").slice(0, 32);
+    const token = `${payload}:${signature}`;
+    mapleLog("info", "credential_mint_signed", {
         appId,
         toolName,
         credentialId,
@@ -108,9 +114,9 @@ function scopeToCredentialScopes(scope) {
     return [...new Set(scopes)];
 }
 async function mintCredentialForToolWithScopes(toolName, appId, scopes) {
-    // secrets-broker has been retired; always use local retired credential minting.
+    // secrets-broker has been retired; use HMAC-signed credentials.
     // Replacement: context-wall scoped credential delegation.
-    return createRetiredCredential(toolName, appId, scopes);
+    return createSignedCredential(toolName, appId, scopes);
 }
 let jobDispatcher = null;
 function setJobDispatcher(dispatcher) {

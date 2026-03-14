@@ -9,6 +9,9 @@ const DB_HEALTH_TIMEOUT_MS = 2000;
 
 export const healthRoutes = new Hono();
 
+// Fix 7: /health is a liveness probe — always 200 if the process is running.
+// DB status is reported but does not affect the HTTP status code.
+// Use /ready for readiness (returns 503 when DB or dependencies are down).
 healthRoutes.get("/health", async (c) => {
   let dbOk = true;
   let dbError = "";
@@ -25,19 +28,11 @@ healthRoutes.get("/health", async (c) => {
       dbError = err instanceof Error ? err.message : String(err);
     }
   }
-  if (!dbOk) {
-    return c.json({
-      status: "degraded",
-      service: "gateway-api",
-      timestamp: new Date().toISOString(),
-      db: { ok: false, error: dbError },
-    }, 503);
-  }
   return c.json({
-    status: "ok",
+    status: dbOk ? "ok" : "degraded",
     service: "gateway-api",
     timestamp: new Date().toISOString(),
-    db: { ok: true },
+    db: dbOk ? { ok: true } : { ok: false, error: dbError },
   });
 });
 

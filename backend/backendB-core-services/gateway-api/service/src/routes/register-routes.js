@@ -13,6 +13,7 @@ import { registerFrontendBRoutes } from "./frontend-b-routes.js";
 import { database } from "../state.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin } from "../config.js";
+import { requireApiKeyResponse } from "../auth.js";
 
 const SIDE_EFFECT_ROUTE_MODULES = [
   "../middleware.js",
@@ -69,6 +70,14 @@ export async function registerGatewayRoutes(app) {
 // fully implemented yet.  Returning structured JSON lets the UI show
 // "empty / not available" instead of silently failing on HTML parse.
 function registerStubRoutes(app) {
+  // Fix 11: Gate stub routes with auth middleware so they aren't publicly reachable
+  const authGate = async (c, next) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+    await next();
+  };
+  app.use("/api/operations/*", authGate);
+
   // FrontendA: tenant bindings, org hierarchy, tenant scope
   app.get("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ ok: true, bindings: [] }));
   app.post("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Tenant bindings not yet implemented." }, 501));

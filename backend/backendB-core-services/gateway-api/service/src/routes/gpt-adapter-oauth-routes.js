@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto, { createHmac } from "node:crypto";
 import { GPT_OAUTH_CLIENT_ID, GPT_OAUTH_CLIENT_SECRET, } from "../config.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { gptAdapterBaseUrl } from "./gpt-adapter-common.js";
@@ -19,18 +19,21 @@ const GPT_OAUTH_ALLOWED_REDIRECT_URIS = (() => {
 // In-memory stores for auth codes and access tokens.
 // ---------------------------------------------------------------------------
 
-/** Auth code store: code -> { redirectUri, expiresAt, used } */
+/** Auth code store: code -> { redirectUri, expiresAt, used, codeChallenge } */
 const authCodes = new Map();
 
-/** Access token store: token -> { expiresAt } */
-const activeTokens = new Map();
+/** Revoked token store: token -> true (bounded, for revocation only) */
+const revokedTokens = new Map();
+
+// HMAC secret for self-validating tokens (no shared store needed)
+const TOKEN_HMAC_SECRET = process.env.MAPLE_GPT_OAUTH_TOKEN_SECRET || GPT_OAUTH_CLIENT_SECRET || "maple-gpt-oauth-default-key";
 
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000;       // 5 minutes
 const ACCESS_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const CLEANUP_INTERVAL_MS = 60 * 1000;         // 1 minute
 
 // ---------------------------------------------------------------------------
-// Periodic cleanup of expired codes and tokens.
+// Periodic cleanup of expired codes and revoked tokens.
 // ---------------------------------------------------------------------------
 setInterval(() => {
     const now = Date.now();
@@ -39,25 +42,53 @@ setInterval(() => {
             authCodes.delete(code);
         }
     }
-    for (const [token, entry] of activeTokens) {
+    // Revoked tokens can be pruned after their original expiry
+    for (const [token, entry] of revokedTokens) {
         if (now >= entry.expiresAt) {
-            activeTokens.delete(token);
+            revokedTokens.delete(token);
         }
     }
 }, CLEANUP_INTERVAL_MS).unref();
+
+// ---------------------------------------------------------------------------
+// HMAC-signed self-validating token helpers (Fix 3: no shared store needed)
+// ---------------------------------------------------------------------------
+function base64url(buffer) {
+    return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function createSignedAccessToken(clientId) {
+    const exp = Date.now() + ACCESS_TOKEN_TTL_MS;
+    const payload = JSON.stringify({ sub: clientId, exp, jti: crypto.randomUUID() });
+    const payloadB64 = base64url(Buffer.from(payload));
+    const sig = base64url(createHmac("sha256", TOKEN_HMAC_SECRET).update(payloadB64).digest());
+    return `${payloadB64}.${sig}`;
+}
+
+function parseSignedAccessToken(token) {
+    if (!token || !token.includes(".")) return null;
+    const [payloadB64, sig] = token.split(".", 2);
+    const expectedSig = base64url(createHmac("sha256", TOKEN_HMAC_SECRET).update(payloadB64).digest());
+    if (sig !== expectedSig) return null;
+    try {
+        const decoded = JSON.parse(Buffer.from(payloadB64, "base64").toString());
+        if (!decoded.exp || Date.now() >= decoded.exp) return null;
+        return decoded;
+    } catch {
+        return null;
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Public helper: verify a GPT access token (used by the tool dispatch route).
 // ---------------------------------------------------------------------------
 export function verifyGptAccessToken(token) {
     if (!token) return false;
-    const entry = activeTokens.get(token);
-    if (!entry) return false;
-    if (Date.now() >= entry.expiresAt) {
-        activeTokens.delete(token);
-        return false;
-    }
-    return true;
+    // Check revocation list first
+    if (revokedTokens.has(token)) return false;
+    // Verify HMAC-signed self-validating token
+    const payload = parseSignedAccessToken(token);
+    return payload !== null;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,12 +124,20 @@ export function registerGptOAuthRoutes(app) {
             return c.json({ error: "redirect_uri is required" }, 400);
         }
 
-        // Validate redirect_uri against the configured allowlist (origin check).
-        const allowed = GPT_OAUTH_ALLOWED_REDIRECT_URIS.some((origin) =>
-            redirectUri.startsWith(origin)
-        );
+        // Fix 1: Parse redirect_uri as URL and compare origin exactly (immune to prefix attacks).
+        let parsedRedirect;
+        try { parsedRedirect = new URL(redirectUri); } catch { return c.json({ error: "Invalid redirect_uri" }, 400); }
+        const redirectOrigin = parsedRedirect.origin;
+        const allowed = GPT_OAUTH_ALLOWED_REDIRECT_URIS.some((origin) => redirectOrigin === origin);
         if (!allowed) {
             return c.json({ error: "redirect_uri is not in the allowed origins" }, 400);
+        }
+
+        // Fix 2: Accept PKCE code_challenge
+        const codeChallenge = asString(c.req.query("code_challenge")) ?? "";
+        const codeChallengeMethod = asString(c.req.query("code_challenge_method")) ?? "";
+        if (codeChallengeMethod && codeChallengeMethod !== "S256") {
+            return c.json({ error: "Only S256 code_challenge_method is supported" }, 400);
         }
 
         // Generate a cryptographically random auth code with a 5-minute TTL.
@@ -107,6 +146,7 @@ export function registerGptOAuthRoutes(app) {
             redirectUri,
             expiresAt: Date.now() + AUTH_CODE_TTL_MS,
             used: false,
+            codeChallenge: codeChallenge || undefined,
         });
 
         const separator = redirectUri.includes("?") ? "&" : "?";
@@ -121,6 +161,7 @@ export function registerGptOAuthRoutes(app) {
         let clientSecret = asString(body.client_secret);
         let code = asString(body.code);
         let redirectUri = asString(body.redirect_uri);
+        let codeVerifier = asString(body.code_verifier);
         if (!clientId && contentType.includes("application/x-www-form-urlencoded")) {
             try {
                 const text = await c.req.text();
@@ -129,6 +170,7 @@ export function registerGptOAuthRoutes(app) {
                 clientSecret = params.get("client_secret") ?? undefined;
                 code = code || params.get("code") || undefined;
                 redirectUri = redirectUri || params.get("redirect_uri") || undefined;
+                codeVerifier = codeVerifier || params.get("code_verifier") || undefined;
             }
             catch (_e) {
                 // Ignore malformed form bodies.
@@ -167,14 +209,24 @@ export function registerGptOAuthRoutes(app) {
             return c.json({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
         }
 
+        // Fix 2: PKCE S256 verification
+        if (codeEntry.codeChallenge) {
+            // Code was issued with a challenge — verifier is required
+            if (!codeVerifier) {
+                return c.json({ error: "invalid_grant", error_description: "code_verifier is required when code_challenge was provided" }, 400);
+            }
+            const computedChallenge = base64url(crypto.createHash("sha256").update(codeVerifier).digest());
+            if (computedChallenge !== codeEntry.codeChallenge) {
+                authCodes.delete(code);
+                return c.json({ error: "invalid_grant", error_description: "code_verifier does not match code_challenge" }, 400);
+            }
+        }
+
         // Mark the code as used.
         codeEntry.used = true;
 
-        // Generate a short-lived opaque access token (24h TTL).
-        const accessToken = crypto.randomUUID();
-        activeTokens.set(accessToken, {
-            expiresAt: Date.now() + ACCESS_TOKEN_TTL_MS,
-        });
+        // Fix 3: Generate HMAC-signed self-validating access token (no shared store needed).
+        const accessToken = createSignedAccessToken(clientId);
 
         return c.json({
             access_token: accessToken,

@@ -75,10 +75,13 @@ server.app.get("/api/operations/orchestrations/approvals", async (c) => {
   }
   const status = asString(c.req.query("status")) ?? "";
   const requestedBy = asString(c.req.query("requestedBy")) ?? "";
-  const approvals = await listOpenClawModifierApprovals({
-    status,
-    requestedBy,
-  });
+  // Fix 4: Pass verified tenant/org scope for tenant isolation
+  const authCtx = authContextStorage.getStore();
+  const actor = await actorFromRequest(c);
+  const approvals = await listOpenClawModifierApprovals(
+    { status, requestedBy },
+    { tenantId: actor.tenantId, orgId: actor.orgId },
+  );
   return c.json({
     ok: true,
     count: approvals.length,
@@ -153,7 +156,12 @@ server.app.post("/api/operations/orchestrations/approvals/:approvalId/decision",
   let stepUpId = "";
   if (stepUpRequired) {
     if (challengeToken) {
-      const stepUp = await verifyStepUpChallenge(actor.userId, challengeToken, { database });
+      // Fix 5: Include tenant/org scope in step-up verification
+      const stepUp = await verifyStepUpChallenge(actor.userId, challengeToken, {
+        tenantId: actor.tenantId,
+        orgId: actor.orgId,
+        database,
+      });
       if (!stepUp.verified) {
         return c.json(
           {

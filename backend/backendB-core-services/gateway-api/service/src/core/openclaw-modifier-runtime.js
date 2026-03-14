@@ -56,8 +56,9 @@ function actorFromAuthContext(override = {}) {
       asString(authContext?.userId) ??
       asString(authContext?.keyFingerprint) ??
       "gateway-api",
-    tenantId: asString(override.tenantId) ?? "",
-    orgId: asString(override.orgId) ?? "",
+    // Fix 4: Extract tenant/org from authContext as fallback, not just overrides
+    tenantId: asString(override.tenantId) ?? asString(authContext?.tenantId) ?? "",
+    orgId: asString(override.orgId) ?? asString(authContext?.orgId) ?? "",
     deviceId: asString(override.deviceId) ?? "",
     sessionId: asString(override.sessionId) ?? "",
     traceId: asString(override.traceId) ?? "",
@@ -519,6 +520,13 @@ export function configureOpenClawModifierRuntime(options = {}) {
 
 export async function listOpenClawModifierApprovals(filters = {}, actorOverrides = {}) {
   const actor = actorFromAuthContext(actorOverrides);
+  // Fix 4: Fail closed — return empty list if tenantId is unresolved
+  if (!actor.tenantId) {
+    mapleLog("warn", "openclaw_modifier.list_approvals_no_tenant", {
+      userId: actor.userId,
+    });
+    return [];
+  }
   await runtimeStore.pruneExpiredApprovals();
   const statusFilter = asString(filters.status)?.toLowerCase();
   const requestedBy = asString(filters.requestedBy);

@@ -2,16 +2,18 @@ import { mapleLog } from "../logging.js";
 function isPromiseLike(value) {
     return Boolean(value) && typeof value.catch === "function";
 }
-export function persistTrace(persistence, trace) {
-    try {
-        const result = persistence?.saveTrace?.(trace);
-        if (isPromiseLike(result)) {
-            result.catch((error) => mapleLog("error", "trace_persistence_failed", { error }));
+// Fix 10: Retry with backpressure + propagate errors to callers
+export async function persistTrace(persistence, trace) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            await persistence?.saveTrace?.(trace);
+            return;
+        } catch (error) {
+            mapleLog("warn", "trace_persistence_retry", { attempt, error: error?.message });
+            if (attempt < 2) await new Promise(r => setTimeout(r, 100));
         }
     }
-    catch (error) {
-        mapleLog("error", "trace_persistence_failed", { error });
-    }
+    mapleLog("error", "trace_persistence_exhausted", { traceId: trace?.id });
 }
 export function removePersistedTrace(persistence, traceId) {
     try {

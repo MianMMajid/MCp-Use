@@ -11,12 +11,19 @@ import {
   reviewBreakGlassEvent,
   upsertEscalationChain,
 } from "../core/escalation-chain.js";
+import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 
-function scopeFromHeaders(c) {
-  return {
+// Fix 6: Replace raw header scope with verified tenant claim resolution
+async function verifiedScope(c) {
+  const scope = await resolveVerifiedTenantScope({
     tenantId: asString(c.req.header("x-tenant-id")) ?? "",
     orgId: asString(c.req.header("x-org-id")) ?? "",
-  };
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+  });
+  if (!scope.verified && scope.tenantId) {
+    return { error: true, tenantId: "", orgId: "" };
+  }
+  return { error: false, tenantId: scope.tenantId, orgId: scope.orgId };
 }
 
 function actorUserId() {
@@ -28,7 +35,8 @@ server.app.get("/api/operations/orchestrations/step-up/status", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const result = await hasValidStepUp(actorUserId(), {
     tenantId: scope.tenantId,
     orgId: scope.orgId,
@@ -42,7 +50,8 @@ server.app.post("/api/operations/orchestrations/step-up/challenge", async (c) =>
   if (unauthorized) return unauthorized;
 
   const body = await readJsonBody(c);
-  const headerScope = scopeFromHeaders(c);
+  const headerScope = await verifiedScope(c);
+  if (headerScope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const challenge = await createStepUpChallenge(actorUserId(), {
     tenantId: asString(body.tenantId) ?? headerScope.tenantId,
     orgId: asString(body.orgId) ?? headerScope.orgId,
@@ -56,10 +65,17 @@ server.app.post("/api/operations/orchestrations/step-up/verify", async (c) => {
   if (unauthorized) return unauthorized;
 
   const body = await readJsonBody(c);
+  // Fix 5: Include tenant/org scope in step-up verification
+  const stepUpScope = await verifiedScope(c);
+  if (stepUpScope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const result = await verifyStepUpChallenge(
     actorUserId(),
     asString(body.challengeToken) ?? "",
-    { database },
+    {
+      tenantId: stepUpScope.tenantId,
+      orgId: stepUpScope.orgId,
+      database,
+    },
   );
   return c.json({ ok: result.verified, ...result });
 });
@@ -68,7 +84,8 @@ server.app.get("/api/operations/orchestrations/escalation", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const chain = await getEscalationChain(
     scope.tenantId,
     scope.orgId,
@@ -82,7 +99,8 @@ server.app.post("/api/operations/orchestrations/escalation", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const body = await readJsonBody(c);
   const chain = await upsertEscalationChain(scope.tenantId, scope.orgId, body, {
     createdBy: actorUserId(),
@@ -95,7 +113,8 @@ server.app.post("/api/operations/orchestrations/escalation/escalate", async (c) 
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const body = await readJsonBody(c);
   const result = await escalateApproval(
     asString(body.approvalId) ?? "",
@@ -122,7 +141,8 @@ server.app.post("/api/operations/orchestrations/break-glass", async (c) => {
   if (ctx?.method !== "session") {
     return c.json({ ok: false, error: "Break-glass requires interactive session auth." }, 403);
   }
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const body = await readJsonBody(c);
   try {
     const record = await executeBreakGlass(
@@ -147,7 +167,8 @@ server.app.get("/api/operations/orchestrations/break-glass", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const events = await listBreakGlassEvents(scope.tenantId, scope.orgId, {
     reviewStatus: asString(c.req.query("reviewStatus")) ?? null,
     database,
