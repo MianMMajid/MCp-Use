@@ -113,7 +113,7 @@ export class AuditStore {
         }
         this.events.push(event);
         if (this.events.length > this.maxInMemory) {
-            this.events = this.events.slice(-this.maxInMemory);
+            this.events.splice(0, this.events.length - this.maxInMemory);
         }
         this.bufferEvent(event);
         return event.eventId;
@@ -177,7 +177,7 @@ export class AuditStore {
             this.events.push(event);
         }
         if (this.events.length > this.maxInMemory) {
-            this.events = this.events.slice(-this.maxInMemory);
+            this.events.splice(0, this.events.length - this.maxInMemory);
         }
         try {
             await this.insertEventsPgBatch(events);
@@ -278,7 +278,7 @@ export class AuditStore {
         await this.insertEventPg(event);
         this.events.push(event);
         if (this.events.length > this.maxInMemory) {
-            this.events = this.events.slice(-this.maxInMemory);
+            this.events.splice(0, this.events.length - this.maxInMemory);
         }
         await this.pool.query(`DELETE FROM audit_dead_letter WHERE event_id = $1`, [eventId]);
         return { replayed: true, eventId };

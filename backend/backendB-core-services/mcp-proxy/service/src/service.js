@@ -20,6 +20,9 @@ import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
+function jsonBuf(value) {
+    return Buffer.from(JSON.stringify(value));
+}
 // ── Lightweight audit event emitter ──────────────────────────────────────────
 function emitAuditEvent(opts) {
     try {
@@ -30,7 +33,7 @@ function emitAuditEvent(opts) {
                 timestamp: new Date().toISOString(),
                 sourceService: "mcp-proxy",
                 context: { traceId: opts.traceId ?? "" },
-                payloadJson: Buffer.from(JSON.stringify(opts.payload ?? {})),
+                payloadJson: jsonBuf(opts.payload ?? {}),
                 severity: "RISK_SEVERITY_LOW",
                 summary: opts.summary,
             },
@@ -479,7 +482,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     const errorMessage = dispatched.errorMessage || `Cyber-proxy returned HTTP ${dispatched.statusCode}`;
                     callback(null, {
                         success: false,
-                        resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage })),
+                        resultJson: jsonBuf(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage }),
                         errorMessage,
                         durationMs,
                         appId,
@@ -501,7 +504,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     });
                     callback(null, {
                         success: false,
-                        resultJson: Buffer.from(JSON.stringify(rpcResponse.error)),
+                        resultJson: jsonBuf(rpcResponse.error),
                         errorMessage: typeof rpcResponse.error === "string" ? rpcResponse.error : "Tool execution returned JSON-RPC error",
                         durationMs,
                         appId,
@@ -520,7 +523,7 @@ export function createMcpProxyService(registry, dispatcher) {
                 });
                 callback(null, {
                     success: true,
-                    resultJson: Buffer.from(JSON.stringify(rpcResponse?.result ?? {})),
+                    resultJson: jsonBuf(rpcResponse?.result ?? {}),
                     errorMessage: "",
                     durationMs,
                     appId,
@@ -563,7 +566,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     if (!app) {
                         results.push({
                             success: false,
-                            resultJson: Buffer.from(JSON.stringify({ error: `App ${appId} not found` })),
+                            resultJson: jsonBuf({ error: `App ${appId} not found` }),
                             durationMs: 0,
                             appId,
                             toolName,
@@ -577,7 +580,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     if (!app.enabled) {
                         results.push({
                             success: false,
-                            resultJson: Buffer.from(JSON.stringify({ error: `App ${appId} is disabled` })),
+                            resultJson: jsonBuf({ error: `App ${appId} is disabled` }),
                             durationMs: 0,
                             appId,
                             toolName,
@@ -597,7 +600,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         catch (err) {
                             results.push({
                                 success: false,
-                                resultJson: Buffer.from(JSON.stringify({ error: err.message })),
+                                resultJson: jsonBuf({ error: err.message }),
                                 durationMs: Date.now() - start,
                                 appId,
                                 toolName,
@@ -625,7 +628,7 @@ export function createMcpProxyService(registry, dispatcher) {
                             const status = response.statusCode === 403 ? "blocked" : "error";
                             results.push({
                                 success: false,
-                                resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: response.errorMessage })),
+                                resultJson: jsonBuf(rpcResponse?.error ?? rpcResponse ?? { error: response.errorMessage }),
                                 durationMs,
                                 appId,
                                 toolName,
@@ -639,7 +642,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         else if (rpcResponse?.error) {
                             results.push({
                                 success: false,
-                                resultJson: Buffer.from(JSON.stringify(rpcResponse.error)),
+                                resultJson: jsonBuf(rpcResponse.error),
                                 durationMs,
                                 appId,
                                 toolName,
@@ -653,7 +656,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         else {
                             results.push({
                                 success: true,
-                                resultJson: Buffer.from(JSON.stringify(rpcResponse?.result ?? {})),
+                                resultJson: jsonBuf(rpcResponse?.result ?? {}),
                                 durationMs,
                                 appId,
                                 toolName,
@@ -669,7 +672,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         mapleLog("error", "tool_chain_step_failed", { appId, toolName, error: err.message });
                         results.push({
                             success: false,
-                            resultJson: Buffer.from(JSON.stringify({ error: err.message })),
+                            resultJson: jsonBuf({ error: err.message }),
                             durationMs,
                             appId,
                             toolName,
@@ -719,9 +722,9 @@ export function createMcpProxyService(registry, dispatcher) {
                         name: tool.name,
                         description: tool.description,
                         appId: tool.appId,
-                        inputSchemaJson: Buffer.from(JSON.stringify(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+                        inputSchemaJson: jsonBuf(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
                             ? tool.inputSchema
-                            : {})),
+                            : {}),
                     })),
                 });
             }
@@ -740,9 +743,9 @@ export function createMcpProxyService(registry, dispatcher) {
                         tools: a.tools.map((tool) => ({
                             name: tool.name,
                             description: tool.description,
-                            inputSchemaJson: Buffer.from(JSON.stringify(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+                            inputSchemaJson: jsonBuf(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
                                 ? tool.inputSchema
-                                : {})),
+                                : {}),
                             appId: a.appId,
                         })),
                     })),
@@ -803,7 +806,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     },
                 });
                 callback(null, {
-                    responseJson: Buffer.from(JSON.stringify(responseBody)),
+                    responseJson: jsonBuf(responseBody),
                     success: Boolean(response.success),
                     errorMessage: response.success ? "" : (response.errorMessage || `Cyber-proxy returned HTTP ${response.statusCode}`),
                 });

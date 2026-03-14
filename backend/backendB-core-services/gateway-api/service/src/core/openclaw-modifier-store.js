@@ -239,6 +239,9 @@ export class OpenClawModifierStore {
           activated_at TEXT,
           PRIMARY KEY (tenant_id, org_id, version)
         );
+        CREATE INDEX IF NOT EXISTS idx_tenant_policies_active
+          ON gateway_modifier_tenant_policies (tenant_id, org_id)
+          WHERE is_active = TRUE;
       `);
     }
     this.initialized = true;

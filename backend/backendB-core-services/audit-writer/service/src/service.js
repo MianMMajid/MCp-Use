@@ -14,6 +14,15 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const auditProto = proto.maple.audit.v1;
+function parsePayloadJson(raw) {
+    if (!raw) return undefined;
+    try {
+        const str = typeof raw === "string" ? raw : Buffer.isBuffer(raw) ? raw.toString("utf-8") : String(raw);
+        return JSON.parse(str);
+    } catch {
+        return undefined;
+    }
+}
 export function createAuditWriterService(store) {
     const server = createGrpcServer();
     const serviceImpl = {
@@ -30,7 +39,7 @@ export function createAuditWriterService(store) {
                     requestId: event?.context?.requestId,
                     userId: event?.context?.userId,
                     keyFingerprint: event?.context?.keyFingerprint,
-                    payload: event?.payloadJson ? JSON.parse(Buffer.from(event.payloadJson).toString()) : undefined,
+                    payload: event?.payloadJson ? parsePayloadJson(event.payloadJson) : undefined,
                     severity: event?.severity,
                     summary: event?.summary,
                 };
@@ -55,6 +64,7 @@ export function createAuditWriterService(store) {
                     requestId: event?.context?.requestId,
                     userId: event?.context?.userId,
                     keyFingerprint: event?.context?.keyFingerprint,
+                    payload: event?.payloadJson ? parsePayloadJson(event.payloadJson) : undefined,
                     severity: event?.severity,
                     summary: event?.summary,
                 }));
@@ -83,7 +93,7 @@ export function createAuditWriterService(store) {
                         keyFingerprint: event?.context?.keyFingerprint,
                         severity: event?.severity || "RISK_SEVERITY_UNSPECIFIED",
                         summary: event?.summary || "",
-                        payload: event?.payloadJson ? JSON.parse(Buffer.from(event.payloadJson).toString()) : undefined,
+                        payload: event?.payloadJson ? parsePayloadJson(event.payloadJson) : undefined,
                     };
                     const eventId = await store.append(auditEvent);
                     call.write({ eventId, accepted: true });

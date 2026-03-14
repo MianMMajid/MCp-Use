@@ -18,9 +18,11 @@ import { loadGrpcTlsConfig, loadServiceClientSecure } from "@maple/common";
 
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 
-function grpcUnary(client, method, request) {
+const FORK_DEADLINE_MS = 35000;
+function grpcUnary(client, method, request, { deadlineMs = FORK_DEADLINE_MS } = {}) {
+    const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolvePromise, rejectPromise) => {
-        client[method](request, (err, response) => {
+        client[method](request, { deadline }, (err, response) => {
             if (err) rejectPromise(err);
             else resolvePromise(response);
         });

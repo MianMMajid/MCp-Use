@@ -6,6 +6,7 @@ const PRUNE_DEBOUNCE_MS = 5000;
 export class TraceStore {
     traces = new Map();
     sessionIndex = new Map();
+    ownerIndex = new Map(); // keyFingerprint → Set<traceId>
     maxTraces;
     maxTracesPerSession;
     ttlMs;
@@ -52,6 +53,14 @@ export class TraceStore {
             bySession.push(trace.id);
             this.sessionIndex.set(trace.sessionId, bySession);
         }
+        if (trace.ownerKeyFingerprint) {
+            let owned = this.ownerIndex.get(trace.ownerKeyFingerprint);
+            if (!owned) {
+                owned = new Set();
+                this.ownerIndex.set(trace.ownerKeyFingerprint, owned);
+            }
+            owned.add(trace.id);
+        }
         persistTrace(this.persistence, trace);
         this.pruneStore();
         return trace;
@@ -85,15 +94,10 @@ export class TraceStore {
         const pool = sessionId
             ? (this.sessionIndex.get(sessionId) ?? [])
                 .map((traceId) => this.traces.get(traceId))
-                .filter((trace) => {
-                if (!trace) {
-                    return false;
-                }
-                return this.matchesOwner(trace, ownerKeyFingerprint);
-            })
-            : [...this.traces.values()];
+                .filter((trace) => trace && this.matchesOwner(trace, ownerKeyFingerprint))
+            : [...this.traces.values()]
+                .filter((trace) => this.matchesOwner(trace, ownerKeyFingerprint));
         return pool
-            .filter((trace) => this.matchesOwner(trace, ownerKeyFingerprint))
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
             .slice(0, limit);
     }
@@ -101,12 +105,16 @@ export class TraceStore {
         if (!ownerKeyFingerprint) {
             return [...this.sessionIndex.keys()];
         }
-        return [...this.sessionIndex.entries()]
-            .filter(([, traceIds]) => traceIds.some((id) => {
-            const t = this.traces.get(id);
-            return t && this.matchesOwner(t, ownerKeyFingerprint);
-        }))
-            .map(([sessionId]) => sessionId);
+        const ownedTraceIds = this.ownerIndex.get(ownerKeyFingerprint);
+        if (!ownedTraceIds || ownedTraceIds.size === 0) {
+            return [];
+        }
+        const sessionIds = new Set();
+        for (const traceId of ownedTraceIds) {
+            const trace = this.traces.get(traceId);
+            if (trace) sessionIds.add(trace.sessionId);
+        }
+        return [...sessionIds];
     }
     appendSteps(traceId, steps, ownerKeyFingerprint) {
         const trace = this.getTrace(traceId, ownerKeyFingerprint);
@@ -203,6 +211,13 @@ export class TraceStore {
         }
         else {
             this.sessionIndex.delete(trace.sessionId);
+        }
+        if (trace.ownerKeyFingerprint) {
+            const owned = this.ownerIndex.get(trace.ownerKeyFingerprint);
+            if (owned) {
+                owned.delete(traceId);
+                if (owned.size === 0) this.ownerIndex.delete(trace.ownerKeyFingerprint);
+            }
         }
         removePersistedTrace(this.persistence, traceId);
     }
