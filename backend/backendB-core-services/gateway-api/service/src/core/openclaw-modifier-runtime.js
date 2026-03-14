@@ -542,12 +542,20 @@ export async function listOpenClawModifierApprovals(filters = {}, actorOverrides
 
 export async function getOpenClawModifierApproval(approvalId, actorOverrides = {}) {
   const actor = actorFromAuthContext(actorOverrides);
+  // Finding 3: Fail closed — reject when actor scope is empty
+  if (!actor.tenantId) {
+    mapleLog("warn", "openclaw_modifier.get_approval_no_tenant", {
+      userId: actor.userId,
+      approvalId,
+    });
+    return null;
+  }
   await runtimeStore.pruneExpiredApprovals();
   const record = await runtimeStore.getApproval(approvalId);
   if (!record) {
     return null;
   }
-  if (actor.tenantId && record.tenantId !== actor.tenantId) {
+  if (record.tenantId !== actor.tenantId) {
     return null;
   }
   if (actor.orgId && record.orgId !== actor.orgId) {

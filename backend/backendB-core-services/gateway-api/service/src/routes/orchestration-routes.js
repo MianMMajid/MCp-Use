@@ -3,6 +3,7 @@ import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { hasValidStepUp } from "../core/step-up-auth.js";
+import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 import {
   validateOrchestrationDefinition,
   createOrchestrationExecution,
@@ -123,9 +124,20 @@ async function enforceSensitiveOperationGate(c, operation) {
   const userId = asString(authContext?.userId) ?? "";
   if (!userId) return null;
 
-  const tenantId = asString(c.req.header("x-tenant-id")) ?? "";
-  const orgId = asString(c.req.header("x-org-id")) ?? "";
-  const stepUp = await hasValidStepUp(userId, { tenantId, orgId, database });
+  // Finding 10: Use verified tenant scope instead of raw headers
+  const scope = await resolveVerifiedTenantScope({
+    tenantId: asString(c.req.header("x-tenant-id")) ?? "",
+    orgId: asString(c.req.header("x-org-id")) ?? "",
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+  });
+  if (!scope.verified && scope.tenantId) {
+    return c.json({
+      ok: false,
+      error: "Unverified tenant scope rejected for sensitive operation",
+      operation,
+    }, 403);
+  }
+  const stepUp = await hasValidStepUp(userId, { tenantId: scope.tenantId, orgId: scope.orgId, database });
   if (stepUp?.valid === true) return null;
 
   c.status(403);

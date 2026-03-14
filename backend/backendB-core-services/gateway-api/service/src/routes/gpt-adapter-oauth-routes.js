@@ -19,10 +19,7 @@ const GPT_OAUTH_ALLOWED_REDIRECT_URIS = (() => {
 // In-memory stores for auth codes and access tokens.
 // ---------------------------------------------------------------------------
 
-/** Auth code store: code -> { redirectUri, expiresAt, used, codeChallenge } */
-const authCodes = new Map();
-
-/** Revoked token store: token -> true (bounded, for revocation only) */
+/** Revoked token store: token -> { expiresAt } (bounded, for revocation only) */
 const revokedTokens = new Map();
 
 // HMAC secret for self-validating tokens (no shared store needed)
@@ -33,29 +30,55 @@ const ACCESS_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const CLEANUP_INTERVAL_MS = 60 * 1000;         // 1 minute
 
 // ---------------------------------------------------------------------------
-// Periodic cleanup of expired codes and revoked tokens.
+// HMAC-signed self-validating helpers (no shared store needed cross-pod)
+// ---------------------------------------------------------------------------
+function base64url(buffer) {
+    return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// Finding 8: HMAC-signed auth codes so they work cross-pod
+function createSignedAuthCode(redirectUri, codeChallenge) {
+    const exp = Date.now() + AUTH_CODE_TTL_MS;
+    const jti = crypto.randomUUID();
+    const payload = JSON.stringify({ redirectUri, codeChallenge: codeChallenge || undefined, exp, jti });
+    const payloadB64 = base64url(Buffer.from(payload));
+    const sig = base64url(createHmac("sha256", TOKEN_HMAC_SECRET).update(payloadB64).digest());
+    return { code: `${payloadB64}.${sig}`, jti };
+}
+
+function parseSignedAuthCode(code) {
+    if (!code || !code.includes(".")) return null;
+    const [payloadB64, sig] = code.split(".", 2);
+    const expectedSig = base64url(createHmac("sha256", TOKEN_HMAC_SECRET).update(payloadB64).digest());
+    if (sig !== expectedSig) return null;
+    try {
+        const decoded = JSON.parse(Buffer.from(payloadB64, "base64").toString());
+        if (!decoded.exp || Date.now() >= decoded.exp) return null;
+        return decoded;
+    } catch {
+        return null;
+    }
+}
+
+/** Used-code set: jti -> expiresAt (bounded, prevents replay) */
+const usedCodes = new Map();
+
+// ---------------------------------------------------------------------------
+// Periodic cleanup of expired replay entries and revoked tokens.
 // ---------------------------------------------------------------------------
 setInterval(() => {
     const now = Date.now();
-    for (const [code, entry] of authCodes) {
+    for (const [jti, entry] of usedCodes) {
         if (now >= entry.expiresAt) {
-            authCodes.delete(code);
+            usedCodes.delete(jti);
         }
     }
-    // Revoked tokens can be pruned after their original expiry
     for (const [token, entry] of revokedTokens) {
         if (now >= entry.expiresAt) {
             revokedTokens.delete(token);
         }
     }
 }, CLEANUP_INTERVAL_MS).unref();
-
-// ---------------------------------------------------------------------------
-// HMAC-signed self-validating token helpers (Fix 3: no shared store needed)
-// ---------------------------------------------------------------------------
-function base64url(buffer) {
-    return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 
 function createSignedAccessToken(clientId) {
     const exp = Date.now() + ACCESS_TOKEN_TTL_MS;
@@ -140,14 +163,8 @@ export function registerGptOAuthRoutes(app) {
             return c.json({ error: "Only S256 code_challenge_method is supported" }, 400);
         }
 
-        // Generate a cryptographically random auth code with a 5-minute TTL.
-        const code = crypto.randomUUID();
-        authCodes.set(code, {
-            redirectUri,
-            expiresAt: Date.now() + AUTH_CODE_TTL_MS,
-            used: false,
-            codeChallenge: codeChallenge || undefined,
-        });
+        // Finding 8: Generate HMAC-signed auth code (works cross-pod, no shared store).
+        const { code } = createSignedAuthCode(redirectUri, codeChallenge);
 
         const separator = redirectUri.includes("?") ? "&" : "?";
         return c.redirect(`${redirectUri}${separator}code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
@@ -155,26 +172,31 @@ export function registerGptOAuthRoutes(app) {
 
     // ── Token endpoint ────────────────────────────────────────────────────
     app.post("/gpt/oauth/token", async (c) => {
-        const body = await readJsonBody(c);
+        // Finding 7: Check content-type BEFORE consuming body to avoid
+        // double-read (readJsonBody consumes the stream, breaking c.req.text()).
         const contentType = c.req.header("content-type") ?? "";
-        let clientId = asString(body.client_id);
-        let clientSecret = asString(body.client_secret);
-        let code = asString(body.code);
-        let redirectUri = asString(body.redirect_uri);
-        let codeVerifier = asString(body.code_verifier);
-        if (!clientId && contentType.includes("application/x-www-form-urlencoded")) {
+        let clientId, clientSecret, code, redirectUri, codeVerifier;
+
+        if (contentType.includes("application/x-www-form-urlencoded")) {
             try {
                 const text = await c.req.text();
                 const params = new URLSearchParams(text);
                 clientId = params.get("client_id") ?? undefined;
                 clientSecret = params.get("client_secret") ?? undefined;
-                code = code || params.get("code") || undefined;
-                redirectUri = redirectUri || params.get("redirect_uri") || undefined;
-                codeVerifier = codeVerifier || params.get("code_verifier") || undefined;
+                code = params.get("code") ?? undefined;
+                redirectUri = params.get("redirect_uri") ?? undefined;
+                codeVerifier = params.get("code_verifier") ?? undefined;
             }
             catch (_e) {
                 // Ignore malformed form bodies.
             }
+        } else {
+            const body = await readJsonBody(c);
+            clientId = asString(body.client_id);
+            clientSecret = asString(body.client_secret);
+            code = asString(body.code);
+            redirectUri = asString(body.redirect_uri);
+            codeVerifier = asString(body.code_verifier);
         }
 
         // REQUIRE both client_id and client_secret.
@@ -188,42 +210,35 @@ export function registerGptOAuthRoutes(app) {
             return c.json({ error: "invalid_client" }, 401);
         }
 
-        // Validate the authorization code.
+        // Validate the authorization code (Finding 8: HMAC-signed, cross-pod safe).
         if (!code) {
             return c.json({ error: "invalid_grant", error_description: "code is required" }, 400);
         }
-        const codeEntry = authCodes.get(code);
+        const codeEntry = parseSignedAuthCode(code);
         if (!codeEntry) {
             return c.json({ error: "invalid_grant", error_description: "unknown or expired code" }, 400);
         }
-        if (Date.now() >= codeEntry.expiresAt) {
-            authCodes.delete(code);
-            return c.json({ error: "invalid_grant", error_description: "code has expired" }, 400);
-        }
-        if (codeEntry.used) {
-            // Code replay detected — revoke it entirely.
-            authCodes.delete(code);
+        // Replay protection: check used-code set (bounded by TTL cleanup)
+        if (usedCodes.has(codeEntry.jti)) {
             return c.json({ error: "invalid_grant", error_description: "code has already been used" }, 400);
         }
         if (redirectUri && codeEntry.redirectUri !== redirectUri) {
             return c.json({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
         }
 
-        // Fix 2: PKCE S256 verification
+        // PKCE S256 verification
         if (codeEntry.codeChallenge) {
-            // Code was issued with a challenge — verifier is required
             if (!codeVerifier) {
                 return c.json({ error: "invalid_grant", error_description: "code_verifier is required when code_challenge was provided" }, 400);
             }
             const computedChallenge = base64url(crypto.createHash("sha256").update(codeVerifier).digest());
             if (computedChallenge !== codeEntry.codeChallenge) {
-                authCodes.delete(code);
                 return c.json({ error: "invalid_grant", error_description: "code_verifier does not match code_challenge" }, 400);
             }
         }
 
-        // Mark the code as used.
-        codeEntry.used = true;
+        // Mark the code as used (replay protection).
+        usedCodes.set(codeEntry.jti, { expiresAt: codeEntry.exp });
 
         // Fix 3: Generate HMAC-signed self-validating access token (no shared store needed).
         const accessToken = createSignedAccessToken(clientId);

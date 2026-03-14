@@ -129,7 +129,14 @@ server.app.get("/api/operations/orchestrations/escalation/:approvalId/history", 
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const history = await getEscalationHistory(asString(c.req.param("approvalId")) ?? "", { database });
+  // Finding 2: Scope escalation history by verified tenant
+  const histScope = await verifiedScope(c);
+  if (histScope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+  const history = await getEscalationHistory(asString(c.req.param("approvalId")) ?? "", {
+    tenantId: histScope.tenantId,
+    orgId: histScope.orgId,
+    database,
+  });
   return c.json({ ok: true, history });
 });
 
@@ -180,15 +187,37 @@ server.app.post("/api/operations/orchestrations/break-glass/:id/review", async (
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
+  // Finding 1: Require session auth and verified scope for break-glass reviews
+  const ctx = authContextStorage.getStore();
+  if (ctx?.method !== "session") {
+    return c.json({ ok: false, error: "Break-glass review requires interactive session auth." }, 403);
+  }
+  const reviewScope = await verifiedScope(c);
+  if (reviewScope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+
   const body = await readJsonBody(c);
-  const reviewed = await reviewBreakGlassEvent(
-    asString(c.req.param("id")) ?? "",
-    {
-      approved: body.approved === true,
-      reviewedBy: actorUserId(),
-      notes: asString(body.notes) ?? "",
-    },
-    { database },
-  );
-  return c.json({ ok: true, breakGlass: reviewed });
+  try {
+    const reviewed = await reviewBreakGlassEvent(
+      asString(c.req.param("id")) ?? "",
+      {
+        approved: body.approved === true,
+        reviewedBy: actorUserId(),
+        notes: asString(body.notes) ?? "",
+      },
+      {
+        tenantId: reviewScope.tenantId,
+        orgId: reviewScope.orgId,
+        database,
+      },
+    );
+    if (!reviewed) {
+      return c.json({ ok: false, error: "Break-glass event not found or not in your tenant scope." }, 404);
+    }
+    return c.json({ ok: true, breakGlass: reviewed });
+  } catch (error) {
+    return c.json(
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      403,
+    );
+  }
 });

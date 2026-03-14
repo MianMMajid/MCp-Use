@@ -61,7 +61,10 @@ export class TraceStore {
             }
             owned.add(trace.id);
         }
-        persistTrace(this.persistence, trace);
+        // Finding 9: Await persistence so retry errors are observed.
+        // Use .catch to avoid blocking the synchronous upsert path while
+        // still surfacing failures (persistTrace has its own retry logic).
+        persistTrace(this.persistence, trace).catch(() => {});
         this.pruneStore();
         return trace;
     }

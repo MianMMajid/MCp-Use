@@ -209,10 +209,22 @@ export async function escalateApproval(approvalId, tenantId, orgId, options = {}
 export async function getEscalationHistory(approvalId, options = {}) {
   const db = options.database ?? _database;
   if (!hasPool(db)) return [];
+  // Finding 2: Scope escalation history by tenant/org to prevent cross-tenant reads
+  const conditions = ["approval_id = $1"];
+  const params = [approvalId];
+  let cursor = 2;
+  if (options.tenantId) {
+    conditions.push(`tenant_id = $${cursor++}`);
+    params.push(options.tenantId);
+  }
+  if (options.orgId) {
+    conditions.push(`org_id = $${cursor++}`);
+    params.push(options.orgId);
+  }
   const result = await db.pool.query(
     `SELECT id, approval_id, tenant_id, org_id, chain_name, current_level, escalated_to, escalated_at, status, resolved_at, resolved_by
-     FROM modifier_escalation_events WHERE approval_id = $1 ORDER BY current_level ASC`,
-    [approvalId]
+     FROM modifier_escalation_events WHERE ${conditions.join(" AND ")} ORDER BY current_level ASC`,
+    params
   );
   return result.rows.map((row) => ({
     id: row.id,
@@ -331,14 +343,48 @@ export async function reviewBreakGlassEvent(breakGlassId, review, options = {}) 
   const db = options.database ?? _database;
   if (!hasPool(db)) return null;
 
+  // Finding 1: Require tenant/org scope to prevent cross-tenant mutation
+  const tenantId = options.tenantId ?? "";
+  const orgId = options.orgId ?? "";
+
+  // Verify the event belongs to the caller's tenant before allowing mutation
+  const existing = await db.pool.query(
+    `SELECT id, tenant_id, org_id, user_id, review_status FROM modifier_break_glass_events WHERE id = $1 LIMIT 1`,
+    [breakGlassId]
+  );
+  if (existing.rows.length === 0) return null;
+  const row = existing.rows[0];
+
+  // Tenant/org must match (reject cross-tenant reviews)
+  if (tenantId && row.tenant_id !== tenantId) return null;
+  if (orgId && row.org_id !== orgId) return null;
+
+  // Reviewer must not be the same user who triggered the break-glass
+  if (review.reviewedBy && review.reviewedBy === row.user_id) {
+    throw new Error("Break-glass events cannot be reviewed by the same user who triggered them.");
+  }
+
   const reviewStatus = review.approved ? "reviewed_approved" : "reviewed_flagged";
   const now = nowIso();
+
+  // Scoped UPDATE with tenant/org filter
+  const updateConditions = ["id = $1"];
+  const updateParams = [breakGlassId, reviewStatus, now, review.reviewedBy ?? "", review.notes ?? ""];
+  let cursor = 6;
+  if (tenantId) {
+    updateConditions.push(`tenant_id = $${cursor++}`);
+    updateParams.push(tenantId);
+  }
+  if (orgId) {
+    updateConditions.push(`org_id = $${cursor++}`);
+    updateParams.push(orgId);
+  }
 
   await db.pool.query(
     `UPDATE modifier_break_glass_events
      SET review_status = $2, reviewed_at = $3, reviewed_by = $4, review_notes = $5
-     WHERE id = $1`,
-    [breakGlassId, reviewStatus, now, review.reviewedBy ?? "", review.notes ?? ""]
+     WHERE ${updateConditions.join(" AND ")}`,
+    updateParams
   );
 
   emitAuditEvent({
@@ -347,7 +393,7 @@ export async function reviewBreakGlassEvent(breakGlassId, review, options = {}) 
     userId: review.reviewedBy,
     severity: review.approved ? "RISK_SEVERITY_LOW" : "RISK_SEVERITY_CRITICAL",
     summary: `Break-glass ${breakGlassId} reviewed: ${reviewStatus}`,
-    payload: { breakGlassId, reviewStatus, reviewedBy: review.reviewedBy, notes: review.notes },
+    payload: { breakGlassId, reviewStatus, reviewedBy: review.reviewedBy, notes: review.notes, tenantId, orgId },
   });
 
   const result = await db.pool.query(

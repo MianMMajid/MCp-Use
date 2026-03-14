@@ -111,82 +111,97 @@ export async function flushOutbox(options = {}) {
       return { flushed: 0, failed: 0, skipped: 0, reason: "no_database" };
     }
 
-    const now = nowIso();
-    const result = await db.pool.query(
-      `SELECT outbox_id, event_json, attempts
-       FROM gateway_audit_outbox
-       WHERE status = 'pending' AND next_attempt_at <= $1
-       ORDER BY created_at ASC
-       LIMIT $2
-       FOR UPDATE SKIP LOCKED`,
-      [now, batchSize]
-    );
-
-    if (result.rows.length === 0) {
-      return { flushed: 0, failed: 0, skipped: 0 };
-    }
-
+    // Finding 4: Use a pinned client with explicit transaction so FOR UPDATE
+    // locks are held until delivery/ack completes (atomic claim+process).
+    const client = await db.pool.connect();
     let flushed = 0;
     let failed = 0;
     let skipped = 0;
 
-    for (const row of result.rows) {
-      const outboxId = row.outbox_id;
-      const attempts = Number(row.attempts ?? 0);
+    try {
+      await client.query("BEGIN");
 
-      if (attempts >= openclawModifierAuditOutboxMaxRetries) {
-        await db.pool.query(
-          `UPDATE gateway_audit_outbox SET status = 'dead_letter', updated_at = $2 WHERE outbox_id = $1`,
-          [outboxId, nowIso()]
-        );
-        skipped += 1;
-        continue;
+      const now = nowIso();
+      const result = await client.query(
+        `SELECT outbox_id, event_json, attempts
+         FROM gateway_audit_outbox
+         WHERE status = 'pending' AND next_attempt_at <= $1
+         ORDER BY created_at ASC
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED`,
+        [now, batchSize]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query("COMMIT");
+        return { flushed: 0, failed: 0, skipped: 0 };
       }
 
-      let event;
-      try {
-        event = JSON.parse(row.event_json);
-      } catch {
-        await db.pool.query(
-          `UPDATE gateway_audit_outbox SET status = 'dead_letter', last_error = 'invalid_json', updated_at = $2 WHERE outbox_id = $1`,
-          [outboxId, nowIso()]
-        );
-        skipped += 1;
-        continue;
-      }
+      for (const row of result.rows) {
+        const outboxId = row.outbox_id;
+        const attempts = Number(row.attempts ?? 0);
 
-      try {
-        const clients = getGrpcClients();
-        if (!clients?.auditWriter) {
-          throw new Error("audit-writer gRPC client unavailable");
+        if (attempts >= openclawModifierAuditOutboxMaxRetries) {
+          await client.query(
+            `UPDATE gateway_audit_outbox SET status = 'dead_letter', updated_at = $2 WHERE outbox_id = $1`,
+            [outboxId, nowIso()]
+          );
+          skipped += 1;
+          continue;
         }
-        const grpcEvent = {
-          ...event,
-          payloadJson:
-            typeof event.payloadJson === "string"
-              ? Buffer.from(event.payloadJson)
-              : event.payloadJson,
-        };
-        await grpcUnary(clients.auditWriter, "appendEvent", {
-          event: grpcEvent,
-        });
-        await db.pool.query(
-          `UPDATE gateway_audit_outbox SET status = 'delivered', delivered_at = $2, updated_at = $2, attempts = attempts + 1 WHERE outbox_id = $1`,
-          [outboxId, nowIso()]
-        );
-        flushed += 1;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : String(err);
-        const nextAttempt = new Date(
-          Date.now() + backoffMs(attempts + 1)
-        ).toISOString();
-        await db.pool.query(
-          `UPDATE gateway_audit_outbox SET attempts = attempts + 1, last_error = $2, next_attempt_at = $3, updated_at = $4 WHERE outbox_id = $1`,
-          [outboxId, errorMessage, nextAttempt, nowIso()]
-        );
-        failed += 1;
+
+        let event;
+        try {
+          event = JSON.parse(row.event_json);
+        } catch {
+          await client.query(
+            `UPDATE gateway_audit_outbox SET status = 'dead_letter', last_error = 'invalid_json', updated_at = $2 WHERE outbox_id = $1`,
+            [outboxId, nowIso()]
+          );
+          skipped += 1;
+          continue;
+        }
+
+        try {
+          const clients = getGrpcClients();
+          if (!clients?.auditWriter) {
+            throw new Error("audit-writer gRPC client unavailable");
+          }
+          const grpcEvent = {
+            ...event,
+            payloadJson:
+              typeof event.payloadJson === "string"
+                ? Buffer.from(event.payloadJson)
+                : event.payloadJson,
+          };
+          await grpcUnary(clients.auditWriter, "appendEvent", {
+            event: grpcEvent,
+          });
+          await client.query(
+            `UPDATE gateway_audit_outbox SET status = 'delivered', delivered_at = $2, updated_at = $2, attempts = attempts + 1 WHERE outbox_id = $1`,
+            [outboxId, nowIso()]
+          );
+          flushed += 1;
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : String(err);
+          const nextAttempt = new Date(
+            Date.now() + backoffMs(attempts + 1)
+          ).toISOString();
+          await client.query(
+            `UPDATE gateway_audit_outbox SET attempts = attempts + 1, last_error = $2, next_attempt_at = $3, updated_at = $4 WHERE outbox_id = $1`,
+            [outboxId, errorMessage, nextAttempt, nowIso()]
+          );
+          failed += 1;
+        }
       }
+
+      await client.query("COMMIT");
+    } catch (txErr) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
     }
 
     return { flushed, failed, skipped };

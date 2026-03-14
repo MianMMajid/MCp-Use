@@ -24,7 +24,8 @@ function loadAdminApiKeys(env = process.env) {
 
 function createAdminAuthMiddleware(options = {}) {
   const configuredKeys = normalizeConfiguredKeys(options.apiKeys);
-  const allowNoAuth = options.allowNoAuth === true;
+  // Finding 6: Guard inside the middleware itself, not just the call site
+  const allowNoAuth = options.allowNoAuth === true && process.env.NODE_ENV !== "production";
   return async (c, next) => {
     if (allowNoAuth) {
       await next();

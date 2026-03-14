@@ -57,8 +57,11 @@ async function releaseAdvisoryLock(lockId, client) {
  */
 export async function withLeaderLock(lockId, database, fn) {
   if (!hasPool(database)) {
-    // No database — run locally (single-instance fallback)
-    return await fn();
+    // Finding 12: Without DB there's no coordination — skip the work
+    // to prevent all pods from running background jobs simultaneously.
+    // Callers that need single-instance fallback should check explicitly.
+    mapleLog("debug", "leader_election.no_pool_skipped", { lockId });
+    return { skipped: true, reason: "no_database_pool" };
   }
 
   const { acquired, client } = await tryAdvisoryLock(lockId, database);

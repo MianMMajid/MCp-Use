@@ -31,7 +31,8 @@ async function actorFromRequest(c) {
   const scope = await resolveVerifiedTenantScope({
     tenantId: asString(c.req.header("x-tenant-id")) ?? "",
     orgId: asString(c.req.header("x-org-id")) ?? "",
-    tenantClaimSignature: asString(c.req.header("x-tenant-claim-signature")) ?? "",
+    // Finding 11: Accept both header names for backwards compat, prefer canonical name
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? asString(c.req.header("x-tenant-claim-signature")) ?? "",
   });
   return {
     userId: asString(authContext?.userId) ?? asString(authContext?.keyFingerprint) ?? "gateway-api",
@@ -104,7 +105,12 @@ server.app.get("/api/operations/orchestrations/approvals/:approvalId", async (c)
       400
     );
   }
-  const approval = await getOpenClawModifierApproval(approvalId);
+  // Finding 3: Pass verified actor scope to prevent fail-open on empty tenant
+  const detailActor = await actorFromRequest(c);
+  const approval = await getOpenClawModifierApproval(approvalId, {
+    tenantId: detailActor.tenantId,
+    orgId: detailActor.orgId,
+  });
   if (!approval) {
     return c.json(
       {

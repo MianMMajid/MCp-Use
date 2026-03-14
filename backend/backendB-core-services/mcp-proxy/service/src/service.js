@@ -98,6 +98,25 @@ function createSignedCredential(toolName, appId, scopes) {
     });
     return { credentialId, token, scopes };
 }
+
+// Finding 5: Verification function for signed credentials — cyber-proxy
+// should call this to validate tokens before trusting scope claims.
+export function verifySignedCredential(token) {
+    if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
+    const parts = token.split(":");
+    if (parts.length < 5) return { valid: false, reason: "malformed_token" };
+    const signature = parts[parts.length - 1];
+    const payload = parts.slice(0, -1).join(":");
+    const expectedSig = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
+        .update(payload).digest("hex").slice(0, 32);
+    if (signature !== expectedSig) return { valid: false, reason: "invalid_signature" };
+    // Parse credential fields
+    const [credentialId, appId, toolName, timestampStr] = parts;
+    const timestamp = Number(timestampStr);
+    // Reject credentials older than 1 hour
+    if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
+    return { valid: true, credentialId, appId, toolName, timestamp };
+}
 function scopeToCredentialScopes(scope) {
     const scopes = ["execute"];
     if (scope?.allowedDomains && Array.isArray(scope.allowedDomains) && scope.allowedDomains.length > 0) {
