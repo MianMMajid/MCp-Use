@@ -5,6 +5,7 @@ import { startEscalationWorker, stopEscalationWorker } from "../core/escalation-
 import { startRetentionWorker, stopRetentionWorker } from "../core/retention-worker.js";
 import { startBillingQueueWorker, stopBillingQueueWorker } from "../core/billing-cache.js";
 import { startTraceExporter, stopTraceExporter } from "../core/trace-exporter.js";
+import { startFrontendBTaskWorker, stopFrontendBTaskWorker } from "../core/frontend-b-task-worker.js";
 
 function isTruthyEnv(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -24,6 +25,7 @@ export function startGatewayWorkers({ database, transportBackend, redisUrl }) {
   startRetentionWorker({ database });
   startBillingQueueWorker({ database });
   startTraceExporter();
+  startFrontendBTaskWorker();
 
   return async function stopGatewayWorkers() {
     stopHitlBroker();
@@ -32,6 +34,7 @@ export function startGatewayWorkers({ database, transportBackend, redisUrl }) {
     stopEscalationWorker();
     stopRetentionWorker();
     stopBillingQueueWorker();
+    stopFrontendBTaskWorker();
     await stopTraceExporter();
   };
 }

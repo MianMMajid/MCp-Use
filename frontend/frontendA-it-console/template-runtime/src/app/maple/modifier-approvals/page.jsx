@@ -237,7 +237,7 @@ export default function ModifierApprovalsPage() {
                     <div key={aid} className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <button onClick={() => toggleDetail(aid)} className="text-sm font-medium text-zinc-950 hover:underline dark:text-white">
+                          <button type="button" onClick={() => toggleDetail(aid)} className="text-sm font-medium text-zinc-950 hover:underline dark:text-white">
                             {item.toolName || item.action || item.type || 'Approval Request'}
                           </button>
                           {item.risk && <Tag className="ml-2" color={item.risk === 'high' || item.risk === 'critical' ? 'rose' : item.risk === 'medium' ? 'amber' : 'orange'} variant="medium">{item.risk}</Tag>}

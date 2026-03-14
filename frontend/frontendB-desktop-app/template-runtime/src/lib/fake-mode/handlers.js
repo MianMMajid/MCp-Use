@@ -104,7 +104,7 @@ function ensureOrg(state, orgId) {
 function resolveOrgId(state, orgId) {
   if (orgId && orgId !== 'default') return orgId
   const first = state.org.orgs[0]
-  return first?.id || first?.orgId || 'default'
+  return first?.id || first?.orgId || ''
 }
 
 function getOrchestration(state, id) {
@@ -236,6 +236,138 @@ function markNotificationRead(state, notificationId) {
 
 function unreadCount(state) {
   return state.notifications.filter((n) => !n.read).length
+}
+
+function toolCategory(toolId = '') {
+  const id = String(toolId).toLowerCase()
+  if (id.includes('slack') || id.includes('email') || id.includes('calendar') || id.includes('message')) return 'communication'
+  if (id.includes('firewall') || id.includes('policy') || id.includes('risk') || id.includes('trace')) return 'security'
+  if (id.includes('search') || id.includes('fetch') || id.includes('pdf') || id.includes('image')) return 'data'
+  if (id.includes('cron') || id.includes('spawn') || id.includes('heartbeat') || id.includes('loop')) return 'automation'
+  return 'engineering'
+}
+
+function toolTags(toolId = '', category = 'engineering') {
+  const tags = new Set([`#${category}`])
+  const id = String(toolId).toLowerCase()
+  if (id.includes('github')) tags.add('#github')
+  if (id.includes('slack')) tags.add('#messaging')
+  if (id.includes('email')) tags.add('#email')
+  if (id.includes('calendar')) tags.add('#calendar')
+  if (id.includes('trace')) tags.add('#trace')
+  if (id.includes('firewall') || id.includes('policy')) tags.add('#safety')
+  return Array.from(tags)
+}
+
+function buildFrontendBSkillCatalog(state) {
+  const byId = new Map()
+
+  for (const item of state.tools?.registry || []) {
+    const toolId = String(item.toolId || item.name || '').trim()
+    if (!toolId) continue
+    const category = toolCategory(toolId)
+    byId.set(toolId, {
+      toolId,
+      name: String(item.name || toolId),
+      description: String(item.description || ''),
+      category,
+      tags: toolTags(toolId, category),
+      status: 'connected',
+      source: 'registry',
+    })
+  }
+
+  for (const item of state.tools?.cliCatalog || []) {
+    const toolId = String(item.name || item.tool || '').trim()
+    if (!toolId || byId.has(toolId)) continue
+    const category = toolCategory(toolId)
+    byId.set(toolId, {
+      toolId,
+      name: toolId,
+      description: String(item.description || 'OpenClaw CLI tool'),
+      category,
+      tags: toolTags(toolId, category),
+      status: 'connected',
+      source: 'openclaw-cli',
+    })
+  }
+
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function computeTaskNextRunAt(schedule = {}, runCount = 0, floorTime = Date.now()) {
+  const startAtMs = new Date(schedule.startAt).getTime()
+  const intervalMs = Math.max(1, Number(schedule.intervalMinutes || 0)) * 60 * 1000
+  if (!Number.isFinite(startAtMs) || intervalMs <= 0) return null
+
+  let slot = Math.max(0, Number(runCount) || 0)
+  let next = startAtMs + slot * intervalMs
+  while (next <= floorTime) {
+    slot += 1
+    next = startAtMs + slot * intervalMs
+  }
+
+  const endAtMs = schedule.endAt ? new Date(schedule.endAt).getTime() : NaN
+  if (Number.isFinite(endAtMs) && next > endAtMs) return null
+  return new Date(next).toISOString()
+}
+
+function getTaskRunCount(task) {
+  return Number(task.runCount || 0)
+}
+
+function isTaskTerminal(task, nextRunAt) {
+  const maxRepeats = Math.max(1, Number(task.schedule?.maxRepeats || 1))
+  const runCount = getTaskRunCount(task)
+  if (runCount >= maxRepeats) return true
+  const endAtMs = task.schedule?.endAt ? new Date(task.schedule.endAt).getTime() : NaN
+  if (Number.isFinite(endAtMs) && endAtMs <= Date.now()) return true
+  return !nextRunAt
+}
+
+function evaluateFirewallPrompt(policyText, prompt) {
+  const policy = String(policyText || '').toLowerCase()
+  const lowered = String(prompt || '').toLowerCase()
+  const patterns = [
+    { key: 'ssn', label: 'Social Security numbers' },
+    { key: 'api key', label: 'API keys' },
+    { key: 'secret', label: 'Secrets' },
+    { key: 'token', label: 'Tokens' },
+    { key: 'internal', label: 'Internal data' },
+    { key: 'payroll', label: 'Payroll records' },
+    { key: 'slack', label: 'External destination: Slack' },
+    { key: 'email', label: 'External destination: Email' },
+  ]
+  let matchedRule = ''
+  for (const pattern of patterns) {
+    if (lowered.includes(pattern.key) && policy.includes(pattern.key)) {
+      matchedRule = pattern.label
+      break
+    }
+  }
+  const blocked = Boolean(matchedRule)
+  return {
+    blocked,
+    matchedRule,
+    reason: blocked ? `Blocked by policy rule: ${matchedRule}` : 'No blocking rule matched. Prompt considered safe.',
+    at: nowIso(),
+  }
+}
+
+function normalizeFirewallStatus(firewall) {
+  if (firewall.archived) return 'review_needed'
+  if (Number(firewall.blockedAttempts || 0) > 0) return 'active_block'
+  if (Number(firewall.blockedPackets || 0) > 0) return 'review_needed'
+  return 'monitoring'
+}
+
+function ensureFirewallCollections(state) {
+  if (!Array.isArray(state.frontendBFirewalls)) state.frontendBFirewalls = []
+}
+
+function findFrontendBFirewall(state, firewallId) {
+  ensureFirewallCollections(state)
+  return state.frontendBFirewalls.find((item) => String(item.id) === String(firewallId))
 }
 
 function handleAuth(pathname, method, state, body) {
@@ -448,7 +580,7 @@ function handleIntegrations(pathname, method, state) {
 
 function handleOrg(pathname, method, state, body) {
   if (pathname === '/api/org' && method === 'GET') {
-    return asJson({ orgs: state.org.orgs })
+    return asJson({ ok: true, items: state.org.orgs, orgs: state.org.orgs })
   }
 
   if (pathname === '/api/org' && method === 'POST') {
@@ -458,6 +590,15 @@ function handleOrg(pathname, method, state, body) {
       id,
       orgId: id,
       name: payload.name || `Org ${id}`,
+      bio: String(payload.bio || ''),
+      email: String(payload.email || ''),
+      email_is_public: payload.email_is_public !== false,
+      currency: String(payload.currency || 'usd'),
+      address: String(payload.address || ''),
+      city: String(payload.city || ''),
+      region: String(payload.region || ''),
+      postal_code: String(payload.postal_code || ''),
+      country: String(payload.country || ''),
       plan: 'pro',
       status: 'active',
       memberCount: 1,
@@ -704,7 +845,7 @@ function handleUsageAndBilling(pathname, method, state, searchParams, body) {
   return null
 }
 
-function handleNotifications(pathname, method, state, searchParams) {
+function handleNotifications(pathname, method, state, searchParams, body) {
   if (pathname === '/api/notifications/unread-count' && method === 'GET') {
     return asJson({ count: unreadCount(state) })
   }
@@ -714,6 +855,11 @@ function handleNotifications(pathname, method, state, searchParams) {
   }
 
   if (pathname === '/api/notifications/preferences' && method === 'POST') {
+    const payload = parseBody(body)
+    state.notificationPreferences = {
+      categories: { ...(state.notificationPreferences.categories || {}), ...(payload.categories || {}) },
+      channels: { ...(state.notificationPreferences.channels || {}), ...(payload.channels || {}) },
+    }
     return asJson({ ok: true, ...state.notificationPreferences })
   }
 
@@ -751,6 +897,9 @@ function handleSearch(pathname, method, state, searchParams) {
 }
 
 function handleAgentsRunsSessions(pathname, method, state, searchParams, body) {
+  const findAgentById = (agentId) =>
+    state.agents.find((a) => String(a.id) === String(agentId) || String(a.agentId) === String(agentId))
+
   if (pathname === '/api/agents' && method === 'GET') {
     const pinnedOnly = searchParams.get('pinned') === 'true'
     const items = pinnedOnly ? state.agents.filter((a) => a.pinned) : state.agents
@@ -769,6 +918,7 @@ function handleAgentsRunsSessions(pathname, method, state, searchParams, body) {
       riskTier: 'medium',
       riskScore: 55,
       model: 'gpt-4.1',
+      equippedToolIds: ['trace-list', 'firewall-preview', 'policy-validate'],
       pinned: false,
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -777,10 +927,50 @@ function handleAgentsRunsSessions(pathname, method, state, searchParams, body) {
     return asJson(agent)
   }
 
-  let params = matchPath(pathname, '/api/agents/:agentId')
+  let params = matchPath(pathname, '/api/agents/:agentId/tools')
   if (params && method === 'GET') {
-    const agent = state.agents.find((a) => String(a.id) === String(params.agentId) || String(a.agentId) === String(params.agentId))
+    const agent = findAgentById(params.agentId)
     if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    const items = buildFrontendBSkillCatalog(state)
+    const equippedToolIds = Array.isArray(agent.equippedToolIds) ? agent.equippedToolIds.map(String) : []
+    return asJson({ ok: true, items, equippedToolIds })
+  }
+
+  params = matchPath(pathname, '/api/agents/:agentId/tools')
+  if (params && (method === 'PATCH' || method === 'POST')) {
+    const agent = findAgentById(params.agentId)
+    if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    const payload = parseBody(body)
+    const equipped = Array.isArray(payload?.equippedToolIds)
+      ? payload.equippedToolIds.map((item) => String(item).trim()).filter(Boolean)
+      : []
+    const allowed = new Set(buildFrontendBSkillCatalog(state).map((item) => item.toolId))
+    const invalid = equipped.filter((id) => !allowed.has(id))
+    if (invalid.length > 0) {
+      return asJson({ ok: false, error: `Unknown tool ids: ${invalid.join(', ')}` }, 400)
+    }
+    agent.equippedToolIds = equipped.filter((id) => allowed.has(id))
+    agent.capabilities = Array.from(new Set([...(agent.capabilities || []), ...agent.equippedToolIds]))
+    agent.updatedAt = nowIso()
+    return asJson({ ok: true, items: buildFrontendBSkillCatalog(state), equippedToolIds: agent.equippedToolIds, agent })
+  }
+
+  params = matchPath(pathname, '/api/agents/:agentId')
+  if (params && method === 'GET') {
+    const agent = findAgentById(params.agentId)
+    if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    return asJson(agent)
+  }
+
+  params = matchPath(pathname, '/api/agents/:agentId')
+  if (params && method === 'PATCH') {
+    const agent = findAgentById(params.agentId)
+    if (!agent) return asJson({ ok: false, error: 'Agent not found' }, 404)
+    const payload = parseBody(body)
+    if (payload?.name != null) agent.name = String(payload.name || '').trim() || agent.name
+    if (payload?.description != null) agent.description = String(payload.description || '')
+    if (payload?.status != null) agent.status = String(payload.status || agent.status)
+    agent.updatedAt = nowIso()
     return asJson(agent)
   }
 
@@ -1023,6 +1213,273 @@ function handleHitlAndOps(pathname, method, state, body) {
   if (orgParams && method === 'DELETE') {
     state.operations.orgTree.children = state.operations.orgTree.children.filter((c) => String(c.id) !== String(orgParams.orgId))
     delete state.operations.orgLifecycle[orgParams.orgId]
+    return asJson({ ok: true })
+  }
+
+  return null
+}
+
+function handleFrontendBSkills(pathname, method, state) {
+  if (pathname === '/api/skills' && method === 'GET') {
+    return asJson({ ok: true, items: buildFrontendBSkillCatalog(state) })
+  }
+
+  const params = matchPath(pathname, '/api/skills/:skillId/smoke-test')
+  if (params && method === 'POST') {
+    const item = buildFrontendBSkillCatalog(state).find((entry) => String(entry.toolId) === String(params.skillId))
+    if (!item) return asJson({ ok: false, error: 'Skill not found' }, 404)
+    const checks = [
+      { label: 'Catalog resolution', passed: true, detail: `Resolved ${item.toolId}` },
+      { label: 'Schema/help lookup', passed: true, detail: item.source === 'registry' ? 'Registry schema present.' : 'CLI help available.' },
+      { label: 'Dependency check', passed: true, detail: 'Runtime dependencies satisfied in fake mode.' },
+    ]
+    return asJson({
+      ok: true,
+      result: {
+        passed: checks.every((check) => check.passed),
+        checkedAt: nowIso(),
+        logs: checks.map((check) => `${check.passed ? 'PASS' : 'FAIL'} ${check.label}: ${check.detail}`),
+        checks,
+      },
+    })
+  }
+
+  return null
+}
+
+function handleFrontendBFirewalls(pathname, method, state, body) {
+  ensureFirewallCollections(state)
+
+  if (pathname === '/api/firewalls' && method === 'GET') {
+    return asJson({ ok: true, items: state.frontendBFirewalls })
+  }
+
+  if (pathname === '/api/firewalls' && method === 'POST') {
+    const payload = parseBody(body)
+    const policyText = String(payload.policyText || '').trim()
+    const name = String(payload.name || '').trim()
+    if (!name) return asJson({ ok: false, error: 'name is required' }, 400)
+    if (!policyText) return asJson({ ok: false, error: 'policyText is required' }, 400)
+    const id = state.nextId('firewall')
+    const versionId = state.nextId('firewall-version')
+    const firewall = {
+      id,
+      name,
+      folder: String(payload.folder || 'root'),
+      scope: payload.scope === 'agent' ? 'agent' : 'global',
+      assignedAgentId: payload.scope === 'agent' ? String(payload.assignedAgentId || '') || null : null,
+      policyText,
+      archived: false,
+      activeVersionId: versionId,
+      policyVersions: [
+        {
+          id: versionId,
+          versionId,
+          policyText,
+          createdAt: nowIso(),
+          createdBy: state.user.email,
+          active: true,
+        },
+      ],
+      entries: [],
+      auditLog: [
+        {
+          id: state.nextId('firewall-audit'),
+          type: 'created',
+          message: `Firewall ${name} created.`,
+          createdAt: nowIso(),
+        },
+      ],
+      blockedPackets: 0,
+      blockedAttempts: 0,
+      lastEvaluatedAt: null,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      status: 'monitoring',
+    }
+    state.frontendBFirewalls.unshift(firewall)
+    return asJson({ ok: true, firewall }, 201)
+  }
+
+  let params = matchPath(pathname, '/api/firewalls/:id')
+  if (params && method === 'GET') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    return asJson({ ok: true, firewall })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id')
+  if (params && method === 'PATCH') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const payload = parseBody(body)
+    if (payload.name != null) firewall.name = String(payload.name || '').trim() || firewall.name
+    if (payload.folder != null) firewall.folder = String(payload.folder || '')
+    if (payload.scope === 'agent' || payload.scope === 'global') firewall.scope = payload.scope
+    if (payload.assignedAgentId !== undefined) firewall.assignedAgentId = payload.assignedAgentId ? String(payload.assignedAgentId) : null
+    if (payload.policyText != null && String(payload.policyText).trim()) firewall.policyText = String(payload.policyText)
+    firewall.updatedAt = nowIso()
+    firewall.status = normalizeFirewallStatus(firewall)
+    return asJson({ ok: true, firewall })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/archive')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    firewall.archived = true
+    firewall.updatedAt = nowIso()
+    firewall.status = normalizeFirewallStatus(firewall)
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'archived', message: 'Firewall archived.', createdAt: nowIso() })
+    return asJson({ ok: true, firewall })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/restore')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    firewall.archived = false
+    firewall.updatedAt = nowIso()
+    firewall.status = normalizeFirewallStatus(firewall)
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'restored', message: 'Firewall restored.', createdAt: nowIso() })
+    return asJson({ ok: true, firewall })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/versions')
+  if (params && method === 'GET') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    return asJson({ ok: true, items: firewall.policyVersions || [] })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/versions')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const payload = parseBody(body)
+    const policyText = String(payload.policyText || '').trim()
+    if (!policyText) return asJson({ ok: false, error: 'policyText is required' }, 400)
+    const version = {
+      id: state.nextId('firewall-version'),
+      versionId: state.nextId('firewall-version-ref'),
+      policyText,
+      createdAt: nowIso(),
+      createdBy: state.user.email,
+      active: false,
+    }
+    firewall.policyVersions.unshift(version)
+    firewall.updatedAt = nowIso()
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'version_created', message: `Revision ${version.versionId} saved.`, createdAt: nowIso() })
+    return asJson({ ok: true, version })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/versions/:versionId/activate')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const version = (firewall.policyVersions || []).find((item) =>
+      String(item.id) === String(params.versionId) || String(item.versionId) === String(params.versionId),
+    )
+    if (!version) return asJson({ ok: false, error: 'Version not found' }, 404)
+    firewall.activeVersionId = version.id
+    firewall.policyVersions = (firewall.policyVersions || []).map((item) => ({ ...item, active: String(item.id) === String(version.id) }))
+    firewall.policyText = version.policyText
+    firewall.updatedAt = nowIso()
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'activated', message: `Activated ${version.versionId}.`, createdAt: nowIso() })
+    firewall.status = normalizeFirewallStatus(firewall)
+    return asJson({ ok: true, firewall })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/validate')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const payload = parseBody(body)
+    const policyText = String(payload.policyText || firewall.policyText || '').trim()
+    const errors = []
+    const warnings = []
+    if (!policyText) errors.push('Policy text is required.')
+    if (policyText.length < 20) warnings.push('Policy text is short; consider adding more context.')
+    return asJson({ ok: true, valid: errors.length === 0, errors, warnings })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/simulate')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const payload = parseBody(body)
+    const version = payload.versionId
+      ? (firewall.policyVersions || []).find((item) => String(item.id) === String(payload.versionId) || String(item.versionId) === String(payload.versionId))
+      : null
+    const policyText = String(payload.policyText || version?.policyText || firewall.policyText || '')
+    const result = evaluateFirewallPrompt(policyText, payload.prompt)
+    firewall.lastEvaluatedAt = result.at
+    firewall.blockedPackets = (firewall.blockedPackets || 0) + (result.blocked ? 1 : 0)
+    firewall.blockedAttempts = (firewall.blockedAttempts || 0) + (result.blocked ? 1 : 0)
+    firewall.status = normalizeFirewallStatus(firewall)
+    firewall.updatedAt = nowIso()
+    firewall.auditLog.unshift({
+      id: state.nextId('firewall-audit'),
+      type: 'simulated',
+      message: result.reason,
+      createdAt: result.at,
+    })
+    return asJson({ ok: true, result })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/entries/text')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const payload = parseBody(body)
+    const content = String(payload.content || '').trim()
+    if (!content) return asJson({ ok: false, error: 'content is required' }, 400)
+    const entry = {
+      id: state.nextId('firewall-entry'),
+      entryId: state.nextId('firewall-entry-ref'),
+      type: 'text',
+      name: String(payload.name || 'snippet.txt'),
+      content,
+      previewText: content,
+      createdAt: nowIso(),
+    }
+    firewall.entries.unshift(entry)
+    firewall.updatedAt = nowIso()
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'entry_added', message: `Added entry ${entry.name}.`, createdAt: nowIso() })
+    return asJson({ ok: true, entry })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/entries/file')
+  if (params && method === 'POST') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    const payload = parseBody(body)
+    const file = payload?.file
+    const entry = {
+      id: state.nextId('firewall-entry'),
+      entryId: state.nextId('firewall-entry-ref'),
+      type: 'file',
+      name: String(file?.name || 'uploaded.txt'),
+      mimeType: String(file?.type || 'text/plain'),
+      size: Number(file?.size || 0),
+      previewText: `Preview extracted from ${String(file?.name || 'uploaded.txt')}.`,
+      createdAt: nowIso(),
+    }
+    firewall.entries.unshift(entry)
+    firewall.updatedAt = nowIso()
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'entry_added', message: `Uploaded file ${entry.name}.`, createdAt: nowIso() })
+    return asJson({ ok: true, entry })
+  }
+
+  params = matchPath(pathname, '/api/firewalls/:id/entries/:entryId')
+  if (params && method === 'DELETE') {
+    const firewall = findFrontendBFirewall(state, params.id)
+    if (!firewall) return asJson({ ok: false, error: 'Firewall not found' }, 404)
+    firewall.entries = (firewall.entries || []).filter((item) =>
+      String(item.id) !== String(params.entryId) && String(item.entryId) !== String(params.entryId),
+    )
+    firewall.updatedAt = nowIso()
+    firewall.auditLog.unshift({ id: state.nextId('firewall-audit'), type: 'entry_removed', message: `Removed entry ${params.entryId}.`, createdAt: nowIso() })
     return asJson({ ok: true })
   }
 
@@ -1763,6 +2220,167 @@ function handleObservabilityMisc(pathname, method, state, body) {
   return null
 }
 
+function handleScheduledTasks(pathname, method, state, body) {
+  if (!Array.isArray(state.scheduledTasks)) state.scheduledTasks = []
+
+  if (pathname === '/api/tasks' && method === 'GET') {
+    return asJson({ ok: true, items: state.scheduledTasks })
+  }
+
+  if (pathname === '/api/tasks' && method === 'POST') {
+    const payload = parseBody(body)
+    const intervalMinutes = Number(payload?.schedule?.intervalMinutes ?? 0)
+    const maxRepeats = Number(payload?.schedule?.maxRepeats ?? 1)
+    const startAt = payload?.schedule?.startAt || nowIso()
+    const startAtDate = new Date(startAt)
+    const endAt = payload?.schedule?.endAt || null
+    const endAtDate = endAt ? new Date(endAt) : null
+    const timezone = payload?.schedule?.timezone || 'America/Los_Angeles'
+    const assignment = payload?.assignment || {}
+
+    if (!payload?.title) return asJson({ ok: false, error: 'title is required' }, 400)
+    if (!Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+      return asJson({ ok: false, error: 'schedule.intervalMinutes must be positive' }, 400)
+    }
+    if (!Number.isFinite(maxRepeats) || maxRepeats < 1) {
+      return asJson({ ok: false, error: 'schedule.maxRepeats must be at least 1' }, 400)
+    }
+    if (Number.isNaN(startAtDate.getTime()) || startAtDate.getTime() <= Date.now()) {
+      return asJson({ ok: false, error: 'schedule.startAt must be a valid future time' }, 400)
+    }
+    if (endAtDate && Number.isNaN(endAtDate.getTime())) {
+      return asJson({ ok: false, error: 'schedule.endAt must be a valid datetime' }, 400)
+    }
+    if (endAtDate && endAtDate.getTime() <= startAtDate.getTime()) {
+      return asJson({ ok: false, error: 'schedule.endAt must be after schedule.startAt' }, 400)
+    }
+    if ((assignment.agentId && assignment.orchestrationId) || (!assignment.agentId && !assignment.orchestrationId)) {
+      return asJson({ ok: false, error: 'Provide exactly one assignment target: agentId or orchestrationId' }, 400)
+    }
+
+    const task = {
+      id: state.nextId('task'),
+      title: String(payload.title),
+      prompt: String(payload.prompt || payload.objective || ''),
+      status: 'scheduled',
+      schedule: {
+        startAt: startAtDate.toISOString(),
+        timezone,
+        intervalMinutes,
+        maxRepeats,
+        endAt: endAtDate ? endAtDate.toISOString() : null,
+      },
+      assignment: assignment.agentId
+        ? { type: 'agent', agentId: assignment.agentId }
+        : { type: 'orchestration', orchestrationId: assignment.orchestrationId },
+      runCount: 0,
+      lastRunAt: null,
+      nextRunAt: startAtDate.toISOString(),
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    state.scheduledTasks.unshift(task)
+    return asJson({ ok: true, task }, 201)
+  }
+
+  let params = matchPath(pathname, '/api/tasks/:taskId')
+  if (params && method === 'GET') {
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(params.taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    return asJson({ ok: true, task })
+  }
+
+  params = matchPath(pathname, '/api/tasks/:taskId')
+  if (params && method === 'PATCH') {
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(params.taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    const payload = parseBody(body)
+    if (payload.title != null) task.title = String(payload.title)
+    if (payload.prompt != null) task.prompt = String(payload.prompt)
+    if (payload.schedule) {
+      const nextStartAt = payload.schedule.startAt ? new Date(payload.schedule.startAt) : new Date(task.schedule?.startAt || Date.now())
+      const nextEndAt = payload.schedule.endAt ? new Date(payload.schedule.endAt) : (task.schedule?.endAt ? new Date(task.schedule.endAt) : null)
+      const nextInterval = payload.schedule.intervalMinutes != null ? Number(payload.schedule.intervalMinutes) : Number(task.schedule?.intervalMinutes || 0)
+      const nextMaxRepeats = payload.schedule.maxRepeats != null ? Number(payload.schedule.maxRepeats) : Number(task.schedule?.maxRepeats || 1)
+      if (Number.isNaN(nextStartAt.getTime()) || nextStartAt.getTime() <= Date.now()) {
+        return asJson({ ok: false, error: 'schedule.startAt must be a valid future time' }, 400)
+      }
+      if (nextEndAt && Number.isNaN(nextEndAt.getTime())) {
+        return asJson({ ok: false, error: 'schedule.endAt must be a valid datetime' }, 400)
+      }
+      if (nextEndAt && nextEndAt.getTime() <= nextStartAt.getTime()) {
+        return asJson({ ok: false, error: 'schedule.endAt must be after schedule.startAt' }, 400)
+      }
+      if (!Number.isFinite(nextInterval) || nextInterval <= 0) {
+        return asJson({ ok: false, error: 'schedule.intervalMinutes must be positive' }, 400)
+      }
+      if (!Number.isFinite(nextMaxRepeats) || nextMaxRepeats < 1) {
+        return asJson({ ok: false, error: 'schedule.maxRepeats must be at least 1' }, 400)
+      }
+      task.schedule = {
+        ...task.schedule,
+        ...payload.schedule,
+        startAt: nextStartAt.toISOString(),
+        endAt: nextEndAt ? nextEndAt.toISOString() : null,
+        intervalMinutes: nextInterval,
+        maxRepeats: nextMaxRepeats,
+      }
+      task.nextRunAt = computeTaskNextRunAt(task.schedule, getTaskRunCount(task))
+      task.status = isTaskTerminal(task, task.nextRunAt) ? 'completed' : task.status
+    }
+    task.updatedAt = nowIso()
+    return asJson({ ok: true, task })
+  }
+
+  params = matchPath(pathname, '/api/tasks/:taskId')
+  if (params && method === 'DELETE') {
+    const idx = state.scheduledTasks.findIndex((item) => String(item.id) === String(params.taskId))
+    if (idx < 0) return asJson({ ok: false, error: 'Task not found' }, 404)
+    state.scheduledTasks.splice(idx, 1)
+    return asJson({ ok: true })
+  }
+
+  params = matchPath(pathname, '/api/tasks/:taskId/assign')
+  if (params && method === 'POST') {
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(params.taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    const payload = parseBody(body)
+    const agentId = String(payload.agentId || '').trim()
+    const orchestrationId = String(payload.orchestrationId || '').trim()
+    if ((agentId && orchestrationId) || (!agentId && !orchestrationId)) {
+      return asJson({ ok: false, error: 'Provide exactly one target: agentId or orchestrationId' }, 400)
+    }
+    task.assignment = agentId
+      ? { type: 'agent', agentId }
+      : { type: 'orchestration', orchestrationId }
+    task.updatedAt = nowIso()
+    return asJson({ ok: true, task })
+  }
+
+  const command = ['/pause', '/resume', '/run-now'].find((suffix) => pathname.endsWith(suffix))
+  if (command && method === 'POST') {
+    const taskId = pathname.split('/')[3]
+    const task = state.scheduledTasks.find((item) => String(item.id) === String(taskId))
+    if (!task) return asJson({ ok: false, error: 'Task not found' }, 404)
+    if (command === '/pause') task.status = 'paused'
+    if (command === '/resume') {
+      task.nextRunAt = computeTaskNextRunAt(task.schedule, getTaskRunCount(task))
+      task.status = isTaskTerminal(task, task.nextRunAt) ? 'completed' : 'scheduled'
+    }
+    if (command === '/run-now') {
+      const resumeTo = task.status === 'paused' ? 'paused' : 'scheduled'
+      task.runCount = getTaskRunCount(task) + 1
+      task.lastRunAt = nowIso()
+      task.nextRunAt = computeTaskNextRunAt(task.schedule, getTaskRunCount(task))
+      task.status = isTaskTerminal(task, task.nextRunAt) ? 'completed' : resumeTo
+    }
+    task.updatedAt = nowIso()
+    return asJson({ ok: true, task })
+  }
+
+  return null
+}
+
 function handleLegacyAndMisc(pathname, method) {
   if (pathname === '/api/' && method === 'GET') {
     return asJson({ ok: true })
@@ -1785,13 +2403,16 @@ export async function handleFakeRequest({ method, pathname, searchParams, body, 
     () => handleOrg(normalizedPath, upperMethod, state, body),
     () => handleUser(normalizedPath, upperMethod, state, body),
     () => handleUsageAndBilling(normalizedPath, upperMethod, state, searchParams, body),
-    () => handleNotifications(normalizedPath, upperMethod, state, searchParams),
+    () => handleNotifications(normalizedPath, upperMethod, state, searchParams, body),
     () => handleSearch(normalizedPath, upperMethod, state, searchParams),
     () => handleAgentsRunsSessions(normalizedPath, upperMethod, state, searchParams, body),
+    () => handleFrontendBSkills(normalizedPath, upperMethod, state),
+    () => handleFrontendBFirewalls(normalizedPath, upperMethod, state, body),
     () => handleHitlAndOps(normalizedPath, upperMethod, state, body),
     () => handleObservability(normalizedPath, upperMethod, state, searchParams, body),
     () => handleToolsAndCli(normalizedPath, upperMethod, state, body),
     () => handleOrchestrations(normalizedPath, upperMethod, state, searchParams, body),
+    () => handleScheduledTasks(normalizedPath, upperMethod, state, body),
     () => handleObservabilityMisc(normalizedPath, upperMethod, state, body),
   ]
 
@@ -1823,6 +2444,8 @@ export function getHandledRouteManifest() {
     '/api/notifications*',
     '/api/search*',
     '/api/agents*',
+    '/api/skills*',
+    '/api/firewalls*',
     '/api/openclaw/agent*',
     '/api/runs*',
     '/admin/api/approvals*',
@@ -1833,6 +2456,7 @@ export function getHandledRouteManifest() {
     '/api/tools*',
     '/api/openclaw/cli*',
     '/api/orchestrations*',
+    '/api/tasks*',
     '/api/traces/export',
     '/api/openclaw/events',
   ]

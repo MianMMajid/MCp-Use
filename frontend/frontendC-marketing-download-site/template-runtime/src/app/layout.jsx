@@ -1,15 +1,15 @@
-import { Inter, Lexend } from 'next/font/google'
+import { Josefin_Sans, Quicksand } from 'next/font/google'
 import clsx from 'clsx'
 
 import '@/styles/tailwind.css'
 
 export const metadata = {
   title: {
-    template: '%s - Maple',
-    default: 'Maple - Safe AI Agent Operations',
+    template: '%s - Mayple',
+    default: 'Mayple - The Firewall for AI Agent Tool Calls',
   },
   description:
-    'Maple helps teams monitor AI agents, enforce policy controls, and keep a complete audit trail.',
+    'Mayple is a runtime firewall for AI agent tool calls. Intercept, block, and approve every action across any provider — no code required.',
   icons: {
     icon: [
       { url: '/maple-favicon.svg', type: 'image/svg+xml' },
@@ -20,16 +20,17 @@ export const metadata = {
   },
 }
 
-const inter = Inter({
+const josefinSans = Josefin_Sans({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-josefin',
 })
 
-const lexend = Lexend({
+const quicksand = Quicksand({
   subsets: ['latin'],
+  weight: '700',
   display: 'swap',
-  variable: '--font-lexend',
+  variable: '--font-quicksand',
 })
 
 export default function RootLayout({ children }) {
@@ -38,8 +39,8 @@ export default function RootLayout({ children }) {
       lang="en"
       className={clsx(
         'h-full scroll-smooth bg-white antialiased',
-        inter.variable,
-        lexend.variable,
+        josefinSans.variable,
+        quicksand.variable,
       )}
     >
       <body className="flex h-full flex-col">{children}</body>

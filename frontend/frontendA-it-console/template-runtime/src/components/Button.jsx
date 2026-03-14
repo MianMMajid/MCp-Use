@@ -60,7 +60,7 @@ export function Button({
 
   if (typeof props.href === 'undefined') {
     return (
-      <button className={className} {...props}>
+      <button type="button" className={className} {...props}>
         {inner}
       </button>
     )

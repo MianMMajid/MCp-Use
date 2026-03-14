@@ -11,10 +11,12 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [networkError, setNetworkError] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
+    setNetworkError(false)
 
     try {
       await fetch('/api/auth/forgot-password', {
@@ -26,11 +28,11 @@ export default function ForgotPassword() {
           redirectUrl: `${window.location.origin}/reset-password`,
         }),
       })
+      setSubmitted(true)
     } catch {
-      // Silently handle - always show success message
+      setNetworkError(true)
     } finally {
       setLoading(false)
-      setSubmitted(true)
     }
   }
 
@@ -44,6 +46,12 @@ export default function ForgotPassword() {
       <h2 className="mt-20 text-lg font-semibold text-zinc-900">
         Reset your password
       </h2>
+
+      {networkError && (
+        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800">
+          Unable to connect. Please check your network and try again.
+        </div>
+      )}
 
       {submitted ? (
         <>

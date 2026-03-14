@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const inKubernetes = Boolean(process.env.KUBERNETES_SERVICE_HOST)
 
 const DEFAULT_RAILWAY_GATEWAY_ORIGIN = "https://maple-gateway-production.up.railway.app"
-const DEFAULT_LOCAL_GATEWAY_ORIGIN = DEFAULT_RAILWAY_GATEWAY_ORIGIN
+const DEFAULT_LOCAL_GATEWAY_ORIGIN = "http://127.0.0.1:3000"
 const DEFAULT_K8S_GATEWAY_ORIGIN = "https://gateway-api:3000"
 const DEFAULT_LOCAL_ADMIN_CONSOLE_ORIGIN = "http://127.0.0.1:4001"
 const DEFAULT_K8S_ADMIN_CONSOLE_ORIGIN = "https://admin-console-api:9443"
@@ -44,6 +44,7 @@ if (!process.env.MAPLE_GATEWAY_ORIGIN) {
 }
 
 const nextConfig = {
+  distDir: '.mayple-next',
   ...(outputTracingRoot ? { outputFileTracingRoot: outputTracingRoot } : {}),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   reactCompiler: true,
@@ -65,26 +66,18 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-          config: [fileURLToPath(import.meta.url)],
-        },
-      }
-      config.output.pathinfo = false
-      config.optimization.removeAvailableModules = false
-      config.optimization.removeEmptyChunks = false
-      config.optimization.splitChunks = false
-      config.optimization.runtimeChunk = true
-      config.resolve.extensions = ['.jsx', '.js', '.mjs', '.json']
-      config.watchOptions = {
-        ...config.watchOptions,
-        ignored: ['**/node_modules/**', '**/.git/**', '**/.next/**'],
-      }
-    }
-    return config
+  webpack: (config) => config,
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${mapleGatewayOrigin}/api/:path*`,
+      },
+      {
+        source: '/admin/api/:path*',
+        destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`,
+      },
+    ]
   },
   async redirects() {
     return [

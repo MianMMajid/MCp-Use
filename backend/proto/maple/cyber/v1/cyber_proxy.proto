@@ -50,23 +50,11 @@ message ProxyHttpRequestRequest {
   string method = 2;
   string url = 3;
   map<string, string> headers = 4;
-  bytes body = 5;
-  string tool_name = 6;
-  string app_id = 7;
-  int32 timeout_ms = 8;
 }
 
 message ProxyHttpRequestResponse {
   int32 status_code = 1;
   map<string, string> headers = 2;
-  bytes body = 3;
-  bool sanitized = 4;
-  bool malware_detected = 5;
-  bool quarantined = 6;
-  repeated string threats_found = 7;
-  string quarantine_reason = 8;
-  string policy_reason = 9;
-  string resolved_ip = 10;
 }
 
 message ProxyHttpRequestStreamRequest {

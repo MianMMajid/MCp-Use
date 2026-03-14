@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Container } from '@/components/Container'
 import { Button } from '@/components/Button'
+import { ScrollReveal } from '@/components/ScrollReveal'
 
 function detectOS() {
   if (typeof navigator === 'undefined') return 'unknown'
@@ -15,6 +16,7 @@ function detectOS() {
 export function DownloadSection() {
   const [version, setVersion] = useState(null)
   const [os, setOS] = useState('unknown')
+  const [downloadError, setDownloadError] = useState(false)
   const [releasesUrl, setReleasesUrl] = useState(
     'https://github.com/MianMMajid/MCp-Use/releases',
   )
@@ -27,16 +29,17 @@ export function DownloadSection() {
         if (data?.version) setVersion(data.version)
         if (data?.releases_url) setReleasesUrl(data.releases_url)
       })
-      .catch(() => {})
+      .catch(() => { setDownloadError(true) })
   }, [])
 
   const versionLabel = version ? ` ${version}` : ''
 
   return (
     <section id="download" className="py-20 sm:py-24">
+      <ScrollReveal>
       <Container className="rounded-3xl bg-zinc-50 p-8 ring-1 ring-zinc-900/5 sm:p-12">
         <h3 className="font-display text-2xl tracking-tight text-zinc-900">
-          Download Maple Desktop
+          Download Mayple Desktop
         </h3>
         <p className="mt-3 max-w-2xl text-sm text-zinc-700">
           Run and monitor agent workflows with built-in policy checks and audit
@@ -70,12 +73,20 @@ export function DownloadSection() {
           Requires macOS 12+ or Windows 10+ &middot;{' '}
           <a
             href={releasesUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="underline hover:text-zinc-700"
           >
             All releases
           </a>
+          {downloadError && (
+            <span className="ml-2 text-amber-600">
+              (Version info unavailable — downloads may still work)
+            </span>
+          )}
         </p>
       </Container>
+      </ScrollReveal>
     </section>
   )
 }

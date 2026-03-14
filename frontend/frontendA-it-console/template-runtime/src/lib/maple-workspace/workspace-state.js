@@ -8,11 +8,45 @@ export const MAPLE_WORKSPACE_DEFAULT_CATEGORY = 'observe'
 export const MAPLE_WORKSPACE_DEFAULT_VIEW = 'live'
 
 export const MAPLE_WORKSPACE_CATEGORY_VIEWS = Object.freeze({
-  observe: Object.freeze(['live', 'chat', 'timeline']),
-  analyze: Object.freeze(['control', 'topology']),
-  govern: Object.freeze(['guard', 'fork']),
-  admin: Object.freeze(['settings', 'policy', 'marketplace']),
+  observe: Object.freeze(['topology', 'live', 'timeline', 'forks']),
+  chat: Object.freeze(['chat']),
+  admin: Object.freeze(['control', 'marketplace']),
+  firewalls: Object.freeze(['cybersecurity', 'rules', 'context-leakage']),
+  users: Object.freeze(['access']),
   docs: Object.freeze(['overview', 'api', 'runbooks', 'route-help']),
+})
+
+const CATEGORY_ALIASES = Object.freeze({
+  monitor: 'observe',
+  opschat: 'chat',
+  analyze: 'admin',
+  intervene: 'admin',
+  policy: 'admin',
+  govern: 'admin',
+  system: 'admin',
+  firewall: 'firewalls',
+  firewalls: 'firewalls',
+  user: 'users',
+  users: 'users',
+})
+
+const VIEW_ALIASES = Object.freeze({
+  guard: 'policy',
+  fork: 'policy',
+  recovery: 'policy',
+  integrations: 'marketplace',
+  settings: 'control',
+  policy: 'control',
+  cybersecurity: 'cybersecurity',
+  rules: 'rules',
+  leakage: 'context-leakage',
+  contextleakage: 'context-leakage',
+  context_leakage: 'context-leakage',
+  actionforks: 'forks',
+  action_forks: 'forks',
+  forks: 'forks',
+  user: 'access',
+  roles: 'access',
 })
 
 const SPECIAL_LEGACY_ROUTE_TARGETS = Object.freeze({
@@ -37,16 +71,22 @@ export function normalizeWorkspaceCategory(value) {
   if (typeof value !== 'string') {
     return MAPLE_WORKSPACE_DEFAULT_CATEGORY
   }
-  return value in MAPLE_WORKSPACE_CATEGORY_VIEWS
-    ? value
+  const normalized = String(value).toLowerCase()
+  const resolved = CATEGORY_ALIASES[normalized] ?? normalized
+  return resolved in MAPLE_WORKSPACE_CATEGORY_VIEWS
+    ? resolved
     : MAPLE_WORKSPACE_DEFAULT_CATEGORY
 }
 
 export function normalizeWorkspaceView(category, value) {
   const normalizedCategory = normalizeWorkspaceCategory(category)
   const views = MAPLE_WORKSPACE_CATEGORY_VIEWS[normalizedCategory]
-  if (typeof value === 'string' && views.includes(value)) {
-    return value
+  if (typeof value === 'string') {
+    const normalized = String(value).toLowerCase()
+    const resolved = VIEW_ALIASES[normalized] ?? normalized
+    if (views.includes(resolved)) {
+      return resolved
+    }
   }
   return views[0]
 }
@@ -95,14 +135,34 @@ export function resolveWorkspaceState({ pathname, searchParams }) {
   const executionId = searchParams?.get('executionId') ?? ''
   const sessionId = searchParams?.get('sessionId') ?? ''
 
-  const category = categoryFromQuery
-    ? normalizeWorkspaceCategory(categoryFromQuery)
-    : getWorkspaceCategoryForRoute(routeRecord)
+  // Preserve old deep-link semantics where monitor+chat now maps to dedicated chat category.
+  const preserveLegacyAnalyzeTopology =
+    typeof categoryFromQuery === 'string' &&
+    ['analyze', 'intervene'].includes(categoryFromQuery.toLowerCase()) &&
+    typeof viewFromQuery === 'string' &&
+    viewFromQuery.toLowerCase() === 'topology'
+
+  const preserveLegacyMonitorChat =
+    typeof categoryFromQuery === 'string' &&
+    categoryFromQuery.toLowerCase() === 'monitor' &&
+    typeof viewFromQuery === 'string' &&
+    viewFromQuery.toLowerCase() === 'chat'
+
+  const category = preserveLegacyAnalyzeTopology
+    ? 'observe'
+    : preserveLegacyMonitorChat
+    ? 'chat'
+    : (categoryFromQuery
+      ? normalizeWorkspaceCategory(categoryFromQuery)
+      : getWorkspaceCategoryForRoute(routeRecord))
+
   const view = viewFromQuery
-    ? normalizeWorkspaceView(category, viewFromQuery)
-    : category === 'docs'
-      ? 'route-help'
-      : getWorkspaceViewForRoute(routeRecord)
+    ? preserveLegacyAnalyzeTopology
+      ? 'topology'
+      : preserveLegacyMonitorChat
+      ? 'chat'
+      : normalizeWorkspaceView(category, viewFromQuery)
+    : getWorkspaceViewForRoute(routeRecord)
 
   return {
     category,

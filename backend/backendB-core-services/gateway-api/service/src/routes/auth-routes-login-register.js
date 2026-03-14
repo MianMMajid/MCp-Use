@@ -47,12 +47,15 @@ export function registerAuthLoginRegisterRoutes(app) {
         }
 
         const body = await readJsonBody(c);
-        const username = asString(body.username);
+        const username = asString(body.username) || asString(body.email);
         const password = asString(body.password);
         if (!username || !password) {
-            return c.json({ error: "username and password are required." }, 400);
+            return c.json({ error: "username/email and password are required." }, 400);
         }
-        const user = await database.findUserByUsername(username);
+        let user = await database.findUserByUsername(username);
+        if (!user && typeof database.findUserByEmail === "function") {
+            user = await database.findUserByEmail(username);
+        }
         if (!user || !verifyPassword(password, user.passwordHash)) {
             return c.json({ error: "Invalid username or password." }, 401);
         }

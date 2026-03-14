@@ -222,8 +222,8 @@ export default function FirewallDashboardPage() {
   /* -- Streaming chat handler (POST /api/chat/stream via SSE) -- */
   async function handleStreamSend() {
     if (!streamInput.trim()) return
-    const userMsg = { role: 'user', content: streamInput }
-    setStreamMessages((prev) => [...prev, userMsg])
+    const messageText = streamInput
+    setStreamMessages((prev) => [...prev, { role: 'user', content: messageText }])
     setStreamInput('')
     setStreaming(true)
     try {
@@ -231,33 +231,38 @@ export default function FirewallDashboardPage() {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: streamInput }),
+        body: JSON.stringify({ message: messageText }),
       })
       if (!res.ok) throw new Error(`/api/chat/stream -> ${res.status}`)
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let accumulated = ''
-      const msgIdx = streamMessages.length + 1
+      let fullContent = ''
+      let sseBuffer = ''
       setStreamMessages((prev) => [...prev, { role: 'assistant', content: '' }])
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        accumulated += chunk
-        const lines = accumulated.split('\n')
-        let content = ''
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
+        sseBuffer += decoder.decode(value, { stream: true })
+        const blocks = sseBuffer.split('\n\n')
+        sseBuffer = blocks.pop() || ''
+        for (const block of blocks) {
+          for (const line of block.split('\n')) {
+            if (!line.startsWith('data: ')) continue
             const dataStr = line.slice(6)
             if (dataStr === '[DONE]') continue
-            try { const parsed = JSON.parse(dataStr); content += parsed.content ?? parsed.text ?? parsed.delta ?? '' }
-            catch { content += dataStr }
+            try {
+              const parsed = JSON.parse(dataStr)
+              fullContent += parsed.content ?? parsed.text ?? parsed.delta ?? ''
+            } catch {
+              fullContent += dataStr
+            }
           }
         }
-        if (content) {
+        if (fullContent) {
+          const snapshot = fullContent
           setStreamMessages((prev) => {
             const next = [...prev]
-            next[msgIdx] = { role: 'assistant', content }
+            next[next.length - 1] = { role: 'assistant', content: snapshot }
             return next
           })
         }
@@ -276,13 +281,13 @@ export default function FirewallDashboardPage() {
   /* -- Chat handler -- */
   async function handleChatSend() {
     if (!chatInput.trim()) return
-    const userMsg = { role: 'user', content: chatInput }
-    setChatMessages((prev) => [...prev, userMsg])
+    const messageText = chatInput
+    setChatMessages((prev) => [...prev, { role: 'user', content: messageText }])
     setChatInput('')
     setChatSending(true)
     try {
       const result = await postJson('/api/firewall/chat', {
-        message: chatInput,
+        message: messageText,
       })
       setChatMessages((prev) => [
         ...prev,

@@ -28,8 +28,10 @@ function requireTraceEnv(key) {
 }
 
 function getConfig() {
+  const rawEndpoint = process.env.MAPLE_OTLP_ENDPOINT?.trim() || "";
+  const isDisabled = !rawEndpoint || rawEndpoint === "disabled" || rawEndpoint === "none";
   return {
-    endpoint: requireTraceEnv("MAPLE_OTLP_ENDPOINT"),
+    endpoint: isDisabled ? "" : rawEndpoint,
     batchSize: (() => { const v = Number(requireTraceEnv("MAPLE_OTLP_BATCH_SIZE")); if (!Number.isFinite(v) || v < 1) throw new Error("Invalid MAPLE_OTLP_BATCH_SIZE"); return v; })(),
     flushIntervalMs: (() => { const v = Number(requireTraceEnv("MAPLE_OTLP_FLUSH_INTERVAL_MS")); if (!Number.isFinite(v) || v < 1000) throw new Error("Invalid MAPLE_OTLP_FLUSH_INTERVAL_MS"); return v; })(),
     timeoutMs: (() => { const v = Number(requireTraceEnv("MAPLE_OTLP_TIMEOUT_MS")); if (!Number.isFinite(v) || v < 1000) throw new Error("Invalid MAPLE_OTLP_TIMEOUT_MS"); return v; })(),

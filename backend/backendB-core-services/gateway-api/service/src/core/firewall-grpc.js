@@ -128,7 +128,7 @@ export async function generateViaGrpc(messages, systemPrompt, requestContext) {
             model: "",
             temperature: 0,
             maxTokens: 0,
-        });
+        }, { deadlineMs: 30000 });
         if (response?.allowed === false) {
             return {
                 content: response.blockedReason || "Request blocked by policy.",

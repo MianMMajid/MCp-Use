@@ -40,6 +40,18 @@ const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, '../../../'),
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   devIndicators: false,
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${mapleGatewayOrigin}/api/:path*`,
+      },
+      {
+        source: '/admin/api/:path*',
+        destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

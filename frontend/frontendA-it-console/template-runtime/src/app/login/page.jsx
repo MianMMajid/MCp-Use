@@ -16,7 +16,8 @@ function LoginForm() {
   useEffect(() => {
     // Check if already logged in
     fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then((res) => { if (res.ok) router.push('/maple/gateway') })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data?.authenticated || data?.user) router.push('/maple/gateway') })
       .catch(() => {})
 
     // Check Google sign-in availability
@@ -30,6 +31,7 @@ function LoginForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (loading) return
     setError('')
     setLoading(true)
 

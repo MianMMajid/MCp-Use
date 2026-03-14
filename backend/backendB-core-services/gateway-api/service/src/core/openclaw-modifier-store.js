@@ -101,6 +101,38 @@ function toMemberRecord(row) {
 }
 
 function normalizePolicyPayload(input = {}) {
+  const normalizeSingle = (value = {}) => {
+    const allowedTools = Array.isArray(value.allowedTools)
+      ? [...new Set(value.allowedTools.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean))]
+      : [];
+    const dangerousTools = Array.isArray(value.dangerousTools)
+      ? [...new Set(value.dangerousTools.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean))]
+      : [];
+    const blockedTargetProfiles = Array.isArray(value.blockedTargetProfiles)
+      ? [
+          ...new Set(
+            value.blockedTargetProfiles
+              .map((entry) => String(entry).trim().toLowerCase())
+              .filter(Boolean)
+          ),
+        ]
+      : [];
+    const constraints =
+      value.constraints && typeof value.constraints === "object" ? value.constraints : {};
+    return {
+      allowedTools,
+      dangerousTools,
+      blockedTargetProfiles,
+      constraints: {
+        allowDevProfile: Boolean(constraints.allowDevProfile),
+        maxTimeoutSeconds: Number(constraints.maxTimeoutSeconds ?? 90),
+        maxBufferMb: Number(constraints.maxBufferMb ?? 8),
+        approvalTtlSeconds: Number(constraints.approvalTtlSeconds ?? 900),
+      },
+      metadata: value.metadata && typeof value.metadata === "object" ? value.metadata : {},
+    };
+  };
+
   const allowedTools = Array.isArray(input.allowedTools)
     ? [...new Set(input.allowedTools.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean))]
     : [];
@@ -118,6 +150,14 @@ function normalizePolicyPayload(input = {}) {
     : [];
   const constraints =
     input.constraints && typeof input.constraints === "object" ? input.constraints : {};
+  const agentPolicies =
+    input.agentPolicies && typeof input.agentPolicies === "object"
+      ? Object.fromEntries(
+          Object.entries(input.agentPolicies)
+            .map(([agentId, value]) => [String(agentId).trim(), normalizeSingle(value)])
+            .filter(([agentId]) => Boolean(agentId))
+        )
+      : {};
   return {
     allowedTools,
     dangerousTools,
@@ -129,6 +169,7 @@ function normalizePolicyPayload(input = {}) {
       approvalTtlSeconds: Number(constraints.approvalTtlSeconds ?? 900),
     },
     metadata: input.metadata && typeof input.metadata === "object" ? input.metadata : {},
+    agentPolicies,
   };
 }
 
@@ -680,4 +721,3 @@ export class OpenClawModifierStore {
     );
   }
 }
-

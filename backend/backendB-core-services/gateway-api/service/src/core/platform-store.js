@@ -28,6 +28,15 @@ function normalizeOrg(record) {
     orgId: String(record.org_id),
     name: String(record.name),
     ownerUserId: String(record.owner_user_id),
+    bio: String(record.bio ?? ""),
+    email: String(record.email ?? ""),
+    email_is_public: Boolean(record.email_is_public ?? true),
+    currency: String(record.currency ?? "usd"),
+    address: String(record.address ?? ""),
+    city: String(record.city ?? ""),
+    region: String(record.region ?? ""),
+    postal_code: String(record.postal_code ?? ""),
+    country: String(record.country ?? ""),
     createdAt: String(record.created_at),
     updatedAt: String(record.updated_at),
     membersCount: Number(record.members_count ?? 0),
@@ -85,11 +94,21 @@ export class PlatformStore {
       );
     }
     if (hasPool(this.database)) {
+      try {
       await this.database.pool.query(`
         CREATE TABLE IF NOT EXISTS business_orgs (
           org_id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           owner_user_id TEXT NOT NULL,
+          bio TEXT NOT NULL DEFAULT '',
+          email TEXT NOT NULL DEFAULT '',
+          email_is_public BOOLEAN NOT NULL DEFAULT TRUE,
+          currency TEXT NOT NULL DEFAULT 'usd',
+          address TEXT NOT NULL DEFAULT '',
+          city TEXT NOT NULL DEFAULT '',
+          region TEXT NOT NULL DEFAULT '',
+          postal_code TEXT NOT NULL DEFAULT '',
+          country TEXT NOT NULL DEFAULT '',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -170,6 +189,23 @@ export class PlatformStore {
           updated_at TEXT NOT NULL
         );
       `);
+      await this.database.pool.query(`
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS email_is_public BOOLEAN NOT NULL DEFAULT TRUE;
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'usd';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT '';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS postal_code TEXT NOT NULL DEFAULT '';
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS country TEXT NOT NULL DEFAULT '';
+      `);
+      } catch (err) {
+        // Ignore duplicate-key race from concurrent CREATE TABLE/INDEX
+        if (err?.code !== '23505' && !err?.message?.includes('pg_type_typname_nsp_index')) {
+          throw err;
+        }
+      }
     }
     this.initialized = true;
   }
@@ -187,6 +223,15 @@ export class PlatformStore {
           orgId: org.orgId,
           name: org.name,
           ownerUserId: org.ownerUserId,
+          bio: org.bio ?? "",
+          email: org.email ?? "",
+          email_is_public: org.email_is_public ?? true,
+          currency: org.currency ?? "usd",
+          address: org.address ?? "",
+          city: org.city ?? "",
+          region: org.region ?? "",
+          postal_code: org.postal_code ?? "",
+          country: org.country ?? "",
           createdAt: org.createdAt,
           updatedAt: org.updatedAt,
           membersCount: org.members.length,
@@ -200,6 +245,15 @@ export class PlatformStore {
           o.org_id,
           o.name,
           o.owner_user_id,
+          o.bio,
+          o.email,
+          o.email_is_public,
+          o.currency,
+          o.address,
+          o.city,
+          o.region,
+          o.postal_code,
+          o.country,
           o.created_at,
           o.updated_at,
           COALESCE(member_counts.members_count, 0) AS members_count
@@ -233,6 +287,15 @@ export class PlatformStore {
         orgId,
         name,
         ownerUserId,
+        bio: "",
+        email: "",
+        email_is_public: true,
+        currency: "usd",
+        address: "",
+        city: "",
+        region: "",
+        postal_code: "",
+        country: "",
         createdAt: timestamp,
         updatedAt: timestamp,
         members: [{ userId: ownerUserId, roleId: "owner", joinedAt: timestamp }],
@@ -242,6 +305,15 @@ export class PlatformStore {
         orgId,
         name,
         ownerUserId,
+        bio: "",
+        email: "",
+        email_is_public: true,
+        currency: "usd",
+        address: "",
+        city: "",
+        region: "",
+        postal_code: "",
+        country: "",
         createdAt: timestamp,
         updatedAt: timestamp,
         membersCount: 1,
@@ -287,6 +359,15 @@ export class PlatformStore {
       orgId,
       name,
       ownerUserId,
+      bio: "",
+      email: "",
+      email_is_public: true,
+      currency: "usd",
+      address: "",
+      city: "",
+      region: "",
+      postal_code: "",
+      country: "",
       createdAt: timestamp,
       updatedAt: timestamp,
       membersCount: 1,
@@ -313,6 +394,15 @@ export class PlatformStore {
         orgId: org.orgId,
         name: org.name,
         ownerUserId: org.ownerUserId,
+        bio: org.bio ?? "",
+        email: org.email ?? "",
+        email_is_public: org.email_is_public ?? true,
+        currency: org.currency ?? "usd",
+        address: org.address ?? "",
+        city: org.city ?? "",
+        region: org.region ?? "",
+        postal_code: org.postal_code ?? "",
+        country: org.country ?? "",
         createdAt: org.createdAt,
         updatedAt: org.updatedAt,
         membersCount: org.members.length,
@@ -325,6 +415,15 @@ export class PlatformStore {
           o.org_id,
           o.name,
           o.owner_user_id,
+          o.bio,
+          o.email,
+          o.email_is_public,
+          o.currency,
+          o.address,
+          o.city,
+          o.region,
+          o.postal_code,
+          o.country,
           o.created_at,
           o.updated_at,
           COALESCE(member_counts.members_count, 0) AS members_count
@@ -364,6 +463,15 @@ export class PlatformStore {
         orgId: org.orgId,
         name: org.name,
         ownerUserId: org.ownerUserId,
+        bio: org.bio ?? "",
+        email: org.email ?? "",
+        email_is_public: org.email_is_public ?? true,
+        currency: org.currency ?? "usd",
+        address: org.address ?? "",
+        city: org.city ?? "",
+        region: org.region ?? "",
+        postal_code: org.postal_code ?? "",
+        country: org.country ?? "",
         createdAt: org.createdAt,
         updatedAt: org.updatedAt,
         membersCount: org.members.length,
@@ -378,6 +486,84 @@ export class PlatformStore {
         RETURNING org_id, name, owner_user_id, created_at, updated_at
       `,
       [normalizedOrgId, normalizedName, timestamp]
+    );
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.getOrganizationById(normalizedOrgId);
+  }
+
+  async updateOrganizationProfile(orgId, input = {}) {
+    await this.ensureInitialized();
+    const normalizedOrgId = String(orgId ?? "").trim();
+    if (!normalizedOrgId) {
+      return null;
+    }
+    const timestamp = nowIso();
+    const profile = {
+      name: String(input.name ?? "").trim(),
+      bio: String(input.bio ?? "").trim(),
+      email: String(input.email ?? "").trim(),
+      email_is_public: input.email_is_public !== false,
+      currency: String(input.currency ?? "usd").trim() || "usd",
+      address: String(input.address ?? "").trim(),
+      city: String(input.city ?? "").trim(),
+      region: String(input.region ?? "").trim(),
+      postal_code: String(input.postal_code ?? "").trim(),
+      country: String(input.country ?? "").trim(),
+    };
+
+    if (!hasPool(this.database)) {
+      const org = this.memory.orgs.get(normalizedOrgId);
+      if (!org) {
+        return null;
+      }
+      org.name = profile.name || org.name;
+      org.bio = profile.bio;
+      org.email = profile.email;
+      org.email_is_public = profile.email_is_public;
+      org.currency = profile.currency;
+      org.address = profile.address;
+      org.city = profile.city;
+      org.region = profile.region;
+      org.postal_code = profile.postal_code;
+      org.country = profile.country;
+      org.updatedAt = timestamp;
+      return this.getOrganizationById(normalizedOrgId);
+    }
+
+    const result = await this.database.pool.query(
+      `
+        UPDATE business_orgs
+        SET
+          name = COALESCE(NULLIF($2, ''), name),
+          bio = $3,
+          email = $4,
+          email_is_public = $5,
+          currency = $6,
+          address = $7,
+          city = $8,
+          region = $9,
+          postal_code = $10,
+          country = $11,
+          updated_at = $12
+        WHERE org_id = $1
+        RETURNING org_id
+      `,
+      [
+        normalizedOrgId,
+        profile.name,
+        profile.bio,
+        profile.email,
+        profile.email_is_public,
+        profile.currency,
+        profile.address,
+        profile.city,
+        profile.region,
+        profile.postal_code,
+        profile.country,
+        timestamp,
+      ]
     );
     if (!result.rows[0]) {
       return null;
@@ -413,6 +599,15 @@ export class PlatformStore {
           o.org_id,
           o.name,
           o.owner_user_id,
+          o.bio,
+          o.email,
+          o.email_is_public,
+          o.currency,
+          o.address,
+          o.city,
+          o.region,
+          o.postal_code,
+          o.country,
           o.created_at,
           o.updated_at,
           COALESCE(member_counts.members_count, 0) AS members_count

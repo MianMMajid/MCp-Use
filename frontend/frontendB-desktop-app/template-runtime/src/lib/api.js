@@ -87,6 +87,15 @@ export async function patchJson(path, body) {
   return res
 }
 
+export async function postForm(path, formData) {
+  const res = await fetchWithTimeout(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body: formData,
+  })
+  return res
+}
+
 export async function deleteJson(path) {
   const res = await fetchWithTimeout(path, { method: 'DELETE', credentials: 'same-origin' })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)

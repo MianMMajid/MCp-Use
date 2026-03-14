@@ -211,7 +211,7 @@ export default function OrgPage() {
                   return (
                     <div key={orgId} className="rounded-xl border border-zinc-950/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-zinc-900">
                       <div className="flex items-center justify-between">
-                        <button onClick={() => selectOrg(orgId)} className="flex items-center gap-2">
+                        <button type="button" onClick={() => selectOrg(orgId)} className="flex items-center gap-2">
                           <span className="text-sm font-medium text-zinc-950 dark:text-white">{org.name || orgId}</span>
                           <Tag color={selectedOrg === orgId ? 'orange' : 'zinc'} variant="medium">{org.plan || org.status || 'active'}</Tag>
                         </button>

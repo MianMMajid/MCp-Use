@@ -114,11 +114,7 @@ function createMainWindow() {
     },
   });
 
-  if (/^https?:\/\//i.test(defaultDesktopUiUrl)) {
-    window.loadURL(defaultDesktopUiUrl);
-  } else {
-    window.loadFile(path.join(__dirname, "..", "app", "index.html"));
-  }
+  window.loadURL(defaultDesktopUiUrl);
 
   window.webContents.on("will-navigate", (event, url) => { if (!url.startsWith("file://")) event.preventDefault(); });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

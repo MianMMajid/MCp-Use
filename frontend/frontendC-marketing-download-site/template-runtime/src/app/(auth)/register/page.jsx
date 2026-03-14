@@ -34,7 +34,7 @@ export default function Register() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ username: email, password }),
+        body: JSON.stringify({ username: email, password, firstName, lastName, referralSource }),
       })
 
       if (res.ok) {
