@@ -13,7 +13,6 @@
   import { buildWorkspaceHref, resolveWorkspaceState } from '../maple-workspace/workspace-state.js'
   import { filterFrontendBOrigin } from '../maple-workspace/origin-filter.js'
   import { interventionActionCatalog } from '../maple-workspace/intervention-api.js'
-  import { CHANGE_EVENT as FAKE_MODE_CHANGE_EVENT, isFakeModeEnabled } from '../fake-mode/runtime.js'
 
   const actions = interventionActionCatalog()
   const asArray = (value) => (Array.isArray(value) ? value : [])
@@ -58,7 +57,6 @@
   let hasPrompted = false
   let selectedAnalysts = []
   let handoffPrompt = null
-  let fakeModeOn = false
 
   const quickPrompts = [
     'Give me a firewall status update.',
@@ -156,9 +154,6 @@
     const options = Array.from(new Set([...fromAuth, ...fromAudit, ...fromExecutions, ...fromApprovals].filter(Boolean))).sort((a, b) =>
       a.localeCompare(b),
     )
-    if (options.length === 0 && fakeModeOn) {
-      return ['ops@mayple.dev', 'agent-1', 'security-analyst@mayple.dev']
-    }
     return options
   })()
   $: selectedAnalystSet = new Set(selectedAnalysts.map((name) => normalizeAnalystName(name)))
@@ -311,19 +306,16 @@
         const events = auditRes.value?.items ?? auditRes.value?.entries ?? auditRes.value?.events ?? []
         rawAuditEvents = asArray(events)
         auditEvents = filterFrontendBOrigin(events)
-        if (auditEvents.length === 0 && fakeModeOn) auditEvents = rawAuditEvents
       }
       if (execRes.status === 'fulfilled') {
         const items = execRes.value?.items ?? execRes.value?.executions ?? []
         rawExecutions = asArray(items)
         executions = filterFrontendBOrigin(items)
-        if (executions.length === 0 && fakeModeOn) executions = rawExecutions
       }
       if (approvalsRes.status === 'fulfilled') {
         const items = approvalsRes.value?.items ?? approvalsRes.value?.approvals ?? approvalsRes.value?.entries ?? []
         rawApprovals = asArray(items)
         approvals = filterFrontendBOrigin(items)
-        if (approvals.length === 0 && fakeModeOn) approvals = rawApprovals
       }
       if (runtimeCapabilitiesRes.status === 'fulfilled') {
         runtimeCapabilities = asArray(runtimeCapabilitiesRes.value?.items
@@ -375,18 +367,10 @@
   }
 
   onMount(() => {
-    fakeModeOn = isFakeModeEnabled()
     loadData()
     const id = window.setInterval(loadData, 15000)
-    const handleFakeModeChange = () => {
-      fakeModeOn = isFakeModeEnabled()
-      selectedAnalysts = []
-      void loadData()
-    }
-    window.addEventListener(FAKE_MODE_CHANGE_EVENT, handleFakeModeChange)
     return () => {
       window.clearInterval(id)
-      window.removeEventListener(FAKE_MODE_CHANGE_EVENT, handleFakeModeChange)
     }
   })
 
