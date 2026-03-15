@@ -13,9 +13,14 @@ function isTruthyEnv(value) {
 }
 
 export function startGatewayWorkers({ database, transportBackend, redisUrl }) {
+  const isProduction = process.env.NODE_ENV === "production";
   const hitlDisabled = isTruthyEnv(process.env.MAPLE_DISABLE_HITL_BROKER ?? "0");
 
-  if (!hitlDisabled) {
+  if (hitlDisabled && isProduction) {
+    console.warn("[register-workers] MAPLE_DISABLE_HITL_BROKER is ignored in production. HITL broker will start.");
+  }
+
+  if (!hitlDisabled || isProduction) {
     startHitlBroker();
   }
 

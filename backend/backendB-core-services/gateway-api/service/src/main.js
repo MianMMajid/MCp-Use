@@ -6,6 +6,9 @@ import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gateway
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus, server } from "./state.js";
 const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
+if (disableTls && process.env.NODE_ENV === "production") {
+    throw new Error("MAPLE_DISABLE_TLS cannot be set in production. TLS is required for all production deployments.");
+}
 async function main() {
     mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost, tls: !disableTls });
     // Use a lightweight fetch wrapper so Railway healthchecks pass immediately

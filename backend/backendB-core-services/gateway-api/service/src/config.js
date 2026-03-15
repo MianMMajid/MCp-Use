@@ -178,10 +178,28 @@ export const sessionOwnerScopeMode = sessionOwnerScopeRaw;
 export const primaryConfiguredApiKeyFingerprint = configuredApiKeys.length > 0
     ? createHash("sha256").update(configuredApiKeys[0]).digest("hex").slice(0, 12)
     : undefined;
-export const demoRoutesEnabled = requireEnvBool("MAPLE_ENABLE_DEMO_ROUTES");
+const demoRoutesRequested = requireEnvBool("MAPLE_ENABLE_DEMO_ROUTES");
+if (isProductionRuntime && demoRoutesRequested) {
+    console.error("[config] MAPLE_ENABLE_DEMO_ROUTES is forced OFF in production. Demo routes will not be registered.");
+}
+export const demoRoutesEnabled = demoRoutesRequested && !isProductionRuntime;
 export const judgeUiRoutesEnabled = requireEnvBool("MAPLE_ENABLE_JUDGE_UI");
 export const firewallChatOpenAiApiKey = requireEnv("OPENAI_API_KEY");
 export const firewallChatAnthropicApiKey = requireEnv("ANTHROPIC_API_KEY");
+// ── Production credential validation ────────────────────────────────────────
+if (isProductionRuntime) {
+    const PLACEHOLDER_PATTERNS = [/^sk_test_/i, /^ci-test-/i, /^test-/i, /^pk_test_/i, /^whsec_test$/i, /placeholder/i, /^local-dev-/i, /^maple-dev-key/i];
+    const criticalCredentials = {
+        STRIPE_SECRET_KEY: stripeSecretKey,
+        OPENAI_API_KEY: firewallChatOpenAiApiKey,
+        ANTHROPIC_API_KEY: firewallChatAnthropicApiKey,
+    };
+    for (const [name, value] of Object.entries(criticalCredentials)) {
+        if (PLACEHOLDER_PATTERNS.some((p) => p.test(value))) {
+            console.error(`[config] CRITICAL: ${name} appears to be a test/placeholder value in production. Replace with a real credential immediately.`);
+        }
+    }
+}
 const firewallChatPrimaryProviderRaw = requireEnv("MAPLE_FIREWALL_CHAT_PRIMARY").toLowerCase();
 if (firewallChatPrimaryProviderRaw !== "openai" && firewallChatPrimaryProviderRaw !== "anthropic") {
     throw new Error(`Invalid MAPLE_FIREWALL_CHAT_PRIMARY: "${firewallChatPrimaryProviderRaw}" (must be "openai" or "anthropic")`);
@@ -213,7 +231,11 @@ export const auditWriterAddress = requireEnv("AUDIT_WRITER_ADDRESS");
 export const corsOrigin = requireEnv("CORS_ORIGIN");
 // ── Admin console config (merged from admin-console-api) ──────────────────
 export const adminApiKeys = loadAdminApiKeys();
-export const adminAllowNoAuth = optionalEnvBool("MAPLE_ADMIN_ALLOW_NO_AUTH", false);
+const adminAllowNoAuthRequested = optionalEnvBool("MAPLE_ADMIN_ALLOW_NO_AUTH", false);
+if (isProductionRuntime && adminAllowNoAuthRequested) {
+    console.error("[config] MAPLE_ADMIN_ALLOW_NO_AUTH is forced OFF in production. Admin routes will require authentication.");
+}
+export const adminAllowNoAuth = adminAllowNoAuthRequested && !isProductionRuntime;
 export const auditWriterHttpOrigin = optionalEnv("AUDIT_WRITER_HTTP_ORIGIN");
 // ── Recovery config (merged from business-api) ────────────────────────────
 function optionalProvider(key, allowedValues, fallback) {

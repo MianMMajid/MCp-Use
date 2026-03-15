@@ -38,7 +38,10 @@ export function createAuditEmitter() {
     String(process.env.MAPLE_DISABLE_AUDIT_EMIT ?? "0").trim().toLowerCase() ===
       "true" ||
     String(process.env.MAPLE_DISABLE_AUDIT_EMIT ?? "0").trim() === "1";
-  if (disabled) {
+  if (disabled && process.env.NODE_ENV === "production") {
+    console.warn("[audit-emitter] MAPLE_DISABLE_AUDIT_EMIT is ignored in production. Audit emission will proceed.");
+  }
+  if (disabled && process.env.NODE_ENV !== "production") {
     return () => {};
   }
 

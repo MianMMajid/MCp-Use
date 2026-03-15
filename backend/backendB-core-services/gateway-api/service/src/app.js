@@ -48,7 +48,12 @@ export async function createApp() {
     if (dbReady) {
         const skipAuthBootstrap = String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim().toLowerCase() === "true" ||
             String(process.env.MAPLE_SKIP_AUTH_BOOTSTRAP ?? "0").trim() === "1";
-        if (!skipAuthBootstrap) {
+        if (skipAuthBootstrap && process.env.NODE_ENV === "production") {
+            mapleLog("error", "gateway_api.skip_auth_bootstrap_blocked", {
+                message: "MAPLE_SKIP_AUTH_BOOTSTRAP is ignored in production. Auth bootstrap will run.",
+            });
+        }
+        if (!skipAuthBootstrap || process.env.NODE_ENV === "production") {
             await bootstrapAuthUsers(database);
         }
     }

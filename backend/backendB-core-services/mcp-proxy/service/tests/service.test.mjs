@@ -14,6 +14,7 @@ process.env.MAPLE_TOOL_RUNNER_MODE = process.env.MAPLE_TOOL_RUNNER_MODE || "serv
 process.env.MAPLE_TOOL_RUNNER_IMAGE = process.env.MAPLE_TOOL_RUNNER_IMAGE || "tool-runner:latest";
 process.env.MAPLE_TOOL_RUNNER_JOB_NAMESPACE = process.env.MAPLE_TOOL_RUNNER_JOB_NAMESPACE || "maple-tools";
 process.env.NODE_ENV = "development";
+process.env.MAPLE_CREDENTIAL_SIGNING_KEY = process.env.MAPLE_CREDENTIAL_SIGNING_KEY || "test-credential-signing-key-64chars-abcdef0123456789abcdef0123456789";
 
 import assert from "node:assert/strict";
 import test from "node:test";
