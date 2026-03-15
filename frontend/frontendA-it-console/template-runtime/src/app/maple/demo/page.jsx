@@ -133,8 +133,8 @@ export default function DemoPage() {
               {/* Fork */}
               <div className="rounded-2xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <span className="text-sm font-semibold text-zinc-950 dark:text-white">Fork</span>
-                <input className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 text-sm dark:border-white/10 dark:bg-zinc-800 dark:text-white" value={forkSessionId} onChange={(e) => setForkSessionId(e.target.value)} placeholder="Session ID" />
-                <Button className="mt-2 w-full" variant="filled" disabled={actionLoading === 'Fork'} onClick={() => quickAction('/api/demo/fork', { sessionId: forkSessionId }, 'Fork')}>
+                <input className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 text-sm dark:border-white/10 dark:bg-zinc-800 dark:text-white" value={forkSessionId} onChange={(e) => setForkSessionId(e.target.value)} placeholder="Trace ID (leave empty for latest)" />
+                <Button className="mt-2 w-full" variant="filled" disabled={actionLoading === 'Fork'} onClick={() => quickAction('/api/demo/fork', { traceId: forkSessionId }, 'Fork')}>
                   {actionLoading === 'Fork' ? 'Forking...' : 'Fork'}
                 </Button>
               </div>
@@ -142,7 +142,7 @@ export default function DemoPage() {
               {/* Ingest */}
               <div className="rounded-2xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <span className="text-sm font-semibold text-zinc-950 dark:text-white">Ingest</span>
-                <textarea className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 font-mono text-xs dark:border-white/10 dark:bg-zinc-800 dark:text-white" rows={2} value={ingestPayload} onChange={(e) => setIngestPayload(e.target.value)} placeholder='{"data": ...}' />
+                <textarea className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 font-mono text-xs dark:border-white/10 dark:bg-zinc-800 dark:text-white" rows={2} value={ingestPayload} onChange={(e) => setIngestPayload(e.target.value)} placeholder='{"event": {"type": "tool_call", "output": "..."}, "sessionId": "..."}' />
                 <Button className="mt-2 w-full" variant="filled" disabled={actionLoading === 'Ingest'} onClick={() => quickAction('/api/demo/ingest', parsePayload(ingestPayload), 'Ingest')}>
                   {actionLoading === 'Ingest' ? 'Ingesting...' : 'Ingest'}
                 </Button>
@@ -163,7 +163,7 @@ export default function DemoPage() {
               </div>
               <div className="rounded-2xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <span className="text-sm font-semibold text-zinc-950 dark:text-white">Suggest</span>
-                <textarea className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 font-mono text-xs dark:border-white/10 dark:bg-zinc-800 dark:text-white" rows={2} value={suggestPayload} onChange={(e) => setSuggestPayload(e.target.value)} placeholder='{"suggestion": "..."}' />
+                <textarea className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 font-mono text-xs dark:border-white/10 dark:bg-zinc-800 dark:text-white" rows={2} value={suggestPayload} onChange={(e) => setSuggestPayload(e.target.value)} placeholder='{"query": "safe inbox triage automation"}' />
                 <Button className="mt-2 w-full" variant="filled" disabled={actionLoading === 'Suggest'} onClick={() => quickAction('/api/demo/suggest', parsePayload(suggestPayload), 'Suggest')}>
                   {actionLoading === 'Suggest' ? 'Submitting...' : 'Suggest'}
                 </Button>
@@ -176,7 +176,8 @@ export default function DemoPage() {
               </div>
               <div className="rounded-2xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <span className="text-sm font-semibold text-zinc-950 dark:text-white">Post Event</span>
-                <textarea className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 font-mono text-xs dark:border-white/10 dark:bg-zinc-800 dark:text-white" rows={2} value={eventPayload} onChange={(e) => setEventPayload(e.target.value)} placeholder='{"type": "...", "data": {}}' />
+                <textarea className="mt-2 w-full rounded-lg border border-zinc-950/10 bg-white px-3 py-1 font-mono text-xs dark:border-white/10 dark:bg-zinc-800 dark:text-white" rows={2} value={eventPayload} onChange={(e) => setEventPayload(e.target.value)} placeholder='{"event": {"type": "...", "output": "..."}, "sessionId": "..."}' />
+                <p className="mt-1 text-xs text-zinc-400">Requires API key auth (not session). Set x-api-key header.</p>
                 <Button className="mt-2 w-full" variant="filled" disabled={actionLoading === 'Event'} onClick={() => quickAction('/api/openclaw/events', parsePayload(eventPayload), 'Event')}>
                   {actionLoading === 'Event' ? 'Posting...' : 'Post Event'}
                 </Button>

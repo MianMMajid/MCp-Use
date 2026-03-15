@@ -294,7 +294,18 @@
         fetch('/api/integrations/catalog').then((r) => r.json()),
         fetch('/api/integrations').then((r) => r.json()),
         fetch('/api/downstream/apps').then((r) => r.json()),
-        fetch('/api/downstream/tools').then((r) => r.json()),
+        fetch('/api/downstream/apps').then(async (r) => {
+          if (!r.ok) return { items: [] };
+          const apps = await r.json();
+          const appList = apps?.apps ?? apps?.items ?? [];
+          if (appList.length === 0) return { items: [] };
+          // Load tools for the first app (downstream/tools requires appId)
+          const firstApp = appList[0];
+          const appId = firstApp?.appId ?? firstApp?.id ?? '';
+          if (!appId) return { items: [] };
+          const tr = await fetch(`/api/downstream/tools?appId=${encodeURIComponent(appId)}`);
+          return tr.ok ? tr.json() : { items: [] };
+        }),
         fetch('/api/openclaw/cli/catalog').then((r) => r.json()),
         fetch('/api/auth/me').then((r) => r.json()),
         fetch('/api/firewall/rules/effective').then((r) => r.json()),

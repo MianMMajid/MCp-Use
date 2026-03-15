@@ -155,10 +155,19 @@ export default function FirewallDashboardPage() {
       if (cc.status === 'fulfilled') setChatCaps(cc.value)
       if (fc.status === 'fulfilled') {
         const data = fc.value
+        const raw = data.capabilities ?? data.features ?? data
+        // Backend returns features as an object map — convert to array for rendering
         setFeatureCaps(
-          Array.isArray(data)
-            ? data
-            : data.capabilities ?? data.features ?? [],
+          Array.isArray(raw)
+            ? raw
+            : typeof raw === 'object' && raw !== null
+              ? Object.entries(raw).map(([key, val]) => ({
+                  id: key,
+                  name: key,
+                  enabled: typeof val === 'object' ? val.enabled !== false : Boolean(val),
+                  ...(typeof val === 'object' ? val : {}),
+                }))
+              : [],
         )
       }
       if (fs.status === 'fulfilled') setFirewallState(fs.value)
