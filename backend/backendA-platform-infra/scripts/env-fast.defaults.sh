@@ -34,6 +34,7 @@ set_default MAPLE_AUTH_ALLOW_SELF_SIGNUP 0
 set_default MAPLE_FIREWALL_LOG_DIR /tmp/maple-firewall-logs
 set_default MAPLE_INTEGRATION_OAUTH_STATE_SECRET local-dev-oauth-state-secret-32chars
 set_default MAPLE_INTEGRATION_OAUTH_ENCRYPTION_KEY local-dev-oauth-encryption-key-32c
+set_default MAPLE_CREDENTIAL_SIGNING_KEY local-dev-credential-signing-key-64chars-abcdef0123456789abcdef0123456789
 
 set_default DATABASE_URL postgresql://maple:maple@127.0.0.1:5432/maple
 set_default MAPLE_REDIS_URL redis://127.0.0.1:6379
