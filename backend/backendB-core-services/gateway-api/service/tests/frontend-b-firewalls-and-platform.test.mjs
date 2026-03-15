@@ -28,10 +28,20 @@ const OPENCLAW_AVAILABLE = spawnSync("openclaw", ["--version"], {
 }).status === 0;
 
 let appResult = null;
+let pgAvailable = false;
 
 test.before(async () => {
-  appResult = await createApp();
-  await frontendBStore.ensureInitialized();
+  try {
+    appResult = await createApp();
+    await frontendBStore.ensureInitialized();
+    pgAvailable = true;
+  } catch (err) {
+    if (err?.code === "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")) {
+      console.log("[SKIP] PostgreSQL not reachable — skipping frontend-b platform tests");
+    } else {
+      throw err;
+    }
+  }
 });
 
 test.after(async () => {
@@ -111,7 +121,8 @@ async function waitForAuditChainEvent(tenantId, orgId, eventType, timeoutMs = 10
   return null;
 }
 
-test("frontend b firewalls reject non-compilable revisions and expose diagnostics", async () => {
+test("frontend b firewalls reject non-compilable revisions and expose diagnostics", async (t) => {
+  if (!pgAvailable) return t.skip("PostgreSQL not reachable");
   const { cookie } = await createSessionUser("firewall-invalid");
 
   const createResult = await requestJson("/api/firewalls", {
@@ -154,7 +165,8 @@ test("frontend b firewalls reject non-compilable revisions and expose diagnostic
   assert.match(String(activateResult.payload.error ?? ""), /failed YAML compilation/i);
 });
 
-test("frontend b firewall activation publishes agentPolicies and simulation uses the composed bundle", async () => {
+test("frontend b firewall activation publishes agentPolicies and simulation uses the composed bundle", async (t) => {
+  if (!pgAvailable) return t.skip("PostgreSQL not reachable");
   const owner = await createSessionUser("firewall-valid");
   const other = await createSessionUser("firewall-other");
   const agent = await createOwnedAgent(owner.user.id, "Overlay Agent");
@@ -254,7 +266,8 @@ test("frontend b firewall activation publishes agentPolicies and simulation uses
   assert.equal(forbiddenRead.response.status, 404);
 });
 
-test("frontend b task routes enforce ownership and the due-task worker marks unrecoverable failures", async () => {
+test("frontend b task routes enforce ownership and the due-task worker marks unrecoverable failures", async (t) => {
+  if (!pgAvailable) return t.skip("PostgreSQL not reachable");
   const owner = await createSessionUser("tasks-owner");
   const other = await createSessionUser("tasks-other");
   const agent = await createOwnedAgent(owner.user.id, "Worker Agent");
@@ -333,7 +346,8 @@ test("frontend b task routes enforce ownership and the due-task worker marks unr
   assert.match(String(failedTask.terminalReason ?? ""), /not found/i);
 });
 
-test("frontend b org profile fields persist through get and patch", async () => {
+test("frontend b org profile fields persist through get and patch", async (t) => {
+  if (!pgAvailable) return t.skip("PostgreSQL not reachable");
   const owner = await createSessionUser("org-profile");
 
   const orgList = await requestJson("/api/org", {
@@ -393,7 +407,8 @@ test("frontend b org profile fields persist through get and patch", async () => 
 test(
   "frontend b skills import persists to the registry and governed execution returns proof",
   { skip: !OPENCLAW_AVAILABLE },
-  async () => {
+  async (t) => {
+    if (!pgAvailable) return t.skip("PostgreSQL not reachable");
     const owner = await createSessionUser("skills-proof");
     const tenantId = `user:${owner.user.id}`;
 

@@ -224,9 +224,15 @@ test("openclaw modifier enforces HITL approval for dangerous commands", async ()
   assert.equal(first.status, 409);
   assert.equal(typeof first.approval?.id, "string");
 
-  const pendingRecord = await getOpenClawModifierApproval(first.approval.id);
+  const pendingRecord = await getOpenClawModifierApproval(first.approval.id, {
+    tenantId: "tenant-hitl",
+    orgId: "org-hitl",
+  });
   assert.equal(pendingRecord?.status, "pending");
-  const pendingList = await listOpenClawModifierApprovals({ status: "pending" });
+  const pendingList = await listOpenClawModifierApprovals(
+    { status: "pending" },
+    { tenantId: "tenant-hitl", orgId: "org-hitl" }
+  );
   assert.equal(pendingList.some((entry) => entry.id === first.approval.id), true);
 
   const approvalDecision = await submitOpenClawModifierApprovalDecision(
