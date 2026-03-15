@@ -5,6 +5,7 @@ import {
   listOrchestrations,
   postOrchestrationConversation
 } from '@/lib/orchestrations-api';
+import { readStoredChatModelSelection } from '@/lib/config/openai-chat-models.js';
 
 const CHAT_MODE_KEY = 'mayple_chat_mode';
 const STACK_MODE_KEY = 'mayple_stack_mode';
@@ -403,11 +404,18 @@ function createChatStore() {
     });
 
     try {
+      const modelSelection = typeof window !== 'undefined'
+        ? readStoredChatModelSelection(window.localStorage)
+        : readStoredChatModelSelection(null);
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content }] })
+        body: JSON.stringify({
+          messages: [{ role: 'user', content }],
+          model: modelSelection.modelId,
+          reasoningEffort: modelSelection.reasoningEffort
+        })
       });
 
       if (!response.ok) {

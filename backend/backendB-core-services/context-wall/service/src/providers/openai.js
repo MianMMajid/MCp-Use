@@ -18,6 +18,8 @@ export async function generateOpenAI(apiKey, options) {
         };
         if (options.maxTokens != null)
             body.max_tokens = options.maxTokens;
+        if (options.reasoningEffort)
+            body.reasoning_effort = options.reasoningEffort;
         if (options.temperature != null)
             body.temperature = options.temperature;
         if (options.tools && options.tools.length > 0)
@@ -81,6 +83,8 @@ export async function* streamOpenAI(apiKey, options) {
         };
         if (options.maxTokens != null)
             body.max_tokens = options.maxTokens;
+        if (options.reasoningEffort)
+            body.reasoning_effort = options.reasoningEffort;
         if (options.temperature != null)
             body.temperature = options.temperature;
         const res = await fetch(OPENAI_API_URL, {

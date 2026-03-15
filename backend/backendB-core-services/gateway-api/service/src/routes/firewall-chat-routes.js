@@ -34,6 +34,8 @@ export function registerFirewallChatRoutes() {
         }
         const body = await readJsonBody(c);
         const message = asString(body.message) ?? "Give me a firewall status update.";
+        const model = asString(body.model) ?? "";
+        const reasoningEffort = asString(body.reasoningEffort) ?? "";
         const traceId = asString(body.traceId);
         const sessionId = asString(body.sessionId);
         const includeContext = asBoolean(body.includeContext, false);
@@ -57,6 +59,8 @@ export function registerFirewallChatRoutes() {
             context,
             messages: [{ role: "user", content: message }],
             requestContext,
+            model,
+            reasoningEffort,
         });
         const orchestrationUnavailable = chatResult.mode === "unavailable";
         return c.json({
@@ -100,6 +104,8 @@ export function registerFirewallChatRoutes() {
         }
         const body = await readJsonBody(c);
         const messages = Array.isArray(body.messages) ? body.messages : [];
+        const model = asString(body.model) ?? "";
+        const reasoningEffort = asString(body.reasoningEffort) ?? "";
         const normalizedHistory = normalizeFirewallChatHistory(messages, "Give me a firewall status update.");
         const userTurns = normalizedHistory.filter((turn) => turn.role === "user");
         const message = asString(userTurns[userTurns.length - 1]?.content) ?? "Give me a firewall status update.";
@@ -125,6 +131,8 @@ export function registerFirewallChatRoutes() {
             context,
             messages: normalizedHistory,
             requestContext,
+            model,
+            reasoningEffort,
         });
         if (chatResult.mode === "unavailable") {
             return c.json({

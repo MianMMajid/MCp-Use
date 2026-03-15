@@ -8,6 +8,7 @@ import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
 import { generateOpenAI } from "./providers/openai.js";
 import { generateAnthropic } from "./providers/anthropic.js";
 import { config } from "./config.js";
+import { inferProviderForModel, normalizeReasoningEffort } from "../../../gateway-api/service/src/core/chat-models.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const PROTO_PATH = resolve(PROTO_ROOT, "maple/context/v1/context_wall.proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
@@ -105,7 +106,11 @@ function toProviderMessages(messages) {
     });
 }
 async function generateViaLocalProviders(request) {
+    const requestedProvider = inferProviderForModel(request.model);
     const providerOrder = (() => {
+        if (requestedProvider === "openai" || requestedProvider === "anthropic") {
+            return [requestedProvider];
+        }
         const primary = getPreferredProvider();
         return primary === "anthropic" ? ["anthropic", "openai"] : ["openai", "anthropic"];
     })();
@@ -123,6 +128,7 @@ async function generateViaLocalProviders(request) {
             tools: tools.length > 0 ? tools : undefined,
             maxTokens: request.maxTokens || undefined,
             temperature: request.temperature || undefined,
+            reasoningEffort: provider === "openai" ? normalizeReasoningEffort(model, request.reasoningEffort) : undefined,
             timeoutMs: Number(process.env.MAPLE_FIREWALL_CHAT_TIMEOUT_MS || 15000),
         };
         try {
@@ -1085,6 +1091,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                         messages: modelMessages,
                         tools: modelTools,
                         model: call.request.model || "",
+                        reasoningEffort: call.request.reasoningEffort || "",
                         temperature: call.request.temperature || 0,
                         maxTokens: call.request.maxTokens || 0,
                         systemPrompt: call.request.systemPrompt || "",

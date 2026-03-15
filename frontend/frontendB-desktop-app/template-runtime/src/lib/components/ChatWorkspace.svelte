@@ -27,6 +27,7 @@
   ];
 
   $: isOrchestration = $chatStore.chatTarget === 'orchestration';
+  $: showModelSelector = !isOrchestration && !$chatStore.selectedAgentId;
   $: currentMessages = isOrchestration ? ($chatStore.orchestrationConversation || []) : ($chatStore.messages || []);
   $: showCenteredComposer = currentMessages.length === 0 && !$chatStore.streaming;
 
@@ -66,7 +67,9 @@
 <section class="workspace card">
   <header class="topbar">
     <div class="topbar-left">
-      <ModelSelectorPill />
+      {#if showModelSelector}
+        <ModelSelectorPill />
+      {/if}
       <SelectorPill
         label="Agent Selector"
         icon="agent"

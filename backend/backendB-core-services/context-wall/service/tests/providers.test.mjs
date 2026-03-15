@@ -53,6 +53,25 @@ test("generateOpenAI: formats request and parses response", async () => {
   }
 });
 
+test("generateOpenAI: includes reasoning effort when provided", async () => {
+  const mock = mockFetch({
+    choices: [{ message: { content: "Hello!" }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    model: "gpt-5.4",
+  });
+  try {
+    await generateOpenAI("test-key", {
+      model: "gpt-5.4",
+      reasoningEffort: "xhigh",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+    const body = JSON.parse(mock.calls[0].opts.body);
+    assert.equal(body.reasoning_effort, "xhigh");
+  } finally {
+    mock.restore();
+  }
+});
+
 test("generateOpenAI: handles API error", async () => {
   const mock = mockFetch({ error: "bad request" }, 400);
   try {

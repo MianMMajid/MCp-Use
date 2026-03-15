@@ -144,6 +144,7 @@ message OrchestrateChatRequest {
   double temperature = 5;
   int32 max_tokens = 6;
   repeated maple.common.v1.ToolInfo tools = 7;
+  string reasoning_effort = 8;
 }
 
 message OrchestrateChatResponse {

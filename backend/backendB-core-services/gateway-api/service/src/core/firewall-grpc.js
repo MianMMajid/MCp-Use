@@ -125,7 +125,8 @@ export async function generateViaGrpc(messages, systemPrompt, requestContext) {
             })),
             tools,
             systemPrompt: systemPrompt ?? "",
-            model: "",
+            model: requestContext?.model ?? "",
+            reasoningEffort: requestContext?.reasoningEffort ?? "",
             temperature: 0,
             maxTokens: 0,
         }, { deadlineMs: 30000 });

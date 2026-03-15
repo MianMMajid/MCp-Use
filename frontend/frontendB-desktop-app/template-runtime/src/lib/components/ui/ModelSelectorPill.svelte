@@ -1,25 +1,23 @@
 <script>
   import { onMount } from 'svelte';
   import Icon from '@/lib/components/icons/Icon.svelte';
-
-  const MODEL_STORAGE_KEY = 'mayple_dummy_model';
-  const MODEL_OPTIONS = [
-    { id: 'auto', title: 'Auto', subtitle: 'Decides how long to think', trigger: 'Auto' },
-    { id: 'instant-53', title: 'Instant 5.3', subtitle: 'Answers right away', trigger: 'Instant' },
-    { id: 'thinking-52', title: 'Thinking 5.2', subtitle: 'Thinks longer for better answers', trigger: 'Thinking' },
-    { id: 'pro-52', title: 'Pro 5.2', subtitle: 'Research-grade intelligence', trigger: 'Pro' }
-  ];
+  import {
+    CHAT_MODEL_OPTIONS,
+    OPENAI_CHAT_MODEL_FAMILIES,
+    getChatModelOption,
+    readStoredChatModelSelection,
+    writeStoredChatModelSelection
+  } from '@/lib/config/openai-chat-models.js';
 
   let open = false;
-  let model = 'thinking-52';
+  let selection = readStoredChatModelSelection(null);
   let root;
 
-  $: selected = MODEL_OPTIONS.find((item) => item.id === model) || MODEL_OPTIONS[2];
+  $: selected = getChatModelOption(selection);
 
   onMount(() => {
     if (typeof window !== 'undefined') {
-      const stored = window.localStorage.getItem(MODEL_STORAGE_KEY);
-      if (stored && MODEL_OPTIONS.some((item) => item.id === stored)) model = stored;
+      selection = readStoredChatModelSelection(window.localStorage);
     }
 
     function onDocumentMouseDown(event) {
@@ -39,43 +37,43 @@
     };
   });
 
-  function onSelect(nextModel) {
-    model = nextModel;
+  function onSelect(option) {
+    selection = { modelId: option.modelId, reasoningEffort: option.reasoningEffort };
     open = false;
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(MODEL_STORAGE_KEY, nextModel);
+      writeStoredChatModelSelection(window.localStorage, selection);
     }
   }
 </script>
 
 <div class="model-selector" bind:this={root}>
   <button class="trigger" on:click={() => (open = !open)} aria-haspopup="listbox" aria-expanded={open}>
-    <span class="primary">Mayple 5.2</span>
-    <span class="secondary">{selected.trigger}</span>
+    <span class="primary">{selected.modelTitle}</span>
+    <span class="secondary">{selected.reasoningTitle}</span>
     <Icon name="chevron" size={14} />
   </button>
 
   {#if open}
     <div class="menu" role="listbox">
-      <p class="menu-title">Latest</p>
-      <div class="menu-items">
-        {#each MODEL_OPTIONS as option}
-          <button class="menu-item" on:click={() => onSelect(option.id)}>
-            <div>
-              <p class="item-title">{option.title}</p>
-              <p class="item-subtitle">{option.subtitle}</p>
-            </div>
-            {#if option.id === selected.id}
-              <span class="check">✓</span>
-            {/if}
-          </button>
-        {/each}
-      </div>
-      <div class="divider"></div>
-      <button type="button" class="legacy-row" on:click={() => { /* Legacy model selection not yet implemented */ }}>
-        <span>Legacy models</span>
-        <span>›</span>
-      </button>
+      {#each OPENAI_CHAT_MODEL_FAMILIES as family, familyIndex}
+        <p class="menu-title">{family.title}</p>
+        <div class="menu-items">
+          {#each CHAT_MODEL_OPTIONS.filter((option) => option.modelId === family.modelId) as option}
+            <button class="menu-item" on:click={() => onSelect(option)}>
+              <div>
+                <p class="item-title">{option.reasoningTitle}</p>
+                <p class="item-subtitle">{option.subtitle}</p>
+              </div>
+              {#if option.id === selected.id}
+                <span class="check">✓</span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+        {#if familyIndex < OPENAI_CHAT_MODEL_FAMILIES.length - 1}
+          <div class="divider"></div>
+        {/if}
+      {/each}
     </div>
   {/if}
 </div>
@@ -175,22 +173,4 @@
     margin: 8px 2px;
   }
 
-  .legacy-row {
-    width: 100%;
-    border: 0;
-    border-radius: 14px;
-    background: transparent;
-    color: #e4e4e7;
-    text-align: left;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 10px;
-    cursor: pointer;
-    font-size: 16px;
-  }
-
-  .legacy-row:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
 </style>

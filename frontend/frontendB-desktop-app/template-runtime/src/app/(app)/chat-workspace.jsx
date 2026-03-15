@@ -4,48 +4,26 @@ import { useEffect, useRef, useState } from 'react'
 import { useChat } from '@/contexts/chat-context'
 import { ChatPanel } from '@/components/agent-workspace/chat-panel'
 import { OrchestrationChatPanel } from '@/components/orchestration/orchestration-chat-panel'
-import { Bars3Icon, CheckIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid'
+import { Bars3Icon, CheckIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
 import { CpuChipIcon } from '@heroicons/react/24/outline'
-
-const MODEL_STORAGE_KEY = 'mayple_dummy_model'
-const MODEL_OPTIONS = [
-  {
-    id: 'auto',
-    title: 'Auto',
-    subtitle: 'Decides how long to think',
-    trigger: 'Auto',
-  },
-  {
-    id: 'instant-53',
-    title: 'Instant 5.3',
-    subtitle: 'Answers right away',
-    trigger: 'Instant',
-  },
-  {
-    id: 'thinking-52',
-    title: 'Thinking 5.2',
-    subtitle: 'Thinks longer for better answers',
-    trigger: 'Thinking',
-  },
-  {
-    id: 'pro-52',
-    title: 'Pro 5.2',
-    subtitle: 'Research-grade intelligence',
-    trigger: 'Pro',
-  },
-]
+import {
+  CHAT_MODEL_OPTIONS,
+  OPENAI_CHAT_MODEL_FAMILIES,
+  getChatModelOption,
+  readStoredChatModelSelection,
+  writeStoredChatModelSelection,
+} from '@/lib/config/openai-chat-models'
 
 function ModelSelectorPill() {
-  const [model, setModel] = useState(MODEL_OPTIONS[2].id)
+  const [selection, setSelection] = useState(readStoredChatModelSelection())
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef(null)
 
-  const selected = MODEL_OPTIONS.find((option) => option.id === model) || MODEL_OPTIONS[2]
+  const selected = getChatModelOption(selection)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const stored = window.localStorage.getItem(MODEL_STORAGE_KEY)
-    if (stored && MODEL_OPTIONS.some((option) => option.id === stored)) setModel(stored)
+    setSelection(readStoredChatModelSelection(window.localStorage))
   }, [])
 
   useEffect(() => {
@@ -69,10 +47,11 @@ function ModelSelectorPill() {
     }
   }, [open])
 
-  function onSelect(nextModel) {
-    setModel(nextModel)
+  function onSelect(option) {
+    const nextSelection = { modelId: option.modelId, reasoningEffort: option.reasoningEffort }
+    setSelection(nextSelection)
     setOpen(false)
-    if (typeof window !== 'undefined') window.localStorage.setItem(MODEL_STORAGE_KEY, nextModel)
+    if (typeof window !== 'undefined') writeStoredChatModelSelection(window.localStorage, nextSelection)
   }
 
   return (
@@ -81,39 +60,39 @@ function ModelSelectorPill() {
         onClick={() => setOpen((prev) => !prev)}
         className="inline-flex items-center gap-2 rounded-2xl border border-zinc-700/70 bg-zinc-900/95 px-3 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur transition hover:bg-zinc-900"
       >
-        <span className="font-medium">Mayple 5.2</span>
-        <span className="text-zinc-400">{selected.trigger}</span>
+        <span className="font-medium">{selected.modelTitle}</span>
+        <span className="text-zinc-400">{selected.reasoningTitle}</span>
         <ChevronDownIcon className="h-4 w-4 text-zinc-400" />
       </button>
 
       {open ? (
         <div className="absolute top-full left-0 z-50 mt-2 w-80 overflow-hidden rounded-3xl border border-zinc-600/40 bg-zinc-800/95 p-3 shadow-2xl backdrop-blur">
-          <p className="px-2 pb-2 text-sm font-medium text-zinc-400">Latest</p>
-
-          <div className="space-y-1">
-            {MODEL_OPTIONS.map((option) => {
-              const active = option.id === selected.id
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => onSelect(option.id)}
-                  className="flex w-full items-center justify-between rounded-2xl px-2 py-2 text-left transition hover:bg-zinc-700/60"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-zinc-100">{option.title}</p>
-                    <p className="mt-0.5 text-[13px] text-zinc-400">{option.subtitle}</p>
-                  </div>
-                  {active ? <CheckIcon className="h-5 w-5 text-zinc-100" /> : null}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="my-2 border-t border-zinc-600/70" />
-          <button className="flex w-full items-center justify-between rounded-2xl px-2 py-2 text-left transition hover:bg-zinc-700/60">
-            <span className="text-sm font-medium text-zinc-200">Legacy models</span>
-            <ChevronRightIcon className="h-4 w-4 text-zinc-400" />
-          </button>
+          {OPENAI_CHAT_MODEL_FAMILIES.map((family, familyIndex) => (
+            <div key={family.modelId}>
+              <p className="px-2 pb-2 text-sm font-medium text-zinc-400">{family.title}</p>
+              <div className="space-y-1">
+                {CHAT_MODEL_OPTIONS.filter((option) => option.modelId === family.modelId).map((option) => {
+                  const active = option.id === selected.id
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => onSelect(option)}
+                      className="flex w-full items-center justify-between rounded-2xl px-2 py-2 text-left transition hover:bg-zinc-700/60"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-zinc-100">{option.reasoningTitle}</p>
+                        <p className="mt-0.5 text-[13px] text-zinc-400">{option.subtitle}</p>
+                      </div>
+                      {active ? <CheckIcon className="h-5 w-5 text-zinc-100" /> : null}
+                    </button>
+                  )
+                })}
+              </div>
+              {familyIndex < OPENAI_CHAT_MODEL_FAMILIES.length - 1 ? (
+                <div className="my-2 border-t border-zinc-600/70" />
+              ) : null}
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
@@ -160,12 +139,15 @@ export default function ChatWorkspace() {
   } = useChat()
 
   const isDisabled = selectedAgent ? selectedAgent.status !== 'active' : !selectedAgentId
+  const showModelSelector = mode !== 'orchestration' && !selectedAgentId
 
   return (
     <div className="relative flex h-full flex-col bg-gray-50 dark:bg-gray-950">
-      <div className="pointer-events-none absolute top-3 left-3 z-20 hidden lg:block">
-        <ModelSelectorPill />
-      </div>
+      {showModelSelector ? (
+        <div className="pointer-events-none absolute top-3 left-3 z-20 hidden lg:block">
+          <ModelSelectorPill />
+        </div>
+      ) : null}
       <button
         onClick={() => {
           if (typeof window === 'undefined') return

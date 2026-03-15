@@ -206,3 +206,27 @@ test("generateViaGrpc throws when context-wall orchestration errors", async () =
     /orchestration failed/
   );
 });
+
+test("generateViaGrpc forwards model and reasoning effort", async () => {
+  let capturedRequest = null;
+  const contextWall = {
+    orchestrateChat(request, _options, callback) {
+      capturedRequest = request;
+      callback(null, { allowed: true, reply: "hello", model: "gpt-5.4" });
+    },
+  };
+
+  setGrpcClients({ contextWall });
+
+  const result = await generateViaGrpc([{ role: "user", content: "hello" }], "system", {
+    tenantId: "tenant",
+    userId: "user",
+    deviceId: "device",
+    model: "gpt-5.4-pro",
+    reasoningEffort: "xhigh",
+  });
+
+  assert.equal(result.content, "hello");
+  assert.equal(capturedRequest.model, "gpt-5.4-pro");
+  assert.equal(capturedRequest.reasoningEffort, "xhigh");
+});

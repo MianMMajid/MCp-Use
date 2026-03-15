@@ -12,6 +12,7 @@
  * @property {string=} selectedAgentId
  * @property {string=} selectedOrchestrationId
  * @property {string} modelId
+ * @property {string=} reasoningEffort
  * @property {ChatRouteTarget} route
  */
 

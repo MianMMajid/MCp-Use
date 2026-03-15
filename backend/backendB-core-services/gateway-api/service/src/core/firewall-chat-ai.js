@@ -159,6 +159,8 @@ export async function generateFirewallChatReply(options) {
             deviceId: options.requestContext?.deviceId ?? "",
             sessionId: options.requestContext?.sessionId ?? options.context.trace?.sessionId ?? "",
             traceId: options.requestContext?.traceId ?? options.context.trace?.id ?? "",
+            model: options.model ?? "",
+            reasoningEffort: options.reasoningEffort ?? "",
         });
         if (grpcResult) {
             return {
