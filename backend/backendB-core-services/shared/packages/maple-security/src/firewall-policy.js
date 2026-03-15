@@ -63,6 +63,18 @@ const defaultRules = [
         match: { stepTypes: ["shell", "tool_call", "prompt"], anyValueRegex: /(nc\s+-[el]|\/dev\/tcp\/|bash\s+-i\s+>&|mkfifo|socat)/i },
     },
     {
+        name: "block-malicious-skill-install", action: "deny", severity: "critical",
+        message: "Blocked: malicious skill/plugin pattern detected.",
+        recommendation: "Quarantine and review skill source before installation.",
+        match: { stepTypes: ["tool_call", "prompt"], anyValueRegex: /(keylog|atomic[\.\-_]?stealer|screen[\.\-_]?capture|clipboard[\.\-_]?monitor|eval\s*\(|child_process|new\s+Function)/i },
+    },
+    {
+        name: "block-sandbox-escape", action: "deny", severity: "critical",
+        message: "Blocked: sandbox escape or elevated privilege pattern detected.",
+        recommendation: "Deny and audit. Never allow sandbox bypass in autonomous execution.",
+        match: { stepTypes: ["shell", "tool_call", "prompt"], anyValueRegex: /(--elevated|--allowHostControl|--privileged|--bind-mount=\/?(?:etc|root|proc|sys|dev|var\/run)|--pid=host|--network=host|--cap-add|allowHostControl.*true|hostAccess.*true)/i },
+    },
+    {
         name: "block-secret-leakage", action: "deny", severity: "high",
         message: "Blocked: secret/API key pattern detected in step payload.",
         recommendation: "Rotate affected credentials and scrub logs/artifacts.",
@@ -237,6 +249,21 @@ function evaluateStep(step, externalRules) {
                 match: {},
             };
             return { action: "deny", rule: injectionRule, secretPattern: secretHit ?? undefined };
+        }
+    }
+    // Indirect injection check: scan output content in tool_call/network steps
+    if ((step.type === "tool_call" || step.type === "network") && step.output) {
+        const outputInjection = detectPromptInjection(step.output);
+        if (outputInjection.isInjection && outputInjection.confidence >= 0.7) {
+            const indirectRule = {
+                name: "block-indirect-injection",
+                action: "deny",
+                severity: "critical",
+                message: `Blocked: indirect prompt injection in step output (confidence ${(outputInjection.confidence * 100).toFixed(0)}%, patterns: ${outputInjection.matches.map(m => m.pattern).join(", ")}).`,
+                recommendation: "Sanitize fetched content before passing to LLM context.",
+                match: {},
+            };
+            return { action: "deny", rule: indirectRule, secretPattern: secretHit ?? undefined };
         }
     }
     // DLP/PII check: scan payload text for PII, block if critical/high severity

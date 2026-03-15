@@ -16,6 +16,53 @@ import {
 } from "../config.js";
 import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
+import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
+import { buildAgentBaseline } from "../../../../shared/packages/maple-risk-engine/src/ml/cross-agent-detector.js";
+
+let _agentBaselineStore;
+function getAgentBaselineStore() {
+  if (!_agentBaselineStore) {
+    _agentBaselineStore = new OpenClawModifierStore();
+  }
+  return _agentBaselineStore;
+}
+
+/**
+ * Store the current agent's behavioral baseline after trace analysis.
+ */
+export async function storeAgentBaseline(agentId, tenantId, orgId, steps) {
+  if (!agentId || !steps || steps.length === 0) return;
+  const baseline = buildAgentBaseline(steps);
+  if (!baseline) return;
+  try {
+    await getAgentBaselineStore().upsertAgentBaseline(
+      agentId, tenantId, orgId, baseline.embedding, baseline.stepCount
+    );
+  } catch (err) {
+    mapleLog("warn", "openclaw_agent.baseline_store_failed", {
+      agentId, error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Load all agent baselines for a tenant scope, for cross-agent detection.
+ */
+export async function loadAgentBaselineMap(tenantId, orgId) {
+  try {
+    const baselines = await getAgentBaselineStore().listAgentBaselines({ tenantId, orgId });
+    const map = new Map();
+    for (const b of baselines) {
+      map.set(b.agentId, { embedding: b.embedding, stepCount: b.stepCount });
+    }
+    return map;
+  } catch (err) {
+    mapleLog("warn", "openclaw_agent.baseline_load_failed", {
+      tenantId, orgId, error: err instanceof Error ? err.message : String(err),
+    });
+    return new Map();
+  }
+}
 
 const execFileAsync = promisify(execFile);
 

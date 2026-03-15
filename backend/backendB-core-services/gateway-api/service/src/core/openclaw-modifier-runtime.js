@@ -39,8 +39,63 @@ const DANGEROUS_ARG_PATTERNS = [
   /^--bypass/i,
   /^--profile$/i,
   /^--profile=.*/i,
+  /^--elevated$/i,
+  /^--allowHostControl/i,
+  /^--privileged$/i,
+  /^--cap-add/i,
+  /^--pid=host/i,
+  /^--network=host/i,
+  /^--bind-mount/i,
+  /^--mount/i,
+  /^--security-opt/i,
 ];
-const DANGEROUS_SANDBOX_VALUES = new Set(["off", "none", "unsafe"]);
+const DANGEROUS_SANDBOX_VALUES = new Set(["off", "none", "unsafe", "host", "privileged", "disabled", "bypass"]);
+const SENSITIVE_MOUNT_PATHS = ["/", "/etc", "/root", "/proc", "/sys", "/dev", "/var/run/docker.sock"];
+
+const DANGEROUS_SKILL_PERMISSIONS = new Set([
+  "host_access", "network_unrestricted", "filesystem_write",
+  "process_spawn", "elevated", "root", "sudo",
+]);
+
+const MALICIOUS_SKILL_PATTERNS = [
+  /eval\s*\(/i,
+  /new\s+Function/i,
+  /child_process/i,
+  /\bexec\s*\(/i,
+  /\bspawn\s*\(/i,
+  /keylog/i,
+  /atomic[\.\-_]?stealer/i,
+  /screen[\.\-_]?capture/i,
+  /clipboard[\.\-_]?monitor/i,
+  /\\x[0-9a-fA-F]{2}(?:\\x[0-9a-fA-F]{2}){8,}/, // obfuscated hex payloads
+  /atob\s*\(\s*['"][A-Za-z0-9+/=]{20,}/i,
+];
+
+const SKILL_INSTALL_TOOLS = new Set(["skills", "plugins", "nodes"]);
+
+function validateSkillManifest(requestBody) {
+  const issues = [];
+  const corpus = JSON.stringify(requestBody ?? {});
+
+  // Check for dangerous permissions
+  if (Array.isArray(requestBody?.permissions)) {
+    for (const perm of requestBody.permissions) {
+      const lower = String(perm ?? "").trim().toLowerCase();
+      if (DANGEROUS_SKILL_PERMISSIONS.has(lower)) {
+        issues.push(`Skill requests dangerous permission '${lower}'.`);
+      }
+    }
+  }
+
+  // Check for malicious patterns in skill source/manifest
+  for (const pattern of MALICIOUS_SKILL_PATTERNS) {
+    if (pattern.test(corpus)) {
+      issues.push(`Malicious pattern detected: ${pattern.source.slice(0, 60)}`);
+    }
+  }
+
+  return issues;
+}
 
 let runtimeStore = new OpenClawModifierStore();
 
@@ -124,6 +179,25 @@ function detectUnsafeArgs(args) {
       const next = String(args[index + 1] ?? "").trim().toLowerCase();
       if (DANGEROUS_SANDBOX_VALUES.has(next)) {
         issues.push(`Disallowed sandbox mode '${next}'.`);
+      }
+    }
+    // Block bind mounts targeting sensitive host paths
+    if (/^--bind-mount=/i.test(arg) || /^--mount=/i.test(arg)) {
+      const mountTarget = arg.split("=", 2)[1] ?? "";
+      for (const sensitive of SENSITIVE_MOUNT_PATHS) {
+        if (mountTarget === sensitive || mountTarget.startsWith(sensitive + "/") || mountTarget.startsWith(sensitive + ":")) {
+          issues.push(`Disallowed mount targeting sensitive path '${sensitive}'.`);
+          break;
+        }
+      }
+    }
+    if (/^--bind-mount$/i.test(arg) || /^--mount$/i.test(arg)) {
+      const next = String(args[index + 1] ?? "").trim();
+      for (const sensitive of SENSITIVE_MOUNT_PATHS) {
+        if (next === sensitive || next.startsWith(sensitive + "/") || next.startsWith(sensitive + ":")) {
+          issues.push(`Disallowed mount targeting sensitive path '${sensitive}'.`);
+          break;
+        }
       }
     }
   }
@@ -391,6 +465,16 @@ function buildModifierPlan(requestBody, policy) {
     throw new Error(`Tool '${tool}' is not allowlisted for modifier execution.`);
   }
 
+  // PR4: Skill manifest validation for install operations
+  if (SKILL_INSTALL_TOOLS.has(tool)) {
+    const skillIssues = validateSkillManifest(requestBody);
+    if (skillIssues.length > 0) {
+      // Attach as dangerous reasons to trigger HITL approval
+      const dangerousFromSkill = skillIssues.map((issue) => `Skill manifest: ${issue}`);
+      requestBody._skillManifestIssues = dangerousFromSkill;
+    }
+  }
+
   const sourceProfile = parseProfileName(
     asString(requestBody?.sourceProfile) ?? openclawModifierSourceProfile,
     "sourceProfile"
@@ -426,6 +510,11 @@ function buildModifierPlan(requestBody, policy) {
   const maxBufferMb = parseMaxBufferMb(requestBody?.maxBufferMb, policy.constraints.maxBufferMb);
   const forceApproval = asBoolean(requestBody?.forceApproval, false);
   const dangerousReasons = parseDangerousReasons(tool, forceApproval, policy);
+
+  // Merge skill manifest issues into dangerous reasons
+  if (Array.isArray(requestBody?._skillManifestIssues)) {
+    dangerousReasons.push(...requestBody._skillManifestIssues);
+  }
 
   const plan = {
     tool,
