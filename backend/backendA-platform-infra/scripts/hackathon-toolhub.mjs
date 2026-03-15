@@ -976,8 +976,33 @@ async function readJsonBody(req) {
   if (chunks.length === 0) {
     return {};
   }
-  const text = Buffer.concat(chunks).toString("utf8");
-  return JSON.parse(text);
+  let value = Buffer.concat(chunks).toString("utf8");
+
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (typeof value === "string") {
+      value = JSON.parse(value);
+      continue;
+    }
+
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (value.type === "Buffer" && Array.isArray(value.data)) {
+        value = Buffer.from(value.data).toString("utf8");
+        continue;
+      }
+      if ("body" in value) {
+        value = value.body;
+        continue;
+      }
+      if ("payload" in value) {
+        value = value.payload;
+        continue;
+      }
+    }
+
+    break;
+  }
+
+  return value;
 }
 
 function sendJson(res, statusCode, body) {
@@ -997,6 +1022,7 @@ const server = createServer(async (req, res) => {
   try {
     body = await readJsonBody(req);
   } catch (error) {
+    console.warn("[toolhub] invalid request body", error instanceof Error ? error.message : String(error));
     sendJson(res, 400, toJsonRpcError(null, -32700, "Invalid JSON request body.", String(error)));
     return;
   }
@@ -1007,6 +1033,7 @@ const server = createServer(async (req, res) => {
   const params = asObject(payload.params);
 
   if (!method) {
+    console.warn("[toolhub] missing jsonrpc method", JSON.stringify(payload));
     sendJson(res, 400, toJsonRpcError(id, -32600, "Invalid JSON-RPC request."));
     return;
   }

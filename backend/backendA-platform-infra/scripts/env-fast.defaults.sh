@@ -33,6 +33,7 @@ CERT_DIR="${ROOT_DIR}/backend/backendA-platform-infra/certs"
 set_default NODE_ENV development
 set_default MAPLE_API_KEY local-demo-key
 set_default MCP_URL http://127.0.0.1:3000
+set_default MAPLE_GATEWAY_ORIGIN http://127.0.0.1:3000
 set_default MAPLE_ALLOW_NO_AUTH 1
 set_default MAPLE_DISABLE_TLS true
 set_default MAPLE_DISABLE_AUDIT_EMIT 1
@@ -108,9 +109,11 @@ set_default MAPLE_TENANT_CLAIM_SIGNING_KEY local-dev-tenant-signing-key
 
 set_default CONTEXT_WALL_HITL_TIMEOUT_MS 120000
 set_default DEFAULT_MODEL gpt-4o
-set_default CYBER_ALLOWED_DOMAINS example.com
+set_default CYBER_ALLOWED_DOMAINS example.com,localhost,127.0.0.1
 set_default CYBER_BLOCKED_DOMAINS evil.com
 set_default CYBER_TOOL_ALLOWED_DOMAINS_JSON "{}"
+set_default CYBER_ALLOW_LOCAL_TARGETS 1
+set_default CYBER_ALLOWED_LOCAL_HOSTS localhost,127.0.0.1
 set_default CYBER_MAX_RESPONSE_BYTES 10485760
 set_default CYBER_QUARANTINE_ENABLED 1
 
@@ -158,6 +161,18 @@ set_default MAPLE_OTLP_SERVICE_NAME gateway-api
 set_default MAPLE_OTLP_BATCH_SIZE 100
 set_default MAPLE_OTLP_FLUSH_INTERVAL_MS 5000
 set_default MAPLE_OTLP_TIMEOUT_MS 5000
+
+local_otlp_endpoint="${MAPLE_OTLP_ENDPOINT:-}"
+local_otlp_enabled="${MAPLE_DEV_FAST_ENABLE_OTLP:-0}"
+case "${local_otlp_endpoint}" in
+  http://localhost:4317|http://127.0.0.1:4317|http://localhost:4318|http://127.0.0.1:4318)
+    if [ "${local_otlp_enabled}" = "1" ]; then
+      export MAPLE_OTLP_ENDPOINT="http://127.0.0.1:4318"
+    else
+      export MAPLE_OTLP_ENDPOINT="disabled"
+    fi
+    ;;
+esac
 
 if [ "${DEV_FAST_OPENCLAW:-0}" = "1" ]; then
   if ! command -v openclaw >/dev/null 2>&1; then

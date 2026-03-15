@@ -1,7 +1,0 @@
-# uconversations
-
-This legacy documentation route has been migrated to SvelteKit.
-
-- URL parity preserved for "/conversations"
-- Backend API contracts unchanged
-- Frontend A remains monitoring/intervention for Frontend B runtime

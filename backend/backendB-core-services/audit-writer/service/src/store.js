@@ -1,6 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { mapleLog } from "@maple/common";
+
+export function buildAuditPoolConfig(databaseUrl) {
+    return {
+        connectionString: databaseUrl,
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+        maxUses: 7500,
+        application_name: 'maple-audit-writer',
+        options: '-c synchronous_commit=off',
+    };
+}
+
 export class AuditStore {
     events = [];
     maxInMemory = 10000;
@@ -19,17 +32,7 @@ export class AuditStore {
     }
     async initialize(databaseUrl) {
         try {
-            this.pool = new Pool({
-                connectionString: databaseUrl,
-                max: 10,
-                idleTimeoutMillis: 30000,
-                connectionTimeoutMillis: 5000,
-                maxUses: 7500,
-                application_name: 'maple-audit-writer',
-            });
-            this.pool.on('connect', (client) => {
-                client.query('SET synchronous_commit = off').catch(() => {});
-            });
+            this.pool = new Pool(buildAuditPoolConfig(databaseUrl));
             // Verify connectivity
             const client = await this.pool.connect();
             try {

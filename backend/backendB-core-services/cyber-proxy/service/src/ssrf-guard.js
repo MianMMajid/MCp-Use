@@ -3,6 +3,18 @@ import { lookup } from "node:dns/promises";
 import { config } from "./config.js";
 import { detectPromptInjection } from "../../../shared/packages/maple-security/src/prompt-injection.js";
 const METADATA_IPS = ["169.254.169.254", "fd00:ec2::254"];
+function isExplicitlyAllowedLocalTarget(hostname) {
+    const allowLocalTargets = ["1", "true", "yes"].includes((process.env.CYBER_ALLOW_LOCAL_TARGETS ?? "0").toLowerCase());
+    if (!allowLocalTargets) {
+        return false;
+    }
+    const normalized = String(hostname ?? "").trim().toLowerCase();
+    const allowedLocalHosts = (process.env.CYBER_ALLOWED_LOCAL_HOSTS ?? "")
+        .split(",")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean);
+    return allowedLocalHosts.includes(normalized);
+}
 export async function checkUrl(url, allowedDomains, blockedDomains) {
     let parsed;
     try {
@@ -18,6 +30,9 @@ export async function checkUrl(url, allowedDomains, blockedDomains) {
     }
     // Check private/local
     if (isPrivateOrLocalHost(hostname)) {
+        if (isExplicitlyAllowedLocalTarget(hostname)) {
+            return { allowed: true, reason: "Allowed local target", isPrivateIp: true, resolvedIp: hostname, normalizedUrl: parsed.toString() };
+        }
         return { allowed: false, reason: "Private/local IP blocked", isPrivateIp: true, resolvedIp: hostname, normalizedUrl: parsed.toString() };
     }
     // Domain blocklist check
@@ -30,6 +45,9 @@ export async function checkUrl(url, allowedDomains, blockedDomains) {
         const result = await lookup(hostname);
         resolvedIp = result.address;
         if (isPrivateOrLocalHost(resolvedIp)) {
+            if (isExplicitlyAllowedLocalTarget(resolvedIp)) {
+                return { allowed: true, reason: "Allowed local target", isPrivateIp: true, resolvedIp, normalizedUrl: parsed.toString() };
+            }
             return { allowed: false, reason: "DNS resolved to private IP (SSRF guard)", isPrivateIp: true, resolvedIp, normalizedUrl: parsed.toString() };
         }
         if (METADATA_IPS.includes(resolvedIp)) {

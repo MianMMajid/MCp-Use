@@ -53,6 +53,9 @@ async function main() {
         };
     }
     const protocol = disableTls ? "http" : "https";
+    server.serverHost = gatewayHost === "0.0.0.0" ? "127.0.0.1" : gatewayHost;
+    server.serverPort = gatewayPort;
+    server.serverBaseUrl = process.env.MCP_URL || `${protocol}://${server.serverHost}:${gatewayPort}`;
     const httpServer = serve(serveOptions, (info) => {
         mapleLog("info", "gateway_api.listening", {
             port: info.port,

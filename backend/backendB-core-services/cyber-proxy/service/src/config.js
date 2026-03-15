@@ -32,6 +32,11 @@ export const config = {
     allowedDomains: requireEnv("CYBER_ALLOWED_DOMAINS").split(",").filter(Boolean),
     blockedDomains: requireEnv("CYBER_BLOCKED_DOMAINS").split(",").filter(Boolean),
     toolAllowedDomains: parseToolAllowedDomains(requireEnv("CYBER_TOOL_ALLOWED_DOMAINS_JSON")),
+    allowLocalTargets: ["1", "true", "yes"].includes((process.env.CYBER_ALLOW_LOCAL_TARGETS ?? "0").toLowerCase()),
+    allowedLocalHosts: (process.env.CYBER_ALLOWED_LOCAL_HOSTS ?? "")
+        .split(",")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean),
     requestTimeoutMs: 15000,
     maxResponseBytes: (() => {
         const raw = Number.parseInt(requireEnv("CYBER_MAX_RESPONSE_BYTES"), 10);

@@ -7,7 +7,7 @@ process.env.MAPLE_LOG_BODY_MAX_CHARS = process.env.MAPLE_LOG_BODY_MAX_CHARS || "
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { AuditStore } = await import("../src/store.js");
+const { AuditStore, buildAuditPoolConfig } = await import("../src/store.js");
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const skip = !DATABASE_URL;
@@ -134,6 +134,12 @@ test("AuditStore: write buffer properties have correct defaults", () => {
   assert.equal(store.flushIntervalMs, 200);
 });
 
+test("AuditStore: pool config sets synchronous_commit via connection options", () => {
+  const config = buildAuditPoolConfig("postgresql://maple:maple@127.0.0.1:5432/maple");
+  assert.equal(config.application_name, "maple-audit-writer");
+  assert.equal(config.options, "-c synchronous_commit=off");
+});
+
 test("AuditStore: concurrent flush protection — flushInProgress blocks reentry", async () => {
   const store = new AuditStore();
   store.pgReady = true;
@@ -182,6 +188,7 @@ test("AuditStore: initialize creates tables", { skip }, async () => {
   try {
     assert.equal(store.pgReady, true);
     assert.ok(store.pool);
+    assert.equal(store.pool.listenerCount("connect"), 0);
   } finally {
     await store.shutdown();
   }

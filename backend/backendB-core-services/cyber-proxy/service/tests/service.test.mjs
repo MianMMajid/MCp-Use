@@ -9,6 +9,8 @@ process.env.AUDIT_WRITER_ADDRESS = process.env.AUDIT_WRITER_ADDRESS || "localhos
 process.env.CYBER_ALLOWED_DOMAINS = process.env.CYBER_ALLOWED_DOMAINS || "*";
 process.env.CYBER_BLOCKED_DOMAINS = process.env.CYBER_BLOCKED_DOMAINS || "none";
 process.env.CYBER_TOOL_ALLOWED_DOMAINS_JSON = process.env.CYBER_TOOL_ALLOWED_DOMAINS_JSON || "{}";
+process.env.CYBER_ALLOW_LOCAL_TARGETS = process.env.CYBER_ALLOW_LOCAL_TARGETS || "0";
+process.env.CYBER_ALLOWED_LOCAL_HOSTS = process.env.CYBER_ALLOWED_LOCAL_HOSTS || "";
 process.env.CYBER_MAX_RESPONSE_BYTES = process.env.CYBER_MAX_RESPONSE_BYTES || "10485760";
 process.env.CYBER_QUARANTINE_ENABLED = process.env.CYBER_QUARANTINE_ENABLED || "1";
 process.env.NODE_ENV = "development";
@@ -43,6 +45,17 @@ test("checkUrl: blocks localhost", async () => {
   const result = await checkUrl("http://localhost/api", [], []);
   assert.equal(result.allowed, false);
   assert.equal(result.isPrivateIp, true);
+});
+
+test("checkUrl: allows explicitly permitted local targets in dev mode", async () => {
+  process.env.CYBER_ALLOW_LOCAL_TARGETS = "1";
+  process.env.CYBER_ALLOWED_LOCAL_HOSTS = "localhost,127.0.0.1";
+  const { checkUrl: allowLocalCheckUrl } = await import(`../src/ssrf-guard.js?t=${Date.now()}`);
+  const result = await allowLocalCheckUrl("http://localhost/api", [], []);
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "Allowed local target");
+  process.env.CYBER_ALLOW_LOCAL_TARGETS = "0";
+  process.env.CYBER_ALLOWED_LOCAL_HOSTS = "";
 });
 
 test("checkUrl: blocks domain on blocklist", async () => {

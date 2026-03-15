@@ -82,6 +82,27 @@ function sanitizeOutboundHeaders(headers) {
     }
     return sanitized;
 }
+function normalizeRequestBody(body) {
+    if (!body) {
+        return undefined;
+    }
+    if (typeof body === "string") {
+        return body;
+    }
+    if (Buffer.isBuffer(body)) {
+        return body;
+    }
+    if (body instanceof Uint8Array) {
+        return Buffer.from(body);
+    }
+    if (Array.isArray(body)) {
+        return Buffer.from(body);
+    }
+    if (typeof body === "object" && Array.isArray(body.data)) {
+        return Buffer.from(body.data);
+    }
+    return undefined;
+}
 /**
  * Verify an HMAC-signed credential token from mcp-proxy.
  * The token format is: credentialId:appId:toolName:timestamp:sortedScopes:signature
@@ -364,10 +385,11 @@ export function createCyberProxyService() {
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), timeout);
                 try {
+                    const requestBody = normalizeRequestBody(body);
                     const resp = await fetch(url, {
                         method: method || "GET",
                         headers: sanitizeOutboundHeaders(inboundHeaders),
-                        body: method !== "GET" && method !== "HEAD" ? body : undefined,
+                        body: method !== "GET" && method !== "HEAD" ? requestBody : undefined,
                         signal: controller.signal,
                     });
                     clearTimeout(timer);
