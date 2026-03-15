@@ -208,7 +208,12 @@ export const firewallChatPrimaryProvider = firewallChatPrimaryProviderRaw;
 export const firewallChatOpenAiModel = requireEnv("MAPLE_FIREWALL_CHAT_OPENAI_MODEL");
 export const firewallChatAnthropicModel = requireEnv("MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL");
 export const firewallChatTimeoutMs = requireEnvInt("MAPLE_FIREWALL_CHAT_TIMEOUT_MS", { min: 2000, max: 60000 });
-export const firewallChatAiEnabled = Boolean(firewallChatOpenAiApiKey || firewallChatAnthropicApiKey);
+const UNUSABLE_KEY_PATTERNS = [/^not-configured$/i, /^ci-test-/i, /^test-/i, /placeholder/i, /^sk-proj-placeholder/i, /^sk-ant-placeholder/i];
+function isUsableApiKey(key) {
+    if (!key) return false;
+    return !UNUSABLE_KEY_PATTERNS.some((p) => p.test(key));
+}
+export const firewallChatAiEnabled = isUsableApiKey(firewallChatOpenAiApiKey) || isUsableApiKey(firewallChatAnthropicApiKey);
 export const sessionCookieDomain = (process.env.MAPLE_SESSION_COOKIE_DOMAIN ?? "").trim() || "";
 export const sessionCookieName = requireEnv("MAPLE_SESSION_COOKIE_NAME");
 export const sessionTtlSeconds = requireEnvInt("MAPLE_SESSION_TTL_SECONDS", { min: 60 });

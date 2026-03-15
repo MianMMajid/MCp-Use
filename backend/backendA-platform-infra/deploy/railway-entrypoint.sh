@@ -300,6 +300,14 @@ case "${MAPLE_SERVICE}" in
     export MAPLE_TOOL_RUNNER_IMAGE="${MAPLE_TOOL_RUNNER_IMAGE:-none}"
     export MAPLE_TOOL_RUNNER_JOB_NAMESPACE="${MAPLE_TOOL_RUNNER_JOB_NAMESPACE:-default}"
 
+    # MAPLE_CREDENTIAL_SIGNING_KEY is required for HMAC-signed MCP credentials.
+    # Must be set externally in Railway service variables — fail-closed if missing.
+    if [ -z "${MAPLE_CREDENTIAL_SIGNING_KEY:-}" ]; then
+      echo "[railway-entrypoint] FATAL: MAPLE_CREDENTIAL_SIGNING_KEY is required for mcp-proxy." >&2
+      echo "[railway-entrypoint] Generate one: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"" >&2
+      exit 1
+    fi
+
     export NODE_OPTIONS="${NODE_OPTIONS:---max-semi-space-size=32 --max-old-space-size=384}"
 
     start_health_sidecar "${PORT:-3000}"
