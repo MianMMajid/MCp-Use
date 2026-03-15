@@ -100,6 +100,19 @@ export class DownstreamRegistry {
         mapleLog("info", "downstream_load_env_done", { source: "legacy", count: this.apps.size, appIds: [...this.apps.keys()] });
     }
     register(app) {
+        if (this.apps.has(app.appId)) {
+            const existing = this.apps.get(app.appId);
+            mapleLog("error", "downstream_duplicate_app_id_rejected", {
+                appId: app.appId,
+                existingUrl: existing.url,
+                duplicateUrl: app.url,
+            });
+            throw new Error(
+                `Duplicate downstream app ID "${app.appId}" rejected. ` +
+                `Existing URL: ${existing.url}, duplicate URL: ${app.url}. ` +
+                `Each app must have a unique ID to prevent silent traffic hijacking.`
+            );
+        }
         this.apps.set(app.appId, app);
         mapleLog("info", "downstream_registered", { appId: app.appId, name: app.name, url: app.url });
     }

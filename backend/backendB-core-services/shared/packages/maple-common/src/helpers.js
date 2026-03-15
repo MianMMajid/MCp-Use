@@ -102,14 +102,19 @@ export function jsonRpcErrorPayload(id, code, message, data) {
     };
 }
 export function isPrivateOrLocalHost(hostname) {
-    const lower = hostname.trim().toLowerCase();
+    // Strip IPv6 zone IDs (e.g., "%eth0") which can bypass checks.
+    const lower = hostname.trim().toLowerCase().replace(/%.*$/, "");
     if (!lower)
         return true;
-    if (lower === "localhost" || lower.endsWith(".local"))
+    if (lower === "localhost" || lower.endsWith(".local") || lower === "localhost.")
         return true;
-    const family = isIP(lower);
+    // Strip square brackets from IPv6 notation (e.g., "[::1]")
+    const stripped = lower.startsWith("[") && lower.endsWith("]")
+        ? lower.slice(1, -1)
+        : lower;
+    const family = isIP(stripped);
     if (family === 4) {
-        const parts = lower.split(".").map((part) => Number(part));
+        const parts = stripped.split(".").map((part) => Number(part));
         if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255))
             return true;
         const [a, b] = parts;
@@ -125,9 +130,17 @@ export function isPrivateOrLocalHost(hostname) {
             return true;
     }
     if (family === 6) {
-        if (lower === "::1" || lower.startsWith("fe80:") || lower.startsWith("fc") || lower.startsWith("fd"))
+        if (stripped === "::1" || stripped === "::" ||
+            stripped.startsWith("fe80:") || stripped.startsWith("fe80::") ||
+            stripped.startsWith("fc") || stripped.startsWith("fd") ||
+            stripped.startsWith("::ffff:127.") || stripped.startsWith("::ffff:10.") ||
+            stripped.startsWith("::ffff:192.168.") || stripped.startsWith("::ffff:169.254."))
             return true;
     }
+    // If isIP returns 0 (not a valid IP) but it looks numeric, block it
+    // to prevent hex/octal/integer IP notation bypasses.
+    if (family === 0 && /^[\d.x]+$/i.test(stripped))
+        return true;
     return false;
 }
 export function truncateText(value, maxLength = 2400) {

@@ -811,12 +811,19 @@ export function createContextWallService(approvalQueue, policyStore) {
         },
         WatchApprovalQueue(call) {
             const requestedSessionId = String(call.request?.sessionId || "");
+            let unwatched = false;
+            const safeUnwatch = () => {
+                if (unwatched) return;
+                unwatched = true;
+                unwatch();
+            };
             const unwatch = approvalQueue.watch((event) => {
+                if (unwatched) return;
                 if (requestedSessionId && stepSessionId(event.step) !== requestedSessionId) {
                     return;
                 }
-                const decision = evaluateFirewallStep(event.step, getExternalRules());
                 try {
+                    const decision = evaluateFirewallStep(event.step, getExternalRules());
                     call.write({
                         traceId: event.traceId,
                         stepIndex: event.stepIndex,
@@ -825,12 +832,12 @@ export function createContextWallService(approvalQueue, policyStore) {
                         requestedAt: event.requestedAt,
                     });
                 } catch {
-                    unwatch();
+                    safeUnwatch();
                 }
             });
-            call.on("cancelled", unwatch);
-            call.on("close", unwatch);
-            call.on("error", unwatch);
+            call.on("cancelled", safeUnwatch);
+            call.on("close", safeUnwatch);
+            call.on("error", safeUnwatch);
         },
         ListPendingApprovals(call, callback) {
             try {
@@ -1071,6 +1078,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 let model = "";
                 let toolCallCount = 0;
                 const maxToolRounds = 4;
+                const maxTotalToolCalls = 20;
                 for (let round = 0; round <= maxToolRounds; round += 1) {
                     const response = await generateChatModelResponse({
                         context: requestContext,
@@ -1088,6 +1096,17 @@ export function createContextWallService(approvalQueue, policyStore) {
                         break;
                     }
                     toolCallCount += toolCalls.length;
+                    // Hard cap on total tool calls to prevent DoS via models that
+                    // request many tools per round. Log so operators can investigate.
+                    if (toolCallCount > maxTotalToolCalls) {
+                        mapleLog("warn", "context_wall_tool_call_limit_reached", {
+                            traceId: requestContext.traceId,
+                            toolCallCount,
+                            maxTotalToolCalls,
+                            round,
+                        });
+                        break;
+                    }
                     modelMessages = [
                         ...modelMessages,
                         {

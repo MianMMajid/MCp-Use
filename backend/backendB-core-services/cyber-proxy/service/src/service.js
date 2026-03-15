@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { checkUrl, scanContent, scanContentForInjection } from "./ssrf-guard.js";
 import { config } from "./config.js";
@@ -95,8 +95,13 @@ function verifyCredentialToken(token) {
     const signature = parts[parts.length - 1];
     const payload = parts.slice(0, -1).join(":");
     const expectedSig = createHmac("sha256", signingKey)
-        .update(payload).digest("hex").slice(0, 32);
-    if (signature !== expectedSig) return { valid: false, reason: "invalid_signature" };
+        .update(payload).digest("hex");
+    // Constant-time comparison prevents timing attacks
+    const sigBuf = Buffer.from(signature, "hex");
+    const expectedBuf = Buffer.from(expectedSig, "hex");
+    if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
+        return { valid: false, reason: "invalid_signature" };
+    }
     const [credentialId, appId, toolName, timestampStr] = parts;
     const timestamp = Number(timestampStr);
     if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
@@ -344,11 +349,35 @@ export function createCyberProxyService() {
                         signal: controller.signal,
                     });
                     clearTimeout(timer);
-                    const respBody = Buffer.from(await resp.arrayBuffer());
+                    // Read response body incrementally with size enforcement to
+                    // prevent OOM from large upstream responses.
+                    const chunks = [];
+                    let totalBytes = 0;
+                    let sizeExceeded = false;
+                    const reader = resp.body?.getReader();
+                    if (reader) {
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            totalBytes += value.byteLength;
+                            if (totalBytes > effectiveMaxBytes) {
+                                reader.cancel();
+                                sizeExceeded = true;
+                                break;
+                            }
+                            chunks.push(value);
+                        }
+                    } else {
+                        const buf = Buffer.from(await resp.arrayBuffer());
+                        totalBytes = buf.length;
+                        if (totalBytes > effectiveMaxBytes) sizeExceeded = true;
+                        else chunks.push(buf);
+                    }
+                    const respBody = Buffer.concat(chunks);
                     const respHeaders = {};
                     resp.headers.forEach((v, k) => { respHeaders[k] = v; });
-                    if (respBody.length > effectiveMaxBytes) {
-                        const reason = `Response exceeds scoped max_bytes (${respBody.length} > ${effectiveMaxBytes})`;
+                    if (sizeExceeded) {
+                        const reason = `Response exceeds scoped max_bytes (${totalBytes} > ${effectiveMaxBytes})`;
                         emitAuditEvent({
                             eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                             summary: reason,

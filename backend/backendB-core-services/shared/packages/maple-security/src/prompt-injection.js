@@ -41,7 +41,9 @@ const INJECTION_PATTERNS = [
     {
         name: "disregard_override",
         category: "instruction_override",
-        regex: /(disregard|override|forget|bypass)\s+(all\s+)?(previous|prior|above|your|safety|original)\s+(instructions|rules|guidelines|constraints|restrictions)/i,
+        // Use atomic-style quantifier (possessive not available in JS, use {0,1} instead of ?)
+        // and bounded whitespace to prevent catastrophic backtracking.
+        regex: /(disregard|override|forget|bypass)\s{1,10}(all\s{1,10})?(previous|prior|above|your|safety|original)\s{1,10}(instructions|rules|guidelines|constraints|restrictions)/i,
         weight: 0.95,
         severity: "critical",
     },
@@ -63,7 +65,8 @@ const INJECTION_PATTERNS = [
     {
         name: "dan_jailbreak",
         category: "role_confusion",
-        regex: /\b(DAN|STAN|DUDE|AIM|KEVIN|JAILBREAK)\b.*\b(mode|persona|character|personality|roleplay)\b/i,
+        // Use lazy quantifier with length cap to prevent ReDoS on large inputs.
+        regex: /\b(DAN|STAN|DUDE|AIM|KEVIN|JAILBREAK)\b.{0,200}\b(mode|persona|character|personality|roleplay)\b/i,
         weight: 0.95,
         severity: "critical",
     },

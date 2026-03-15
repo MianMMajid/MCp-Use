@@ -42,13 +42,19 @@ const DLP_PATTERNS = [
     {
         name: "ssn",
         category: "pii",
-        regex: /\b\d{3}-\d{2}-\d{4}\b/g,
+        // Match dashed (123-45-6789), space-separated (123 45 6789),
+        // and contiguous (123456789) SSN formats.
+        regex: /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g,
         severity: "critical",
         validator: (match) => {
-            const parts = match.split("-");
-            const area = parseInt(parts[0], 10);
+            const digits = match.replace(/[-\s]/g, "");
+            if (digits.length !== 9) return false;
+            const area = parseInt(digits.slice(0, 3), 10);
+            const group = parseInt(digits.slice(3, 5), 10);
             // SSN area numbers 000, 666, and 900-999 are invalid
-            return area !== 0 && area !== 666 && area < 900;
+            // Group 00 and serial 0000 are also invalid
+            return area !== 0 && area !== 666 && area < 900 &&
+                   group !== 0 && parseInt(digits.slice(5), 10) !== 0;
         },
     },
     {

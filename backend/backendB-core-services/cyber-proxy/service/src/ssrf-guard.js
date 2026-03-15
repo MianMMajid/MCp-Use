@@ -138,6 +138,24 @@ export function scanContent(content, contentType, sourceUrl) {
     const threats = [];
     let quarantined = false;
     let quarantineReason;
+    // ── Magic bytes detection (always runs regardless of quarantine or Content-Type) ──
+    // This prevents Content-Type spoofing where an executable is served as
+    // application/json to bypass content-type-based checks.
+    if (content.length >= 2) {
+        const magicMatch = matchesMagicBytes(content);
+        if (magicMatch) {
+            const isExecutable = magicMatch.includes("executable") || magicMatch.includes("class file");
+            if (isExecutable) {
+                return {
+                    safe: false,
+                    threats: [`Magic bytes: ${magicMatch} (detected despite Content-Type: ${contentType})`],
+                    sanitized: Buffer.alloc(0),
+                    quarantined: true,
+                    quarantineReason: `Executable detected via magic bytes: ${magicMatch}`,
+                };
+            }
+        }
+    }
     // ── Size limit ──
     if (config.quarantineEnabled && content.length > config.maxResponseBytes) {
         return {

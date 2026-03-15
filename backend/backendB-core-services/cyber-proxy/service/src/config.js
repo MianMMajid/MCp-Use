@@ -33,7 +33,13 @@ export const config = {
     blockedDomains: requireEnv("CYBER_BLOCKED_DOMAINS").split(",").filter(Boolean),
     toolAllowedDomains: parseToolAllowedDomains(requireEnv("CYBER_TOOL_ALLOWED_DOMAINS_JSON")),
     requestTimeoutMs: 15000,
-    maxResponseBytes: Number.parseInt(requireEnv("CYBER_MAX_RESPONSE_BYTES"), 10),
+    maxResponseBytes: (() => {
+        const raw = Number.parseInt(requireEnv("CYBER_MAX_RESPONSE_BYTES"), 10);
+        if (!Number.isFinite(raw) || raw < 1024 || raw > 500 * 1024 * 1024) {
+            throw new Error(`CYBER_MAX_RESPONSE_BYTES must be between 1024 and 524288000, got: ${raw}`);
+        }
+        return raw;
+    })(),
     quarantineEnabled: ["1", "true", "yes"].includes(requireEnv("CYBER_QUARANTINE_ENABLED").toLowerCase()),
 };
 //# sourceMappingURL=config.js.map

@@ -20,6 +20,18 @@ import { mapleLog } from "../logging.js";
  * @param {string} [config.redisUrl] - Redis connection URL (for redis backend)
  * @returns {{ publish, subscribe, close }}
  */
+// PostgreSQL channel names must be valid identifiers to prevent SQL injection.
+// Strip everything except alphanumerics, underscores, and hyphens, then quote.
+const CHANNEL_NAME_RE = /^[a-zA-Z0-9_-]{1,63}$/;
+function sanitizeChannelName(name) {
+  if (!CHANNEL_NAME_RE.test(name)) {
+    // Replace unsafe chars, truncate, and wrap in double-quotes for safety.
+    const safe = name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 63);
+    return `"${safe}"`;
+  }
+  return `"${name}"`;
+}
+
 export function createEventTransport(config = {}) {
   const backend = config.backend ?? "pg";
 
@@ -80,9 +92,9 @@ function createPgTransport(config) {
         }
       });
 
-      // Re-subscribe any existing channels
+      // Re-subscribe any existing channels (sanitize names to prevent SQL injection)
       for (const channel of subscriptions.keys()) {
-        await client.query(`LISTEN ${channel}`);
+        await client.query(`LISTEN ${sanitizeChannelName(channel)}`);
       }
 
       return client;
@@ -119,7 +131,7 @@ function createPgTransport(config) {
 
       const client = await ensurePgClient();
       if (client) {
-        await client.query(`LISTEN ${channel}`).catch((err) => {
+        await client.query(`LISTEN ${sanitizeChannelName(channel)}`).catch((err) => {
           mapleLog("warn", "event_transport.pg.listen_failed", {
             channel,
             error: err instanceof Error ? err.message : String(err),

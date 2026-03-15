@@ -18,7 +18,7 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { randomUUID, createHmac } from "node:crypto";
+import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
 function jsonBuf(value) {
     return Buffer.from(JSON.stringify(value));
@@ -94,8 +94,9 @@ if (!CREDENTIAL_SIGNING_KEY || CREDENTIAL_SIGNING_KEY === "maple-credential-key"
 function createSignedCredential(toolName, appId, scopes) {
     const credentialId = `cred-${randomUUID()}`;
     const payload = `${credentialId}:${appId}:${toolName}:${Date.now()}`;
+    // Use full 64-char hex digest — truncation weakens HMAC security.
     const signature = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
-        .update(payload).digest("hex").slice(0, 32);
+        .update(payload).digest("hex");
     const token = `${payload}:${signature}`;
     mapleLog("info", "credential_mint_signed", {
         appId,
@@ -115,8 +116,13 @@ export function verifySignedCredential(token) {
     const signature = parts[parts.length - 1];
     const payload = parts.slice(0, -1).join(":");
     const expectedSig = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
-        .update(payload).digest("hex").slice(0, 32);
-    if (signature !== expectedSig) return { valid: false, reason: "invalid_signature" };
+        .update(payload).digest("hex");
+    // Constant-time comparison prevents timing attacks that could leak the key.
+    const sigBuf = Buffer.from(signature, "hex");
+    const expectedBuf = Buffer.from(expectedSig, "hex");
+    if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
+        return { valid: false, reason: "invalid_signature" };
+    }
     // Parse credential fields
     const [credentialId, appId, toolName, timestampStr] = parts;
     const timestamp = Number(timestampStr);

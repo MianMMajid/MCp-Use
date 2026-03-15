@@ -88,6 +88,11 @@ export class AuditStore {
                 mapleLog("info", "audit_store_pg_initialized", {
                     cachedEvents: this.events.length,
                 });
+                // Schedule periodic dead-letter pruning (every 6 hours).
+                this._pruneInterval = setInterval(() => this.pruneDeadLetter(), 6 * 60 * 60 * 1000);
+                this._pruneInterval.unref();
+                // Run initial prune.
+                this.pruneDeadLetter();
             }
             finally {
                 client.release();
@@ -146,6 +151,8 @@ export class AuditStore {
             clearTimeout(this.flushTimer);
             this.flushTimer = null;
         }
+        // Splice atomically — take exactly the current buffer contents.
+        // New events arriving during flush go into a fresh buffer.
         const batch = this.writeBuffer.splice(0, this.writeBuffer.length);
         if (batch.length === 0) {
             this.flushInProgress = false;
@@ -164,6 +171,14 @@ export class AuditStore {
             }
         } finally {
             this.flushInProgress = false;
+            // If events accumulated during flush, schedule another flush.
+            if (this.writeBuffer.length > 0 && !this.flushTimer) {
+                this.flushTimer = setTimeout(() => {
+                    if (!this.flushInProgress) {
+                        this.flushBuffer().catch(() => {});
+                    }
+                }, this.flushIntervalMs);
+            }
         }
     }
     async appendBatch(events) {
@@ -207,6 +222,10 @@ export class AuditStore {
             clearTimeout(this.flushTimer);
             this.flushTimer = null;
         }
+        if (this._pruneInterval) {
+            clearInterval(this._pruneInterval);
+            this._pruneInterval = null;
+        }
         await this.flushBuffer();
         if (this.pool) {
             await this.pool.end();
@@ -215,7 +234,27 @@ export class AuditStore {
             mapleLog("info", "audit_store_pg_shutdown", {});
         }
     }
+    isInitialized() {
+        return this.pgReady;
+    }
     // ── Dead-letter queue ────────────────────────────────────────────
+    // Auto-prune dead-letter entries older than 7 days or exceeding 10000 rows.
+    async pruneDeadLetter() {
+        if (!this.pgReady || !this.pool) return;
+        try {
+            await this.pool.query(
+                `DELETE FROM audit_dead_letter WHERE failed_at < NOW() - INTERVAL '7 days'`
+            );
+            // If still too many, keep only the newest 10000.
+            await this.pool.query(
+                `DELETE FROM audit_dead_letter WHERE event_id NOT IN (
+                    SELECT event_id FROM audit_dead_letter ORDER BY failed_at DESC LIMIT 10000
+                )`
+            );
+        } catch (err) {
+            mapleLog("warn", "audit_dead_letter_prune_failed", { error: err.message });
+        }
+    }
     async insertDeadLetter(event, error) {
         if (!this.pgReady || !this.pool) return;
         try {

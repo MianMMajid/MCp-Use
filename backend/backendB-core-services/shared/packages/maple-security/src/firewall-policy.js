@@ -22,7 +22,7 @@ const secretPatterns = [
     { name: "private-key-header", regex: /-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/g },
     { name: "jwt-token", regex: /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g },
     { name: "slack-token", regex: /xox[bpoas]-[A-Za-z0-9-]+/g },
-    { name: "database-url", regex: /(postgres|mysql|mongodb|redis):\/\/[^\s]+/g },
+    { name: "database-url", regex: /(postgres|mysql|mongodb|redis):\/\/[^\s]{1,500}/g },
     { name: "generic-secret-40", regex: /[A-Za-z0-9/+=]{40}/g, entropyThreshold: 4.5 },
 ];
 const defaultRules = [
