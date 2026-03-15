@@ -59,6 +59,10 @@ mcp-firewall-reference/
 
 # Stray package artifact aliases
 **/dist 2
+/backend/backendB-core-services/gateway-api/service/src/integrations/* 2.js
+
+# Frontend A generated SvelteKit output
+/frontend/frontendA-it-console/template-runtime/.svelte-kit/
 
 # Northflank generated artifacts (can contain secrets)
 /backend/backendA-platform-infra/deploy/northflank/certs/
