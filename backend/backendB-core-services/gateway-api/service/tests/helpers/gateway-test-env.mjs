@@ -102,6 +102,8 @@ const DEFAULT_GATEWAY_TEST_ENV = {
   MAPLE_API_KEY: "test-admin-key",
   MAPLE_INTEGRATION_OAUTH_STATE_SECRET: "test-oauth-state-secret-32chars!",
   MAPLE_INTEGRATION_OAUTH_ENCRYPTION_KEY: "test-oauth-encryption-key-32char",
+  MAPLE_CREDENTIAL_SIGNING_KEY: "test-credential-signing-key-for-hmac-validation",
+  MAPLE_TENANT_CLAIM_SIGNING_KEY: "test-tenant-claim-signing-key-32chars!",
 };
 
 export function applyGatewayTestEnvDefaults(overrides = {}) {
