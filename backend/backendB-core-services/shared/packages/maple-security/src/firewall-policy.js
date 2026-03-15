@@ -257,6 +257,8 @@ function evaluateStep(step, externalRules) {
     }
     // Merge external rules ahead of defaults (external override same-name defaults)
     const mergedRules = mergeRules(defaultRules, externalRules);
+    const ACTION_SEVERITY = { deny: 3, log_only: 2, allow: 1 };
+    let worstMatch = null;
     for (const rule of mergedRules) {
         if (rule.match.stepTypes && !rule.match.stepTypes.includes(step.type))
             continue;
@@ -275,11 +277,18 @@ function evaluateStep(step, externalRules) {
         if (rule.match.secrets) {
             if (!secretHit)
                 continue;
-            return { action: rule.action, rule, secretPattern: secretHit };
+            const candidate = { action: rule.action, rule, secretPattern: secretHit };
+            if (!worstMatch || ACTION_SEVERITY[rule.action] > ACTION_SEVERITY[worstMatch.action]) {
+                worstMatch = candidate;
+            }
+            continue;
         }
-        return { action: rule.action, rule, secretPattern: secretHit ?? undefined };
+        const candidate = { action: rule.action, rule, secretPattern: secretHit ?? undefined };
+        if (!worstMatch || ACTION_SEVERITY[rule.action] > ACTION_SEVERITY[worstMatch.action]) {
+            worstMatch = candidate;
+        }
     }
-    return { action: firewallDefaultAction, rule: null, secretPattern: secretHit ?? undefined };
+    return worstMatch ?? { action: firewallDefaultAction, rule: null, secretPattern: secretHit ?? undefined };
 }
 function mergeRules(defaults, external) {
     if (!external || external.length === 0)

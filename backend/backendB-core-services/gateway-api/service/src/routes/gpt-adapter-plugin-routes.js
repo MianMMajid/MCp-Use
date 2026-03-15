@@ -12,7 +12,9 @@ export function registerGptPluginRoutes(app) {
             description_for_human: "Access curated web, research, and utility tools through Maple's MCP firewall gateway.",
             description_for_model: "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
             auth: {
-                type: "none",
+                type: "oauth",
+                authorization_url: `${baseUrl}/gpt/oauth/authorize`,
+                token_url: `${baseUrl}/gpt/oauth/token`,
             },
             api: {
                 type: "openapi",
@@ -54,7 +56,7 @@ export function registerGptPluginRoutes(app) {
                 post: {
                     operationId: tool.name,
                     summary: tool.description ?? tool.name,
-                    security: [],
+                    security: [{ "BearerAuth": [] }],
                     requestBody: {
                         required: true,
                         content: {
@@ -90,8 +92,15 @@ export function registerGptPluginRoutes(app) {
             },
             servers: [{ url: baseUrl }],
             paths,
-            components: {},
-            security: [],
+            components: {
+                securitySchemes: {
+                    BearerAuth: {
+                        type: "http",
+                        scheme: "bearer",
+                    },
+                },
+            },
+            security: [{ "BearerAuth": [] }],
         };
         gptOpenApiSpecCache = { spec, expiresAt: Date.now() + GPT_SPEC_TTL_MS };
         return c.json(spec);

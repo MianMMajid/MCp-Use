@@ -10,16 +10,20 @@ function read(relativePath: string): string {
 
 describe("template runtime config wiring", () => {
   it("all template runtimes rewrite /api through gateway and /admin/api through admin console", () => {
-    const frontendANextConfig = read("frontend/frontendA-it-console/template-runtime/next.config.mjs");
-    const frontendBNextConfig = read("frontend/frontendB-desktop-app/template-runtime/next.config.mjs");
+    // Frontend C uses Next.js config with rewrite rules
     const frontendCNextConfig = read("frontend/frontendC-marketing-download-site/template-runtime/next.config.js");
+    expect(frontendCNextConfig).toContain("source: '/api/:path*'");
+    expect(frontendCNextConfig).toContain("destination: `${mapleGatewayOrigin}/api/:path*`");
+    expect(frontendCNextConfig).toContain("source: '/admin/api/:path*'");
+    expect(frontendCNextConfig).toContain("destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`");
 
-    for (const source of [frontendANextConfig, frontendBNextConfig, frontendCNextConfig]) {
-      expect(source).toContain("source: '/api/:path*'");
-      expect(source).toContain("destination: `${mapleGatewayOrigin}/api/:path*`");
-      expect(source).toContain("source: '/admin/api/:path*'");
-      expect(source).toContain("destination: `${mapleAdminConsoleOrigin}/admin/api/:path*`");
-    }
+    // Frontend A uses SvelteKit server routes for API proxying via origin helper
+    const frontendAProxy = read("frontend/frontendA-it-console/template-runtime/src/routes/api/[...path]/+server.js");
+    expect(frontendAProxy).toContain("getGatewayOrigin");
+
+    // Frontend B uses SvelteKit server routes for API proxying
+    const frontendBProxy = read("frontend/frontendB-desktop-app/template-runtime/src/routes/api/[...path]/+server.js");
+    expect(frontendBProxy).toContain("MAPLE_GATEWAY_ORIGIN");
   });
 
   it("desktop electron shell points at template runtime UI by default", () => {

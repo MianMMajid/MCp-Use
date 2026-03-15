@@ -2,7 +2,7 @@ import { startGrpcServer, gracefulShutdown, mapleLog } from "@maple/common";
 import { PolicyStore } from "@maple/security";
 import { ApprovalQueue } from "./approval-queue.js";
 import { PolicyStorePg } from "./policy-store-pg.js";
-import { createContextWallService } from "./service.js";
+import { createContextWallService, closeContextWallClients } from "./service.js";
 import { config } from "./config.js";
 async function main() {
     mapleLog("info", "context_wall_starting", { port: config.port, hasDatabaseUrl: !!config.databaseUrl });
@@ -30,7 +30,7 @@ async function main() {
     });
     const server = createContextWallService(approvalQueue, policyStore);
     await startGrpcServer(server, { port: config.port, host: config.host, serviceName: "context-wall" });
-    gracefulShutdown(server, "context-wall");
+    gracefulShutdown(server, "context-wall", () => closeContextWallClients());
 }
 main().catch((err) => {
     mapleLog("error", "context_wall_fatal", { error: err.message });

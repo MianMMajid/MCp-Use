@@ -12,6 +12,9 @@ const DEFAULT_ROLES = [
   { roleId: "member", label: "Member", permissions: ["tools:read"] },
 ];
 
+const VALID_ROLE_IDS = new Set(DEFAULT_ROLES.map(r => r.roleId));
+const ROLE_RANK = { owner: 3, admin: 2, member: 1 };
+
 function hasPool(database) {
   return Boolean(database && typeof database.pool?.query === "function");
 }
@@ -689,6 +692,9 @@ export class PlatformStore {
     if (!normalizedOrgId || !normalizedUserId) {
       return null;
     }
+    if (!VALID_ROLE_IDS.has(normalizedRoleId)) {
+      throw new Error(`Invalid role: ${normalizedRoleId}. Must be one of: ${[...VALID_ROLE_IDS].join(", ")}`);
+    }
     const timestamp = nowIso();
 
     if (!hasPool(this.database)) {
@@ -723,6 +729,36 @@ export class PlatformStore {
       [normalizedOrgId, timestamp]
     );
     return { userId: normalizedUserId, roleId: normalizedRoleId };
+  }
+
+  async getMemberRole(orgId, userId) {
+    await this.ensureInitialized();
+    const normalizedOrgId = String(orgId ?? "").trim();
+    const normalizedUserId = String(userId ?? "").trim();
+    if (!normalizedOrgId || !normalizedUserId) {
+      return null;
+    }
+
+    if (!hasPool(this.database)) {
+      const org = this.memory.orgs.get(normalizedOrgId);
+      if (!org) {
+        return null;
+      }
+      const member = org.members.find((m) => m.userId === normalizedUserId);
+      return member ? member.roleId : null;
+    }
+
+    const result = await this.database.pool.query(
+      `
+        SELECT role_id
+        FROM business_org_members
+        WHERE org_id = $1 AND user_id = $2
+        LIMIT 1
+      `,
+      [normalizedOrgId, normalizedUserId]
+    );
+    const row = result.rows[0];
+    return row ? String(row.role_id) : null;
   }
 
   async removeOrganizationMember(orgId, userId) {
@@ -868,7 +904,7 @@ export class PlatformStore {
     };
   }
 
-  async acceptOrganizationInvite(inviteId, userId) {
+  async acceptOrganizationInvite(inviteId, userId, acceptingEmail) {
     await this.ensureInitialized();
     const normalizedInviteId = String(inviteId ?? "").trim();
     const normalizedUserId = String(userId ?? "").trim();
@@ -878,6 +914,10 @@ export class PlatformStore {
 
     const invite = await this.getOrganizationInvite(normalizedInviteId);
     if (!invite) {
+      return null;
+    }
+    if (invite.email && acceptingEmail &&
+        invite.email.toLowerCase() !== String(acceptingEmail).trim().toLowerCase()) {
       return null;
     }
     if (invite.acceptedAt) {

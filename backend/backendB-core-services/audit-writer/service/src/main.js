@@ -105,7 +105,10 @@ function startEdgeAuditIngestServer(store) {
 }
 async function main() {
     mapleLog("info", "audit_writer_starting", { port: config.port });
-    const store = new AuditStore();
+    const store = new AuditStore({
+        maxBufferSize: config.maxBatchSize,
+        flushIntervalMs: config.flushIntervalMs,
+    });
     // Initialize PostgreSQL persistence before starting the gRPC server
     await store.initialize(config.databaseUrl);
     const server = createAuditWriterService(store);

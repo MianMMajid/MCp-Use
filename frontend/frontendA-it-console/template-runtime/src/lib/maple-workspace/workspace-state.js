@@ -124,7 +124,7 @@ export function getWorkspaceViewForRoute(routeRecord) {
  */
 export function resolveWorkspaceState({ pathname, searchParams }) {
   const normalizedPathname = normalizeWorkspacePath(pathname)
-  const isCanonicalPath = normalizedPathname === MAPLE_WORKSPACE_PATH_PREFIX
+  const isCanonicalPath = normalizedPathname === MAPLE_WORKSPACE_PATH_PREFIX || normalizedPathname === '/'
   const resolvedRoutePath = isCanonicalPath
     ? searchParams?.get('route') ?? MAPLE_WORKSPACE_DEFAULT_ROUTE
     : resolveLegacyRoute(normalizedPathname)

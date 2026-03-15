@@ -207,9 +207,10 @@ export function requireEnvPort(key) {
     }
     return parsed;
 }
-export function gracefulShutdown(server, serviceName) {
+export function gracefulShutdown(server, serviceName, cleanupFn) {
     const shutdown = () => {
         mapleLog("info", `${serviceName} shutting down`);
+        try { if (typeof cleanupFn === "function") cleanupFn(); } catch { /* best effort */ }
         server.tryShutdown(() => {
             mapleLog("info", `${serviceName} stopped`);
             process.exit(0);

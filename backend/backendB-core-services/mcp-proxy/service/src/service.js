@@ -18,8 +18,11 @@ import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 import { config } from "./config.js";
+function jsonBuf(value) {
+    return Buffer.from(JSON.stringify(value));
+}
 // ── Lightweight audit event emitter ──────────────────────────────────────────
 function emitAuditEvent(opts) {
     try {
@@ -30,7 +33,7 @@ function emitAuditEvent(opts) {
                 timestamp: new Date().toISOString(),
                 sourceService: "mcp-proxy",
                 context: { traceId: opts.traceId ?? "" },
-                payloadJson: Buffer.from(JSON.stringify(opts.payload ?? {})),
+                payloadJson: jsonBuf(opts.payload ?? {}),
                 severity: "RISK_SEVERITY_LOW",
                 summary: opts.summary,
             },
@@ -46,9 +49,11 @@ const grpcTlsConfig = loadGrpcTlsConfig();
 function loadServiceClientPooled(protoFile, servicePath, address) {
     return loadServiceClientSecurePooled(protoFile, servicePath, address, PROTO_ROOT, grpcTlsConfig);
 }
-function grpcUnary(client, method, request) {
+const DEFAULT_DEADLINE_MS = 5000;
+function grpcUnary(client, method, request, { deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
+    const deadline = new Date(Date.now() + deadlineMs);
     return new Promise((resolve, reject) => {
-        client[method](request, (err, response) => {
+        client[method](request, { deadline }, (err, response) => {
             if (err)
                 reject(err);
             else
@@ -56,27 +61,19 @@ function grpcUnary(client, method, request) {
         });
     });
 }
-let cyberProxyPool;
-let auditWriterPool;
+const cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
+const auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
 const cyberProxyBreaker = new CircuitBreaker("mcp-proxy->cyber-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("mcp-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
 function getCyberProxy() {
-    if (!cyberProxyPool) {
-        cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto", "maple.cyber.v1.CyberProxyService", config.cyberProxyAddress);
-    }
     return cyberProxyPool.getClient();
 }
 function getAuditWriter() {
-    if (!auditWriterPool) {
-        auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
-    }
     return auditWriterPool.getClient();
 }
 export function closeMcpProxyClients() {
     cyberProxyPool?.close();
     auditWriterPool?.close();
-    cyberProxyPool = undefined;
-    auditWriterPool = undefined;
 }
 class CredentialMintError extends Error {
     constructor(message) {
@@ -84,16 +81,41 @@ class CredentialMintError extends Error {
         this.name = "CredentialMintError";
     }
 }
-function createRetiredCredential(toolName, appId, scopes) {
-    const credentialId = `retired-${randomUUID()}`;
-    const token = `retired:${appId}:${toolName}:${Date.now()}`;
-    mapleLog("info", "credential_mint_retired_fallback", {
+// Fix 9: HMAC-signed credentials instead of plaintext retired tokens
+const CREDENTIAL_SIGNING_KEY = process.env.MAPLE_CREDENTIAL_SIGNING_KEY || "maple-credential-key";
+
+function createSignedCredential(toolName, appId, scopes) {
+    const credentialId = `cred-${randomUUID()}`;
+    const payload = `${credentialId}:${appId}:${toolName}:${Date.now()}`;
+    const signature = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
+        .update(payload).digest("hex").slice(0, 32);
+    const token = `${payload}:${signature}`;
+    mapleLog("info", "credential_mint_signed", {
         appId,
         toolName,
         credentialId,
         replacement: "context-wall scoped credential delegation",
     });
     return { credentialId, token, scopes };
+}
+
+// Finding 5: Verification function for signed credentials — cyber-proxy
+// should call this to validate tokens before trusting scope claims.
+export function verifySignedCredential(token) {
+    if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
+    const parts = token.split(":");
+    if (parts.length < 5) return { valid: false, reason: "malformed_token" };
+    const signature = parts[parts.length - 1];
+    const payload = parts.slice(0, -1).join(":");
+    const expectedSig = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
+        .update(payload).digest("hex").slice(0, 32);
+    if (signature !== expectedSig) return { valid: false, reason: "invalid_signature" };
+    // Parse credential fields
+    const [credentialId, appId, toolName, timestampStr] = parts;
+    const timestamp = Number(timestampStr);
+    // Reject credentials older than 1 hour
+    if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
+    return { valid: true, credentialId, appId, toolName, timestamp };
 }
 function scopeToCredentialScopes(scope) {
     const scopes = ["execute"];
@@ -111,9 +133,9 @@ function scopeToCredentialScopes(scope) {
     return [...new Set(scopes)];
 }
 async function mintCredentialForToolWithScopes(toolName, appId, scopes) {
-    // secrets-broker has been retired; always use local retired credential minting.
+    // secrets-broker has been retired; use HMAC-signed credentials.
     // Replacement: context-wall scoped credential delegation.
-    return createRetiredCredential(toolName, appId, scopes);
+    return createSignedCredential(toolName, appId, scopes);
 }
 let jobDispatcher = null;
 function setJobDispatcher(dispatcher) {
@@ -485,7 +507,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     const errorMessage = dispatched.errorMessage || `Cyber-proxy returned HTTP ${dispatched.statusCode}`;
                     callback(null, {
                         success: false,
-                        resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage })),
+                        resultJson: jsonBuf(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage }),
                         errorMessage,
                         durationMs,
                         appId,
@@ -507,7 +529,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     });
                     callback(null, {
                         success: false,
-                        resultJson: Buffer.from(JSON.stringify(rpcResponse.error)),
+                        resultJson: jsonBuf(rpcResponse.error),
                         errorMessage: typeof rpcResponse.error === "string" ? rpcResponse.error : "Tool execution returned JSON-RPC error",
                         durationMs,
                         appId,
@@ -526,7 +548,7 @@ export function createMcpProxyService(registry, dispatcher) {
                 });
                 callback(null, {
                     success: true,
-                    resultJson: Buffer.from(JSON.stringify(rpcResponse?.result ?? {})),
+                    resultJson: jsonBuf(rpcResponse?.result ?? {}),
                     errorMessage: "",
                     durationMs,
                     appId,
@@ -569,7 +591,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     if (!app) {
                         results.push({
                             success: false,
-                            resultJson: Buffer.from(JSON.stringify({ error: `App ${appId} not found` })),
+                            resultJson: jsonBuf({ error: `App ${appId} not found` }),
                             durationMs: 0,
                             appId,
                             toolName,
@@ -583,7 +605,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     if (!app.enabled) {
                         results.push({
                             success: false,
-                            resultJson: Buffer.from(JSON.stringify({ error: `App ${appId} is disabled` })),
+                            resultJson: jsonBuf({ error: `App ${appId} is disabled` }),
                             durationMs: 0,
                             appId,
                             toolName,
@@ -603,7 +625,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         catch (err) {
                             results.push({
                                 success: false,
-                                resultJson: Buffer.from(JSON.stringify({ error: err.message })),
+                                resultJson: jsonBuf({ error: err.message }),
                                 durationMs: Date.now() - start,
                                 appId,
                                 toolName,
@@ -631,7 +653,7 @@ export function createMcpProxyService(registry, dispatcher) {
                             const status = response.statusCode === 403 ? "blocked" : "error";
                             results.push({
                                 success: false,
-                                resultJson: Buffer.from(JSON.stringify(rpcResponse?.error ?? rpcResponse ?? { error: response.errorMessage })),
+                                resultJson: jsonBuf(rpcResponse?.error ?? rpcResponse ?? { error: response.errorMessage }),
                                 durationMs,
                                 appId,
                                 toolName,
@@ -645,7 +667,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         else if (rpcResponse?.error) {
                             results.push({
                                 success: false,
-                                resultJson: Buffer.from(JSON.stringify(rpcResponse.error)),
+                                resultJson: jsonBuf(rpcResponse.error),
                                 durationMs,
                                 appId,
                                 toolName,
@@ -659,7 +681,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         else {
                             results.push({
                                 success: true,
-                                resultJson: Buffer.from(JSON.stringify(rpcResponse?.result ?? {})),
+                                resultJson: jsonBuf(rpcResponse?.result ?? {}),
                                 durationMs,
                                 appId,
                                 toolName,
@@ -675,7 +697,7 @@ export function createMcpProxyService(registry, dispatcher) {
                         mapleLog("error", "tool_chain_step_failed", { appId, toolName, error: err.message });
                         results.push({
                             success: false,
-                            resultJson: Buffer.from(JSON.stringify({ error: err.message })),
+                            resultJson: jsonBuf({ error: err.message }),
                             durationMs,
                             appId,
                             toolName,
@@ -715,9 +737,9 @@ export function createMcpProxyService(registry, dispatcher) {
                 }
                 if (!appId) {
                     const appsMissingTools = registry.list(false).filter((app) => app.tools.length === 0);
-                    for (const app of appsMissingTools) {
-                        await discoverToolsForApp(registry, app.appId, call.request?.context?.traceId);
-                    }
+                    await Promise.all(
+                        appsMissingTools.map((app) => discoverToolsForApp(registry, app.appId, call.request?.context?.traceId))
+                    );
                     tools = registry.getAllTools();
                 }
                 callback(null, {
@@ -725,9 +747,9 @@ export function createMcpProxyService(registry, dispatcher) {
                         name: tool.name,
                         description: tool.description,
                         appId: tool.appId,
-                        inputSchemaJson: Buffer.from(JSON.stringify(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+                        inputSchemaJson: jsonBuf(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
                             ? tool.inputSchema
-                            : {})),
+                            : {}),
                     })),
                 });
             }
@@ -746,9 +768,9 @@ export function createMcpProxyService(registry, dispatcher) {
                         tools: a.tools.map((tool) => ({
                             name: tool.name,
                             description: tool.description,
-                            inputSchemaJson: Buffer.from(JSON.stringify(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
+                            inputSchemaJson: jsonBuf(tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema)
                                 ? tool.inputSchema
-                                : {})),
+                                : {}),
                             appId: a.appId,
                         })),
                     })),
@@ -809,7 +831,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     },
                 });
                 callback(null, {
-                    responseJson: Buffer.from(JSON.stringify(responseBody)),
+                    responseJson: jsonBuf(responseBody),
                     success: Boolean(response.success),
                     errorMessage: response.success ? "" : (response.errorMessage || `Cyber-proxy returned HTTP ${response.statusCode}`),
                 });

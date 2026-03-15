@@ -1,7 +1,17 @@
 import { readJsonBody, errorMessage } from "../helpers.js";
 import { resolveDispatchAppIds, dispatchDownstreamChainAndLog, } from "../firewall-proxy.js";
+import { verifyGptAccessToken } from "./gpt-adapter-oauth-routes.js";
 export function registerGptToolDispatchRoute(app) {
     app.post("/gpt/tools/:toolName", async (c) => {
+        // ── Bearer token verification ─────────────────────────────────────
+        const authHeader = c.req.header("authorization") ?? "";
+        const bearerToken = authHeader.startsWith("Bearer ")
+            ? authHeader.slice(7)
+            : undefined;
+        if (!bearerToken || !verifyGptAccessToken(bearerToken)) {
+            return c.json({ ok: false, error: "Unauthorized: missing or invalid bearer token." }, 401);
+        }
+
         const toolName = c.req.param("toolName");
         if (!toolName) {
             return c.json({ ok: false, error: "Tool name is required." }, 400);

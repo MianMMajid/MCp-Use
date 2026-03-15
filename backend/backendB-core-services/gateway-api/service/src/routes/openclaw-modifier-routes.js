@@ -31,7 +31,8 @@ async function actorFromRequest(c) {
   const scope = await resolveVerifiedTenantScope({
     tenantId: asString(c.req.header("x-tenant-id")) ?? "",
     orgId: asString(c.req.header("x-org-id")) ?? "",
-    tenantClaimSignature: asString(c.req.header("x-tenant-claim-signature")) ?? "",
+    // Finding 11: Accept both header names for backwards compat, prefer canonical name
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? asString(c.req.header("x-tenant-claim-signature")) ?? "",
   });
   return {
     userId: asString(authContext?.userId) ?? asString(authContext?.keyFingerprint) ?? "gateway-api",
@@ -75,10 +76,13 @@ server.app.get("/api/operations/orchestrations/approvals", async (c) => {
   }
   const status = asString(c.req.query("status")) ?? "";
   const requestedBy = asString(c.req.query("requestedBy")) ?? "";
-  const approvals = await listOpenClawModifierApprovals({
-    status,
-    requestedBy,
-  });
+  // Fix 4: Pass verified tenant/org scope for tenant isolation
+  const authCtx = authContextStorage.getStore();
+  const actor = await actorFromRequest(c);
+  const approvals = await listOpenClawModifierApprovals(
+    { status, requestedBy },
+    { tenantId: actor.tenantId, orgId: actor.orgId },
+  );
   return c.json({
     ok: true,
     count: approvals.length,
@@ -101,7 +105,12 @@ server.app.get("/api/operations/orchestrations/approvals/:approvalId", async (c)
       400
     );
   }
-  const approval = await getOpenClawModifierApproval(approvalId);
+  // Finding 3: Pass verified actor scope to prevent fail-open on empty tenant
+  const detailActor = await actorFromRequest(c);
+  const approval = await getOpenClawModifierApproval(approvalId, {
+    tenantId: detailActor.tenantId,
+    orgId: detailActor.orgId,
+  });
   if (!approval) {
     return c.json(
       {
@@ -153,7 +162,12 @@ server.app.post("/api/operations/orchestrations/approvals/:approvalId/decision",
   let stepUpId = "";
   if (stepUpRequired) {
     if (challengeToken) {
-      const stepUp = await verifyStepUpChallenge(actor.userId, challengeToken, { database });
+      // Fix 5: Include tenant/org scope in step-up verification
+      const stepUp = await verifyStepUpChallenge(actor.userId, challengeToken, {
+        tenantId: actor.tenantId,
+        orgId: actor.orgId,
+        database,
+      });
       if (!stepUp.verified) {
         return c.json(
           {

@@ -39,7 +39,8 @@ setInterval(() => {
 
 export function registerAuthLoginRegisterRoutes(app) {
     app.post("/api/auth/login", async (c) => {
-        const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+        const xff = c.req.header('x-forwarded-for') ?? '';
+        const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
         const retryAfter = checkRateLimit(ip);
         if (retryAfter) {
             c.header('Retry-After', String(retryAfter));
@@ -65,7 +66,8 @@ export function registerAuthLoginRegisterRoutes(app) {
         return c.json(buildSessionAuthResponse(user, session));
     });
     app.post("/api/auth/register", async (c) => {
-        const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+        const xff = c.req.header('x-forwarded-for') ?? '';
+        const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
         const retryAfter = checkRateLimit(ip);
         if (retryAfter) {
             c.header('Retry-After', String(retryAfter));

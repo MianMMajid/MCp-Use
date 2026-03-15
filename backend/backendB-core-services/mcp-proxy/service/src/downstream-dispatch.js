@@ -66,7 +66,7 @@ export async function dispatchJsonRpc(targetUrl, body, options) {
         const durationMs = Date.now() - startedAt;
         if (err.name === "AbortError") {
             const timeoutErr = new Error(`Downstream MCP request to ${targetUrl} timed out after ${timeoutMs}ms`);
-            timeoutErr.code = "TIMEOUT";
+            timeoutErr.code = "DEADLINE_EXCEEDED";
             timeoutErr.durationMs = durationMs;
             mapleLog("error", "downstream_dispatch_timeout", {
                 targetUrl,
@@ -76,7 +76,7 @@ export async function dispatchJsonRpc(targetUrl, body, options) {
             throw timeoutErr;
         }
         // Re-throw errors that we already created (HTTP errors above)
-        if (err.statusCode || err.code === "TIMEOUT") {
+        if (err.statusCode || err.code === "DEADLINE_EXCEEDED") {
             throw err;
         }
         // Network-level or unexpected errors

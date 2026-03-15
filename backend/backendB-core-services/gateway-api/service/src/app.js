@@ -40,7 +40,7 @@ export async function createApp() {
         await registerEnterpriseModules({ database });
     }
     const stopWorkers = startGatewayWorkers({
-        database,
+        database: dbReady ? database : null,
         transportBackend: eventTransportBackend,
         redisUrl,
     });

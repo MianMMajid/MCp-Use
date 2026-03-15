@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { database } from "../state.js";
-import { sessionTtlSeconds, googleClientId, } from "../config.js";
+import { sessionTtlSeconds, googleClientId, allowSelfSignup, } from "../config.js";
 import { buildSessionCookie, verifyGoogleJwt, } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
@@ -31,7 +31,14 @@ export function registerAuthGoogleRoutes(app) {
                 return c.json({ error: msg }, 401);
             }
         }
+        // Reject Google accounts with unverified email
+        if (googleUser.email_verified !== true) {
+            return c.json({ error: "Google account email is not verified." }, 403);
+        }
         let user = await database.findUserByEmail(googleUser.email);
+        if (!user && !allowSelfSignup) {
+            return c.json({ error: "Self-registration is disabled. Contact your administrator." }, 403);
+        }
         if (!user) {
             let baseUsername = googleUser.email.split("@")[0].replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30);
             if (!baseUsername)

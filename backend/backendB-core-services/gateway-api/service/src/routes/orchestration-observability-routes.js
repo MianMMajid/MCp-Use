@@ -23,12 +23,18 @@ import {
   getOrchestrationExecution,
 } from "../core/orchestration-runtime.js";
 import { ensureExecutionPersistenceWatch } from "./orchestration-routes.js";
+import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 
-function scopeFromHeaders(c) {
-  return {
+async function verifiedScope(c) {
+  const scope = await resolveVerifiedTenantScope({
     tenantId: asString(c.req.header("x-tenant-id")) ?? "",
     orgId: asString(c.req.header("x-org-id")) ?? "",
-  };
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+  });
+  if (!scope.verified && scope.tenantId) {
+    return { error: true, tenantId: "", orgId: "" };
+  }
+  return { error: false, tenantId: scope.tenantId, orgId: scope.orgId };
 }
 
 function actorUserId() {
@@ -40,7 +46,7 @@ async function enforceForkStepUp(c) {
   const ctx = authContextStorage.getStore();
   const userId = asString(ctx?.userId) ?? "";
   if (!userId) return null;
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
   const stepUp = await hasValidStepUp(userId, {
     tenantId: scope.tenantId,
     orgId: scope.orgId,
@@ -126,6 +132,9 @@ server.app.get("/api/observability/orchestrations/audit-log", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+
   const since = normalizeSince(c.req.query("since") ?? c.req.query("from"));
   const until = normalizeUntil(c.req.query("until") ?? c.req.query("to"));
   const status = asString(c.req.query("status")) ?? null;
@@ -138,6 +147,7 @@ server.app.get("/api/observability/orchestrations/audit-log", async (c) => {
     status,
     limit,
     offset,
+    tenantId: scope.tenantId,
     database,
   });
 
@@ -163,6 +173,9 @@ server.app.post("/api/observability/orchestrations/export", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+
   const body = await readJsonBody(c);
   const since = normalizeSince(body.since ?? body.from);
   const until = normalizeUntil(body.until ?? body.to);
@@ -175,6 +188,7 @@ server.app.post("/api/observability/orchestrations/export", async (c) => {
     status: asString(body.status) ?? null,
     limit,
     offset: 0,
+    tenantId: scope.tenantId,
     database,
   });
 
@@ -231,7 +245,8 @@ server.app.get("/api/observability/orchestrations/audit-chain", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const result = await queryAuditChain(
     {
       tenantId: scope.tenantId,
@@ -266,7 +281,9 @@ server.app.get("/api/observability/orchestrations/retention", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const tenantId = asString(c.req.header("x-tenant-id")) ?? "";
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+  const tenantId = scope.tenantId;
   const policy = await getRetentionPolicy(tenantId, { database });
   return c.json({ ok: true, ...policy });
 });
@@ -275,7 +292,9 @@ server.app.post("/api/observability/orchestrations/retention", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const tenantId = asString(c.req.header("x-tenant-id")) ?? "";
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+  const tenantId = scope.tenantId;
   const body = await readJsonBody(c);
   const retentionDays = parseBoundedInteger(body.retentionDays ?? body.days, 90, 1, 3650);
   await setRetentionPolicy(tenantId, retentionDays, { updatedBy: actorUserId(), database });
@@ -294,6 +313,9 @@ server.app.get("/api/observability/orchestrations/dead-letter", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+
   const limit = parseBoundedInteger(c.req.query("limit"), 50, 1, 1000);
   const offset = parseBoundedInteger(c.req.query("offset") ?? c.req.query("cursor"), 0, 0, 1_000_000);
 
@@ -310,7 +332,7 @@ server.app.get("/api/observability/orchestrations/dead-letter", async (c) => {
     `SELECT COUNT(*)::int AS total FROM gateway_audit_outbox WHERE status = 'dead_letter'`,
   );
 
-  const items = result.rows.map((row) => {
+  const allItems = result.rows.map((row) => {
     let event = null;
     try {
       event = JSON.parse(row.event_json);
@@ -328,13 +350,21 @@ server.app.get("/api/observability/orchestrations/dead-letter", async (c) => {
     };
   });
 
+  // Filter by tenant: parse event_json tenantId
+  const items = scope.tenantId
+    ? allItems.filter((item) => {
+        const eventTenantId = item.event?.payload?.tenantId ?? item.event?.tenantId ?? "";
+        return eventTenantId === scope.tenantId;
+      })
+    : allItems;
+
   const total = Number(countResult.rows[0]?.total ?? 0);
-  const nextOffset = offset + items.length < total ? offset + items.length : null;
+  const nextOffset = offset + allItems.length < total ? offset + allItems.length : null;
 
   return c.json({
     ok: true,
     items,
-    total,
+    total: items.length,
     offset,
     cursor: String(offset),
     nextOffset,
@@ -346,9 +376,32 @@ server.app.post("/api/observability/orchestrations/dead-letter/:eventId/replay",
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const eventId = asString(c.req.param("eventId")) ?? "";
-  const now = new Date().toISOString();
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
 
+  const eventId = asString(c.req.param("eventId")) ?? "";
+
+  // Verify the event belongs to the caller's tenant before replaying
+  if (scope.tenantId) {
+    const check = await database.pool.query(
+      `SELECT event_json FROM gateway_audit_outbox WHERE outbox_id = $1 AND status = 'dead_letter'`,
+      [eventId],
+    );
+    if (check.rows.length === 0) {
+      return c.json({ ok: false, error: "Dead-letter event not found." }, 404);
+    }
+    try {
+      const event = JSON.parse(check.rows[0].event_json);
+      const eventTenantId = event?.payload?.tenantId ?? event?.tenantId ?? "";
+      if (eventTenantId && eventTenantId !== scope.tenantId) {
+        return c.json({ ok: false, error: "Dead-letter event not found." }, 404);
+      }
+    } catch {
+      // If event_json is unparseable, allow replay (it's already broken)
+    }
+  }
+
+  const now = new Date().toISOString();
   const result = await database.pool.query(
     `UPDATE gateway_audit_outbox
         SET status = 'pending',
@@ -370,8 +423,9 @@ server.app.get("/api/observability/orchestrations/alert-webhooks", async (c) => 
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const tenantId = asString(c.req.header("x-tenant-id")) ?? "";
-  const webhooks = await listAlertWebhooks(tenantId, { database });
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+  const webhooks = await listAlertWebhooks(scope.tenantId, { database });
   return c.json({ ok: true, items: webhooks, webhooks });
 });
 
@@ -379,7 +433,8 @@ server.app.post("/api/observability/orchestrations/alert-webhooks", async (c) =>
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const scope = scopeFromHeaders(c);
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
   const body = await readJsonBody(c);
   try {
     const webhook = await registerAlertWebhook(
@@ -401,7 +456,9 @@ server.app.delete("/api/observability/orchestrations/alert-webhooks/:id", async 
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  await deleteAlertWebhook(asString(c.req.param("id")) ?? "", { database });
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+  await deleteAlertWebhook(asString(c.req.param("id")) ?? "", { tenantId: scope.tenantId, database });
   return c.json({ ok: true });
 });
 
@@ -409,7 +466,9 @@ server.app.get("/api/observability/orchestrations/alert-webhooks/:id/deliveries"
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
-  const deliveries = await getAlertDeliveryLog(asString(c.req.param("id")) ?? "", { database });
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+  const deliveries = await getAlertDeliveryLog(asString(c.req.param("id")) ?? "", { tenantId: scope.tenantId, database });
   return c.json({ ok: true, items: deliveries, deliveries });
 });
 

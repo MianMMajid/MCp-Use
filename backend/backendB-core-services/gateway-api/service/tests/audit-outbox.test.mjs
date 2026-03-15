@@ -110,8 +110,8 @@ const {
   stopAuditOutboxWorker,
 } = await import("../src/core/audit-outbox.js");
 
-test("enqueueAuditEvent returns eventId even without database (fallback mode)", () => {
-  const result = enqueueAuditEvent({
+test("enqueueAuditEvent returns eventId even without database (fallback mode)", async () => {
+  const result = await enqueueAuditEvent({
     eventType: "AUDIT_EVENT_TYPE_TOOL_DISPATCHED",
     sourceService: "gateway-api",
     summary: "Test event for outbox",
@@ -147,8 +147,8 @@ test("startAuditOutboxWorker and stopAuditOutboxWorker are callable", () => {
   stopAuditOutboxWorker();
 });
 
-test("enqueueAuditEvent includes correct event fields", () => {
-  const result = enqueueAuditEvent({
+test("enqueueAuditEvent includes correct event fields", async () => {
+  const result = await enqueueAuditEvent({
     eventType: "AUDIT_EVENT_TYPE_HITL_REQUESTED",
     sourceService: "gateway-api",
     traceId: "trace-123",

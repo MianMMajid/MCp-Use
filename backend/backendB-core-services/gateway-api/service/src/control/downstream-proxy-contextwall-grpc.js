@@ -2,27 +2,17 @@ import { randomUUID } from "node:crypto";
 import { authContextStorage } from "../auth.js";
 import { requestContextStorage } from "../logging.js";
 import { getGrpcClients } from "../state.js";
-export function grpcUnary(client, method, request) {
-    return new Promise((resolvePromise, rejectPromise) => {
-        client[method](request, (err, response) => {
-            if (err) {
-                rejectPromise(err);
-            }
-            else {
-                resolvePromise(response);
-            }
-        });
-    });
-}
+import { grpcUnaryProtected } from "../grpc-clients.js";
+export { grpcUnaryProtected as grpcUnary };
 export function isContextWallAuthorityAvailable() {
     return Boolean(getGrpcClients()?.contextWall);
 }
 export function getContextWallClient() {
-    const contextWallClient = getGrpcClients()?.contextWall;
-    if (!contextWallClient) {
+    const pool = getGrpcClients()?.contextWall;
+    if (!pool) {
         throw new Error("Context-wall policy authority is unavailable.");
     }
-    return contextWallClient;
+    return pool;
 }
 export function buildGatewayRequestContext(overrides = {}) {
     const authContext = authContextStorage.getStore();

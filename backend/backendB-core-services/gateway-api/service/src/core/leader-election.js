@@ -19,22 +19,36 @@ function hasPool(database) {
 
 /**
  * Try to acquire a session-level advisory lock (non-blocking).
+ * Uses a dedicated client so the lock is bound to the connection session.
  */
 async function tryAdvisoryLock(lockId, database) {
-  if (!hasPool(database)) return false;
-  const result = await database.pool.query(
-    `SELECT pg_try_advisory_lock($1) AS acquired`,
-    [lockId]
-  );
-  return result.rows[0]?.acquired === true;
+  if (!hasPool(database)) return { acquired: false, client: null };
+  const client = await database.pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT pg_try_advisory_lock($1) AS acquired`,
+      [lockId]
+    );
+    if (result.rows[0]?.acquired === true) {
+      return { acquired: true, client };
+    }
+    client.release();
+    return { acquired: false, client: null };
+  } catch {
+    client.release();
+    return { acquired: false, client: null };
+  }
 }
 
 /**
- * Release a session-level advisory lock.
+ * Release a session-level advisory lock on a dedicated client.
  */
-async function releaseAdvisoryLock(lockId, database) {
-  if (!hasPool(database)) return;
-  await database.pool.query(`SELECT pg_advisory_unlock($1)`, [lockId]).catch(() => {});
+async function releaseAdvisoryLock(lockId, client) {
+  if (!client) return;
+  try {
+    await client.query(`SELECT pg_advisory_unlock($1)`, [lockId]);
+  } catch { /* best effort */ }
+  client.release();
 }
 
 /**
@@ -43,11 +57,14 @@ async function releaseAdvisoryLock(lockId, database) {
  */
 export async function withLeaderLock(lockId, database, fn) {
   if (!hasPool(database)) {
-    // No database — run locally (single-instance fallback)
-    return await fn();
+    // Finding 12: Without DB there's no coordination — skip the work
+    // to prevent all pods from running background jobs simultaneously.
+    // Callers that need single-instance fallback should check explicitly.
+    mapleLog("debug", "leader_election.no_pool_skipped", { lockId });
+    return { skipped: true, reason: "no_database_pool" };
   }
 
-  const acquired = await tryAdvisoryLock(lockId, database);
+  const { acquired, client } = await tryAdvisoryLock(lockId, database);
   if (!acquired) {
     return { skipped: true, reason: "leader_lock_not_acquired" };
   }
@@ -55,6 +72,6 @@ export async function withLeaderLock(lockId, database, fn) {
   try {
     return await fn();
   } finally {
-    await releaseAdvisoryLock(lockId, database);
+    await releaseAdvisoryLock(lockId, client);
   }
 }

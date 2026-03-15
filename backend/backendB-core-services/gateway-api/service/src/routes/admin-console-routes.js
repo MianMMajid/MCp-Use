@@ -24,7 +24,8 @@ function loadAdminApiKeys(env = process.env) {
 
 function createAdminAuthMiddleware(options = {}) {
   const configuredKeys = normalizeConfiguredKeys(options.apiKeys);
-  const allowNoAuth = options.allowNoAuth === true;
+  // Finding 6: Guard inside the middleware itself, not just the call site
+  const allowNoAuth = options.allowNoAuth === true && process.env.NODE_ENV !== "production";
   return async (c, next) => {
     if (allowNoAuth) {
       await next();
@@ -164,7 +165,8 @@ async function syncPolicyVersionState(contextWall) {
 
 export function registerAdminConsoleRoutes(app, options = {}) {
   const adminApiKeys = options.adminApiKeys ?? loadAdminApiKeys();
-  const adminAllowNoAuth = options.adminAllowNoAuth === true;
+  // Fix 8: Never allow no-auth bypass in production
+  const adminAllowNoAuth = options.adminAllowNoAuth === true && process.env.NODE_ENV !== "production";
   const auditWriterHttpOrigin = options.auditWriterHttpOrigin ?? "";
 
   // Admin auth middleware for /admin/api/* routes

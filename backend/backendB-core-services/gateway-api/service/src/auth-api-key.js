@@ -3,9 +3,12 @@ import { extractApiKeyFromHeaders, verifyApiKey, } from "@maple/security";
 import { authContextStorage } from "./auth-context.js";
 import { findRequestSession } from "./auth-session.js";
 import { apiErrorPayload } from "./api-error.js";
+function effectiveAllowNoAuth() {
+    return allowNoAuth && process.env.NODE_ENV !== "production";
+}
 export function verifyIncomingApiKey(xApiKey, authorization) {
     if (!apiKeyAuthEnabled) {
-        if (allowNoAuth) {
+        if (effectiveAllowNoAuth()) {
             return { ok: true };
         }
         return {
@@ -14,7 +17,7 @@ export function verifyIncomingApiKey(xApiKey, authorization) {
         };
     }
     const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
-    if (!fromHeaders && allowNoAuth) {
+    if (!fromHeaders && effectiveAllowNoAuth()) {
         return { ok: true };
     }
     const result = verifyApiKey(configuredApiKeys, fromHeaders);
@@ -39,11 +42,11 @@ export async function requireApiKeyResponse(c, database, options = {}) {
     });
     const apiKeyResult = verifyIncomingApiKey(xApiKey, authorization);
     const apiKeyProvided = isApiKeyPresent(xApiKey, authorization);
-    if (apiKeyResult.ok && (requireApiKey || apiKeyProvided || apiKeyAuthEnabled || allowNoAuth)) {
+    if (apiKeyResult.ok && (requireApiKey || apiKeyProvided || apiKeyAuthEnabled || effectiveAllowNoAuth())) {
         authContextStorage.enterWith({
             method: apiKeyAuthEnabled ? "api_key" : "bypass",
             keyFingerprint: apiKeyResult.keyFingerprint,
-            authBypass: !apiKeyAuthEnabled && allowNoAuth,
+            authBypass: !apiKeyAuthEnabled && effectiveAllowNoAuth,
         });
         return undefined;
     }
@@ -63,7 +66,7 @@ export async function requireApiKeyResponse(c, database, options = {}) {
     if (requireApiKey) {
         return c.json(unauthorizedBody(apiKeyResult.reason ?? "missing_key"), 401);
     }
-    if (allowNoAuth) {
+    if (effectiveAllowNoAuth()) {
         authContextStorage.enterWith({
             method: "bypass",
             authBypass: true,

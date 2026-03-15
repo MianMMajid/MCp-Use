@@ -63,23 +63,50 @@ export async function ensureTenantBindingsTable(database) {
   `);
 }
 
+const DEFAULT_CLAIM_MAX_AGE_MS = 300_000; // 5 minutes
+
 /**
  * Sign a tenant claim for a user to prevent spoofing.
+ * Includes issued-at timestamp and rejects after maxAgeMs.
  */
-export function signTenantClaim(userId, tenantId, orgId) {
-  const payload = `${userId}:${tenantId}:${orgId}`;
-  const hmac = createHmac("sha256", _claimSigningKey ?? "default")
+export function signTenantClaim(userId, tenantId, orgId, options = {}) {
+  if (!_claimSigningKey) {
+    throw new Error("Tenant claim signing key not configured");
+  }
+  const iat = Date.now();
+  const maxAgeMs = options.maxAgeMs ?? DEFAULT_CLAIM_MAX_AGE_MS;
+  const payload = `${userId}:${tenantId}:${orgId}:${iat}`;
+  const hmac = createHmac("sha256", _claimSigningKey)
     .update(payload)
     .digest("hex");
-  return hmac.slice(0, 32);
+  return `${hmac.slice(0, 32)}.${iat}.${maxAgeMs}`;
 }
 
 /**
- * Verify a signed tenant claim.
+ * Verify a signed tenant claim. Rejects signatures older than maxAgeMs.
  */
 export function verifyTenantClaimSignature(userId, tenantId, orgId, signature) {
-  const expected = signTenantClaim(userId, tenantId, orgId);
-  return expected === signature;
+  if (!signature || !_claimSigningKey) return false;
+
+  const parts = signature.split(".");
+  if (parts.length === 3) {
+    // New format: hmac.iat.maxAgeMs
+    const [sig, iatStr, maxAgeStr] = parts;
+    const iat = Number(iatStr);
+    const maxAgeMs = Number(maxAgeStr);
+    if (!Number.isFinite(iat) || !Number.isFinite(maxAgeMs)) return false;
+    if (Date.now() - iat > maxAgeMs) return false; // expired
+
+    const payload = `${userId}:${tenantId}:${orgId}:${iat}`;
+    const expected = createHmac("sha256", _claimSigningKey)
+      .update(payload)
+      .digest("hex")
+      .slice(0, 32);
+    return expected === sig;
+  }
+
+  // Legacy format without timestamp — reject (no longer valid)
+  return false;
 }
 
 /**
@@ -174,7 +201,7 @@ export async function listUserTenantBindings(userId, options = {}) {
  */
 async function hasActiveBinding(userId, tenantId, orgId) {
   const db = _database;
-  if (!hasPool(db)) return true; // permissive when no DB
+  if (!hasPool(db)) return false; // fail closed when DB is unavailable
 
   const cacheKey = `${userId}:${tenantId}:${orgId}`;
   const cached = TENANT_BINDING_CACHE.get(cacheKey);
@@ -209,31 +236,25 @@ export async function resolveVerifiedTenantScope(headerOverrides = {}) {
   const headerOrgId = asString(headerOverrides.orgId) ?? "";
   const headerSignature = asString(headerOverrides.tenantClaimSignature) ?? "";
 
-  // If signature provided, verify it
+  // Check signature validity (but signature alone is not sufficient)
+  let signatureValid = false;
   if (headerSignature && headerTenantId && headerOrgId) {
-    const valid = verifyTenantClaimSignature(
+    signatureValid = verifyTenantClaimSignature(
       userId,
       headerTenantId,
       headerOrgId,
       headerSignature
     );
-    if (valid) {
-      return {
+    if (!signatureValid) {
+      mapleLog("warn", "tenant_claim.invalid_signature", {
+        userId,
         tenantId: headerTenantId,
         orgId: headerOrgId,
-        userId,
-        verified: true,
-        method: "signed_claim",
-      };
+      });
     }
-    mapleLog("warn", "tenant_claim.invalid_signature", {
-      userId,
-      tenantId: headerTenantId,
-      orgId: headerOrgId,
-    });
   }
 
-  // Check binding in database
+  // Always check DB binding — signature supplements but does not bypass
   if (headerTenantId && headerOrgId && userId) {
     const bound = await hasActiveBinding(userId, headerTenantId, headerOrgId);
     if (bound) {
@@ -242,15 +263,24 @@ export async function resolveVerifiedTenantScope(headerOverrides = {}) {
         orgId: headerOrgId,
         userId,
         verified: true,
-        method: "db_binding",
+        method: signatureValid ? "signed_claim" : "db_binding",
       };
     }
 
-    mapleLog("warn", "tenant_claim.no_binding", {
-      userId,
-      tenantId: headerTenantId,
-      orgId: headerOrgId,
-    });
+    // Signature valid but no active binding → claim expired/revoked
+    if (signatureValid) {
+      mapleLog("warn", "tenant_claim.signed_but_unbound", {
+        userId,
+        tenantId: headerTenantId,
+        orgId: headerOrgId,
+      });
+    } else {
+      mapleLog("warn", "tenant_claim.no_binding", {
+        userId,
+        tenantId: headerTenantId,
+        orgId: headerOrgId,
+      });
+    }
 
     return {
       tenantId: headerTenantId,

@@ -4,6 +4,13 @@ import { buildGatewayRequestContext, getContextWallClient, grpcUnary, } from "./
 import { normalizeToolsListFromPayload, parseForwardPayload, parseJsonFromUnknown, } from "./downstream-proxy-contextwall-parsers.js";
 import { recordServiceCall } from "../core/service-utilization.js";
 import { currentRequestContext } from "../logging.js";
+// Deadline tiers — must exceed downstream timeouts to avoid premature gateway cancellation.
+// Tool execution: context-wall → mcp-proxy (30s) → cyber-proxy (15s) → downstream
+const DEADLINE_TOOL_EXEC_MS = 35000;
+// JSON-RPC forwarding: same chain as tool execution
+const DEADLINE_FORWARD_MS = 35000;
+// Metadata calls (tools/list, policy queries): fast path
+const DEADLINE_FAST_MS = 10000;
 function buildJsonRpcPayload(requestId, method, params) {
     return {
         jsonrpc: "2.0",
@@ -30,7 +37,7 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
             appId: app.id,
             targetUrl: app.mcpUrl,
             payloadJson: Buffer.from(JSON.stringify(buildJsonRpcPayload(requestId, method, params))),
-        });
+        }, { deadlineMs: DEADLINE_FAST_MS });
         assertForwardAllowed(response, `${app.id}.tools/list`);
         const forwardPayload = parseForwardPayload(response?.responseJson);
         const normalizedTools = normalizeToolsListFromPayload(forwardPayload);
@@ -86,7 +93,7 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
                 argumentsJson: Buffer.from(JSON.stringify(toolArgs)),
                 sessionId: gatewayRequestContext.sessionId,
                 traceId: gatewayRequestContext.traceId,
-            });
+            }, { deadlineMs: DEADLINE_TOOL_EXEC_MS });
             assertForwardAllowed(response, `${app.id}.${toolName}`);
             recordMediatedToolCall("ok");
             return {
@@ -106,7 +113,7 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
         appId: app.id,
         targetUrl: app.mcpUrl,
         payloadJson: Buffer.from(JSON.stringify(buildJsonRpcPayload(requestId, method, params))),
-    });
+    }, { deadlineMs: DEADLINE_FORWARD_MS });
     assertForwardAllowed(response, `${app.id}.${method}`);
     const forwardPayload = parseForwardPayload(response?.responseJson);
     const ctx = currentRequestContext();
@@ -135,7 +142,7 @@ export async function forwardJsonRpcPayloadWithPolicy(options) {
         appId: options.app.id,
         targetUrl: options.app.mcpUrl,
         payloadJson: Buffer.from(JSON.stringify(options.payload)),
-    });
+    }, { deadlineMs: DEADLINE_FORWARD_MS });
     return {
         durationMs: Date.now() - startedAt,
         response,

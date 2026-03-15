@@ -3,6 +3,7 @@ import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { hasValidStepUp } from "../core/step-up-auth.js";
+import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 import {
   validateOrchestrationDefinition,
   createOrchestrationExecution,
@@ -123,9 +124,20 @@ async function enforceSensitiveOperationGate(c, operation) {
   const userId = asString(authContext?.userId) ?? "";
   if (!userId) return null;
 
-  const tenantId = asString(c.req.header("x-tenant-id")) ?? "";
-  const orgId = asString(c.req.header("x-org-id")) ?? "";
-  const stepUp = await hasValidStepUp(userId, { tenantId, orgId, database });
+  // Finding 10: Use verified tenant scope instead of raw headers
+  const scope = await resolveVerifiedTenantScope({
+    tenantId: asString(c.req.header("x-tenant-id")) ?? "",
+    orgId: asString(c.req.header("x-org-id")) ?? "",
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+  });
+  if (!scope.verified && scope.tenantId) {
+    return c.json({
+      ok: false,
+      error: "Unverified tenant scope rejected for sensitive operation",
+      operation,
+    }, 403);
+  }
+  const stepUp = await hasValidStepUp(userId, { tenantId: scope.tenantId, orgId: scope.orgId, database });
   if (stepUp?.valid === true) return null;
 
   c.status(403);
@@ -428,11 +440,28 @@ async function persistExecutionSnapshot(executionId) {
   await database.pool.query(`DELETE FROM orchestration_execution_nodes WHERE execution_id = $1`, [execution.executionId]);
   await database.pool.query(`DELETE FROM orchestration_execution_edges WHERE execution_id = $1`, [execution.executionId]);
 
-  for (const node of graph.nodes ?? []) {
+  const nodes = graph.nodes ?? [];
+  if (nodes.length > 0) {
+    const ids = [], execIds = [], nodeIds = [], statuses = [], retryCounts = [];
+    const startedAts = [], completedAts = [], errorTexts = [], outputPreviews = [];
+    for (const node of nodes) {
+      ids.push(`${execution.executionId}:${node.id}`);
+      execIds.push(execution.executionId);
+      nodeIds.push(node.id);
+      statuses.push(node.status ?? "pending");
+      retryCounts.push(Number(node.retryCount ?? 0));
+      startedAts.push(node.startedAt || null);
+      completedAts.push(node.completedAt || null);
+      errorTexts.push(node.error ?? "");
+      outputPreviews.push(node.outputPreview ?? "");
+    }
     await database.pool.query(
       `INSERT INTO orchestration_execution_nodes
          (id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, '{}')
+       SELECT * FROM UNNEST(
+         $1::text[], $2::text[], $3::text[], $4::text[], $5::int[],
+         $6::timestamptz[], $7::timestamptz[], $8::text[], $9::text[]
+       ), '{}' AS cost_json
        ON CONFLICT (id) DO UPDATE
        SET status = EXCLUDED.status,
            retry_count = EXCLUDED.retry_count,
@@ -440,39 +469,35 @@ async function persistExecutionSnapshot(executionId) {
            completed_at = EXCLUDED.completed_at,
            error_text = EXCLUDED.error_text,
            output_preview = EXCLUDED.output_preview`,
-      [
-        `${execution.executionId}:${node.id}`,
-        execution.executionId,
-        node.id,
-        node.status ?? "pending",
-        Number(node.retryCount ?? 0),
-        node.startedAt || null,
-        node.completedAt || null,
-        node.error ?? "",
-        node.outputPreview ?? "",
-      ],
+      [ids, execIds, nodeIds, statuses, retryCounts, startedAts, completedAts, errorTexts, outputPreviews],
     );
   }
 
-  for (const edge of graph.edges ?? []) {
+  const edges = graph.edges ?? [];
+  if (edges.length > 0) {
+    const ids = [], execIds = [], edgeIds = [], sources = [], targets = [];
+    const actives = [], policies = [];
+    for (const edge of edges) {
+      ids.push(`${execution.executionId}:${edge.id}`);
+      execIds.push(execution.executionId);
+      edgeIds.push(edge.id);
+      sources.push(edge.source ?? "");
+      targets.push(edge.target ?? "");
+      actives.push(edge.active !== false);
+      policies.push(JSON.stringify(edge.delegationPolicy ?? {}));
+    }
     await database.pool.query(
       `INSERT INTO orchestration_execution_edges
          (id, execution_id, edge_id, source_node_id, target_node_id, active, delegation_policy_json, rewired_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
+       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]),
+              unnest($4::text[]), unnest($5::text[]), unnest($6::bool[]),
+              unnest($7::jsonb[]), NULL
        ON CONFLICT (id) DO UPDATE
        SET source_node_id = EXCLUDED.source_node_id,
            target_node_id = EXCLUDED.target_node_id,
            active = EXCLUDED.active,
            delegation_policy_json = EXCLUDED.delegation_policy_json`,
-      [
-        `${execution.executionId}:${edge.id}`,
-        execution.executionId,
-        edge.id,
-        edge.source ?? "",
-        edge.target ?? "",
-        edge.active !== false,
-        JSON.stringify(edge.delegationPolicy ?? {}),
-      ],
+      [ids, execIds, edgeIds, sources, targets, actives, policies],
     );
   }
 

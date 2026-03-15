@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { MapleChatDock } from './MapleChatDock'
+import { MapleMascot } from './MapleMascot'
+import { WelcomePanel } from './WelcomePanel'
 import { WorkspaceViewHost } from './WorkspaceViewHost'
 import { MAPLE_WORKSPACE_CATEGORIES } from '../../lib/maple-workspace/route-registry.js'
 import {
   MAPLE_WORKSPACE_CATEGORY_VIEWS,
   buildWorkspaceHref,
-  isMapleWorkspacePath,
   resolveWorkspaceState,
 } from '../../lib/maple-workspace/workspace-state.js'
 
@@ -110,10 +111,6 @@ export function MapleWorkspaceShell() {
   }, [searchParams, target.executionId, target.sessionId])
 
   useEffect(() => {
-    if (!isMapleWorkspacePath(pathname)) {
-      return
-    }
-
     const needsCanonicalPath = workspaceState.normalizedPathname !== '/maple'
     const currentCategory = searchParams?.get('category')
     const currentView = searchParams?.get('view')
@@ -253,28 +250,7 @@ export function MapleWorkspaceShell() {
       <div className="product-shell" data-testid="maple-workspace-shell">
         <header className={`top-bar ${contextPanelOpen ? 'panel-connected' : ''}`}>
           <div className="top-bar-brand">
-            <svg className="kirby-mascot top-bar-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mayple mascot">
-              <defs>
-                <radialGradient id="kirbyBodyGrad-brand" cx="45%" cy="38%" r="55%">
-                  <stop offset="0%" stopColor="#ffb366" />
-                  <stop offset="100%" stopColor="#e8740c" />
-                </radialGradient>
-              </defs>
-              <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-brand)" />
-              <g className="kirby-eye kirby-eye-left">
-                <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111" />
-                <circle cx="81" cy="73" r="3.5" fill="white" />
-              </g>
-              <g className="kirby-eye kirby-eye-right">
-                <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111" />
-                <circle cx="125" cy="73" r="3.5" fill="white" />
-              </g>
-              <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
-              <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
-              <path d="M85 105 Q100 120 115 105" stroke="#111" strokeWidth="3" fill="none" strokeLinecap="round" />
-              <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800" />
-              <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800" />
-            </svg>
+            <MapleMascot className="kirby-mascot top-bar-kirby" gradientId="kirbyBodyGrad-brand" />
             <span className="top-bar-title">Mayple</span>
             <span className="chat-mode-badge rules">Rules</span>
             <span className="mw-source-badge">Source: Frontend B orchestration runtime</span>
@@ -326,64 +302,12 @@ export function MapleWorkspaceShell() {
           </div>
 
           <div className={`chat-home ${contextPanelOpen ? 'panel-active' : ''}`} id="chatHome">
-            <div className={`welcome-state ${contextPanelOpen ? 'is-hidden' : ''}`} id="welcomeState">
-              <svg className="kirby-mascot welcome-kirby" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mayple mascot">
-                <defs>
-                  <radialGradient id="kirbyBodyGrad-welcome" cx="45%" cy="38%" r="55%">
-                    <stop offset="0%" stopColor="#ffb366" />
-                    <stop offset="100%" stopColor="#e8740c" />
-                  </radialGradient>
-                </defs>
-                <circle cx="100" cy="90" r="72" fill="url(#kirbyBodyGrad-welcome)" />
-                <g className="kirby-eye kirby-eye-left">
-                  <ellipse cx="78" cy="78" rx="9" ry="12" fill="#111" />
-                  <circle cx="81" cy="73" r="3.5" fill="white" />
-                </g>
-                <g className="kirby-eye kirby-eye-right">
-                  <ellipse cx="122" cy="78" rx="9" ry="12" fill="#111" />
-                  <circle cx="125" cy="73" r="3.5" fill="white" />
-                </g>
-                <ellipse cx="58" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
-                <ellipse cx="142" cy="100" rx="14" ry="9" fill="#ff9966" opacity="0.5" />
-                <path d="M85 105 Q100 120 115 105" stroke="#111" strokeWidth="3" fill="none" strokeLinecap="round" />
-                <ellipse cx="72" cy="168" rx="22" ry="14" fill="#d06800" />
-                <ellipse cx="128" cy="168" rx="22" ry="14" fill="#d06800" />
-              </svg>
-              <h1 className="welcome-heading">What can I help with?</h1>
-              <p className="welcome-sub" id="firewallChatContext">
-                Monitoring {activeRoute?.title ?? 'operations'} for {target.executionId || 'active executions'}.
-              </p>
-              <div className="welcome-pills">
-                <button
-                  type="button"
-                  className="welcome-pill"
-                  onClick={() => setQueuedPrompt('Give me a firewall status update.')}
-                >
-                  Status Update
-                </button>
-                <button
-                  type="button"
-                  className="welcome-pill"
-                  onClick={() => setQueuedPrompt('Why was this trace blocked?')}
-                >
-                  Why Blocked?
-                </button>
-                <button
-                  type="button"
-                  className="welcome-pill"
-                  onClick={() => setQueuedPrompt('What should we do next to reduce risk?')}
-                >
-                  Next Action
-                </button>
-                <button
-                  type="button"
-                  className="welcome-pill"
-                  onClick={() => setQueuedPrompt('What is the current risk score?')}
-                >
-                  Risk Score
-                </button>
-              </div>
-            </div>
+            <WelcomePanel
+              routeTitle={activeRoute?.title}
+              executionId={target.executionId}
+              isHidden={contextPanelOpen}
+              onSelectPrompt={setQueuedPrompt}
+            />
 
             <MapleChatDock
               routeRecord={activeRoute}

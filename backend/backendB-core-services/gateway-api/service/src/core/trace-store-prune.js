@@ -13,17 +13,13 @@ export function pruneTraceStore(options) {
     for (const traceId of expired) {
         options.removeTrace(traceId);
     }
-    while (options.traces.size > options.maxTraces) {
-        let oldest = undefined;
-        for (const trace of options.traces.values()) {
-            if (!oldest || trace.updatedAt.localeCompare(oldest.updatedAt) < 0) {
-                oldest = trace;
-            }
+    if (options.traces.size > options.maxTraces) {
+        const sorted = [...options.traces.values()]
+            .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+        const removeCount = sorted.length - options.maxTraces;
+        for (let i = 0; i < removeCount; i++) {
+            options.removeTrace(sorted[i].id);
         }
-        if (!oldest) {
-            break;
-        }
-        options.removeTrace(oldest.id);
     }
     for (const [sessionId, traceIds] of options.sessionIndex.entries()) {
         if (traceIds.length <= options.maxTracesPerSession) {

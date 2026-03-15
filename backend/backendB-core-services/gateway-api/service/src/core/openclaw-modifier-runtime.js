@@ -56,8 +56,9 @@ function actorFromAuthContext(override = {}) {
       asString(authContext?.userId) ??
       asString(authContext?.keyFingerprint) ??
       "gateway-api",
-    tenantId: asString(override.tenantId) ?? "",
-    orgId: asString(override.orgId) ?? "",
+    // Fix 4: Extract tenant/org from authContext as fallback, not just overrides
+    tenantId: asString(override.tenantId) ?? asString(authContext?.tenantId) ?? "",
+    orgId: asString(override.orgId) ?? asString(authContext?.orgId) ?? "",
     deviceId: asString(override.deviceId) ?? "",
     sessionId: asString(override.sessionId) ?? "",
     traceId: asString(override.traceId) ?? "",
@@ -519,6 +520,13 @@ export function configureOpenClawModifierRuntime(options = {}) {
 
 export async function listOpenClawModifierApprovals(filters = {}, actorOverrides = {}) {
   const actor = actorFromAuthContext(actorOverrides);
+  // Fix 4: Fail closed — return empty list if tenantId is unresolved
+  if (!actor.tenantId) {
+    mapleLog("warn", "openclaw_modifier.list_approvals_no_tenant", {
+      userId: actor.userId,
+    });
+    return [];
+  }
   await runtimeStore.pruneExpiredApprovals();
   const statusFilter = asString(filters.status)?.toLowerCase();
   const requestedBy = asString(filters.requestedBy);
@@ -534,12 +542,20 @@ export async function listOpenClawModifierApprovals(filters = {}, actorOverrides
 
 export async function getOpenClawModifierApproval(approvalId, actorOverrides = {}) {
   const actor = actorFromAuthContext(actorOverrides);
+  // Finding 3: Fail closed — reject when actor scope is empty
+  if (!actor.tenantId) {
+    mapleLog("warn", "openclaw_modifier.get_approval_no_tenant", {
+      userId: actor.userId,
+      approvalId,
+    });
+    return null;
+  }
   await runtimeStore.pruneExpiredApprovals();
   const record = await runtimeStore.getApproval(approvalId);
   if (!record) {
     return null;
   }
-  if (actor.tenantId && record.tenantId !== actor.tenantId) {
+  if (record.tenantId !== actor.tenantId) {
     return null;
   }
   if (actor.orgId && record.orgId !== actor.orgId) {

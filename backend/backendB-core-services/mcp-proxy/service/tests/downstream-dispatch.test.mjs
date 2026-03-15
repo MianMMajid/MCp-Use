@@ -76,7 +76,7 @@ test("dispatchJsonRpc maps aborted requests to TIMEOUT errors", async () => {
           { timeoutMs: 10 }
         ),
       (err) => {
-        assert.equal(err.code, "TIMEOUT");
+        assert.equal(err.code, "DEADLINE_EXCEEDED");
         return true;
       }
     );
