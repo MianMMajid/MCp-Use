@@ -80,15 +80,14 @@ export default function OrgPage() {
     setError(null)
     try {
       const data = await loadJson('/api/org')
-      setOrgs(Array.isArray(data?.orgs) ? data.orgs : Array.isArray(data?.organizations) ? data.organizations : Array.isArray(data) ? data : [])
+      setOrgs(Array.isArray(data?.items) ? data.items : Array.isArray(data?.orgs) ? data.orgs : Array.isArray(data) ? data : [])
     } catch (err) { setError(err.message); setOrgs([]) }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { fetchOrgs() }, [fetchOrgs])
 
-  async function selectOrg(orgId) {
-    if (selectedOrg === orgId) { setSelectedOrg(null); setMembers(null); setInvites(null); setRoles(null); return }
+  async function refreshOrgDetail(orgId) {
     setSelectedOrg(orgId)
     try {
       const [m, i, r] = await Promise.allSettled([
@@ -96,10 +95,15 @@ export default function OrgPage() {
         loadJson(`/api/org/${encodeURIComponent(orgId)}/invites`),
         loadJson(`/api/org/${encodeURIComponent(orgId)}/roles`),
       ])
-      setMembers(m.status === 'fulfilled' ? (Array.isArray(m.value?.members) ? m.value.members : Array.isArray(m.value) ? m.value : []) : [])
-      setInvites(i.status === 'fulfilled' ? (Array.isArray(i.value?.invites) ? i.value.invites : Array.isArray(i.value) ? i.value : []) : [])
-      setRoles(r.status === 'fulfilled' ? (Array.isArray(r.value?.roles) ? r.value.roles : Array.isArray(r.value) ? r.value : []) : [])
+      setMembers(m.status === 'fulfilled' ? (Array.isArray(m.value?.items) ? m.value.items : Array.isArray(m.value?.members) ? m.value.members : Array.isArray(m.value) ? m.value : []) : [])
+      setInvites(i.status === 'fulfilled' ? (Array.isArray(i.value?.items) ? i.value.items : Array.isArray(i.value?.invites) ? i.value.invites : Array.isArray(i.value) ? i.value : []) : [])
+      setRoles(r.status === 'fulfilled' ? (Array.isArray(r.value?.items) ? r.value.items : Array.isArray(r.value?.roles) ? r.value.roles : Array.isArray(r.value) ? r.value : []) : [])
     } catch { setMembers([]); setInvites([]); setRoles([]) }
+  }
+
+  function selectOrg(orgId) {
+    if (selectedOrg === orgId) { setSelectedOrg(null); setMembers(null); setInvites(null); setRoles(null); return }
+    refreshOrgDetail(orgId)
   }
 
   async function createOrg() {
@@ -133,7 +137,7 @@ export default function OrgPage() {
       await postJson(`/api/org/${encodeURIComponent(selectedOrg)}/invites`, { email: inviteEmail })
       setMessage('Invite sent')
       setInviteEmail('')
-      selectOrg(selectedOrg)
+      refreshOrgDetail(selectedOrg)
     } catch (err) { setMessage(`Invite failed: ${err.message}`) }
     finally { setActionLoading('') }
   }
@@ -144,7 +148,7 @@ export default function OrgPage() {
     try {
       await deleteJson(`/api/org/${encodeURIComponent(selectedOrg)}/members/${encodeURIComponent(userId)}`)
       setMessage('Member removed')
-      selectOrg(selectedOrg)
+      refreshOrgDetail(selectedOrg)
     } catch (err) { setMessage(`Remove failed: ${err.message}`) }
     finally { setActionLoading('') }
   }
@@ -156,7 +160,7 @@ export default function OrgPage() {
       await postJson(`/api/org/invites/${encodeURIComponent(acceptInviteId)}/accept`, {})
       setMessage('Invite accepted')
       setAcceptInviteId('')
-      if (selectedOrg) selectOrg(selectedOrg)
+      if (selectedOrg) refreshOrgDetail(selectedOrg)
     } catch (err) { setMessage(`Accept failed: ${err.message}`) }
     finally { setActionLoading('') }
   }

@@ -70,7 +70,7 @@ export default function ApiKeysPage() {
     setError(null)
     try {
       const data = await loadJson('/api/user/api-keys')
-      setKeys(Array.isArray(data?.keys) ? data.keys : Array.isArray(data?.apiKeys) ? data.apiKeys : Array.isArray(data) ? data : [])
+      setKeys(Array.isArray(data?.items) ? data.items : Array.isArray(data?.keys) ? data.keys : Array.isArray(data) ? data : [])
     } catch (err) { setError(err.message); setKeys([]) }
     finally { setLoading(false) }
   }, [])
@@ -106,7 +106,7 @@ export default function ApiKeysPage() {
     setActionLoading('load-sa')
     try {
       const data = await loadJson(`/api/org/${encodeURIComponent(orgId)}/service-accounts`)
-      setServiceAccounts(Array.isArray(data?.serviceAccounts) ? data.serviceAccounts : Array.isArray(data) ? data : [])
+      setServiceAccounts(Array.isArray(data?.items) ? data.items : Array.isArray(data?.serviceAccounts) ? data.serviceAccounts : Array.isArray(data) ? data : [])
     } catch (err) { setMessage(`Load failed: ${err.message}`); setServiceAccounts([]) }
     finally { setActionLoading('') }
   }
@@ -128,7 +128,7 @@ export default function ApiKeysPage() {
     setExpandedSA(saId)
     try {
       const data = await loadJson(`/api/org/${encodeURIComponent(orgId)}/service-accounts/${encodeURIComponent(saId)}/keys`)
-      setSaKeys(Array.isArray(data?.keys) ? data.keys : Array.isArray(data) ? data : [])
+      setSaKeys(Array.isArray(data?.items) ? data.items : Array.isArray(data?.keys) ? data.keys : Array.isArray(data) ? data : [])
     } catch { setSaKeys([]) }
   }
 
@@ -175,7 +175,7 @@ export default function ApiKeysPage() {
           {newKeyResult && (newKeyResult.key || newKeyResult.secret || newKeyResult.token) && (
             <div className="mt-4 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 dark:border-orange-800 dark:bg-orange-950/40">
               <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">New key (copy now):</p>
-              <pre className="mt-1 overflow-auto text-xs text-orange-700 dark:text-orange-400">{newKeyResult.key || newKeyResult.secret || newKeyResult.token}</pre>
+              <pre className="mt-1 overflow-auto text-xs text-orange-700 dark:text-orange-400">{typeof newKeyResult.key === 'object' ? (newKeyResult.key?.token || JSON.stringify(newKeyResult.key)) : (newKeyResult.key || newKeyResult.secret || newKeyResult.token)}</pre>
             </div>
           )}
 

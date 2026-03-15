@@ -50,7 +50,7 @@ async function postStreamingChat(prompt, signal) {
     headers: {
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ message: prompt }),
+    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
   })
 
   if (!response.ok) {

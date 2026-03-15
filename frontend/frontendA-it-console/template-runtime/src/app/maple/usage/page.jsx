@@ -50,7 +50,7 @@ export default function UsagePage() {
   const [error, setError] = useState(null)
   const [message, setMessage] = useState('')
   const [actionLoading, setActionLoading] = useState('')
-  const [tsWindow, setTsWindow] = useState('24h')
+  const [tsWindow, setTsWindow] = useState('14')
   const [overrideInput, setOverrideInput] = useState('')
 
   const fetchData = useCallback(async () => {
@@ -65,7 +65,7 @@ export default function UsagePage() {
         loadJson('/api/billing/invoices'),
       ])
       if (e.status === 'fulfilled') setEntitlements(e.value)
-      if (s.status === 'fulfilled') setSummary(s.value)
+      if (s.status === 'fulfilled') setSummary(s.value?.summary ?? s.value)
       if (l.status === 'fulfilled') setLimits(l.value)
       if (sub.status === 'fulfilled') setSubscription(sub.value)
       if (inv.status === 'fulfilled') setInvoices(Array.isArray(inv.value?.invoices) ? inv.value.invoices : Array.isArray(inv.value) ? inv.value : [])
@@ -80,7 +80,7 @@ export default function UsagePage() {
   async function fetchTimeseries() {
     setActionLoading('timeseries')
     try {
-      const data = await loadJson(`/api/usage/timeseries?window=${tsWindow}`)
+      const data = await loadJson(`/api/usage/timeseries?days=${tsWindow}`)
       setTimeseries(data)
     } catch (err) { setMessage(`Timeseries failed: ${err.message}`) }
     finally { setActionLoading('') }
@@ -190,11 +190,11 @@ export default function UsagePage() {
             ) : null}
             <div className="mt-4 flex items-center gap-2">
               <select className="rounded-lg border border-zinc-950/10 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-zinc-900 dark:text-white" value={tsWindow} onChange={(e) => setTsWindow(e.target.value)}>
-                <option value="1h">1 hour</option>
-                <option value="6h">6 hours</option>
-                <option value="24h">24 hours</option>
-                <option value="7d">7 days</option>
-                <option value="30d">30 days</option>
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
               </select>
               <Button variant="secondary" disabled={actionLoading === 'timeseries'} onClick={fetchTimeseries}>
                 {actionLoading === 'timeseries' ? 'Loading...' : 'Load Timeseries'}

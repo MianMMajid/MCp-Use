@@ -231,7 +231,7 @@ export default function FirewallDashboardPage() {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText }),
+        body: JSON.stringify({ messages: [{ role: 'user', content: messageText }] }),
       })
       if (!res.ok) throw new Error(`/api/chat/stream -> ${res.status}`)
       const reader = res.body.getReader()
