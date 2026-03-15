@@ -5,7 +5,13 @@ import { createApp } from "../src/app.js";
 
 test("health and ready endpoints return business-api status", async () => {
   const { app } = await createApp({
-    database: { initialize: async () => {}, close: async () => {} },
+    database: {
+      initialize: async () => {},
+      close: async () => {},
+      pool: {
+        query: async () => ({ rows: [{ "?column?": 1 }] }),
+      },
+    },
     skipDatabaseInit: true,
     manageDatabaseLifecycle: false,
   });

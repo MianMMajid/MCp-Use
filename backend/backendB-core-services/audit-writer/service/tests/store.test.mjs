@@ -84,6 +84,30 @@ test("AuditStore: flushBuffer is safe when buffer is empty", async () => {
   await store.flushBuffer(); // should not throw
 });
 
+test("AuditStore: query flushes pending buffered events before reading", async () => {
+  const store = new AuditStore();
+  store.pgReady = true;
+  store.pool = {};
+  let flushed = false;
+  store.flushBuffer = async () => {
+    flushed = true;
+    store.writeBuffer = [];
+  };
+  store.queryPg = async () => ({ events: [{ eventId: "q-1" }], nextCursor: "", totalCount: 1 });
+
+  store.writeBuffer.push({
+    eventId: "q-1",
+    eventType: "test",
+    timestamp: new Date().toISOString(),
+    sourceService: "test",
+  });
+
+  const result = await store.query({ traceId: "trace-q-1" });
+  assert.equal(flushed, true);
+  assert.equal(result.totalCount, 1);
+  assert.equal(result.events[0].eventId, "q-1");
+});
+
 test("AuditStore: shutdown flushes remaining buffered events", async () => {
   const store = new AuditStore();
   store.pgReady = true;

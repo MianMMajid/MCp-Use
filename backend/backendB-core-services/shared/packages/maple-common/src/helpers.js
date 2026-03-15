@@ -5,6 +5,21 @@ export function asString(value) {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
 }
+export function getEnvOrDefault(key, fallback) {
+    const value = envValue(process.env[key]);
+    return value ?? fallback;
+}
+export function getEnvPort(key, fallback) {
+    const value = envValue(process.env[key]);
+    if (!value) {
+        return fallback;
+    }
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+        throw new Error(`Invalid port for ${key}: "${value}" (must be 1-65535)`);
+    }
+    return parsed;
+}
 export function envValue(value) {
     const normalized = asString(value);
     if (!normalized)

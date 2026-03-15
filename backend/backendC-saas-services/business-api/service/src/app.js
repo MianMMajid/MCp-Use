@@ -86,7 +86,7 @@ export async function createApp(options = {}) {
     auditEmitter,
     onRecoveryTokenIssued: options.onAuthRecoveryTokenIssued,
   });
-  registerPlatformRoutes(app, { database });
+  await registerPlatformRoutes(app, { database });
 
   app.notFound((c) => c.json({ error: "Not Found", path: c.req.path }, 404));
 

@@ -212,6 +212,9 @@ export class AuditStore {
         if (!this.pgReady || !this.pool) {
             throw new Error("AuditStore PostgreSQL backend is not ready.");
         }
+        if (this.writeBuffer.length > 0 && !this.flushInProgress) {
+            await this.flushBuffer();
+        }
         return this.queryPg(filters);
     }
     getAll() {

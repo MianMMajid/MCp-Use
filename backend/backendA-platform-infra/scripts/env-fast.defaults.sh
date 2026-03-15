@@ -19,6 +19,15 @@ set_default() {
   fi
 }
 
+set_local_cert_default() {
+  local key="$1"
+  local value="$2"
+  local current="${!key:-}"
+  if [ -z "${current}" ] || [ "${current}" = "/dev/null" ]; then
+    export "${key}=${value}"
+  fi
+}
+
 CERT_DIR="${ROOT_DIR}/backend/backendA-platform-infra/certs"
 
 set_default NODE_ENV development
@@ -43,9 +52,15 @@ set_default MAPLE_EVENT_TRANSPORT_BACKEND pg
 set_default MAPLE_GRPC_TLS_CERT "${CERT_DIR}/tls.crt"
 set_default MAPLE_GRPC_TLS_KEY "${CERT_DIR}/tls.key"
 set_default MAPLE_GRPC_TLS_CA "${CERT_DIR}/ca.crt"
-set_default MAPLE_GATEWAY_TLS_CERT "${CERT_DIR}/tls.crt"
-set_default MAPLE_GATEWAY_TLS_KEY "${CERT_DIR}/tls.key"
-set_default MAPLE_GATEWAY_TLS_CA "${CERT_DIR}/ca.crt"
+set_local_cert_default MAPLE_GATEWAY_TLS_CERT "${CERT_DIR}/tls.crt"
+set_local_cert_default MAPLE_GATEWAY_TLS_KEY "${CERT_DIR}/tls.key"
+set_local_cert_default MAPLE_GATEWAY_TLS_CA "${CERT_DIR}/ca.crt"
+set_local_cert_default MAPLE_ADMIN_TLS_CERT "${CERT_DIR}/tls.crt"
+set_local_cert_default MAPLE_ADMIN_TLS_KEY "${CERT_DIR}/tls.key"
+set_local_cert_default MAPLE_ADMIN_TLS_CA "${CERT_DIR}/ca.crt"
+set_local_cert_default MAPLE_BUSINESS_API_TLS_CERT "${CERT_DIR}/tls.crt"
+set_local_cert_default MAPLE_BUSINESS_API_TLS_KEY "${CERT_DIR}/tls.key"
+set_local_cert_default MAPLE_BUSINESS_API_TLS_CA "${CERT_DIR}/ca.crt"
 
 set_default GATEWAY_PORT 3000
 set_default GATEWAY_HOST 0.0.0.0

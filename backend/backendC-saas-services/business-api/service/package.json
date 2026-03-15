@@ -5,6 +5,6 @@
   "scripts": {
     "build": "node ../../../../../backend/backendA-platform-infra/scripts/build-service.mjs backend/backendC-saas-services/business-api/service",
     "typecheck": "npx tsc --noEmit --project tsconfig.json",
-    "test": "node --test tests/**/*.test.mjs"
+    "test": "NODE_ENV=test MAPLE_LOG_LEVEL=error MAPLE_LOG_REQUESTS=0 MAPLE_LOG_INCLUDE_BODIES=0 MAPLE_LOG_BODY_MAX_CHARS=4000 MAPLE_FIREWALL_LOG_DIR=/tmp/maple-firewall-logs node --test tests/**/*.test.mjs"
   }
 }
