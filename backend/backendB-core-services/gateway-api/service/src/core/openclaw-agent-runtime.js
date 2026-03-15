@@ -365,6 +365,13 @@ function extractReplyFromParsed(parsed) {
       return String(last.content).trim();
     }
   }
+  // OpenClaw payloads format: { payloads: [{ text: "..." }] }
+  if (Array.isArray(parsed.payloads) && parsed.payloads.length > 0) {
+    const texts = parsed.payloads
+      .map((p) => (typeof p?.text === "string" ? p.text.trim() : ""))
+      .filter(Boolean);
+    if (texts.length > 0) return texts.join("\n");
+  }
   return "";
 }
 
