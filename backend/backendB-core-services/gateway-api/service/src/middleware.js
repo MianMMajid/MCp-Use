@@ -61,9 +61,9 @@ server.app.use("*", async (c, next) => {
             ...(includeBody ? { body: bodyPreview } : {}),
         });
     }
-    // Store context without wrapping next() inside AsyncLocalStorage.run()
-    // to avoid hangs in mcp-use production runtime.
-    requestContextStorage.enterWith({
+    // Attach request context to Hono's per-request context variable store
+    // instead of AsyncLocalStorage to avoid cross-request bleed from enterWith().
+    c.set("mapleRequestContext", {
         requestId,
         method,
         path,
@@ -73,6 +73,8 @@ server.app.use("*", async (c, next) => {
         sessionId,
         traceId,
     });
+    // Also set via enterWith for backward compat with code reading requestContextStorage
+    requestContextStorage.enterWith(c.get("mapleRequestContext"));
     try {
         await next();
     }

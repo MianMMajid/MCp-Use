@@ -2,14 +2,23 @@ import { database } from "../state.js";
 import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { mapleLog } from "../logging.js";
 
+function resolveUserId(c) {
+    // Prefer Hono per-request auth context, fall back to AsyncLocalStorage
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+    const userId = authContext?.userId;
+    if (!userId) return null;
+    return userId;
+}
+
 export function registerNotificationRoutes(app) {
     // GET /api/notifications — list notifications (paginated, unread first)
     app.get("/api/notifications", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
-        const authContext = authContextStorage.getStore();
-        const userId = authContext?.userId ?? "anonymous";
+        const userId = resolveUserId(c);
+        if (!userId) return c.json({ error: "User identity required for notifications." }, 403);
+
         const limit = c.req.query("limit");
         const offset = c.req.query("offset");
 
@@ -25,13 +34,27 @@ export function registerNotificationRoutes(app) {
         }
     });
 
-    // POST /api/notifications/:id/read — mark as read
+    // POST /api/notifications/:id/read — mark as read (with ownership check)
     app.post("/api/notifications/:id/read", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
+        const userId = resolveUserId(c);
+        if (!userId) return c.json({ error: "User identity required." }, 403);
+
         const notificationId = c.req.param("id");
         try {
+            // Verify notification belongs to the requesting user
+            const notification = await database.pool.query(
+                "SELECT id, user_id FROM notifications WHERE id = $1 LIMIT 1",
+                [notificationId]
+            );
+            if (notification.rows.length === 0) {
+                return c.json({ error: "Notification not found." }, 404);
+            }
+            if (notification.rows[0].user_id !== userId) {
+                return c.json({ error: "Forbidden." }, 403);
+            }
             await database.markNotificationRead(notificationId);
             return c.json({ ok: true });
         } catch (err) {
@@ -45,8 +68,8 @@ export function registerNotificationRoutes(app) {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
-        const authContext = authContextStorage.getStore();
-        const userId = authContext?.userId ?? "anonymous";
+        const userId = resolveUserId(c);
+        if (!userId) return c.json({ error: "User identity required." }, 403);
 
         try {
             await database.markAllNotificationsRead(userId);
@@ -62,8 +85,8 @@ export function registerNotificationRoutes(app) {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
-        const authContext = authContextStorage.getStore();
-        const userId = authContext?.userId ?? "anonymous";
+        const userId = resolveUserId(c);
+        if (!userId) return c.json({ error: "User identity required." }, 403);
 
         const defaults = {
             categories: { approvals: true, escalations: true, run_failures: true, system_alerts: true },
@@ -101,8 +124,8 @@ export function registerNotificationRoutes(app) {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
-        const authContext = authContextStorage.getStore();
-        const userId = authContext?.userId ?? "anonymous";
+        const userId = resolveUserId(c);
+        if (!userId) return c.json({ error: "User identity required." }, 403);
         const body = await c.req.json().catch(() => ({}));
 
         const defaults = {
@@ -157,8 +180,8 @@ export function registerNotificationRoutes(app) {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
-        const authContext = authContextStorage.getStore();
-        const userId = authContext?.userId ?? "anonymous";
+        const userId = resolveUserId(c);
+        if (!userId) return c.json({ error: "User identity required." }, 403);
 
         try {
             const count = await database.countUnreadNotifications(userId);

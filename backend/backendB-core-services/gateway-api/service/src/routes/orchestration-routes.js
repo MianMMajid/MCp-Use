@@ -636,8 +636,9 @@ export function registerOrchestrationRoutes(app) {
     if (unauthorized) return unauthorized;
 
     const body = await readJsonBody(c);
-    const authContext = authContextStorage.getStore();
-    const ownerId = asString(body.ownerId) ?? authContext?.userId ?? null;
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+    // Always use auth context userId — never accept arbitrary ownerId from body
+    const ownerId = authContext?.userId ?? null;
 
     try {
       const orchestration = await database.createOrchestration({
@@ -664,13 +665,14 @@ export function registerOrchestrationRoutes(app) {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
     const filters = {};
-    const ownerId = c.req.query("ownerId");
     const status = c.req.query("status");
     const limit = c.req.query("limit");
     const offset = c.req.query("offset");
 
-    if (ownerId) filters.ownerId = ownerId;
+    // Enforce ownership scoping
+    if (authContext?.userId) filters.ownerId = authContext.userId;
     if (status) filters.status = status;
     if (limit) filters.limit = Number(limit);
     if (offset) filters.offset = Number(offset);
@@ -1549,15 +1551,16 @@ export function registerOrchestrationRoutes(app) {
     }
   });
 
-  // GET /api/orchestrations/:id — get single orchestration
+  // GET /api/orchestrations/:id — get single orchestration (ownership enforced)
   app.get("/api/orchestrations/:id", async (c) => {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
     const id = c.req.param("id");
     try {
       const orchestration = await database.findOrchestrationById(id);
-      if (!orchestration) {
+      if (!orchestration || (authContext?.userId && orchestration.ownerId && orchestration.ownerId !== authContext.userId)) {
         return c.json({ error: "Orchestration not found" }, 404);
       }
       return c.json(orchestration);
@@ -1570,12 +1573,17 @@ export function registerOrchestrationRoutes(app) {
     }
   });
 
-  // PATCH /api/orchestrations/:id — update orchestration
+  // PATCH /api/orchestrations/:id — update orchestration (ownership enforced)
   app.patch("/api/orchestrations/:id", async (c) => {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
     const id = c.req.param("id");
+    const existing = await database.findOrchestrationById(id);
+    if (!existing || (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+      return c.json({ error: "Orchestration not found" }, 404);
+    }
     const body = await readJsonBody(c);
 
     const updates = {};
@@ -1601,13 +1609,18 @@ export function registerOrchestrationRoutes(app) {
     }
   });
 
-  // DELETE /api/orchestrations/:id — archive orchestration (soft delete)
+  // DELETE /api/orchestrations/:id — archive orchestration (ownership enforced)
   app.delete("/api/orchestrations/:id", async (c) => {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;
 
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
     const id = c.req.param("id");
     try {
+      const existing = await database.findOrchestrationById(id);
+      if (!existing || (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+        return c.json({ error: "Orchestration not found" }, 404);
+      }
       const orchestration = await database.archiveOrchestration(id);
       if (!orchestration) {
         return c.json({ error: "Orchestration not found" }, 404);

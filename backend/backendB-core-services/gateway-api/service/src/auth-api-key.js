@@ -11,11 +11,9 @@ import { apiErrorPayload } from "./api-error.js";
  */
 async function verifyGeneratedApiKey(token, database) {
     if (!token || !database?.pool) return null;
-    // Only check tokens with the expected prefix
     if (!token.startsWith("maple_user_") && !token.startsWith("maple_sa_")) return null;
     const hash = createHash("sha256").update(String(token)).digest("hex");
     try {
-        // Check user API keys
         const userResult = await database.pool.query(
             `SELECT key_id, user_id, name, expires_at FROM business_user_api_keys
              WHERE key_hash = $1 AND (expires_at IS NULL OR expires_at > $2) LIMIT 1`,
@@ -24,7 +22,6 @@ async function verifyGeneratedApiKey(token, database) {
         if (userResult.rows.length > 0) {
             return { type: "user", userId: userResult.rows[0].user_id, keyId: userResult.rows[0].key_id, role: "user" };
         }
-        // Check service account keys
         const saResult = await database.pool.query(
             `SELECT key_id, org_id, name, expires_at FROM business_service_account_keys
              WHERE key_hash = $1 AND (expires_at IS NULL OR expires_at > $2) LIMIT 1`,
@@ -34,32 +31,48 @@ async function verifyGeneratedApiKey(token, database) {
             return { type: "service_account", orgId: saResult.rows[0].org_id, keyId: saResult.rows[0].key_id, role: "service_account" };
         }
     } catch {
-        // Table may not exist yet — fail silently
+        // Table may not exist yet
     }
     return null;
 }
 function effectiveAllowNoAuth() {
     return allowNoAuth && process.env.NODE_ENV !== "production";
 }
+
+/**
+ * Set auth context on both the per-request Hono context (c.set) and
+ * AsyncLocalStorage (enterWith, for backward compat). The Hono context
+ * is authoritative — it cannot bleed between concurrent requests.
+ */
+function setAuthContext(c, ctx) {
+    c.set("mapleAuthContext", ctx);
+    authContextStorage.enterWith(ctx);
+}
+
+/**
+ * Read auth context. Prefers Hono per-request context, falls back to
+ * AsyncLocalStorage for callers that don't have access to `c`.
+ */
+export function getAuthContext(c) {
+    if (c) {
+        const fromHono = c.get("mapleAuthContext");
+        if (fromHono) return fromHono;
+    }
+    return authContextStorage.getStore();
+}
+
 export function verifyIncomingApiKey(xApiKey, authorization) {
     if (!apiKeyAuthEnabled) {
         if (effectiveAllowNoAuth()) {
             return { ok: true };
         }
-        return {
-            ok: false,
-            reason: "misconfigured",
-        };
+        return { ok: false, reason: "misconfigured" };
     }
     const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
     if (!fromHeaders && effectiveAllowNoAuth()) {
         return { ok: true };
     }
-    const result = verifyApiKey(configuredApiKeys, fromHeaders);
-    if (!result.ok) {
-        return result;
-    }
-    return result;
+    return verifyApiKey(configuredApiKeys, fromHeaders);
 }
 export function isApiKeyPresent(xApiKey, authorization) {
     return Boolean(extractApiKeyFromHeaders(xApiKey, authorization));
@@ -78,21 +91,20 @@ export async function requireApiKeyResponse(c, database, options = {}) {
     const apiKeyResult = verifyIncomingApiKey(xApiKey, authorization);
     const apiKeyProvided = isApiKeyPresent(xApiKey, authorization);
     if (apiKeyResult.ok && (requireApiKey || apiKeyProvided || apiKeyAuthEnabled || effectiveAllowNoAuth())) {
-        authContextStorage.enterWith({
+        setAuthContext(c, {
             method: apiKeyAuthEnabled ? "api_key" : "bypass",
             keyFingerprint: apiKeyResult.keyFingerprint,
-            // Configured API keys are admin-level credentials.
             role: apiKeyAuthEnabled && apiKeyProvided ? "admin" : "user",
             authBypass: !apiKeyAuthEnabled && effectiveAllowNoAuth,
         });
         return undefined;
     }
-    // Check platform-generated API keys (maple_user_*, maple_sa_*) against DB.
+    // Check platform-generated API keys (maple_user_*, maple_sa_*)
     if (apiKeyProvided && !apiKeyResult.ok) {
         const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
         const generated = await verifyGeneratedApiKey(fromHeaders, database);
         if (generated) {
-            authContextStorage.enterWith({
+            setAuthContext(c, {
                 method: "generated_api_key",
                 keyFingerprint: generated.keyId,
                 userId: generated.userId,
@@ -105,7 +117,7 @@ export async function requireApiKeyResponse(c, database, options = {}) {
     if (!requireApiKey && allowSessionAuth) {
         const session = await findRequestSession(database, cookieHeader);
         if (session) {
-            authContextStorage.enterWith({
+            setAuthContext(c, {
                 method: "session",
                 keyFingerprint: undefined,
                 userId: session.userId,
@@ -120,7 +132,7 @@ export async function requireApiKeyResponse(c, database, options = {}) {
         return c.json(unauthorizedBody(apiKeyResult.reason ?? "missing_key"), 401);
     }
     if (effectiveAllowNoAuth()) {
-        authContextStorage.enterWith({
+        setAuthContext(c, {
             method: "bypass",
             authBypass: true,
         });

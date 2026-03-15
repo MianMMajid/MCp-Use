@@ -213,11 +213,16 @@ async function saveInvite(invite) {
 
 // ── Route registration ──────────────────────────────────────────────────────
 
-export function registerPlatformRoutes(app, options) {
+export async function registerPlatformRoutes(app, options) {
   const database = options.database;
   if (database?.pool && typeof database.pool.query === "function") {
     dbPool = database.pool;
-    ensureTables(dbPool).catch(() => {});
+    try {
+      await ensureTables(dbPool);
+    } catch (err) {
+      console.error("[platform-routes] Schema initialization failed:", err.message);
+      // Continue registering routes — they will fail gracefully if tables are missing
+    }
   }
 
   // ── List orgs ──

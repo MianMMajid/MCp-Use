@@ -27,8 +27,9 @@ export function registerAgentManagementRoutes(app) {
             return c.json({ error: "name is required" }, 400);
         }
 
-        const authContext = authContextStorage.getStore();
-        const ownerId = asString(body.ownerId) ?? authContext?.userId ?? null;
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+        // Always use auth context userId as owner — never accept arbitrary ownerId from body
+        const ownerId = authContext?.userId ?? null;
 
         try {
             const agent = await database.createAgent({
@@ -55,15 +56,16 @@ export function registerAgentManagementRoutes(app) {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
         const filters = {};
-        const ownerId = c.req.query("ownerId");
         const status = c.req.query("status");
         const riskTier = c.req.query("riskTier");
         const pinned = c.req.query("pinned");
         const limit = c.req.query("limit");
         const offset = c.req.query("offset");
 
-        if (ownerId) filters.ownerId = ownerId;
+        // Enforce ownership scoping — users can only see their own agents
+        if (authContext?.userId) filters.ownerId = authContext.userId;
         if (status) filters.status = status;
         if (riskTier) filters.riskTier = riskTier;
         if (pinned === "true") filters.pinned = true;
@@ -85,10 +87,11 @@ export function registerAgentManagementRoutes(app) {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
         const agentId = c.req.param("agentId");
         try {
             const agent = await database.findAgentById(agentId);
-            if (!agent) {
+            if (!agent || (authContext?.userId && agent.ownerId && agent.ownerId !== authContext.userId)) {
                 return c.json({ error: "Agent not found" }, 404);
             }
             return c.json(agent);
@@ -98,12 +101,18 @@ export function registerAgentManagementRoutes(app) {
         }
     });
 
-    // PATCH /api/agents/:agentId — update agent
+    // PATCH /api/agents/:agentId — update agent (ownership enforced)
     app.patch("/api/agents/:agentId", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
         const agentId = c.req.param("agentId");
+        // Verify ownership before allowing update
+        const existing = await database.findAgentById(agentId);
+        if (!existing || (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+            return c.json({ error: "Agent not found" }, 404);
+        }
         const body = await readJsonBody(c);
 
         const updates = {};
@@ -129,13 +138,18 @@ export function registerAgentManagementRoutes(app) {
         }
     });
 
-    // DELETE /api/agents/:agentId — archive agent (soft delete)
+    // DELETE /api/agents/:agentId — archive agent (ownership enforced)
     app.delete("/api/agents/:agentId", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
 
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
         const agentId = c.req.param("agentId");
         try {
+            const existing = await database.findAgentById(agentId);
+            if (!existing || (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+                return c.json({ error: "Agent not found" }, 404);
+            }
             const agent = await database.archiveAgent(agentId);
             if (!agent) {
                 return c.json({ error: "Agent not found" }, 404);
