@@ -82,7 +82,14 @@ class CredentialMintError extends Error {
     }
 }
 // Fix 9: HMAC-signed credentials instead of plaintext retired tokens
-const CREDENTIAL_SIGNING_KEY = process.env.MAPLE_CREDENTIAL_SIGNING_KEY || "maple-credential-key";
+// Fail-closed: refuse to start with an insecure default signing key.
+const CREDENTIAL_SIGNING_KEY = process.env.MAPLE_CREDENTIAL_SIGNING_KEY;
+if (!CREDENTIAL_SIGNING_KEY || CREDENTIAL_SIGNING_KEY === "maple-credential-key") {
+    throw new Error(
+        "MAPLE_CREDENTIAL_SIGNING_KEY is required and must not be the insecure default. " +
+        "Generate a strong secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+    );
+}
 
 function createSignedCredential(toolName, appId, scopes) {
     const credentialId = `cred-${randomUUID()}`;

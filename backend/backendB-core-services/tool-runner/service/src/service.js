@@ -150,6 +150,9 @@ export function createToolRunnerService() {
                 if (credentialScopes.length > 0) {
                     outboundHeaders["x-maple-credential-scopes"] = credentialScopes.join(",");
                 }
+                // Use the request's timeoutMs for the gRPC deadline so it doesn't
+                // expire before the upstream call completes (+ 5s grace for overhead).
+                const grpcDeadline = timeoutMs + 5000;
                 const response = await grpcUnary(getCyberProxy(), "proxyHttpRequest", {
                     context: call.request.context ?? {},
                     method: "POST",
@@ -159,7 +162,7 @@ export function createToolRunnerService() {
                     toolName,
                     appId,
                     timeoutMs,
-                });
+                }, { deadlineMs: grpcDeadline });
                 const statusCode = Number(response?.statusCode ?? 502);
                 const responseJson = response?.body
                     ? (Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body))

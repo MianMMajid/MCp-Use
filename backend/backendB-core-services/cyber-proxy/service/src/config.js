@@ -34,6 +34,6 @@ export const config = {
     toolAllowedDomains: parseToolAllowedDomains(requireEnv("CYBER_TOOL_ALLOWED_DOMAINS_JSON")),
     requestTimeoutMs: 15000,
     maxResponseBytes: Number.parseInt(requireEnv("CYBER_MAX_RESPONSE_BYTES"), 10),
-    quarantineEnabled: requireEnv("CYBER_QUARANTINE_ENABLED") === "1",
+    quarantineEnabled: ["1", "true", "yes"].includes(requireEnv("CYBER_QUARANTINE_ENABLED").toLowerCase()),
 };
 //# sourceMappingURL=config.js.map

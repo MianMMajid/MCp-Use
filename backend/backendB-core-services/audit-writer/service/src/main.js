@@ -50,6 +50,19 @@ function startEdgeAuditIngestServer(store) {
             return;
         }
 
+        if (req.method === "GET" && req.url === "/health") {
+            res.statusCode = 200;
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ status: "ok", service: "audit-writer", timestamp: new Date().toISOString() }));
+            return;
+        }
+        if (req.method === "GET" && req.url === "/ready") {
+            const ready = store.isInitialized?.() ?? true;
+            res.statusCode = ready ? 200 : 503;
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ ready, service: "audit-writer" }));
+            return;
+        }
         if (req.method !== "POST" || req.url !== "/v1/audit/edge-access") {
             res.statusCode = 404;
             res.end();

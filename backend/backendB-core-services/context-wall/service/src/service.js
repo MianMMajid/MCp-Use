@@ -461,6 +461,37 @@ async function loadOrchestrationToolsFromMcpProxy() {
     };
     return tools;
 }
+// ── Per-peer gRPC rate limiter ────────────────────────────────────────────────
+// Limits each calling service to a configurable number of requests per window
+// to protect against runaway agents or misconfigured retry loops.
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = Number(process.env.CONTEXT_WALL_RATE_LIMIT || 600);
+const rateLimitBuckets = new Map();
+
+function checkRateLimit(peerId) {
+    const now = Date.now();
+    let bucket = rateLimitBuckets.get(peerId);
+    if (!bucket || now - bucket.windowStart > RATE_LIMIT_WINDOW_MS) {
+        bucket = { windowStart: now, count: 0 };
+        rateLimitBuckets.set(peerId, bucket);
+    }
+    bucket.count++;
+    return bucket.count <= RATE_LIMIT_MAX_REQUESTS;
+}
+
+// Evict stale buckets every 5 minutes to prevent memory growth.
+setInterval(() => {
+    const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS * 2;
+    for (const [key, bucket] of rateLimitBuckets) {
+        if (bucket.windowStart < cutoff) rateLimitBuckets.delete(key);
+    }
+}, 300_000).unref();
+
+function extractPeerId(call) {
+    const peer = call.getPeer?.() || "unknown";
+    return peer;
+}
+
 export function createContextWallService(approvalQueue, policyStore) {
     const getExternalRules = () => policyStore?.getExternalRules();
     const server = createGrpcServer();
@@ -638,6 +669,10 @@ export function createContextWallService(approvalQueue, policyStore) {
     };
     const serviceImpl = {
         EvaluateStep(call, callback) {
+            if (!checkRateLimit(extractPeerId(call))) {
+                callback({ code: grpc.status.RESOURCE_EXHAUSTED, message: "Rate limit exceeded" });
+                return;
+            }
             try {
                 const context = normalizeRequestContext(call.request.context);
                 const step = withContextMetadata(stepFromProto(call.request.step), context);
@@ -657,6 +692,10 @@ export function createContextWallService(approvalQueue, policyStore) {
             }
         },
         EvaluateTrace(call, callback) {
+            if (!checkRateLimit(extractPeerId(call))) {
+                callback({ code: grpc.status.RESOURCE_EXHAUSTED, message: "Rate limit exceeded" });
+                return;
+            }
             try {
                 const trace = traceFromProto(call.request.trace);
                 const summary = enforceTraceFirewall(trace, getExternalRules());
@@ -935,6 +974,10 @@ export function createContextWallService(approvalQueue, policyStore) {
             }
         },
         async OrchestrateChat(call, callback) {
+            if (!checkRateLimit(extractPeerId(call))) {
+                callback({ code: grpc.status.RESOURCE_EXHAUSTED, message: "Rate limit exceeded" });
+                return;
+            }
             try {
                 const requestContext = normalizeRequestContext(call.request.context);
                 const turns = Array.isArray(call.request.messages) ? call.request.messages : [];
@@ -1127,6 +1170,10 @@ export function createContextWallService(approvalQueue, policyStore) {
             }
         },
         async ExecuteToolWithPolicy(call, callback) {
+            if (!checkRateLimit(extractPeerId(call))) {
+                callback({ code: grpc.status.RESOURCE_EXHAUSTED, message: "Rate limit exceeded" });
+                return;
+            }
             try {
                 const parsedArgs = parseJsonObject(call.request.argumentsJson, {});
                 if (!parsedArgs.ok) {

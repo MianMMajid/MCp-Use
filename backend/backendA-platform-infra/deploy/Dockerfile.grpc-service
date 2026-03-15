@@ -1,0 +1,58 @@
+## ---- Build stage ----
+FROM node:22-slim AS build
+
+WORKDIR /app
+
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates python3 make g++ git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install all deps (including devDependencies needed for build)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+
+# Recreate dist->src symlinks for workspace packages (.dockerignore strips dist/)
+RUN for pkg in maple-common maple-persistence maple-security; do \
+      ln -sfn src "backend/backendB-core-services/shared/packages/${pkg}/dist"; \
+    done
+
+RUN npm run mesh:build
+
+## ---- Production stage ----
+FROM node:22-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build --chown=1000:1000 /app/package.json ./package.json
+COPY --from=build --chown=1000:1000 /app/package-lock.json ./package-lock.json
+COPY --from=build --chown=1000:1000 /app/node_modules ./node_modules
+COPY --from=build --chown=1000:1000 /app/backend ./backend
+
+# Create non-root user
+RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>/dev/null || true)
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-semi-space-size=64"
+
+# SERVICE_ENTRYPOINT must be set at build or run time, e.g.:
+#   --build-arg SERVICE_ENTRYPOINT=backend/backendB-core-services/context-wall/service/src/main.js
+# or via docker run --env SERVICE_ENTRYPOINT=...
+ARG SERVICE_ENTRYPOINT
+ENV SERVICE_ENTRYPOINT=${SERVICE_ENTRYPOINT}
+
+# Health check port defaults to gRPC port + 1000 (set via *_HEALTH_PORT env var).
+# Each service exposes /health and /ready on its health port.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD node -e "const p=process.env.HEALTH_PORT||'10000';fetch('http://localhost:'+p+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+USER 1000:1000
+
+CMD ["sh", "-c", "node ${SERVICE_ENTRYPOINT}"]

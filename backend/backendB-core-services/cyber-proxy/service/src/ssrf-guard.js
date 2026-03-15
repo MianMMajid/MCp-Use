@@ -36,8 +36,11 @@ export async function checkUrl(url, allowedDomains, blockedDomains) {
             return { allowed: false, reason: "DNS resolved to metadata IP", isPrivateIp: true, resolvedIp, normalizedUrl: parsed.toString() };
         }
     }
-    catch {
-        // DNS resolution failed, allow if not private
+    catch (dnsErr) {
+        // Fail-closed: if DNS resolution fails, block the request to prevent
+        // SSRF bypass via unresolvable hostnames that may resolve differently
+        // in downstream contexts.
+        return { allowed: false, reason: `DNS resolution failed for ${hostname}: ${dnsErr.code || dnsErr.message}`, isPrivateIp: false, resolvedIp: "", normalizedUrl: parsed.toString() };
     }
     if (allowedDomains.length > 0 && !allowedDomains.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
         return { allowed: false, reason: "Domain not on allowlist", isPrivateIp: false, resolvedIp, normalizedUrl: parsed.toString() };
@@ -200,6 +203,26 @@ export function scanContent(content, contentType, sourceUrl) {
                 }
             }
         }
+        // ── ZIP bomb detection ──
+        // If content claims to be a compressed archive, check the declared
+        // uncompressed size against a safe ratio. ZIP local-file headers store
+        // uncompressed size at offset 22 (4 bytes LE). A ratio > 100:1 is
+        // suspicious for payloads arriving over HTTP.
+        if (content.length >= 30 && content[0] === 0x50 && content[1] === 0x4b &&
+            content[2] === 0x03 && content[3] === 0x04) {
+            const uncompressedSize = content.readUInt32LE(22);
+            const ZIP_BOMB_RATIO = 100;
+            if (uncompressedSize > 0 && uncompressedSize > content.length * ZIP_BOMB_RATIO) {
+                return {
+                    safe: false,
+                    threats: [`Suspected ZIP bomb: declared uncompressed size ${uncompressedSize} is ${Math.round(uncompressedSize / content.length)}x the compressed size`],
+                    sanitized: Buffer.alloc(0),
+                    quarantined: true,
+                    quarantineReason: `ZIP bomb detected: compression ratio ${Math.round(uncompressedSize / content.length)}:1 exceeds ${ZIP_BOMB_RATIO}:1 limit`,
+                };
+            }
+        }
+
         // ── Base64 executable detection in text content ──
         if (contentType.includes("text") || contentType.includes("json") || contentType.includes("xml")) {
             const text = content.toString("utf8");
