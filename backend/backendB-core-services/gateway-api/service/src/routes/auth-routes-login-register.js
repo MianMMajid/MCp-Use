@@ -92,16 +92,18 @@ export function registerAuthLoginRegisterRoutes(app) {
             return c.json({ error: "Too many registration attempts. Please try again later." }, 429);
         }
 
-        const existingUsers = await database.countUsers();
-        if (!allowSelfSignup && existingUsers > 0) {
-            return c.json({ error: "Self-signup is disabled." }, 403);
-        }
+        // Validate body BEFORE self-signup check so clients always get proper
+        // validation errors for malformed requests regardless of signup state.
         const body = await readJsonBody(c);
         const username = asString(body.username);
         const password = asString(body.password);
         const email = asString(body.email);
         if (!username || !password) {
             return c.json({ error: "username and password are required." }, 400);
+        }
+        const existingUsers = await database.countUsers();
+        if (!allowSelfSignup && existingUsers > 0) {
+            return c.json({ error: "Self-signup is disabled." }, 403);
         }
         if (password.length < 8) {
             return c.json({ error: "password must be at least 8 characters." }, 400);

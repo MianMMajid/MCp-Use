@@ -22,9 +22,12 @@ function mulberry32(a) {
 }
 
 function makeIdFactory() {
+  // Start counters above seeded IDs to prevent collisions.
+  // Seeded state uses IDs like uak-1, uak-2, so start counters at 100.
   const counters = new Map()
+  const SEED_OFFSET = 100
   return function nextId(prefix) {
-    const next = (counters.get(prefix) || 0) + 1
+    const next = (counters.get(prefix) || SEED_OFFSET) + 1
     counters.set(prefix, next)
     return `${prefix}-${next}`
   }
