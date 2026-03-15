@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 const DEFAULT_BRIDGE_TIMEOUT_MS = 4500;
 const HARDCODED_BRIDGE_URL = "http://127.0.0.1:8787";
+const BRIDGE_ALLOWED_ORIGINS = (process.env.OPENCLAW_BRIDGE_ALLOWED_ORIGINS ?? "http://127.0.0.1,http://localhost")
+    .split(",").map(o => o.trim().toLowerCase()).filter(Boolean);
+function validateBridgeOrigin(origin) {
+    if (!origin) return true;
+    const lower = origin.toLowerCase();
+    return BRIDGE_ALLOWED_ORIGINS.some(allowed => lower === allowed || lower.startsWith(allowed + ":"));
+}
 function inferActor(value) {
     if (value === "tool" || value === "system" || value === "user") {
         return value;
@@ -102,9 +109,14 @@ async function fetchEventsFromBridge(sessionId, bridgeUrl, token) {
     const timeout = setTimeout(() => controller.abort(), DEFAULT_BRIDGE_TIMEOUT_MS);
     try {
         const url = new URL(`/sessions/${encodeURIComponent(sessionId)}/events`, bridgeUrl);
+        const originHeader = new URL(bridgeUrl).origin;
+        if (!validateBridgeOrigin(originHeader)) {
+            throw new Error(`Bridge origin rejected: ${originHeader}`);
+        }
         const response = await fetch(url, {
             headers: {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                Origin: originHeader,
             },
             signal: controller.signal,
         });

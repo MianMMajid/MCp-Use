@@ -118,6 +118,28 @@ const INJECTION_PATTERNS = [
         weight: 0.8,
         severity: "high",
     },
+    // ── indirect_injection (content-level) ─────────────────────────────────────
+    {
+        name: "hidden_instruction_in_content",
+        category: "instruction_override",
+        regex: /IMPORTANT:\s*(ignore|disregard|override|forget)\b/i,
+        weight: 0.85,
+        severity: "high",
+    },
+    {
+        name: "tool_call_injection",
+        category: "instruction_override",
+        regex: /please\s+(call|use|execute|run|invoke)\s+(the\s+)?tool\b/i,
+        weight: 0.75,
+        severity: "high",
+    },
+    {
+        name: "data_exfil_instruction",
+        category: "instruction_override",
+        regex: /send\s+(all\s+)?(data|credentials|tokens|secrets|passwords|keys)\s+to\b/i,
+        weight: 0.9,
+        severity: "critical",
+    },
     // ── payload_smuggling ─────────────────────────────────────────────────────
     {
         name: "zero_width_characters",

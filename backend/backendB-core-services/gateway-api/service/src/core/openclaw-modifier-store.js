@@ -188,6 +188,7 @@ export class OpenClawModifierStore {
       approvals: new Map(),
       members: new Map(),
       policies: new Map(),
+      agentBaselines: new Map(),
     };
   }
 
@@ -242,6 +243,14 @@ export class OpenClawModifierStore {
         CREATE INDEX IF NOT EXISTS idx_tenant_policies_active
           ON gateway_modifier_tenant_policies (tenant_id, org_id)
           WHERE is_active = TRUE;
+        CREATE TABLE IF NOT EXISTS gateway_agent_baselines (
+          agent_id TEXT PRIMARY KEY,
+          tenant_id TEXT NOT NULL,
+          org_id TEXT NOT NULL,
+          embedding_json TEXT NOT NULL,
+          step_count INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
       `);
     }
     this.initialized = true;
@@ -722,5 +731,102 @@ export class OpenClawModifierStore {
       `,
       [now, Math.max(1, Math.min(5000, Number(limit) || 500))]
     );
+  }
+
+  async upsertAgentBaseline(agentId, tenantId, orgId, embedding, stepCount) {
+    await this.ensureInitialized();
+    const normalizedAgentId = String(agentId ?? "").trim();
+    if (!normalizedAgentId) return null;
+    const timestamp = nowIso();
+    const record = {
+      agentId: normalizedAgentId,
+      tenantId: String(tenantId ?? ""),
+      orgId: String(orgId ?? ""),
+      embedding,
+      stepCount: Number(stepCount ?? 0),
+      updatedAt: timestamp,
+    };
+
+    if (!hasPool(this.database)) {
+      this.memory.agentBaselines.set(normalizedAgentId, record);
+      return record;
+    }
+
+    await this.database.pool.query(
+      `
+        INSERT INTO gateway_agent_baselines (agent_id, tenant_id, org_id, embedding_json, step_count, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (agent_id) DO UPDATE SET
+          embedding_json = EXCLUDED.embedding_json,
+          step_count = EXCLUDED.step_count,
+          updated_at = EXCLUDED.updated_at
+      `,
+      [normalizedAgentId, record.tenantId, record.orgId, JSON.stringify(embedding), record.stepCount, timestamp]
+    );
+    return record;
+  }
+
+  async getAgentBaseline(agentId) {
+    await this.ensureInitialized();
+    const normalizedAgentId = String(agentId ?? "").trim();
+    if (!normalizedAgentId) return null;
+
+    if (!hasPool(this.database)) {
+      return this.memory.agentBaselines.get(normalizedAgentId) ?? null;
+    }
+
+    const result = await this.database.pool.query(
+      `SELECT agent_id, tenant_id, org_id, embedding_json, step_count, updated_at
+       FROM gateway_agent_baselines WHERE agent_id = $1 LIMIT 1`,
+      [normalizedAgentId]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      agentId: String(row.agent_id),
+      tenantId: String(row.tenant_id ?? ""),
+      orgId: String(row.org_id ?? ""),
+      embedding: parseJson(row.embedding_json, []),
+      stepCount: Number(row.step_count ?? 0),
+      updatedAt: String(row.updated_at ?? ""),
+    };
+  }
+
+  async listAgentBaselines(scopeInput) {
+    await this.ensureInitialized();
+    const scope = normalizeScope(scopeInput);
+
+    if (!hasPool(this.database)) {
+      return [...this.memory.agentBaselines.values()].filter(
+        (b) => (!scope.tenantId || b.tenantId === scope.tenantId) &&
+               (!scope.orgId || b.orgId === scope.orgId)
+      );
+    }
+
+    const conditions = [];
+    const params = [];
+    let cursor = 1;
+    if (scope.tenantId) {
+      conditions.push(`tenant_id = $${cursor++}`);
+      params.push(scope.tenantId);
+    }
+    if (scope.orgId) {
+      conditions.push(`org_id = $${cursor++}`);
+      params.push(scope.orgId);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const result = await this.database.pool.query(
+      `SELECT agent_id, tenant_id, org_id, embedding_json, step_count, updated_at
+       FROM gateway_agent_baselines ${where} ORDER BY updated_at DESC LIMIT 200`,
+      params
+    );
+    return result.rows.map((row) => ({
+      agentId: String(row.agent_id),
+      tenantId: String(row.tenant_id ?? ""),
+      orgId: String(row.org_id ?? ""),
+      embedding: parseJson(row.embedding_json, []),
+      stepCount: Number(row.step_count ?? 0),
+      updatedAt: String(row.updated_at ?? ""),
+    }));
   }
 }

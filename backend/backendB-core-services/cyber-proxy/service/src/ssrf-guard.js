@@ -1,6 +1,7 @@
 import { isPrivateOrLocalHost } from "@maple/common";
 import { lookup } from "node:dns/promises";
 import { config } from "./config.js";
+import { detectPromptInjection } from "../../../shared/packages/maple-security/src/prompt-injection.js";
 const METADATA_IPS = ["169.254.169.254", "fd00:ec2::254"];
 export async function checkUrl(url, allowedDomains, blockedDomains) {
     let parsed;
@@ -230,5 +231,23 @@ export function scanContent(content, contentType, sourceUrl) {
         }
     }
     return { safe: threats.length === 0, threats, sanitized: Buffer.from(text), quarantined: false };
+}
+const TEXT_LIKE_TYPES = /^(text\/|application\/json|application\/xml|application\/xhtml|application\/.*markdown)/i;
+/**
+ * Scan fetched response content for indirect prompt injection patterns.
+ * Fail-open: returns detection result but does not block.
+ */
+export function scanContentForInjection(content, contentType) {
+    if (!content || !TEXT_LIKE_TYPES.test(contentType)) {
+        return { hasInjection: false, confidence: 0, patterns: [], categories: [] };
+    }
+    const text = typeof content === "string" ? content : content.toString("utf8");
+    const result = detectPromptInjection(text);
+    return {
+        hasInjection: result.isInjection,
+        confidence: result.confidence,
+        patterns: result.matches.map(m => m.pattern),
+        categories: result.categories,
+    };
 }
 //# sourceMappingURL=ssrf-guard.js.map

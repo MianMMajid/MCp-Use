@@ -36,6 +36,7 @@ const SIDE_EFFECT_ROUTE_MODULES = [
   "./ops-governance.js",
   "./gpt-adapter.js",
   "./mcp-tools.js",
+  "./openclaw-posture-routes.js",
 ];
 
 export async function registerGatewayRoutes(app) {

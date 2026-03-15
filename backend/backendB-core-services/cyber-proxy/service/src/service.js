@@ -3,7 +3,7 @@ import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { checkUrl, scanContent } from "./ssrf-guard.js";
+import { checkUrl, scanContent, scanContentForInjection } from "./ssrf-guard.js";
 import { config } from "./config.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
@@ -397,6 +397,17 @@ export function createCyberProxyService() {
                         });
                         return;
                     }
+                    // Indirect prompt injection scanning (fail-open: tag, don't block)
+                    const injectionScan = scanContentForInjection(respBody, contentType);
+                    if (injectionScan.hasInjection && injectionScan.confidence >= 0.7) {
+                        respHeaders["x-maple-injection-detected"] = "true";
+                        respHeaders["x-maple-injection-confidence"] = String(injectionScan.confidence.toFixed(2));
+                        emitAuditEvent({
+                            eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
+                            summary: `Indirect prompt injection detected in fetched content (confidence ${(injectionScan.confidence * 100).toFixed(0)}%)`,
+                            payload: { url, patterns: injectionScan.patterns, categories: injectionScan.categories, confidence: injectionScan.confidence },
+                        });
+                    }
                     // Use sanitized content if available
                     const finalBody = scanResult.sanitized.length > 0 ? scanResult.sanitized : respBody;
                     callback(null, {
@@ -408,7 +419,7 @@ export function createCyberProxyService() {
                         sanitized: finalBody !== respBody,
                         malwareDetected: false,
                         quarantined: false,
-                        threatsFound: [],
+                        threatsFound: injectionScan.hasInjection ? [`indirect_injection:${injectionScan.patterns.join(",")}`] : [],
                         quarantineReason: "",
                         policyReason: "ok",
                     });

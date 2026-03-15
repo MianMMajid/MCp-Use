@@ -10,7 +10,11 @@ import { join } from "node:path";
 
 const execFileAsync = promisify(execFile);
 const BRIDGE_PORT = Number(process.env.OPENCLAW_BRIDGE_PORT ?? 8787);
-const BRIDGE_HOST = process.env.OPENCLAW_BRIDGE_HOST ?? "0.0.0.0";
+const BRIDGE_HOST = process.env.OPENCLAW_BRIDGE_HOST ?? "127.0.0.1";
+const ALLOWED_ORIGINS = (process.env.OPENCLAW_BRIDGE_ALLOWED_ORIGINS ?? "http://127.0.0.1,http://localhost")
+  .split(",")
+  .map((o) => o.trim().toLowerCase())
+  .filter(Boolean);
 const BRIDGE_TOKEN =
   process.env.OPENCLAW_BRIDGE_TOKEN && process.env.OPENCLAW_BRIDGE_TOKEN.trim().length > 0
     ? process.env.OPENCLAW_BRIDGE_TOKEN
@@ -30,6 +34,12 @@ const OPENCLAW_SESSIONS_DIR =
   join(homedir(), ".openclaw", "agents", "main", "sessions");
 
 const sessionOverrides = new Map();
+
+function isOriginAllowed(req) {
+  const origin = (req.headers.origin ?? "").trim().toLowerCase();
+  if (!origin) return true; // no Origin header → same-origin or non-browser
+  return ALLOWED_ORIGINS.some((allowed) => origin === allowed || origin.startsWith(allowed + ":"));
+}
 
 function json(res, statusCode, body) {
   res.statusCode = statusCode;
@@ -711,6 +721,14 @@ async function fetchGatewayHistory(sessionKey) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
 
+  // Origin validation — reject cross-origin requests
+  if (!isOriginAllowed(req)) {
+    return json(res, 403, {
+      error: "Forbidden",
+      reason: "Origin not allowed",
+    });
+  }
+
   if (req.method === "GET" && url.pathname === "/health") {
     return json(res, 200, {
       ok: true,
@@ -719,8 +737,10 @@ const server = createServer(async (req, res) => {
       mode: BRIDGE_MODE,
       sessionCount: sessionOverrides.size,
       bridgePort: BRIDGE_PORT,
+      bindAddress: BRIDGE_HOST,
       gatewayWsUrl: GATEWAY_WS_URL,
       defaultGatewaySessionKey: DEFAULT_GATEWAY_SESSION_KEY,
+      originValidation: true,
     });
   }
 

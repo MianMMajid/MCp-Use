@@ -1,4 +1,5 @@
 import { detectEmbeddingAnomalies } from "./ml/anomaly-detector.js";
+import { detectCrossAgentAnomaly } from "./ml/cross-agent-detector.js";
 const severityWeight = {
     low: 15,
     medium: 35,
@@ -205,6 +206,24 @@ export function analyzeTraceRisks(steps, options = {}) {
             allFlags.push(finding.flag);
         }
         stepResult.riskScore = deriveStepScore(stepResult.flags);
+    }
+    // Cross-agent behavioral anomaly detection
+    if (options.agentId && options.agentBaselineMap) {
+        const crossAgentFindings = detectCrossAgentAnomaly(
+            options.agentId, steps, options.agentBaselineMap, options.crossAgentThreshold
+        );
+        for (const finding of crossAgentFindings) {
+            if (!finding.flag) continue;
+            const lastStepResult = stepResults[stepResults.length - 1];
+            if (lastStepResult) {
+                const hasExisting = lastStepResult.flags.some(f => f.id === finding.flag.id);
+                if (!hasExisting) {
+                    lastStepResult.flags.push(finding.flag);
+                    allFlags.push(finding.flag);
+                    lastStepResult.riskScore = deriveStepScore(lastStepResult.flags);
+                }
+            }
+        }
     }
     const breakdown = buildBreakdown(allFlags);
     const maxStepScore = Math.max(0, ...stepResults.map((result) => result.riskScore));
