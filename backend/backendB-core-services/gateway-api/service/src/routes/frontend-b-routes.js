@@ -8,12 +8,15 @@ import { ToolGovernanceStore } from "../core/tool-governance-store.js";
 import {
   listOpenClawCliTools,
   buildOpenClawCliCommandArgs,
+  isSupportedOpenClawCliTool,
 } from "../core/openclaw-cli-runtime.js";
 import {
+  executeOpenClawModifierRequest,
   saveOpenClawModifierPolicyVersion,
 } from "../core/openclaw-modifier-runtime.js";
 import { runOpenClawLongform } from "../core/openclaw-agent-runtime.js";
 import { createOrchestrationExecution } from "../core/orchestration-runtime.js";
+import { queryAuditChain } from "../core/audit-integrity.js";
 import { parseYaml } from "../core/policy-as-code.js";
 import { simulateModifierPolicy } from "../core/policy-simulator.js";
 import {
@@ -25,6 +28,7 @@ import {
 
 const frontendBStore = new FrontendBStore({ database });
 const governanceStore = new ToolGovernanceStore({ database });
+const SKILL_EXECUTION_SUBCOMMANDS = new Set(["list", "check", "info"]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -210,6 +214,191 @@ async function loadNormalizedSkillCatalog() {
   }
 
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function hasPersistentStorage() {
+  return Boolean(database && typeof database.pool?.query === "function");
+}
+
+function normalizeImportedSkillPayload(body = {}) {
+  const toolId = asString(body.toolId) ?? asString(body.name) ?? "";
+  if (!toolId || toolId.trim().length === 0) {
+    return { error: "toolId is required." };
+  }
+  if (!/^[a-zA-Z0-9._:-]{1,128}$/.test(toolId)) {
+    return { error: "toolId contains unsupported characters." };
+  }
+
+  const schema = body.schema ?? {};
+  if (schema == null || typeof schema !== "object" || Array.isArray(schema)) {
+    return { error: "schema must be a JSON object when provided." };
+  }
+
+  return {
+    payload: {
+      toolId: toolId.trim(),
+      name: (asString(body.name) ?? toolId).trim() || toolId.trim(),
+      description: (asString(body.description) ?? "").trim(),
+      schema,
+      source: "manual",
+    },
+  };
+}
+
+async function getStoredSkillRecord(toolId) {
+  if (!hasPersistentStorage()) {
+    return null;
+  }
+  const result = await database.pool.query(
+    `
+      SELECT tool_id, name, description, schema_json, source, created_at, updated_at
+      FROM gateway_tool_registry
+      WHERE tool_id = $1
+      LIMIT 1
+    `,
+    [toolId]
+  );
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+  return {
+    toolId: String(row.tool_id),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    schemaJson: String(row.schema_json ?? "{}"),
+    source: String(row.source ?? "manual"),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? ""),
+  };
+}
+
+async function waitForSkillAuditEvidence(actor, since) {
+  if (!hasPersistentStorage()) {
+    return { total: 0, events: [] };
+  }
+
+  try {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const audit = await queryAuditChain(
+        {
+          tenantId: actor.tenantId,
+          orgId: actor.orgId,
+          since,
+        },
+        { database, limit: 20 }
+      );
+      const events = (audit.events ?? []).filter((event) =>
+        [
+          "AUDIT_EVENT_TYPE_TOOL_DISPATCHED",
+          "AUDIT_EVENT_TYPE_TOOL_COMPLETED",
+          "AUDIT_EVENT_TYPE_TOOL_FAILED",
+        ].includes(String(event.eventType))
+      );
+      if (events.length > 0) {
+        return {
+          total: Number(audit.total ?? events.length),
+          events,
+        };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } catch (error) {
+    return {
+      total: 0,
+      events: [],
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  return { total: 0, events: [] };
+}
+
+async function buildSkillExecutionProof(skillId, actor, commandName) {
+  const normalizedSkillId = String(skillId ?? "").trim().toLowerCase();
+  const subcommand = String(commandName ?? "list").trim().toLowerCase();
+
+  if (!normalizedSkillId) {
+    return { error: "skillId is required.", status: 400 };
+  }
+  if (!SKILL_EXECUTION_SUBCOMMANDS.has(subcommand)) {
+    return { error: "command must be one of: list, check, info.", status: 400 };
+  }
+  if (!isSupportedOpenClawCliTool(normalizedSkillId)) {
+    return {
+      error: `Skill '${normalizedSkillId}' is not an OpenClaw CLI skill runtime target.`,
+      status: 400,
+    };
+  }
+
+  const proofTarget =
+    subcommand === "info"
+      ? [subcommand, normalizedSkillId]
+      : [subcommand];
+
+  const startedAt = nowIso();
+  const proof = {
+    toolId: normalizedSkillId,
+    command: proofTarget,
+    startedAt,
+  };
+  let execution;
+  try {
+    execution = await executeOpenClawModifierRequest(
+      {
+        tool: normalizedSkillId,
+        args: proofTarget,
+        sourceProfile: "controller_x",
+        targetProfile: "worker_skills_proof",
+        parseJson: true,
+        json: true,
+        timeoutSeconds: 30,
+        maxBufferMb: 8,
+      },
+      actor
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      status: 500,
+      type: "execution_error",
+      error: error instanceof Error ? error.message : String(error),
+      approval: null,
+      policy: null,
+      result: null,
+      proof,
+    };
+  }
+
+  if (hasPersistentStorage()) {
+    proof.storage = {
+      persistent: true,
+      registryRecord: await getStoredSkillRecord(normalizedSkillId),
+    };
+    proof.audit = await waitForSkillAuditEvidence(actor, startedAt);
+  } else {
+    proof.storage = {
+      persistent: false,
+      reason: "gateway_tool_registry is unavailable because PostgreSQL is not configured.",
+      registryRecord: null,
+    };
+    proof.audit = {
+      total: 0,
+      events: [],
+      reason: "audit_chain is unavailable because PostgreSQL is not configured.",
+    };
+  }
+
+  return {
+    ok: execution.ok,
+    status: execution.status,
+    type: execution.type,
+    error: execution.error ?? "",
+    approval: execution.approval ?? null,
+    policy: execution.policy ?? null,
+    result: execution.result ?? null,
+    proof,
+  };
 }
 
 function stringifySimulationSnippet(requestBody) {
@@ -1193,6 +1382,54 @@ export function registerFrontendBRoutes(app) {
     return c.json({ ok: true, items: await loadNormalizedSkillCatalog() });
   });
 
+  app.post("/api/skills/import", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    if (!hasPersistentStorage()) {
+      return c.json(
+        {
+          ok: false,
+          error: "Persistent PostgreSQL storage is required for skill import proof.",
+        },
+        503
+      );
+    }
+
+    const body = await readJsonBody(c);
+    const normalized = normalizeImportedSkillPayload(body);
+    if (normalized.error) {
+      return c.json({ ok: false, error: normalized.error }, 400);
+    }
+
+    const tool = await governanceStore.upsertTool(normalized.payload);
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_TOOL_DISPATCHED",
+      sourceService: "gateway-api",
+      sessionId: auth.session.id,
+      userId: auth.session.user.id,
+      summary: `Frontend B imported skill ${tool.toolId}`,
+      payload: {
+        tenantId: `user:${auth.session.user.id}`,
+        orgId: "default",
+        toolId: tool.toolId,
+        source: tool.source,
+        action: "skills_import",
+      },
+    });
+
+    return c.json(
+      {
+        ok: true,
+        tool,
+        storage: {
+          persistent: true,
+          registryRecord: await getStoredSkillRecord(tool.toolId),
+        },
+      },
+      201
+    );
+  });
+
   app.post("/api/skills/:skillId/smoke-test", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) return auth.error;
@@ -1224,6 +1461,65 @@ export function registerFrontendBRoutes(app) {
         checkedAt: nowIso(),
         checks,
       },
+    });
+  });
+
+  app.post("/api/skills/:skillId/governed-execution", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    if (!hasPersistentStorage()) {
+      return c.json(
+        {
+          ok: false,
+          error: "Persistent PostgreSQL storage is required for governed execution proof.",
+        },
+        503
+      );
+    }
+
+    const skillId = asString(c.req.param("skillId"));
+    const catalog = await loadNormalizedSkillCatalog();
+    const item = catalog.find((tool) => String(tool.toolId) === skillId);
+    if (!item) {
+      return c.json({ ok: false, error: "Skill not found." }, 404);
+    }
+
+    const body = await readJsonBody(c);
+    const actor = {
+      userId: auth.session.user.id,
+      tenantId: `user:${auth.session.user.id}`,
+      orgId: "default",
+      tenantVerified: true,
+      tenantMethod: "session",
+      deviceId: asString(c.req.header("user-agent")) ?? "frontend-b",
+      sessionId: auth.session.id,
+      traceId: `frontend-b-skill-${Date.now()}`,
+    };
+
+    const execution = await buildSkillExecutionProof(
+      item.toolId,
+      actor,
+      asString(body.command) ?? "list"
+    );
+    if (!execution.ok) {
+      return c.json(
+        {
+          ok: false,
+          type: execution.type,
+          error: execution.error,
+          approval: execution.approval ?? null,
+          policy: execution.policy ?? null,
+          proof: execution.proof ?? null,
+        },
+        execution.status ?? 502
+      );
+    }
+
+    return c.json({
+      ok: true,
+      type: execution.type,
+      result: execution.result,
+      proof: execution.proof,
     });
   });
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { applyGatewayTestEnvDefaults } from "./helpers/gateway-test-env.mjs";
 
 applyGatewayTestEnvDefaults({
@@ -22,6 +23,9 @@ const { runDueTasksOnce } = await import("../src/routes/frontend-b-routes.js");
 const { hashPassword } = await import("@maple/security");
 
 const frontendBStore = new FrontendBStore({ database });
+const OPENCLAW_AVAILABLE = spawnSync("openclaw", ["--version"], {
+  encoding: "utf8",
+}).status === 0;
 
 let appResult = null;
 
@@ -84,6 +88,27 @@ async function requestJson(path, { method = "GET", cookie, body } = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
+}
+
+async function waitForAuditChainEvent(tenantId, orgId, eventType, timeoutMs = 1000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await database.pool.query(
+      `
+        SELECT event_id
+        FROM audit_chain
+        WHERE tenant_id = $1 AND org_id = $2 AND event_type = $3
+        ORDER BY sequence_id DESC
+        LIMIT 1
+      `,
+      [tenantId, orgId, eventType]
+    );
+    if (result.rows[0]) {
+      return result.rows[0];
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return null;
 }
 
 test("frontend b firewalls reject non-compilable revisions and expose diagnostics", async () => {
@@ -364,3 +389,79 @@ test("frontend b org profile fields persist through get and patch", async () => 
   assert.equal(updated.postal_code, "94105");
   assert.equal(updated.country, "United States");
 });
+
+test(
+  "frontend b skills import persists to the registry and governed execution returns proof",
+  { skip: !OPENCLAW_AVAILABLE },
+  async () => {
+    const owner = await createSessionUser("skills-proof");
+    const tenantId = `user:${owner.user.id}`;
+
+    const importResult = await requestJson("/api/skills/import", {
+      method: "POST",
+      cookie: owner.cookie,
+      body: {
+        toolId: "skills",
+        name: "skills",
+        description: "Registry-backed OpenClaw skills proof target",
+        schema: {},
+      },
+    });
+
+    assert.equal(importResult.response.status, 201);
+    assert.equal(importResult.payload.ok, true);
+    assert.equal(importResult.payload.tool.toolId, "skills");
+    assert.equal(importResult.payload.storage.persistent, true);
+
+    const registryRow = await database.pool.query(
+      `
+        SELECT tool_id, source
+        FROM gateway_tool_registry
+        WHERE tool_id = $1
+        LIMIT 1
+      `,
+      ["skills"]
+    );
+    assert.equal(registryRow.rows[0]?.tool_id, "skills");
+    assert.equal(registryRow.rows[0]?.source, "manual");
+
+    const listResult = await requestJson("/api/skills", {
+      cookie: owner.cookie,
+    });
+    assert.equal(listResult.response.status, 200);
+    assert.equal(
+      listResult.payload.items.some((item) => item.toolId === "skills" && item.source === "registry"),
+      true
+    );
+
+    const execResult = await requestJson("/api/skills/skills/governed-execution", {
+      method: "POST",
+      cookie: owner.cookie,
+      body: {
+        command: "list",
+      },
+    });
+
+    assert.equal(execResult.response.status, 200);
+    assert.equal(execResult.payload.ok, true);
+    assert.equal(execResult.payload.result.tool, "skills");
+    assert.equal(execResult.payload.proof.storage.persistent, true);
+    assert.equal(execResult.payload.proof.storage.registryRecord.toolId, "skills");
+    assert.equal(Array.isArray(execResult.payload.proof.audit.events), true);
+    assert.equal(execResult.payload.proof.audit.events.length > 0, true);
+
+    const dispatched = await waitForAuditChainEvent(
+      tenantId,
+      "default",
+      "AUDIT_EVENT_TYPE_TOOL_DISPATCHED"
+    );
+    const completed = await waitForAuditChainEvent(
+      tenantId,
+      "default",
+      "AUDIT_EVENT_TYPE_TOOL_COMPLETED"
+    );
+
+    assert.ok(dispatched, "expected a tool dispatched audit event");
+    assert.ok(completed, "expected a tool completed audit event");
+  }
+);

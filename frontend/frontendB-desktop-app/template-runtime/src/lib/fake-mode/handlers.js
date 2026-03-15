@@ -1219,9 +1219,45 @@ function handleHitlAndOps(pathname, method, state, body) {
   return null
 }
 
-function handleFrontendBSkills(pathname, method, state) {
+function handleFrontendBSkills(pathname, method, state, body) {
   if (pathname === '/api/skills' && method === 'GET') {
     return asJson({ ok: true, items: buildFrontendBSkillCatalog(state) })
+  }
+
+  if (pathname === '/api/skills/import' && method === 'POST') {
+    const payload = parseBody(body)
+    const toolId = String(payload.toolId || payload.name || '').trim()
+    if (!toolId) return asJson({ ok: false, error: 'toolId is required.' }, 400)
+    if (payload.schema != null && (typeof payload.schema !== 'object' || Array.isArray(payload.schema))) {
+      return asJson({ ok: false, error: 'schema must be a JSON object when provided.' }, 400)
+    }
+
+    const existing = state.tools.registry.find((item) => String(item.toolId) === toolId)
+    const record = {
+      id: existing?.id || state.nextId('tool'),
+      toolId,
+      name: String(payload.name || toolId),
+      description: String(payload.description || ''),
+      schema: payload.schema || {},
+      source: 'manual',
+      createdAt: existing?.createdAt || nowIso(),
+      updatedAt: nowIso(),
+    }
+
+    if (existing) {
+      Object.assign(existing, record)
+    } else {
+      state.tools.registry.unshift(record)
+    }
+
+    return asJson({
+      ok: true,
+      tool: record,
+      storage: {
+        persistent: true,
+        registryRecord: record,
+      },
+    }, 201)
   }
 
   const params = matchPath(pathname, '/api/skills/:skillId/smoke-test')
@@ -1240,6 +1276,74 @@ function handleFrontendBSkills(pathname, method, state) {
         checkedAt: nowIso(),
         logs: checks.map((check) => `${check.passed ? 'PASS' : 'FAIL'} ${check.label}: ${check.detail}`),
         checks,
+      },
+    })
+  }
+
+  const governedParams = matchPath(pathname, '/api/skills/:skillId/governed-execution')
+  if (governedParams && method === 'POST') {
+    const payload = parseBody(body)
+    const skillId = String(governedParams.skillId || '').trim()
+    const item = buildFrontendBSkillCatalog(state).find((entry) => String(entry.toolId) === skillId)
+    if (!item) return asJson({ ok: false, error: 'Skill not found.' }, 404)
+    if (skillId !== 'skills') {
+      return asJson({ ok: false, error: `Skill '${skillId}' is not an OpenClaw CLI skill runtime target.` }, 400)
+    }
+
+    const command = String(payload.command || 'list').trim().toLowerCase()
+    if (!['list', 'check', 'info'].includes(command)) {
+      return asJson({ ok: false, error: 'command must be one of: list, check, info.' }, 400)
+    }
+
+    const result = {
+      ok: true,
+      tool: 'skills',
+      command: 'openclaw',
+      args: ['skills', ...(command === 'info' ? [skillId] : [command])],
+      timeoutSeconds: 30,
+      stdout: JSON.stringify({
+        ok: true,
+        tool: 'skills',
+        subcommand: command,
+        items: ['skills', 'memory', 'status'],
+      }),
+      stderr: '',
+      parsedJson: {
+        ok: true,
+        tool: 'skills',
+        subcommand: command,
+        items: ['skills', 'memory', 'status'],
+      },
+      exitCode: 0,
+      signal: null,
+      profile: 'worker_skills_proof',
+      dangerous: false,
+      dangerousReasons: [],
+      approval: null,
+      durationMs: 112,
+      tenantId: 'user:fake-user',
+      orgId: 'default',
+      policyVersion: 1,
+    }
+
+    return asJson({
+      ok: true,
+      type: 'executed',
+      result,
+      proof: {
+        toolId: 'skills',
+        command: [command],
+        storage: {
+          persistent: true,
+          registryRecord: state.tools.registry.find((entry) => String(entry.toolId) === 'skills') || null,
+        },
+        audit: {
+          total: 2,
+          events: [
+            { eventType: 'AUDIT_EVENT_TYPE_TOOL_DISPATCHED', summary: 'OpenClaw modifier request for skills' },
+            { eventType: 'AUDIT_EVENT_TYPE_TOOL_COMPLETED', summary: 'OpenClaw modifier completed for skills' },
+          ],
+        },
       },
     })
   }
@@ -2406,7 +2510,7 @@ export async function handleFakeRequest({ method, pathname, searchParams, body, 
     () => handleNotifications(normalizedPath, upperMethod, state, searchParams, body),
     () => handleSearch(normalizedPath, upperMethod, state, searchParams),
     () => handleAgentsRunsSessions(normalizedPath, upperMethod, state, searchParams, body),
-    () => handleFrontendBSkills(normalizedPath, upperMethod, state),
+    () => handleFrontendBSkills(normalizedPath, upperMethod, state, body),
     () => handleFrontendBFirewalls(normalizedPath, upperMethod, state, body),
     () => handleHitlAndOps(normalizedPath, upperMethod, state, body),
     () => handleObservability(normalizedPath, upperMethod, state, searchParams, body),
