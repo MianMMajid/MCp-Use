@@ -4,6 +4,7 @@ import { authContextStorage } from "../auth-context.js";
 import { requireApiKeyResponse } from "../auth-api-key.js";
 import { database } from "../state.js";
 import { PlatformStore } from "../core/platform-store.js";
+import { GatewayOperationsPlatformService } from "../core/operations-platform-service.js";
 
 function parseIntOrUndefined(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -56,6 +57,7 @@ function normalizeOrgSummary(org) {
     region: org.region ?? "",
     postal_code: org.postal_code ?? "",
     country: org.country ?? "",
+    status: org.status ?? "active",
     createdAt: org.createdAt,
     updatedAt: org.updatedAt,
     membersCount: org.membersCount,
@@ -63,11 +65,19 @@ function normalizeOrgSummary(org) {
 }
 
 let _store;
+let _operationsService;
 function getStore() {
   if (!_store) {
     _store = new PlatformStore({ database });
   }
   return _store;
+}
+
+function getOperationsService() {
+  if (!_operationsService) {
+    _operationsService = new GatewayOperationsPlatformService({ database, platformStore: getStore() });
+  }
+  return _operationsService;
 }
 
 export function registerPlatformProxyRoutes(app) {
@@ -87,14 +97,29 @@ export function registerPlatformProxyRoutes(app) {
     if (auth.error) {
       return auth.error;
     }
-    const store = getStore();
     const body = await readJsonBody(c);
-    const name = asString(body.name) ?? `Org ${auth.session.user.username}`;
-    const org = await store.createOrganization({
-      name,
-      ownerUserId: auth.session.user.id,
-    });
-    return c.json({ ok: true, org: normalizeOrgSummary(org) }, 201);
+    const result = await getOperationsService().createOrganization(
+      {
+        userId: auth.session.user.id,
+        role: auth.session.user.role ?? "user",
+      },
+      {
+        name: asString(body.name) ?? `Org ${auth.session.user.username}`,
+        tenantId: body.tenantId,
+        parentOrgId: body.parentOrgId,
+        orgType: body.orgType,
+        bio: body.bio,
+        email: body.email,
+        email_is_public: body.email_is_public,
+        currency: body.currency,
+        address: body.address,
+        city: body.city,
+        region: body.region,
+        postal_code: body.postal_code,
+        country: body.country,
+      }
+    );
+    return c.json({ ok: true, org: normalizeOrgSummary(result.org), binding: result.binding }, 201);
   });
 
   app.patch("/api/org/:orgId", async (c) => {
@@ -112,18 +137,30 @@ export function registerPlatformProxyRoutes(app) {
       return c.json({ error: "Organization not found." }, 404);
     }
     const body = await readJsonBody(c);
-    const updated = await store.updateOrganizationProfile(orgId, {
-      name: body.name !== undefined ? asString(body.name) : existing.name,
-      bio: body.bio,
-      email: body.email,
-      email_is_public: body.email_is_public,
-      currency: body.currency,
-      address: body.address,
-      city: body.city,
-      region: body.region,
-      postal_code: body.postal_code,
-      country: body.country,
-    });
+    const updated = await getOperationsService().updateOrganization(
+      {
+        userId: auth.session.user.id,
+        role: auth.session.user.role ?? "user",
+      },
+      orgId,
+      {
+        name: body.name !== undefined ? asString(body.name) : existing.name,
+        bio: body.bio,
+        email: body.email,
+        email_is_public: body.email_is_public,
+        currency: body.currency,
+        address: body.address,
+        city: body.city,
+        region: body.region,
+        postal_code: body.postal_code,
+        country: body.country,
+        parentOrgId: body.parentOrgId,
+        orgType: body.orgType,
+      }
+    );
+    if (!updated) {
+      return c.json({ error: "Organization not found." }, 404);
+    }
     return c.json({ ok: true, org: normalizeOrgSummary(updated) });
   });
 

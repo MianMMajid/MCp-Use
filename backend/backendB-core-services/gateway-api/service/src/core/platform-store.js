@@ -23,6 +23,16 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizeOrgStatus(value) {
+  return String(value ?? "active").trim().toLowerCase() === "inactive"
+    ? "inactive"
+    : "active";
+}
+
+function isActiveOrgStatus(value) {
+  return normalizeOrgStatus(value) === "active";
+}
+
 function normalizeOrg(record) {
   if (!record) {
     return null;
@@ -40,6 +50,7 @@ function normalizeOrg(record) {
     region: String(record.region ?? ""),
     postal_code: String(record.postal_code ?? ""),
     country: String(record.country ?? ""),
+    status: normalizeOrgStatus(record.status),
     createdAt: String(record.created_at),
     updatedAt: String(record.updated_at),
     membersCount: Number(record.members_count ?? 0),
@@ -103,6 +114,7 @@ export class PlatformStore {
           org_id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           owner_user_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active',
           bio TEXT NOT NULL DEFAULT '',
           email TEXT NOT NULL DEFAULT '',
           email_is_public BOOLEAN NOT NULL DEFAULT TRUE,
@@ -193,6 +205,7 @@ export class PlatformStore {
         );
       `);
       await this.database.pool.query(`
+        ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
         ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
         ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
         ALTER TABLE business_orgs ADD COLUMN IF NOT EXISTS email_is_public BOOLEAN NOT NULL DEFAULT TRUE;
@@ -221,6 +234,7 @@ export class PlatformStore {
     }
     if (!hasPool(this.database)) {
       return [...this.memory.orgs.values()]
+        .filter((org) => isActiveOrgStatus(org.status))
         .filter((org) => org.members.some((member) => member.userId === normalizedUserId))
         .map((org) => ({
           orgId: org.orgId,
@@ -235,6 +249,7 @@ export class PlatformStore {
           region: org.region ?? "",
           postal_code: org.postal_code ?? "",
           country: org.country ?? "",
+          status: normalizeOrgStatus(org.status),
           createdAt: org.createdAt,
           updatedAt: org.updatedAt,
           membersCount: org.members.length,
@@ -248,6 +263,7 @@ export class PlatformStore {
           o.org_id,
           o.name,
           o.owner_user_id,
+          o.status,
           o.bio,
           o.email,
           o.email_is_public,
@@ -268,6 +284,7 @@ export class PlatformStore {
           FROM business_org_members
           GROUP BY org_id
         ) member_counts ON member_counts.org_id = o.org_id
+        WHERE o.status = 'active'
         ORDER BY o.updated_at DESC
       `,
       [normalizedUserId]
@@ -282,6 +299,18 @@ export class PlatformStore {
       throw new Error("ownerUserId is required.");
     }
     const name = String(input.name ?? "").trim() || "New Organization";
+    const status = normalizeOrgStatus(input.status);
+    const profile = {
+      bio: String(input.bio ?? "").trim(),
+      email: String(input.email ?? "").trim(),
+      email_is_public: input.email_is_public !== false,
+      currency: String(input.currency ?? "usd").trim() || "usd",
+      address: String(input.address ?? "").trim(),
+      city: String(input.city ?? "").trim(),
+      region: String(input.region ?? "").trim(),
+      postal_code: String(input.postal_code ?? "").trim(),
+      country: String(input.country ?? "").trim(),
+    };
     const orgId = randomUUID();
     const timestamp = nowIso();
 
@@ -290,15 +319,16 @@ export class PlatformStore {
         orgId,
         name,
         ownerUserId,
-        bio: "",
-        email: "",
-        email_is_public: true,
-        currency: "usd",
-        address: "",
-        city: "",
-        region: "",
-        postal_code: "",
-        country: "",
+        status,
+        bio: profile.bio,
+        email: profile.email,
+        email_is_public: profile.email_is_public,
+        currency: profile.currency,
+        address: profile.address,
+        city: profile.city,
+        region: profile.region,
+        postal_code: profile.postal_code,
+        country: profile.country,
         createdAt: timestamp,
         updatedAt: timestamp,
         members: [{ userId: ownerUserId, roleId: "owner", joinedAt: timestamp }],
@@ -308,15 +338,16 @@ export class PlatformStore {
         orgId,
         name,
         ownerUserId,
-        bio: "",
-        email: "",
-        email_is_public: true,
-        currency: "usd",
-        address: "",
-        city: "",
-        region: "",
-        postal_code: "",
-        country: "",
+        bio: profile.bio,
+        email: profile.email,
+        email_is_public: profile.email_is_public,
+        currency: profile.currency,
+        address: profile.address,
+        city: profile.city,
+        region: profile.region,
+        postal_code: profile.postal_code,
+        country: profile.country,
+        status,
         createdAt: timestamp,
         updatedAt: timestamp,
         membersCount: 1,
@@ -328,10 +359,28 @@ export class PlatformStore {
       await client.query("BEGIN");
       await client.query(
         `
-          INSERT INTO business_orgs (org_id, name, owner_user_id, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $4)
+          INSERT INTO business_orgs (
+            org_id, name, owner_user_id, status, bio, email, email_is_public,
+            currency, address, city, region, postal_code, country, created_at, updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
         `,
-        [orgId, name, ownerUserId, timestamp]
+        [
+          orgId,
+          name,
+          ownerUserId,
+          status,
+          profile.bio,
+          profile.email,
+          profile.email_is_public,
+          profile.currency,
+          profile.address,
+          profile.city,
+          profile.region,
+          profile.postal_code,
+          profile.country,
+          timestamp,
+        ]
       );
       await client.query(
         `
@@ -362,25 +411,27 @@ export class PlatformStore {
       orgId,
       name,
       ownerUserId,
-      bio: "",
-      email: "",
-      email_is_public: true,
-      currency: "usd",
-      address: "",
-      city: "",
-      region: "",
-      postal_code: "",
-      country: "",
+      bio: profile.bio,
+      email: profile.email,
+      email_is_public: profile.email_is_public,
+      currency: profile.currency,
+      address: profile.address,
+      city: profile.city,
+      region: profile.region,
+      postal_code: profile.postal_code,
+      country: profile.country,
+      status,
       createdAt: timestamp,
       updatedAt: timestamp,
       membersCount: 1,
     };
   }
 
-  async getOrganizationForUser(orgId, userId) {
+  async getOrganizationForUser(orgId, userId, options = {}) {
     await this.ensureInitialized();
     const normalizedOrgId = String(orgId ?? "").trim();
     const normalizedUserId = String(userId ?? "").trim();
+    const includeInactive = options.includeInactive === true;
     if (!normalizedOrgId || !normalizedUserId) {
       return null;
     }
@@ -388,6 +439,9 @@ export class PlatformStore {
     if (!hasPool(this.database)) {
       const org = this.memory.orgs.get(normalizedOrgId);
       if (!org) {
+        return null;
+      }
+      if (!includeInactive && !isActiveOrgStatus(org.status)) {
         return null;
       }
       if (!org.members.some((member) => member.userId === normalizedUserId)) {
@@ -406,6 +460,7 @@ export class PlatformStore {
         region: org.region ?? "",
         postal_code: org.postal_code ?? "",
         country: org.country ?? "",
+        status: normalizeOrgStatus(org.status),
         createdAt: org.createdAt,
         updatedAt: org.updatedAt,
         membersCount: org.members.length,
@@ -418,6 +473,7 @@ export class PlatformStore {
           o.org_id,
           o.name,
           o.owner_user_id,
+          o.status,
           o.bio,
           o.email,
           o.email_is_public,
@@ -439,9 +495,10 @@ export class PlatformStore {
           GROUP BY org_id
         ) member_counts ON member_counts.org_id = o.org_id
         WHERE o.org_id = $1
+          AND ($3::boolean OR o.status = 'active')
         LIMIT 1
       `,
-      [normalizedOrgId, normalizedUserId]
+      [normalizedOrgId, normalizedUserId, includeInactive]
     );
     return normalizeOrg(result.rows[0]);
   }
@@ -460,6 +517,9 @@ export class PlatformStore {
       if (!org) {
         return null;
       }
+      if (!isActiveOrgStatus(org.status)) {
+        return null;
+      }
       org.name = normalizedName;
       org.updatedAt = timestamp;
       return {
@@ -475,6 +535,7 @@ export class PlatformStore {
         region: org.region ?? "",
         postal_code: org.postal_code ?? "",
         country: org.country ?? "",
+        status: normalizeOrgStatus(org.status),
         createdAt: org.createdAt,
         updatedAt: org.updatedAt,
         membersCount: org.members.length,
@@ -485,7 +546,7 @@ export class PlatformStore {
       `
         UPDATE business_orgs
         SET name = $2, updated_at = $3
-        WHERE org_id = $1
+        WHERE org_id = $1 AND status = 'active'
         RETURNING org_id, name, owner_user_id, created_at, updated_at
       `,
       [normalizedOrgId, normalizedName, timestamp]
@@ -521,6 +582,9 @@ export class PlatformStore {
       if (!org) {
         return null;
       }
+      if (!isActiveOrgStatus(org.status)) {
+        return null;
+      }
       org.name = profile.name || org.name;
       org.bio = profile.bio;
       org.email = profile.email;
@@ -550,7 +614,7 @@ export class PlatformStore {
           postal_code = $10,
           country = $11,
           updated_at = $12
-        WHERE org_id = $1
+        WHERE org_id = $1 AND status = 'active'
         RETURNING org_id
       `,
       [
@@ -574,9 +638,10 @@ export class PlatformStore {
     return this.getOrganizationById(normalizedOrgId);
   }
 
-  async getOrganizationById(orgId) {
+  async getOrganizationById(orgId, options = {}) {
     await this.ensureInitialized();
     const normalizedOrgId = String(orgId ?? "").trim();
+    const includeInactive = options.includeInactive === true;
     if (!normalizedOrgId) {
       return null;
     }
@@ -586,10 +651,23 @@ export class PlatformStore {
       if (!org) {
         return null;
       }
+      if (!includeInactive && !isActiveOrgStatus(org.status)) {
+        return null;
+      }
       return {
         orgId: org.orgId,
         name: org.name,
         ownerUserId: org.ownerUserId,
+        bio: org.bio ?? "",
+        email: org.email ?? "",
+        email_is_public: org.email_is_public ?? true,
+        currency: org.currency ?? "usd",
+        address: org.address ?? "",
+        city: org.city ?? "",
+        region: org.region ?? "",
+        postal_code: org.postal_code ?? "",
+        country: org.country ?? "",
+        status: normalizeOrgStatus(org.status),
         createdAt: org.createdAt,
         updatedAt: org.updatedAt,
         membersCount: org.members.length,
@@ -602,6 +680,7 @@ export class PlatformStore {
           o.org_id,
           o.name,
           o.owner_user_id,
+          o.status,
           o.bio,
           o.email,
           o.email_is_public,
@@ -621,17 +700,59 @@ export class PlatformStore {
           GROUP BY org_id
         ) member_counts ON member_counts.org_id = o.org_id
         WHERE o.org_id = $1
+          AND ($2::boolean OR o.status = 'active')
         LIMIT 1
       `,
-      [normalizedOrgId]
+      [normalizedOrgId, includeInactive]
     );
     return normalizeOrg(result.rows[0]);
+  }
+
+  async isOrganizationActive(orgId) {
+    const org = await this.getOrganizationById(orgId, { includeInactive: true });
+    return Boolean(org && isActiveOrgStatus(org.status));
+  }
+
+  async deactivateOrganization(orgId) {
+    await this.ensureInitialized();
+    const normalizedOrgId = String(orgId ?? "").trim();
+    if (!normalizedOrgId) {
+      return null;
+    }
+    const timestamp = nowIso();
+
+    if (!hasPool(this.database)) {
+      const org = this.memory.orgs.get(normalizedOrgId);
+      if (!org) {
+        return null;
+      }
+      org.status = "inactive";
+      org.updatedAt = timestamp;
+      return this.getOrganizationById(normalizedOrgId, { includeInactive: true });
+    }
+
+    const result = await this.database.pool.query(
+      `
+        UPDATE business_orgs
+        SET status = 'inactive', updated_at = $2
+        WHERE org_id = $1 AND status = 'active'
+        RETURNING org_id
+      `,
+      [normalizedOrgId, timestamp]
+    );
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.getOrganizationById(normalizedOrgId, { includeInactive: true });
   }
 
   async listOrganizationMembers(orgId) {
     await this.ensureInitialized();
     const normalizedOrgId = String(orgId ?? "").trim();
     if (!normalizedOrgId) {
+      return [];
+    }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
       return [];
     }
 
@@ -662,6 +783,9 @@ export class PlatformStore {
     if (!normalizedOrgId) {
       return [];
     }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return [];
+    }
 
     if (!hasPool(this.database)) {
       const org = this.memory.orgs.get(normalizedOrgId);
@@ -690,6 +814,9 @@ export class PlatformStore {
     const normalizedUserId = String(userId ?? "").trim();
     const normalizedRoleId = String(roleId ?? "").trim() || "member";
     if (!normalizedOrgId || !normalizedUserId) {
+      return null;
+    }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
       return null;
     }
     if (!VALID_ROLE_IDS.has(normalizedRoleId)) {
@@ -738,6 +865,9 @@ export class PlatformStore {
     if (!normalizedOrgId || !normalizedUserId) {
       return null;
     }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return null;
+    }
 
     if (!hasPool(this.database)) {
       const org = this.memory.orgs.get(normalizedOrgId);
@@ -768,6 +898,9 @@ export class PlatformStore {
     if (!normalizedOrgId || !normalizedUserId) {
       return false;
     }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return false;
+    }
     const timestamp = nowIso();
 
     if (!hasPool(this.database)) {
@@ -796,6 +929,9 @@ export class PlatformStore {
     await this.ensureInitialized();
     const normalizedOrgId = String(orgId ?? "").trim();
     if (!normalizedOrgId) {
+      return [];
+    }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
       return [];
     }
 
@@ -838,6 +974,9 @@ export class PlatformStore {
     const email = String(input.email ?? "").trim().toLowerCase();
     if (!orgId || !issuedBy) {
       throw new Error("orgId and issuedBy are required.");
+    }
+    if (!(await this.isOrganizationActive(orgId))) {
+      throw new Error("Organization is inactive.");
     }
     const inviteId = randomUUID();
     const createdAt = nowIso();
@@ -914,6 +1053,9 @@ export class PlatformStore {
 
     const invite = await this.getOrganizationInvite(normalizedInviteId);
     if (!invite) {
+      return null;
+    }
+    if (!(await this.isOrganizationActive(invite.orgId))) {
       return null;
     }
     if (invite.email) {
@@ -1085,6 +1227,9 @@ export class PlatformStore {
     if (!normalizedOrgId) {
       return [];
     }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return [];
+    }
 
     if (!hasPool(this.database)) {
       return this.memory.serviceAccounts.get(normalizedOrgId) ?? [];
@@ -1140,6 +1285,9 @@ export class PlatformStore {
     if (!normalizedOrgId || !normalizedAccountId) {
       return [];
     }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return [];
+    }
 
     if (!hasPool(this.database)) {
       const accounts = this.memory.serviceAccounts.get(normalizedOrgId) ?? [];
@@ -1178,6 +1326,9 @@ export class PlatformStore {
     const normalizedName = String(name ?? "").trim() || "service-account";
     if (!normalizedOrgId) {
       throw new Error("orgId is required.");
+    }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return null;
     }
     const accountId = randomUUID();
     const createdAt = nowIso();
@@ -1218,6 +1369,9 @@ export class PlatformStore {
     const normalizedAccountId = String(accountId ?? "").trim();
     if (!normalizedOrgId || !normalizedAccountId) {
       throw new Error("orgId and accountId are required.");
+    }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
+      return null;
     }
     const token = keyToken("maple_sa");
     const keyId = randomUUID();
@@ -1282,6 +1436,9 @@ export class PlatformStore {
     const normalizedAccountId = String(accountId ?? "").trim();
     const normalizedKeyId = String(keyId ?? "").trim();
     if (!normalizedOrgId || !normalizedAccountId || !normalizedKeyId) {
+      return false;
+    }
+    if (!(await this.isOrganizationActive(normalizedOrgId))) {
       return false;
     }
 

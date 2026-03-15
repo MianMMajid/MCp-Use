@@ -142,6 +142,25 @@ export async function getOrgNode(tenantId, orgId, options = {}) {
 }
 
 /**
+ * Find the most recent hierarchy node for an org when tenant context is not known.
+ */
+export async function findOrgNodeByOrgId(orgId, options = {}) {
+  const db = options.database ?? _database;
+  if (!hasPool(db)) return null;
+  const includeInactive = options.includeInactive === true;
+  const result = await db.pool.query(
+    `SELECT id, tenant_id, org_id, parent_org_id, org_name, org_type, status, created_at, updated_at, created_by, metadata_json
+     FROM org_hierarchy
+     WHERE org_id = $1
+       AND ($2::boolean OR status = 'active')
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [orgId, includeInactive]
+  );
+  return result.rows[0] ? toOrgRecord(result.rows[0]) : null;
+}
+
+/**
  * Get the full ancestor chain for an org (bottom-up).
  * Returns [parent, grandparent, ...] up to root.
  */

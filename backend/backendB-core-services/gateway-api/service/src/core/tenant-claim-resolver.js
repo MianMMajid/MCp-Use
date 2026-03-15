@@ -171,6 +171,28 @@ export async function unbindUserFromTenant(userId, tenantId, orgId, options = {}
 }
 
 /**
+ * Unbind all active users from a tenant/org.
+ */
+export async function unbindAllUsersFromTenantOrg(tenantId, orgId, options = {}) {
+  const db = options.database ?? _database;
+  if (!hasPool(db)) return 0;
+  const now = nowIso();
+  const result = await db.pool.query(
+    `UPDATE user_tenant_bindings
+     SET status = 'inactive', unbound_at = $3
+     WHERE tenant_id = $1 AND org_id = $2 AND status = 'active'`,
+    [tenantId, orgId, now]
+  );
+
+  for (const cacheKey of TENANT_BINDING_CACHE.keys()) {
+    if (cacheKey.endsWith(`:${tenantId}:${orgId}`)) {
+      TENANT_BINDING_CACHE.delete(cacheKey);
+    }
+  }
+  return Number(result.rowCount ?? 0);
+}
+
+/**
  * List all active tenant bindings for a user.
  */
 export async function listUserTenantBindings(userId, options = {}) {
@@ -225,12 +247,14 @@ async function hasActiveBinding(userId, tenantId, orgId) {
  * Uses auth context first, then validates header-provided tenantId against bindings.
  * Returns { tenantId, orgId, userId, verified, method }.
  */
-export async function resolveVerifiedTenantScope(headerOverrides = {}) {
+export async function resolveVerifiedTenantScope(headerOverrides = {}, options = {}) {
   const authContext = authContextStorage.getStore();
   const userId =
+    asString(options.userId) ??
     asString(authContext?.userId) ??
     asString(authContext?.keyFingerprint) ??
     "";
+  const method = asString(options.method) ?? asString(authContext?.method) ?? "none";
 
   const headerTenantId = asString(headerOverrides.tenantId) ?? "";
   const headerOrgId = asString(headerOverrides.orgId) ?? "";
