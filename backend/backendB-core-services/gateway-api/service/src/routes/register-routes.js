@@ -14,6 +14,9 @@ import { database } from "../state.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin } from "../config.js";
 import { requireApiKeyResponse } from "../auth.js";
+import { authContextStorage } from "../auth-context.js";
+import { listUserTenantBindings } from "../core/tenant-claim-resolver.js";
+import { asString } from "../helpers.js";
 
 const SIDE_EFFECT_ROUTE_MODULES = [
   "../middleware.js",
@@ -79,16 +82,57 @@ function registerStubRoutes(app) {
   };
   app.use("/api/operations/*", authGate);
 
-  // FrontendA: tenant bindings, org hierarchy, tenant scope
-  app.get("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ ok: true, bindings: [] }));
-  app.post("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Tenant bindings not yet implemented." }, 501));
-  app.delete("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Not implemented." }, 501));
-  app.get("/api/operations/orchestrations/tenant-scope", (c) => c.json({ ok: true, scope: null }));
-  app.get("/api/operations/orchestrations/org/tree", (c) => c.json({ ok: true, tree: [] }));
-  app.get("/api/operations/orchestrations/org/:orgId", (c) => c.json({ ok: true, org: null }));
+  // Tenant bindings — return real data from tenant-claim-resolver when available
+  app.get("/api/operations/orchestrations/tenant-bindings", async (c) => {
+    const ctx = authContextStorage.getStore();
+    const userId = asString(ctx?.userId) ?? asString(ctx?.keyFingerprint) ?? "";
+    if (!userId) return c.json({ ok: true, bindings: [] });
+    try {
+      const bindings = await listUserTenantBindings(userId, { database });
+      return c.json({ ok: true, bindings });
+    } catch {
+      return c.json({ ok: true, bindings: [] });
+    }
+  });
+  app.post("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Use POST /api/org to create organizations and tenant bindings." }, 501));
+  app.delete("/api/operations/orchestrations/tenant-bindings", (c) => c.json({ error: "Use org member removal to manage tenant bindings." }, 501));
+  app.get("/api/operations/orchestrations/tenant-scope", async (c) => {
+    const ctx = authContextStorage.getStore();
+    const tenantId = asString(c.req.header("x-tenant-id")) ?? "";
+    const orgId = asString(c.req.header("x-org-id")) ?? "";
+    return c.json({ ok: true, scope: tenantId ? { tenantId, orgId, userId: ctx?.userId ?? "" } : null });
+  });
+  // Org tree — return real orgs for the authenticated user
+  app.get("/api/operations/orchestrations/org/tree", async (c) => {
+    const ctx = authContextStorage.getStore();
+    const userId = asString(ctx?.userId) ?? "";
+    if (!userId || !database?.pool) return c.json({ ok: true, tree: [] });
+    try {
+      const { PlatformStore } = await import("../core/platform-store.js");
+      const store = new PlatformStore({ database });
+      const orgs = await store.listOrganizationsForUser(userId);
+      return c.json({ ok: true, tree: orgs });
+    } catch {
+      return c.json({ ok: true, tree: [] });
+    }
+  });
+  app.get("/api/operations/orchestrations/org/:orgId", async (c) => {
+    const ctx = authContextStorage.getStore();
+    const orgId = asString(c.req.param("orgId")) ?? "";
+    const userId = asString(ctx?.userId) ?? "";
+    if (!orgId || !userId || !database?.pool) return c.json({ ok: true, org: null });
+    try {
+      const { PlatformStore } = await import("../core/platform-store.js");
+      const store = new PlatformStore({ database });
+      const org = await store.getOrganizationForUser(orgId, userId);
+      return c.json({ ok: true, org: org ?? null });
+    } catch {
+      return c.json({ ok: true, org: null });
+    }
+  });
   app.get("/api/operations/orchestrations/org/:orgId/lifecycle", (c) => c.json({ ok: true, events: [] }));
-  app.post("/api/operations/orchestrations/org", (c) => c.json({ error: "Org management not yet implemented." }, 501));
-  app.delete("/api/operations/orchestrations/org/:orgId", (c) => c.json({ error: "Not implemented." }, 501));
+  app.post("/api/operations/orchestrations/org", (c) => c.json({ error: "Use POST /api/org to create organizations." }, 501));
+  app.delete("/api/operations/orchestrations/org/:orgId", (c) => c.json({ error: "Organization deletion is not supported. Remove members instead." }, 501));
 
   // FrontendC: downloads (Next.js API routes handle this locally in frontendC,
   // but if the gateway is hit directly, return a proper 404)

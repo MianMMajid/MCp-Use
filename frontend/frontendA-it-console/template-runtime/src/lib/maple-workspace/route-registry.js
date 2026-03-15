@@ -106,7 +106,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Modifier Approvals',
     description: 'Approve or reject modifier actions requiring explicit authorization.',
-    apiEndpoints: ['/api/modifier/approvals', '/api/modifier/decision'],
+    apiEndpoints: ['/api/operations/orchestrations/approvals', '/api/operations/orchestrations/approvals/:approvalId/decision'],
     preferredView: 'control',
   },
   {
@@ -161,7 +161,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Tenant & Org',
     description: 'Tenant scoping and organizational hierarchy controls.',
-    apiEndpoints: ['/api/tenants/bindings', '/api/org/hierarchy'],
+    apiEndpoints: ['/api/operations/orchestrations/tenant-bindings', '/api/operations/orchestrations/org/tree'],
     preferredView: 'policy',
   },
   {
@@ -179,7 +179,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Escalation',
     description: 'Configure escalation chains, break-glass controls, and step-up auth.',
-    apiEndpoints: ['/api/escalation/chains', '/api/escalation/break-glass'],
+    apiEndpoints: ['/api/operations/orchestrations/escalation', '/api/operations/orchestrations/break-glass'],
     preferredView: 'policy',
   },
   {
@@ -188,7 +188,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Organizations',
     description: 'Organization membership lifecycle, invites, and roles.',
-    apiEndpoints: ['/api/org', '/api/org/invites', '/api/org/roles'],
+    apiEndpoints: ['/api/org', '/api/org/:orgId/invites', '/api/org/:orgId/roles'],
     preferredView: 'settings',
   },
   {
@@ -197,7 +197,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Admin API',
     description: 'Reference and operate admin API endpoints for policy and audit.',
-    apiEndpoints: ['/admin/api/policies', '/admin/api/audit/events', '/admin/api/reload'],
+    apiEndpoints: ['/admin/api/policies', '/admin/api/audit', '/admin/api/policies/reload'],
     preferredView: 'settings',
   },
   {
@@ -215,7 +215,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'API Keys',
     description: 'Manage API keys and service accounts for workspace integrations.',
-    apiEndpoints: ['/api/auth/api-keys', '/api/auth/service-accounts'],
+    apiEndpoints: ['/api/user/api-keys', '/api/org/:orgId/service-accounts'],
     preferredView: 'settings',
   },
   {
@@ -224,7 +224,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Integrations',
     description: 'Connect and manage third-party integrations and OAuth state.',
-    apiEndpoints: ['/api/integrations/catalog', '/api/integrations/oauth/connect'],
+    apiEndpoints: ['/api/integrations/catalog', '/api/integrations/:provider/oauth/start'],
     preferredView: 'marketplace',
   },
   {
@@ -233,7 +233,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Usage & Billing',
     description: 'Track usage, entitlements, and billing limits for active plans.',
-    apiEndpoints: ['/api/billing/subscription', '/api/billing/usage', '/api/billing/invoices'],
+    apiEndpoints: ['/api/billing/subscription', '/api/usage/summary', '/api/billing/invoices'],
     preferredView: 'settings',
   },
   {

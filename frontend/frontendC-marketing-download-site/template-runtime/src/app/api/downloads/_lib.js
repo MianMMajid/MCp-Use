@@ -146,6 +146,8 @@ function mergeStates(localState, remoteState) {
         mac_x64: null,
         win_x64: null,
       },
+      unavailable: true,
+      message: 'No desktop installers found. Check the releases page for manual downloads.',
     }
   }
 
