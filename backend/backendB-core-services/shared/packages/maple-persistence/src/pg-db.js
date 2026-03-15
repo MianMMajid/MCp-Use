@@ -186,9 +186,15 @@ export class MaplePostgresDatabase {
           normalized_username TEXT NOT NULL UNIQUE,
           email TEXT UNIQUE,
           password_hash TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+        -- Add role column if table already exists (idempotent migration)
+        DO $$ BEGIN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END $$;
 
         CREATE TABLE IF NOT EXISTS sessions (
           id TEXT PRIMARY KEY,
@@ -538,9 +544,10 @@ export class MaplePostgresDatabase {
         if (!username)
             throw new Error("Username is required.");
         const id = randomUUID();
-        await this.pool.query(`INSERT INTO users (id, username, normalized_username, email, password_hash, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, username, normalizedUsername, input.email?.trim() || null, input.passwordHash, now, now]);
-        return { id, username, email: input.email?.trim() || null, passwordHash: input.passwordHash, createdAt: now, updatedAt: now };
+        const role = input.role ?? "user";
+        await this.pool.query(`INSERT INTO users (id, username, normalized_username, email, password_hash, role, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [id, username, normalizedUsername, input.email?.trim() || null, input.passwordHash, role, now, now]);
+        return { id, username, email: input.email?.trim() || null, passwordHash: input.passwordHash, role, createdAt: now, updatedAt: now };
     }
     async syncUserPasswordByUsername(input) {
         const username = input.username.trim();
@@ -549,9 +556,10 @@ export class MaplePostgresDatabase {
             throw new Error("Username is required.");
         const existing = await this.findUserByUsername(username);
         if (!existing)
-            return this.createUser({ username, email: input.email, passwordHash: input.passwordHash });
+            return this.createUser({ username, email: input.email, passwordHash: input.passwordHash, role: input.role });
         const now = new Date().toISOString();
-        await this.pool.query(`UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3`, [input.passwordHash, now, existing.id]);
+        const role = input.role ?? existing.role ?? "user";
+        await this.pool.query(`UPDATE users SET password_hash = $1, role = $2, updated_at = $3 WHERE id = $4`, [input.passwordHash, role, now, existing.id]);
         const refreshed = await this.findUserById(existing.id);
         if (!refreshed)
             throw new Error("Unable to refresh synced user.");
@@ -589,7 +597,7 @@ export class MaplePostgresDatabase {
         return { id: sessionId, userId, createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(), revokedAt: null };
     }
     async findActiveSession(sessionId, nowIso = new Date().toISOString()) {
-        const result = await this.pool.query(`SELECT s.id, s.user_id, s.created_at, s.expires_at, s.revoked_at, u.username, u.email
+        const result = await this.pool.query(`SELECT s.id, s.user_id, s.created_at, s.expires_at, s.revoked_at, u.username, u.email, u.role
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 LIMIT 1`, [sessionId, nowIso]);
         if (result.rows.length === 0)
@@ -597,7 +605,7 @@ export class MaplePostgresDatabase {
         const row = result.rows[0];
         return {
             id: row.id, userId: row.user_id, createdAt: row.created_at, expiresAt: row.expires_at, revokedAt: row.revoked_at,
-            user: { id: row.user_id, username: row.username, email: row.email },
+            user: { id: row.user_id, username: row.username, email: row.email, role: row.role ?? "user" },
         };
     }
     async revokeSession(sessionId) {

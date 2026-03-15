@@ -1,8 +1,43 @@
+import { createHash } from "node:crypto";
 import { apiKeyAuthEnabled, allowNoAuth, configuredApiKeys, } from "./config.js";
 import { extractApiKeyFromHeaders, verifyApiKey, } from "@maple/security";
 import { authContextStorage } from "./auth-context.js";
 import { findRequestSession } from "./auth-session.js";
 import { apiErrorPayload } from "./api-error.js";
+
+/**
+ * Verify a generated API key (maple_user_* or maple_sa_*) against the
+ * platform store's database. Returns the key record if valid, or null.
+ */
+async function verifyGeneratedApiKey(token, database) {
+    if (!token || !database?.pool) return null;
+    // Only check tokens with the expected prefix
+    if (!token.startsWith("maple_user_") && !token.startsWith("maple_sa_")) return null;
+    const hash = createHash("sha256").update(String(token)).digest("hex");
+    try {
+        // Check user API keys
+        const userResult = await database.pool.query(
+            `SELECT key_id, user_id, name, expires_at FROM business_user_api_keys
+             WHERE key_hash = $1 AND (expires_at IS NULL OR expires_at > $2) LIMIT 1`,
+            [hash, new Date().toISOString()]
+        );
+        if (userResult.rows.length > 0) {
+            return { type: "user", userId: userResult.rows[0].user_id, keyId: userResult.rows[0].key_id, role: "user" };
+        }
+        // Check service account keys
+        const saResult = await database.pool.query(
+            `SELECT key_id, org_id, name, expires_at FROM business_service_account_keys
+             WHERE key_hash = $1 AND (expires_at IS NULL OR expires_at > $2) LIMIT 1`,
+            [hash, new Date().toISOString()]
+        );
+        if (saResult.rows.length > 0) {
+            return { type: "service_account", orgId: saResult.rows[0].org_id, keyId: saResult.rows[0].key_id, role: "service_account" };
+        }
+    } catch {
+        // Table may not exist yet — fail silently
+    }
+    return null;
+}
 function effectiveAllowNoAuth() {
     return allowNoAuth && process.env.NODE_ENV !== "production";
 }
@@ -46,9 +81,26 @@ export async function requireApiKeyResponse(c, database, options = {}) {
         authContextStorage.enterWith({
             method: apiKeyAuthEnabled ? "api_key" : "bypass",
             keyFingerprint: apiKeyResult.keyFingerprint,
+            // Configured API keys are admin-level credentials.
+            role: apiKeyAuthEnabled && apiKeyProvided ? "admin" : "user",
             authBypass: !apiKeyAuthEnabled && effectiveAllowNoAuth,
         });
         return undefined;
+    }
+    // Check platform-generated API keys (maple_user_*, maple_sa_*) against DB.
+    if (apiKeyProvided && !apiKeyResult.ok) {
+        const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
+        const generated = await verifyGeneratedApiKey(fromHeaders, database);
+        if (generated) {
+            authContextStorage.enterWith({
+                method: "generated_api_key",
+                keyFingerprint: generated.keyId,
+                userId: generated.userId,
+                role: generated.role,
+                authBypass: false,
+            });
+            return undefined;
+        }
     }
     if (!requireApiKey && allowSessionAuth) {
         const session = await findRequestSession(database, cookieHeader);
@@ -58,6 +110,7 @@ export async function requireApiKeyResponse(c, database, options = {}) {
                 keyFingerprint: undefined,
                 userId: session.userId,
                 username: session.user.username,
+                role: session.user.role ?? "user",
                 authBypass: false,
             });
             return undefined;

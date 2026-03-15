@@ -11,9 +11,10 @@ export async function bootstrapAuthUsers(database) {
             username: adminUsername,
             email: adminEmail,
             passwordHash: hashPassword(adminPassword),
+            role: "admin",
         });
         const action = existingUsers > 0 ? "Synced" : "Bootstrapped";
-        console.log(`[AUTH] ${action} admin user "${syncedUser.username}" from MAPLE_ADMIN_* env.`);
+        console.log(`[AUTH] ${action} admin user "${syncedUser.username}" (role=admin) from MAPLE_ADMIN_* env.`);
         return;
     }
     if (existingUsers > 0) {

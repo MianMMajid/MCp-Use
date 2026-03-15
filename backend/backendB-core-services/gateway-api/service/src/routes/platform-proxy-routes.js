@@ -448,10 +448,13 @@ export function registerPlatformProxyRoutes(app) {
     // Allow both API key and session auth — then require session for the override
     const unauthorized = await requireApiKeyResponse(c, database, { requireApiKey: false, allowSession: true });
     if (unauthorized) return unauthorized;
-    // Require session auth — API key alone is insufficient for limits override
+    // Require session auth with admin role — API key alone is insufficient for limits override
     const ctx = authContextStorage.getStore();
     if (ctx?.method !== "session") {
       return c.json({ ok: false, error: "Limits override requires admin session auth." }, 403);
+    }
+    if (ctx?.role !== "admin") {
+      return c.json({ ok: false, error: "Limits override requires admin role." }, 403);
     }
     const store = getStore();
     const body = await readJsonBody(c);
