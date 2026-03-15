@@ -36,7 +36,7 @@ const defaultRules = [
         name: "block-env-files", action: "deny", severity: "high",
         message: "Blocked: access to .env files.",
         recommendation: "Do not expose environment files to autonomous tools.",
-        match: { anyValueRegex: /(^|\/)\.env($|\.|\/)/i },
+        match: { anyValueRegex: /\.env($|\.|\b)/i },
     },
     {
         name: "block-credential-files", action: "deny", severity: "high",
