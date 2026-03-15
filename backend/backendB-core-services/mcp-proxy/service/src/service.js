@@ -169,12 +169,15 @@ function toCyberReport(response, statusCode) {
     const threatsFound = Array.isArray(response?.threatsFound)
         ? response.threatsFound.map((threat) => String(threat))
         : [];
+    // Derive malware strictly from the explicit malwareDetected field set by cyber-proxy.
+    // Do NOT promote non-malware content threats (e.g., indirect injection tags) to malware.
     return {
         urlReputation: statusCode >= 400 ? "blocked" : "ok",
         sanitized: Boolean(response?.sanitized),
-        malware: Boolean(response?.malwareDetected) || threatsFound.length > 0,
+        malware: Boolean(response?.malwareDetected),
         quarantined: Boolean(response?.quarantined),
         threatsFound,
+        contentBlocked: threatsFound.length > 0 && !Boolean(response?.malwareDetected),
         quarantineReason: String(response?.quarantineReason || response?.policyReason || ""),
         resolvedIp: String(response?.resolvedIp || ""),
     };
@@ -186,9 +189,10 @@ function normalizeCyberReport(raw, statusCode) {
     return {
         urlReputation: String(raw?.urlReputation || (statusCode >= 400 ? "blocked" : "ok")),
         sanitized: Boolean(raw?.sanitized),
-        malware: Boolean(raw?.malware) || threatsFound.length > 0,
+        malware: Boolean(raw?.malware),
         quarantined: Boolean(raw?.quarantined),
         threatsFound,
+        contentBlocked: threatsFound.length > 0 && !Boolean(raw?.malware),
         quarantineReason: String(raw?.quarantineReason || ""),
         resolvedIp: String(raw?.resolvedIp || ""),
     };

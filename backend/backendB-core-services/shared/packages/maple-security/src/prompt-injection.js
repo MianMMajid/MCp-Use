@@ -130,8 +130,8 @@ const INJECTION_PATTERNS = [
         name: "tool_call_injection",
         category: "instruction_override",
         regex: /please\s+(call|use|execute|run|invoke)\s+(the\s+)?tool\b/i,
-        weight: 0.75,
-        severity: "high",
+        weight: 0.4,
+        severity: "medium",
     },
     {
         name: "data_exfil_instruction",

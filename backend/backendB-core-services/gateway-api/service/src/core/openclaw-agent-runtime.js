@@ -16,13 +16,14 @@ import {
 } from "../config.js";
 import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
+import { database } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
 import { buildAgentBaseline } from "../../../../shared/packages/maple-risk-engine/src/ml/cross-agent-detector.js";
 
 let _agentBaselineStore;
 function getAgentBaselineStore() {
   if (!_agentBaselineStore) {
-    _agentBaselineStore = new OpenClawModifierStore();
+    _agentBaselineStore = new OpenClawModifierStore({ database });
   }
   return _agentBaselineStore;
 }

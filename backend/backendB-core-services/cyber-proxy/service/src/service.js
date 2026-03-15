@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import { dirname, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { checkUrl, scanContent, scanContentForInjection } from "./ssrf-guard.js";
 import { config } from "./config.js";
@@ -82,8 +82,44 @@ function sanitizeOutboundHeaders(headers) {
     }
     return sanitized;
 }
+/**
+ * Verify an HMAC-signed credential token from mcp-proxy.
+ * Returns { valid, reason?, credentialId?, appId?, toolName? }.
+ */
+function verifyCredentialToken(token) {
+    if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
+    const signingKey = process.env.MAPLE_CREDENTIAL_SIGNING_KEY;
+    if (!signingKey) return { valid: false, reason: "no_signing_key" };
+    const parts = token.split(":");
+    if (parts.length < 5) return { valid: false, reason: "malformed_token" };
+    const signature = parts[parts.length - 1];
+    const payload = parts.slice(0, -1).join(":");
+    const expectedSig = createHmac("sha256", signingKey)
+        .update(payload).digest("hex").slice(0, 32);
+    if (signature !== expectedSig) return { valid: false, reason: "invalid_signature" };
+    const [credentialId, appId, toolName, timestampStr] = parts;
+    const timestamp = Number(timestampStr);
+    if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
+    return { valid: true, credentialId, appId, toolName, timestamp };
+}
+
 function parseCredentialScopes(headers) {
+    // Verify the credential token before trusting scope claims
+    const token = getHeaderIgnoreCase(headers, "x-maple-credential-token") ?? "";
     const rawScopes = getHeaderIgnoreCase(headers, "x-maple-credential-scopes") ?? "";
+
+    // If scopes are provided but no valid token, ignore the scopes (fail-closed)
+    if (rawScopes && token) {
+        const verification = verifyCredentialToken(token);
+        if (!verification.valid) {
+            mapleLog("warn", "cyber_proxy_credential_rejected", {
+                reason: verification.reason,
+            });
+            // Return empty scopes — don't trust unverified scope claims
+            return { allowedDomains: [], maxBytes: undefined, allowFileDownload: true };
+        }
+    }
+
     const scopes = rawScopes
         .split(",")
         .map((scope) => scope.trim())

@@ -76,9 +76,11 @@ server.app.get("/api/operations/orchestrations/approvals", async (c) => {
   }
   const status = asString(c.req.query("status")) ?? "";
   const requestedBy = asString(c.req.query("requestedBy")) ?? "";
-  // Fix 4: Pass verified tenant/org scope for tenant isolation
-  const authCtx = authContextStorage.getStore();
   const actor = await actorFromRequest(c);
+  // Reject unverified tenant scope on approval routes to prevent spoofed access
+  if (!actor.tenantVerified && actor.tenantId) {
+    return c.json({ ok: false, error: "Verified tenant scope required for approval access." }, 403);
+  }
   const approvals = await listOpenClawModifierApprovals(
     { status, requestedBy },
     { tenantId: actor.tenantId, orgId: actor.orgId },
@@ -105,8 +107,11 @@ server.app.get("/api/operations/orchestrations/approvals/:approvalId", async (c)
       400
     );
   }
-  // Finding 3: Pass verified actor scope to prevent fail-open on empty tenant
   const detailActor = await actorFromRequest(c);
+  // Reject unverified tenant scope to prevent spoofed approval access
+  if (!detailActor.tenantVerified && detailActor.tenantId) {
+    return c.json({ ok: false, error: "Verified tenant scope required for approval access." }, 403);
+  }
   const approval = await getOpenClawModifierApproval(approvalId, {
     tenantId: detailActor.tenantId,
     orgId: detailActor.orgId,
@@ -155,6 +160,11 @@ server.app.post("/api/operations/orchestrations/approvals/:approvalId/decision",
   }
   const challengeToken = asString(body.challengeToken) ?? "";
   const actor = await actorFromRequest(c);
+
+  // Reject unverified tenant scope to prevent spoofed approval decisions
+  if (!actor.tenantVerified && actor.tenantId) {
+    return c.json({ ok: false, error: "Verified tenant scope required for approval decisions." }, 403);
+  }
 
   // A3: Step-up auth for dangerous approval decisions
   const stepUpRequiredEnv = String(process.env.MAPLE_STEP_UP_REQUIRED_FOR_APPROVALS ?? "0").trim().toLowerCase();

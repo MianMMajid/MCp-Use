@@ -72,7 +72,7 @@ const defaultRules = [
         name: "block-sandbox-escape", action: "deny", severity: "critical",
         message: "Blocked: sandbox escape or elevated privilege pattern detected.",
         recommendation: "Deny and audit. Never allow sandbox bypass in autonomous execution.",
-        match: { stepTypes: ["shell", "tool_call", "prompt"], anyValueRegex: /(--elevated|--allowHostControl|--privileged|--bind-mount=\/?(?:etc|root|proc|sys|dev|var\/run)|--pid=host|--network=host|--cap-add|allowHostControl.*true|hostAccess.*true)/i },
+        match: { stepTypes: ["shell", "tool_call", "prompt"], anyValueRegex: /(--elevated|--allowHostControl|--privileged|--(?:bind-)?mount[= ].*(?:src|source|dst|destination|target)=\/?(?:etc|root|proc|sys|dev|var\/run)|--bind-mount=\/?(?:etc|root|proc|sys|dev|var\/run)|--pid=host|--network=host|--cap-add|allowHostControl.*true|hostAccess.*true)/i },
     },
     {
         name: "block-secret-leakage", action: "deny", severity: "high",
@@ -251,19 +251,24 @@ function evaluateStep(step, externalRules) {
             return { action: "deny", rule: injectionRule, secretPattern: secretHit ?? undefined };
         }
     }
-    // Indirect injection check: scan output content in tool_call/network steps
+    // Indirect injection check: scan output content in tool_call/network steps.
+    // Output content (fetched docs, API responses) frequently contains benign
+    // instructional language, so we use a higher threshold (0.85) and only
+    // hard-deny at very high confidence (>= 0.9). Lower-confidence matches
+    // are logged but not blocked to avoid false positives on benign content.
     if ((step.type === "tool_call" || step.type === "network") && step.output) {
         const outputInjection = detectPromptInjection(step.output);
-        if (outputInjection.isInjection && outputInjection.confidence >= 0.7) {
+        if (outputInjection.isInjection && outputInjection.confidence >= 0.85) {
+            const action = outputInjection.confidence >= 0.9 ? "deny" : "log_only";
             const indirectRule = {
-                name: "block-indirect-injection",
-                action: "deny",
-                severity: "critical",
-                message: `Blocked: indirect prompt injection in step output (confidence ${(outputInjection.confidence * 100).toFixed(0)}%, patterns: ${outputInjection.matches.map(m => m.pattern).join(", ")}).`,
+                name: action === "deny" ? "block-indirect-injection" : "flag-indirect-injection",
+                action,
+                severity: action === "deny" ? "critical" : "high",
+                message: `${action === "deny" ? "Blocked" : "Flagged"}: indirect prompt injection in step output (confidence ${(outputInjection.confidence * 100).toFixed(0)}%, patterns: ${outputInjection.matches.map(m => m.pattern).join(", ")}).`,
                 recommendation: "Sanitize fetched content before passing to LLM context.",
                 match: {},
             };
-            return { action: "deny", rule: indirectRule, secretPattern: secretHit ?? undefined };
+            return { action, rule: indirectRule, secretPattern: secretHit ?? undefined };
         }
     }
     // DLP/PII check: scan payload text for PII, block if critical/high severity

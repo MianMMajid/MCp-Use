@@ -244,12 +244,13 @@ export class OpenClawModifierStore {
           ON gateway_modifier_tenant_policies (tenant_id, org_id)
           WHERE is_active = TRUE;
         CREATE TABLE IF NOT EXISTS gateway_agent_baselines (
-          agent_id TEXT PRIMARY KEY,
           tenant_id TEXT NOT NULL,
           org_id TEXT NOT NULL,
+          agent_id TEXT NOT NULL,
           embedding_json TEXT NOT NULL,
           step_count INTEGER NOT NULL DEFAULT 0,
-          updated_at TEXT NOT NULL
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (tenant_id, org_id, agent_id)
         );
       `);
     }
@@ -747,38 +748,41 @@ export class OpenClawModifierStore {
       updatedAt: timestamp,
     };
 
+    const cacheKey = `${record.tenantId}:${record.orgId}:${normalizedAgentId}`;
     if (!hasPool(this.database)) {
-      this.memory.agentBaselines.set(normalizedAgentId, record);
+      this.memory.agentBaselines.set(cacheKey, record);
       return record;
     }
 
     await this.database.pool.query(
       `
-        INSERT INTO gateway_agent_baselines (agent_id, tenant_id, org_id, embedding_json, step_count, updated_at)
+        INSERT INTO gateway_agent_baselines (tenant_id, org_id, agent_id, embedding_json, step_count, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (agent_id) DO UPDATE SET
+        ON CONFLICT (tenant_id, org_id, agent_id) DO UPDATE SET
           embedding_json = EXCLUDED.embedding_json,
           step_count = EXCLUDED.step_count,
           updated_at = EXCLUDED.updated_at
       `,
-      [normalizedAgentId, record.tenantId, record.orgId, JSON.stringify(embedding), record.stepCount, timestamp]
+      [record.tenantId, record.orgId, normalizedAgentId, JSON.stringify(embedding), record.stepCount, timestamp]
     );
     return record;
   }
 
-  async getAgentBaseline(agentId) {
+  async getAgentBaseline(agentId, tenantId, orgId) {
     await this.ensureInitialized();
     const normalizedAgentId = String(agentId ?? "").trim();
     if (!normalizedAgentId) return null;
+    const tid = String(tenantId ?? "");
+    const oid = String(orgId ?? "");
 
     if (!hasPool(this.database)) {
-      return this.memory.agentBaselines.get(normalizedAgentId) ?? null;
+      return this.memory.agentBaselines.get(`${tid}:${oid}:${normalizedAgentId}`) ?? null;
     }
 
     const result = await this.database.pool.query(
       `SELECT agent_id, tenant_id, org_id, embedding_json, step_count, updated_at
-       FROM gateway_agent_baselines WHERE agent_id = $1 LIMIT 1`,
-      [normalizedAgentId]
+       FROM gateway_agent_baselines WHERE tenant_id = $1 AND org_id = $2 AND agent_id = $3 LIMIT 1`,
+      [tid, oid, normalizedAgentId]
     );
     const row = result.rows[0];
     if (!row) return null;

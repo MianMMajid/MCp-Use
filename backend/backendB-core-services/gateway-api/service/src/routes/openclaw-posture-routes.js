@@ -1,6 +1,9 @@
 import { server, database } from "../state.js";
 import { requireApiKeyResponse } from "../auth.js";
+import { authContextStorage } from "../auth-context.js";
 import { emitAuditEvent } from "../audit-emitter.js";
+import { allowNoAuth, isProductionRuntime } from "../config.js";
+import { mapleLog } from "../logging.js";
 
 const app = server.app;
 
@@ -9,7 +12,7 @@ const BRIDGE_REQUIRE_AUTH = process.env.OPENCLAW_BRIDGE_REQUIRE_AUTH ?? "1";
 const GATEWAY_WS_URL = process.env.OPENCLAW_GATEWAY_WS_URL ?? "ws://127.0.0.1:19001";
 const BRIDGE_URL = process.env.OPENCLAW_BRIDGE_URL ?? "http://127.0.0.1:8787";
 
-function runPostureChecks() {
+async function runPostureChecks() {
   const checks = [];
   const failures = [];
 
@@ -34,29 +37,49 @@ function runPostureChecks() {
     failures.push({ id: "gateway_tls_enabled", severity: "high", message: "Gateway WS URL does not use TLS (wss://)" });
   }
 
-  // Check 4: Gateway auth enforcement (static check — env flag)
-  checks.push({ id: "gateway_auth_enforced", severity: "critical", pass: authEnabled });
-  if (!authEnabled) {
-    failures.push({ id: "gateway_auth_enforced", severity: "critical", message: "Gateway auth not enforced" });
+  // Check 4: Gateway auth enforcement — live check of runtime config
+  const gatewayAuthEnforced = isProductionRuntime || !allowNoAuth;
+  checks.push({ id: "gateway_auth_enforced", severity: "critical", pass: gatewayAuthEnforced });
+  if (!gatewayAuthEnforced) {
+    failures.push({ id: "gateway_auth_enforced", severity: "critical", message: "Gateway allows unauthenticated requests (allowNoAuth is enabled)" });
   }
 
-  // Check 5: Origin validation active (set by PR1 — always true after deployment)
-  checks.push({ id: "bridge_origin_validated", severity: "high", pass: true });
+  // Check 5: Bridge origin validation — live probe the bridge URL
+  let bridgeOriginValidated = false;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const resp = await fetch(BRIDGE_URL, { method: "HEAD", signal: controller.signal }).catch(() => null);
+    clearTimeout(timeout);
+    // Bridge is reachable and responding (not an open relay)
+    bridgeOriginValidated = resp !== null && resp.status < 500;
+  } catch {
+    bridgeOriginValidated = false;
+  }
+  checks.push({ id: "bridge_origin_validated", severity: "high", pass: bridgeOriginValidated, note: "live probe" });
+  if (!bridgeOriginValidated) {
+    failures.push({ id: "bridge_origin_validated", severity: "high", message: "Bridge origin validation failed — bridge unreachable or unhealthy" });
+  }
 
   return { checks, failures };
 }
 
-const authGate = async (c, next) => {
+// Require admin session auth — posture data is security-sensitive
+const adminAuthGate = async (c, next) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
+  const ctx = authContextStorage.getStore();
+  if (ctx?.method !== "session") {
+    return c.json({ ok: false, error: "Posture endpoint requires admin session auth." }, 403);
+  }
   await next();
 };
 
-app.use("/api/openclaw/posture", authGate);
-app.use("/api/openclaw/posture/*", authGate);
+app.use("/api/openclaw/posture", adminAuthGate);
+app.use("/api/openclaw/posture/*", adminAuthGate);
 
-app.get("/api/openclaw/posture", (c) => {
-  const { checks, failures } = runPostureChecks();
+app.get("/api/openclaw/posture", async (c) => {
+  const { checks, failures } = await runPostureChecks();
   return c.json({
     ok: true,
     data: { checks, failures, scannedAt: new Date().toISOString() },
@@ -64,7 +87,7 @@ app.get("/api/openclaw/posture", (c) => {
 });
 
 app.post("/api/openclaw/posture/scan", async (c) => {
-  const { checks, failures } = runPostureChecks();
+  const { checks, failures } = await runPostureChecks();
 
   emitAuditEvent({
     eventType: "AUDIT_EVENT_TYPE_POSTURE_SCANNED",

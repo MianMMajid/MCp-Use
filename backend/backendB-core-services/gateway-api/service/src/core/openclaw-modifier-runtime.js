@@ -157,6 +157,39 @@ function parseArgs(rawValue) {
   };
 }
 
+/**
+ * Extract all path values from a mount specification.
+ * Handles both simple paths (/etc) and Docker-style key=value syntax
+ * (type=bind,src=/etc,dst=/tmp).
+ */
+function extractMountPaths(mountSpec) {
+  const paths = [];
+  if (!mountSpec) return paths;
+  // If it starts with "/" or ".", it's a plain path
+  if (mountSpec.startsWith("/") || mountSpec.startsWith(".")) {
+    // Handle colon-separated source:dest format
+    for (const part of mountSpec.split(":")) {
+      if (part.startsWith("/") || part.startsWith(".")) {
+        paths.push(part);
+      }
+    }
+    if (paths.length === 0) paths.push(mountSpec);
+    return paths;
+  }
+  // Docker-style: type=bind,src=/etc,dst=/tmp or source=/etc,target=/tmp
+  const PATH_KEYS = new Set(["src", "source", "dst", "destination", "target"]);
+  for (const part of mountSpec.split(",")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx < 0) continue;
+    const key = part.slice(0, eqIdx).trim().toLowerCase();
+    const val = part.slice(eqIdx + 1).trim();
+    if (PATH_KEYS.has(key) && val) {
+      paths.push(val);
+    }
+  }
+  return paths;
+}
+
 function detectUnsafeArgs(args) {
   const issues = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -183,20 +216,26 @@ function detectUnsafeArgs(args) {
     }
     // Block bind mounts targeting sensitive host paths
     if (/^--bind-mount=/i.test(arg) || /^--mount=/i.test(arg)) {
-      const mountTarget = arg.split("=", 2)[1] ?? "";
-      for (const sensitive of SENSITIVE_MOUNT_PATHS) {
-        if (mountTarget === sensitive || mountTarget.startsWith(sensitive + "/") || mountTarget.startsWith(sensitive + ":")) {
-          issues.push(`Disallowed mount targeting sensitive path '${sensitive}'.`);
-          break;
+      const mountValue = arg.slice(arg.indexOf("=") + 1);
+      const mountPaths = extractMountPaths(mountValue);
+      for (const mountPath of mountPaths) {
+        for (const sensitive of SENSITIVE_MOUNT_PATHS) {
+          if (mountPath === sensitive || mountPath.startsWith(sensitive + "/")) {
+            issues.push(`Disallowed mount targeting sensitive path '${sensitive}'.`);
+            break;
+          }
         }
       }
     }
     if (/^--bind-mount$/i.test(arg) || /^--mount$/i.test(arg)) {
       const next = String(args[index + 1] ?? "").trim();
-      for (const sensitive of SENSITIVE_MOUNT_PATHS) {
-        if (next === sensitive || next.startsWith(sensitive + "/") || next.startsWith(sensitive + ":")) {
-          issues.push(`Disallowed mount targeting sensitive path '${sensitive}'.`);
-          break;
+      const mountPaths = extractMountPaths(next);
+      for (const mountPath of mountPaths) {
+        for (const sensitive of SENSITIVE_MOUNT_PATHS) {
+          if (mountPath === sensitive || mountPath.startsWith(sensitive + "/")) {
+            issues.push(`Disallowed mount targeting sensitive path '${sensitive}'.`);
+            break;
+          }
         }
       }
     }
@@ -374,6 +413,12 @@ async function ensureMemberPermissions(actor, requiredPermission) {
   );
 
   if (!member && openclawModifierAutoBootstrapOwner) {
+    // Never auto-bootstrap owner in unverified tenant scope — prevents spoofed ownership
+    if (actor.tenantVerified === false) {
+      throw new Error(
+        `RBAC denied: cannot auto-bootstrap owner for unverified tenant scope ${actor.tenantId}/${actor.orgId}.`
+      );
+    }
     await runtimeStore.upsertOrgMember(
       {
         tenantId: actor.tenantId,
