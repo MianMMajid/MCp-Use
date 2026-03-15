@@ -658,6 +658,14 @@ export async function runOpenClawTurn(options = {}) {
       maxBuffer: 8 * 1024 * 1024,
     });
     const parsed = parseOpenClawAgentOutput(stdout, stderr);
+    mapleLog("info", "openclaw_agent.turn_raw_output", {
+      mode: resolved.mode,
+      stdoutLen: stdout.length,
+      stderrLen: stderr.length,
+      stdoutPreview: stdout.slice(0, 500),
+      parsedKeys: parsed.parsed ? Object.keys(parsed.parsed).join(",") : "none",
+      replyLen: parsed.reply.length,
+    });
     if (!parsed.ok) {
       throw new Error(parsed.error || "OpenClaw agent call returned no usable reply.");
     }
