@@ -387,6 +387,27 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
     )
   );
 
+  // Database connectivity check — required for auth, orchestration, platform routes.
+  // If DB init failed at startup, the process can still serve stateless routes,
+  // but /ready must report not-ready so K8s stops routing DB-dependent traffic.
+  const requireDatabase = resolveFeatureRequired("MAPLE_DEP_REQUIRE_DATABASE", true);
+  const { database } = await import("../state.js");
+  let dbCheckResult;
+  if (database?.pool) {
+    try {
+      await Promise.race([
+        database.pool.query("SELECT 1"),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("DB health check timed out")), 2000)),
+      ]);
+      dbCheckResult = { ok: true };
+    } catch (err) {
+      dbCheckResult = { ok: false, reason: `Database unreachable: ${err.message}` };
+    }
+  } else {
+    dbCheckResult = { ok: false, reason: "Database pool not initialized." };
+  }
+  checks.push(buildCheckRecord("db.postgres", "PostgreSQL connectivity", requireDatabase, dbCheckResult));
+
   const requiredFailures = checks.filter((check) => check.required && !check.ok);
   return {
     generatedAt: new Date().toISOString(),

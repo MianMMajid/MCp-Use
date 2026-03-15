@@ -25,6 +25,7 @@ export class TraceStore {
             persistence: this.persistence,
             traces: this.traces,
             sessionIndex: this.sessionIndex,
+            ownerIndex: this.ownerIndex,
         });
         this.pruneStoreImmediate();
     }

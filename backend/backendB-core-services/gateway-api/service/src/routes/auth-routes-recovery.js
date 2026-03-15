@@ -19,6 +19,13 @@ const recoveryAttempts = new Map();
 const RECOVERY_RATE_LIMIT_MAX = 5;
 const RECOVERY_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
+/** Extract client IP: first X-Forwarded-For hop (set by edge proxy), not last. */
+function extractClientIp(c) {
+    const xff = c.req.header('x-forwarded-for') ?? '';
+    const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
+    return hops[0] || c.req.header('x-real-ip') || 'unknown';
+}
+
 function checkRecoveryRateLimit(ip) {
   const now = Date.now();
   const entry = recoveryAttempts.get(ip);
@@ -74,8 +81,7 @@ function getOnRecoveryTokenIssued() {
 
 export function registerAuthRecoveryRoutes(app) {
   app.post("/api/auth/forgot-password", async (c) => {
-    const xff = c.req.header('x-forwarded-for') ?? '';
-    const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
+    const ip = extractClientIp(c);
     const retryAfter = checkRecoveryRateLimit(ip);
     if (retryAfter) {
       c.header('Retry-After', String(retryAfter));
@@ -114,8 +120,7 @@ export function registerAuthRecoveryRoutes(app) {
 
   // Backward-compatible alias used by landing forgot-password flow.
   app.post("/api/auth/password-reset", async (c) => {
-    const xff = c.req.header('x-forwarded-for') ?? '';
-    const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
+    const ip = extractClientIp(c);
     const retryAfter = checkRecoveryRateLimit(ip);
     if (retryAfter) {
       c.header('Retry-After', String(retryAfter));

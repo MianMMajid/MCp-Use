@@ -81,15 +81,27 @@ class CredentialMintError extends Error {
         this.name = "CredentialMintError";
     }
 }
-// Fix 9: HMAC-signed credentials instead of plaintext retired tokens
-// Fail-closed: refuse to start with an insecure default signing key.
-const CREDENTIAL_SIGNING_KEY = process.env.MAPLE_CREDENTIAL_SIGNING_KEY;
-if (!CREDENTIAL_SIGNING_KEY || CREDENTIAL_SIGNING_KEY === "maple-credential-key") {
-    throw new Error(
-        "MAPLE_CREDENTIAL_SIGNING_KEY is required and must not be the insecure default. " +
-        "Generate a strong secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
-    );
+// Fix 9: HMAC-signed credentials instead of plaintext retired tokens.
+// Validation is deferred to first use (not import time) so that tests and
+// helper consumers can import this module without setting the env var.
+// The service startup path (createMcpProxyService) calls ensureSigningKey().
+let _credentialSigningKey = null;
+
+function ensureSigningKey() {
+    if (_credentialSigningKey) return _credentialSigningKey;
+    const key = process.env.MAPLE_CREDENTIAL_SIGNING_KEY;
+    if (!key || key === "maple-credential-key") {
+        throw new Error(
+            "MAPLE_CREDENTIAL_SIGNING_KEY is required and must not be the insecure default. " +
+            "Generate a strong secret: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+        );
+    }
+    _credentialSigningKey = key;
+    return key;
 }
+
+// For testing: allow resetting the cached key.
+export function _resetSigningKeyForTest() { _credentialSigningKey = null; }
 
 function createSignedCredential(toolName, appId, scopes) {
     const credentialId = `cred-${randomUUID()}`;
@@ -99,7 +111,7 @@ function createSignedCredential(toolName, appId, scopes) {
     const sortedScopes = [...scopes].sort().join(",");
     const payload = `${credentialId}:${appId}:${toolName}:${Date.now()}:${sortedScopes}`;
     // Use full 64-char hex digest — truncation weakens HMAC security.
-    const signature = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
+    const signature = createHmac("sha256", ensureSigningKey())
         .update(payload).digest("hex");
     const token = `${payload}:${signature}`;
     mapleLog("info", "credential_mint_signed", {
@@ -119,7 +131,7 @@ export function verifySignedCredential(token, claimedScopes) {
     if (parts.length < 6) return { valid: false, reason: "malformed_token" };
     const signature = parts[parts.length - 1];
     const payload = parts.slice(0, -1).join(":");
-    const expectedSig = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
+    const expectedSig = createHmac("sha256", ensureSigningKey())
         .update(payload).digest("hex");
     // Constant-time comparison prevents timing attacks that could leak the key.
     const sigBuf = Buffer.from(signature, "hex");
@@ -442,6 +454,9 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const proxyProto = proto.maple.proxy.v1;
 export function createMcpProxyService(registry, dispatcher) {
+    // Validate signing key at service construction (startup) — fails fast but
+    // doesn't throw at import time, so tests can import this module safely.
+    ensureSigningKey();
     if (dispatcher)
         setJobDispatcher(dispatcher);
     const server = createGrpcServer();

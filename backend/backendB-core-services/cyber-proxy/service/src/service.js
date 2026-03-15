@@ -84,14 +84,16 @@ function sanitizeOutboundHeaders(headers) {
 }
 /**
  * Verify an HMAC-signed credential token from mcp-proxy.
- * Returns { valid, reason?, credentialId?, appId?, toolName? }.
+ * The token format is: credentialId:appId:toolName:timestamp:sortedScopes:signature
+ * Scopes are cryptographically bound to the token, so the caller cannot tamper
+ * with the x-maple-credential-scopes header independently.
  */
-function verifyCredentialToken(token) {
+function verifyCredentialToken(token, claimedScopes) {
     if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
     const signingKey = process.env.MAPLE_CREDENTIAL_SIGNING_KEY;
     if (!signingKey) return { valid: false, reason: "no_signing_key" };
     const parts = token.split(":");
-    if (parts.length < 5) return { valid: false, reason: "malformed_token" };
+    if (parts.length < 6) return { valid: false, reason: "malformed_token" };
     const signature = parts[parts.length - 1];
     const payload = parts.slice(0, -1).join(":");
     const expectedSig = createHmac("sha256", signingKey)
@@ -105,22 +107,42 @@ function verifyCredentialToken(token) {
     const [credentialId, appId, toolName, timestampStr] = parts;
     const timestamp = Number(timestampStr);
     if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
-    return { valid: true, credentialId, appId, toolName, timestamp };
+    // Extract signed scopes (between timestamp and signature)
+    const signedScopes = parts.slice(4, -1).join(":");
+    // Verify claimed scopes match signed scopes — prevents scope widening attacks
+    if (claimedScopes) {
+        const claimedSorted = [...claimedScopes].sort().join(",");
+        if (claimedSorted !== signedScopes) {
+            return { valid: false, reason: "scope_mismatch" };
+        }
+    }
+    return { valid: true, credentialId, appId, toolName, timestamp, scopes: signedScopes };
 }
 
 function parseCredentialScopes(headers) {
-    // Verify the credential token before trusting scope claims
     const token = getHeaderIgnoreCase(headers, "x-maple-credential-token") ?? "";
     const rawScopes = getHeaderIgnoreCase(headers, "x-maple-credential-scopes") ?? "";
 
-    // If scopes are provided but no valid token, ignore the scopes (fail-closed)
-    if (rawScopes && token) {
-        const verification = verifyCredentialToken(token);
+    // Scopes require a valid token with matching signed scopes (fail-closed).
+    // Raw scope headers without a token, or with mismatched scopes, are rejected.
+    if (rawScopes) {
+        if (!token) {
+            mapleLog("warn", "cyber_proxy_scope_without_token", {});
+            return { allowedDomains: [], maxBytes: undefined, allowFileDownload: true };
+        }
+        const scopeList = rawScopes.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+        const verification = verifyCredentialToken(token, scopeList);
         if (!verification.valid) {
             mapleLog("warn", "cyber_proxy_credential_rejected", {
                 reason: verification.reason,
             });
-            // Return empty scopes — don't trust unverified scope claims
+            return { allowedDomains: [], maxBytes: undefined, allowFileDownload: true };
+        }
+    } else if (token) {
+        // Token present but no scopes header — verify token is valid, use empty scopes
+        const verification = verifyCredentialToken(token);
+        if (!verification.valid) {
+            mapleLog("warn", "cyber_proxy_credential_rejected", { reason: verification.reason });
             return { allowedDomains: [], maxBytes: undefined, allowFileDownload: true };
         }
     }

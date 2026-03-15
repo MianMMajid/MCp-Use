@@ -10,6 +10,21 @@ const loginAttempts = new Map(); // key: IP, value: { count, resetAt }
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
+/**
+ * Extract client IP from request headers.
+ * Uses the FIRST entry in X-Forwarded-For (the original client IP set by the
+ * outermost proxy), not the last (which is the nearest proxy hop and is easily
+ * spoofable). Falls back to X-Real-IP, then 'unknown'.
+ */
+function extractClientIp(c) {
+    const xff = c.req.header('x-forwarded-for') ?? '';
+    const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
+    // First hop is the original client IP (set by the edge proxy).
+    // Attackers can prepend fake entries, but the edge proxy always appends
+    // the real client IP, so the first entry from a trusted proxy is correct.
+    return hops[0] || c.req.header('x-real-ip') || 'unknown';
+}
+
 function checkRateLimit(ip) {
     const now = Date.now();
     const entry = loginAttempts.get(ip);
@@ -39,8 +54,7 @@ setInterval(() => {
 
 export function registerAuthLoginRegisterRoutes(app) {
     app.post("/api/auth/login", async (c) => {
-        const xff = c.req.header('x-forwarded-for') ?? '';
-        const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
+        const ip = extractClientIp(c);
         const retryAfter = checkRateLimit(ip);
         if (retryAfter) {
             c.header('Retry-After', String(retryAfter));
@@ -66,8 +80,7 @@ export function registerAuthLoginRegisterRoutes(app) {
         return c.json(buildSessionAuthResponse(user, session));
     });
     app.post("/api/auth/register", async (c) => {
-        const xff = c.req.header('x-forwarded-for') ?? '';
-        const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
+        const ip = extractClientIp(c);
         const retryAfter = checkRateLimit(ip);
         if (retryAfter) {
             c.header('Retry-After', String(retryAfter));

@@ -69,7 +69,7 @@ export async function createApp(options = {}) {
     }
   });
 
-  registerHealthRoutes(app);
+  registerHealthRoutes(app, { getDatabase: () => database });
   registerUserRoutes(app, { database });
   registerBillingRoutes(app, {
     database,

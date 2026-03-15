@@ -35,6 +35,15 @@ export async function loadPersistedTracesIntoIndex(options) {
             bySession.push(trace.id);
             options.sessionIndex.set(trace.sessionId, bySession);
         }
+        // Rebuild ownerIndex so owner-scoped lookups work after restart.
+        if (trace.ownerKeyFingerprint && options.ownerIndex) {
+            let owned = options.ownerIndex.get(trace.ownerKeyFingerprint);
+            if (!owned) {
+                owned = new Set();
+                options.ownerIndex.set(trace.ownerKeyFingerprint, owned);
+            }
+            owned.add(trace.id);
+        }
     }
 }
 //# sourceMappingURL=trace-store-persistence.js.map
