@@ -63,7 +63,7 @@ export default function AuthAdminPage() {
         loadJson('/api/auth/me'),
         loadJson('/api/auth/google/client-id'),
       ])
-      if (me.status === 'fulfilled') setSession(me.value)
+      if (me.status === 'fulfilled' && me.value?.authenticated) setSession(me.value)
       else setSession(null)
       if (gconf.status === 'fulfilled') setGoogleConfigured(gconf.value)
     } catch (err) { setError(err.message) }
@@ -85,11 +85,11 @@ export default function AuthAdminPage() {
   }
 
   async function handleRegister() {
-    if (!regEmail || !regPassword) return
+    if (!regEmail || !regPassword || !regUsername) return
     setActionLoading('register')
     setMessage('')
     try {
-      await postJson('/api/auth/register', { email: regEmail, password: regPassword, ...(regUsername ? { username: regUsername } : {}) })
+      await postJson('/api/auth/register', { username: regUsername, email: regEmail, password: regPassword })
       setMessage('Registration successful')
     } catch (err) { setMessage(`Registration failed: ${err.message}`) }
     finally { setActionLoading('') }
@@ -100,7 +100,7 @@ export default function AuthAdminPage() {
     setActionLoading('google')
     setMessage('')
     try {
-      const data = await postJson('/api/auth/google', { token: googleToken })
+      const data = await postJson('/api/auth/google', { credential: googleToken })
       setMessage(`Google sign-in successful${data.token ? ' (token received)' : ''}`)
       fetchSession()
     } catch (err) { setMessage(`Google sign-in failed: ${err.message}`) }
@@ -229,10 +229,10 @@ export default function AuthAdminPage() {
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">Register</h2>
             <div className={cardCls}>
               <div className="space-y-3">
-                <input className={inputCls} value={regUsername} onChange={(e) => setRegUsername(e.target.value)} placeholder="Username (optional)" />
+                <input className={inputCls} value={regUsername} onChange={(e) => setRegUsername(e.target.value)} placeholder="Username (required)" />
                 <input className={inputCls} value={regEmail} onChange={(e) => setRegEmail(e.target.value)} placeholder="Email" type="email" />
                 <input className={inputCls} value={regPassword} onChange={(e) => setRegPassword(e.target.value)} placeholder="Password" type="password" />
-                <Button variant="filled" disabled={!regEmail || !regPassword || actionLoading === 'register'} onClick={handleRegister}>
+                <Button variant="filled" disabled={!regUsername || !regEmail || !regPassword || actionLoading === 'register'} onClick={handleRegister}>
                   {actionLoading === 'register' ? 'Registering...' : 'Register'}
                 </Button>
               </div>

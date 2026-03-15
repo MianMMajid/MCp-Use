@@ -71,14 +71,16 @@
     }
   }
 
-  async function signInWithGoogle() {
+  async function signInWithGoogle(credentialResponse) {
     error = ''
+    const credential = credentialResponse?.credential || credentialResponse?.tokenId || ''
+    if (!credential) { error = 'No Google credential received.'; return }
     try {
       const response = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({}),
+        body: JSON.stringify({ credential }),
       })
       if (!response.ok) throw new Error('Google sign-in failed')
       const payload = await response.json()

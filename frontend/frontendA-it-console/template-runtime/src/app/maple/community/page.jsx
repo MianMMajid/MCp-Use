@@ -51,7 +51,7 @@ export default function CommunityPage() {
         loadJson('/api/community/stats'),
         loadJson('/api/community/traces'),
       ])
-      if (s.status === 'fulfilled') setStats(s.value)
+      if (s.status === 'fulfilled') setStats(s.value?.stats ?? s.value)
       if (t.status === 'fulfilled') setTraces(Array.isArray(t.value?.traces) ? t.value.traces : Array.isArray(t.value) ? t.value : [])
       if (s.status === 'rejected' && t.status === 'rejected') throw new Error('All endpoints failed')
     } catch (err) { setError(err.message) }
@@ -79,10 +79,10 @@ export default function CommunityPage() {
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div>
             ) : stats ? (
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {Object.entries(stats).map(([key, val]) => (
+                {Object.entries(stats).filter(([k]) => k !== 'ok' && k !== '_cached').map(([key, val]) => (
                   <div key={key} className="rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
                     <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{key}</span>
-                    <p className="mt-2 text-2xl font-bold text-zinc-950 dark:text-white">{typeof val === 'number' ? val : String(val)}</p>
+                    <p className="mt-2 text-2xl font-bold text-zinc-950 dark:text-white">{typeof val === 'number' ? val.toLocaleString() : typeof val === 'object' ? JSON.stringify(val) : String(val)}</p>
                   </div>
                 ))}
               </div>
