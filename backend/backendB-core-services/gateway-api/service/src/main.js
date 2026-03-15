@@ -6,8 +6,9 @@ import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gateway
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus, server } from "./state.js";
 const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
-if (disableTls && process.env.NODE_ENV === "production") {
-    throw new Error("MAPLE_DISABLE_TLS cannot be set in production. TLS is required for all production deployments.");
+const behindTrustedProxy = (process.env.MAPLE_BEHIND_TRUSTED_PROXY || "").toLowerCase() === "true";
+if (disableTls && process.env.NODE_ENV === "production" && !behindTrustedProxy) {
+    throw new Error("MAPLE_DISABLE_TLS cannot be set in production. TLS is required for all production deployments. Set MAPLE_BEHIND_TRUSTED_PROXY=true if TLS terminates at a reverse proxy.");
 }
 async function main() {
     mapleLog("info", "gateway_api.starting", { port: gatewayPort, host: gatewayHost, tls: !disableTls });
