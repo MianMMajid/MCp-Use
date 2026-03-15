@@ -11,18 +11,23 @@ const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
- * Extract client IP from request headers.
- * Uses the FIRST entry in X-Forwarded-For (the original client IP set by the
- * outermost proxy), not the last (which is the nearest proxy hop and is easily
- * spoofable). Falls back to X-Real-IP, then 'unknown'.
+ * Extract client IP for rate limiting.
+ * Uses X-Real-IP (typically set by a trusted reverse proxy) first,
+ * then the LAST X-Forwarded-For hop (nearest proxy, which is the
+ * most reliable when behind a single trusted proxy layer).
+ * Falls back to a per-request unique key to prevent all unknown
+ * connections from sharing a single rate-limit bucket.
  */
 function extractClientIp(c) {
+    const realIp = c.req.header('x-real-ip');
+    if (realIp) return realIp.trim();
     const xff = c.req.header('x-forwarded-for') ?? '';
     const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
-    // First hop is the original client IP (set by the edge proxy).
-    // Attackers can prepend fake entries, but the edge proxy always appends
-    // the real client IP, so the first entry from a trusted proxy is correct.
-    return hops[0] || c.req.header('x-real-ip') || 'unknown';
+    if (hops.length > 0) return hops[hops.length - 1];
+    // Connection-level fallback — use socket address to avoid shared "unknown" bucket
+    // while still grouping requests from the same connection
+    const connIp = c.env?.remoteAddress ?? c.req.raw?.socket?.remoteAddress;
+    return connIp || 'unknown';
 }
 
 function checkRateLimit(ip) {
@@ -103,6 +108,9 @@ export function registerAuthLoginRegisterRoutes(app) {
         }
         if (await database.findUserByUsername(username)) {
             return c.json({ error: "Username already exists." }, 409);
+        }
+        if (email && typeof database.findUserByEmail === "function" && await database.findUserByEmail(email)) {
+            return c.json({ error: "Email already exists." }, 409);
         }
         const user = await database.createUser({
             username,

@@ -916,9 +916,13 @@ export class PlatformStore {
     if (!invite) {
       return null;
     }
-    if (invite.email && acceptingEmail &&
-        invite.email.toLowerCase() !== String(acceptingEmail).trim().toLowerCase()) {
-      return null;
+    if (invite.email) {
+      // Invite targets a specific email — acceptor MUST have a matching email.
+      // Reject when acceptingEmail is empty/null to prevent blank-email users
+      // from claiming email-targeted invites.
+      if (!acceptingEmail || invite.email.toLowerCase() !== String(acceptingEmail).trim().toLowerCase()) {
+        return null;
+      }
     }
     if (invite.acceptedAt) {
       return invite;

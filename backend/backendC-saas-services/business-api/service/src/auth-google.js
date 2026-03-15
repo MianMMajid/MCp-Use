@@ -58,6 +58,9 @@ export async function verifyGoogleJwt(token) {
   if (!payload.email) {
     throw new Error("No email in token");
   }
+  if (payload.email_verified === false) {
+    throw new Error("Google account email is not verified");
+  }
 
   const keys = await getGooglePublicKeys();
   const kid = header.kid;

@@ -44,6 +44,9 @@ export function registerAuthLoginRegisterRoutes(app, options) {
     if (await database.findUserByUsername(username)) {
       return c.json({ error: "Username already exists." }, 409);
     }
+    if (email && typeof database.findUserByEmail === "function" && await database.findUserByEmail(email)) {
+      return c.json({ error: "Email already exists." }, 409);
+    }
 
     const user = await database.createUser({
       username,

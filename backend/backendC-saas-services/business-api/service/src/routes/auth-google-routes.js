@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { asString, readJsonBody } from "@maple/common";
-import { googleClientId, sessionTtlSeconds } from "../config.js";
+import { googleClientId, sessionTtlSeconds, allowSelfSignup } from "../config.js";
 import { buildSessionCookie } from "../auth-session.js";
 import { verifyGoogleJwt } from "../auth-google.js";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
@@ -33,6 +33,13 @@ export function registerAuthGoogleRoutes(app, options) {
 
     let user = await database.findUserByEmail(googleUser.email);
     if (!user) {
+      // Enforce signup policy — same as regular register
+      if (!allowSelfSignup) {
+        const existingUsers = await database.countUsers();
+        if (existingUsers > 0) {
+          return c.json({ error: "Self-signup is disabled." }, 403);
+        }
+      }
       let baseUsername = googleUser.email
         .split("@")[0]
         .replace(/[^a-zA-Z0-9_-]/g, "")

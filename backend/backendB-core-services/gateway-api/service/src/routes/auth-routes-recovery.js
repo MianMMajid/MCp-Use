@@ -19,11 +19,15 @@ const recoveryAttempts = new Map();
 const RECOVERY_RATE_LIMIT_MAX = 5;
 const RECOVERY_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-/** Extract client IP: first X-Forwarded-For hop (set by edge proxy), not last. */
+/** Extract client IP for rate limiting — consistent with auth-routes-login-register. */
 function extractClientIp(c) {
+    const realIp = c.req.header('x-real-ip');
+    if (realIp) return realIp.trim();
     const xff = c.req.header('x-forwarded-for') ?? '';
     const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
-    return hops[0] || c.req.header('x-real-ip') || 'unknown';
+    if (hops.length > 0) return hops[hops.length - 1];
+    const connIp = c.env?.remoteAddress ?? c.req.raw?.socket?.remoteAddress;
+    return connIp || 'unknown';
 }
 
 function checkRecoveryRateLimit(ip) {
@@ -184,10 +188,8 @@ export function registerAuthRecoveryRoutes(app) {
   });
 
   app.post("/api/auth/verify-email/request", async (c) => {
-    // Rate limit verify-email requests to prevent abuse
-    const xff = c.req.header('x-forwarded-for') ?? '';
-    // Use last entry in x-forwarded-for (closest proxy hop)
-    const ip = xff.split(',').map(s => s.trim()).filter(Boolean).pop() || c.req.header('x-real-ip') || 'unknown';
+    // Rate limit verify-email requests — use consistent extractClientIp
+    const ip = extractClientIp(c);
     const retryAfter = checkRecoveryRateLimit(ip);
     if (retryAfter) {
       c.header('Retry-After', String(retryAfter));

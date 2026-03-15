@@ -113,6 +113,9 @@ server.app.get("/api/observability/orchestrations/summary", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+
   const outbox = await getOutboxHealth({ database });
   const orchestration = getOrchestrationObservabilitySummary();
   return c.json({
@@ -125,6 +128,9 @@ server.app.get("/api/observability/orchestrations/summary", async (c) => {
 server.app.get("/api/observability/orchestrations/slo", async (c) => {
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
+
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
 
   const windowMs = c.req.query("windowMs") ?? c.req.query("window");
   const signals = getOrchestrationSloSignals({ windowMs });
