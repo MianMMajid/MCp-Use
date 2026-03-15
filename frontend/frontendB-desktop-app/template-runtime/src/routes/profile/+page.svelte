@@ -110,10 +110,24 @@
 
     <div class="card section">
       <h2>Usage</h2>
+      <div class="grid three">
+        <div>
+          <p class="label">Runs</p>
+          <p>{usage?.runs ?? '--'}</p>
+        </div>
+        <div>
+          <p class="label">Tool Executions</p>
+          <p>{usage?.toolExecutions ?? '--'}</p>
+        </div>
+        <div>
+          <p class="label">Model Tokens</p>
+          <p>{usage?.modelTokens ?? '--'}</p>
+        </div>
+      </div>
       <div class="grid two">
         <div>
-          <p class="label">Total usage</p>
-          <p>{usage?.total || usage?.tokens || '--'}</p>
+          <p class="label">Window</p>
+          <p>{usage?.window ?? '--'}</p>
         </div>
         <div>
           <p class="label">Limits</p>
@@ -158,6 +172,7 @@
   h2 { font-size: 1rem; }
   .grid { display: grid; gap: 10px; }
   .grid.two { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .grid.three { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
   .label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
   .muted { margin: 0; color: var(--muted); }
   input {

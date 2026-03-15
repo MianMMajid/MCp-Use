@@ -407,7 +407,7 @@ function createChatStore() {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content })
+        body: JSON.stringify({ messages: [{ role: 'user', content }] })
       });
 
       if (!response.ok) {
@@ -415,6 +415,16 @@ function createChatStore() {
       }
 
       let reply = '';
+      const replyId = `reply-${Date.now()}`;
+      const replyTs = new Date().toISOString();
+      patch({ streaming: true });
+
+      // Add placeholder message that will be updated as chunks arrive
+      const beforeStream = get({ subscribe });
+      patch({
+        messages: [...beforeStream.messages, { id: replyId, role: 'assistant', content: '', timestamp: replyTs }]
+      });
+
       const reader = response.body?.getReader?.();
       if (reader) {
         const decoder = new TextDecoder();
@@ -439,23 +449,25 @@ function createChatStore() {
               reply += payload;
             }
           }
+          // Update the streaming message in-place with accumulated content
+          update((s) => ({
+            ...s,
+            messages: s.messages.map((m) => m.id === replyId ? { ...m, content: reply } : m)
+          }));
         }
       } else {
         reply = await response.text();
       }
 
-      const next = get({ subscribe });
-      patch({
-        messages: [
-          ...next.messages,
-          {
-            id: `reply-${Date.now()}`,
-            role: 'assistant',
-            content: reply || 'Simulated global chat response.',
-            timestamp: new Date().toISOString()
-          }
-        ]
-      });
+      // Finalize the streamed message
+      patch({ streaming: false });
+      update((s) => ({
+        ...s,
+        messages: s.messages.map((m) => m.id === replyId
+          ? { ...m, content: reply || 'No response received.' }
+          : m
+        )
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const next = get({ subscribe });

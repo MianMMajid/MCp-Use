@@ -94,17 +94,34 @@
 
   async function generateKey(accountId) {
     newKeySecret = '';
-    const response = await postJson(`/api/org/${orgId}/service-accounts/${accountId}/keys`, {});
-    const payload = await response.json().catch(() => ({}));
-    newKeySecret = payload?.key?.token || payload?.token || payload?.secret || '';
-    if (!newKeySecret) message = 'Key created (token unavailable).';
-    await toggleManage(accountId);
-    await toggleManage(accountId);
+    message = '';
+    try {
+      const response = await postJson(`/api/org/${orgId}/service-accounts/${accountId}/keys`, {});
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        message = payload?.error || `Failed to create key (${response.status})`;
+        return;
+      }
+      newKeySecret = payload?.key?.token || payload?.token || payload?.secret || '';
+      if (!newKeySecret) message = 'Key created (token unavailable).';
+      invalidateCache(`/api/org/${orgId}/service-accounts`);
+      // Reload keys list with fresh data
+      expandedId = '';
+      keys = [];
+      await toggleManage(accountId);
+    } catch (err) {
+      message = err instanceof Error ? err.message : 'Key creation failed.';
+    }
   }
 
   async function revokeKey(accountId, keyId) {
-    await deleteJson(`/api/org/${orgId}/service-accounts/${accountId}/keys/${keyId}`);
-    keys = keys.filter((key) => String(key.id || key.keyId) !== String(keyId));
+    try {
+      await deleteJson(`/api/org/${orgId}/service-accounts/${accountId}/keys/${keyId}`);
+      invalidateCache(`/api/org/${orgId}/service-accounts`);
+      keys = keys.filter((key) => String(key.id || key.keyId) !== String(keyId));
+    } catch (err) {
+      message = err instanceof Error ? err.message : 'Revoke failed.';
+    }
   }
 </script>
 

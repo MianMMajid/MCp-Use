@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, postJson } from '@/lib/api';
+  import { loadJson, postJson, invalidateCache } from '@/lib/api';
   import { formatDate } from '@/lib/format';
 
   const categories = [
@@ -54,10 +54,15 @@
   async function save() {
     saving = true;
     try {
-      await postJson('/api/notifications/preferences', { categories: prefs, channels: channelPrefs });
+      const response = await postJson('/api/notifications/preferences', { categories: prefs, channels: channelPrefs });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || `Save failed (${response.status})`);
+      }
+      invalidateCache('/api/notifications');
       message = 'Preferences saved';
-    } catch {
-      message = 'Failed to save preferences';
+    } catch (err) {
+      message = err instanceof Error ? err.message : 'Failed to save preferences';
     } finally {
       saving = false;
     }
@@ -65,11 +70,16 @@
 
   async function markAllRead() {
     try {
-      await postJson('/api/notifications/read-all', {});
+      const response = await postJson('/api/notifications/read-all', {});
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || `Mark read failed (${response.status})`);
+      }
+      invalidateCache('/api/notifications');
       message = 'All notifications marked as read';
       history = history.map((item) => ({ ...item, read: true }));
-    } catch {
-      message = 'Failed to mark notifications as read';
+    } catch (err) {
+      message = err instanceof Error ? err.message : 'Failed to mark notifications as read';
     }
   }
 </script>
