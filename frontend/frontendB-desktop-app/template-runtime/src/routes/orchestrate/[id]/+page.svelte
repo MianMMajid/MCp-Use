@@ -3,7 +3,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { SvelteFlow, Background, Controls, addEdge, MarkerType } from '@xyflow/svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, patchJson, postJson } from '@/lib/api';
+  import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
   import { chatStore } from '@/lib/stores/chat-store';
   import AgentPalette from '@/lib/components/orchestration/agent-palette.svelte';
   import NodeConfigPanel from '@/lib/components/orchestration/node-config-panel.svelte';
@@ -100,12 +100,11 @@
     return badges.slice(0, 3);
   }
 
-  function readFirewallLibrary() {
-    if (typeof window === 'undefined') return [];
+  async function readFirewallLibrary() {
     try {
-      const raw = window.localStorage.getItem('mayple_firewall_objects_v2');
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed.filter((item) => !item?.archived) : [];
+      const payload = await loadJson('/api/firewalls');
+      const items = payload?.items ?? payload ?? [];
+      return Array.isArray(items) ? items.filter((item) => !item?.archived) : [];
     } catch {
       return [];
     }
@@ -223,13 +222,20 @@
     );
   }
 
+  let _loadedOrchId = '';
+
   async function loadOrchestration() {
+    if (_loadedOrchId === data.id && orchestration) return;
+    _loadedOrchId = data.id;
+    // Reset state to prevent stale data from previous orchestration
+    currentExecutionId = '';
+    closeExecutionStream();
     loading = true;
     error = '';
     try {
       const item = await loadJson(`/api/orchestrations/${data.id}`);
       orchestration = item;
-      firewallLibrary = readFirewallLibrary();
+      firewallLibrary = await readFirewallLibrary();
       orchestrationName = item?.name || data.id;
       orchestrationInstructions = item?.description || '';
       flowNodes = ensureInstructionNode((item.nodes || []).map(fromApiNode));
@@ -308,6 +314,8 @@
         streamRetryCount++;
         const delay = Math.min(1000 * Math.pow(2, streamRetryCount - 1), 16000);
         streamRetryTimer = setTimeout(() => connectExecutionStream(executionId), delay);
+      } else {
+        error = 'Execution stream disconnected after max retries.';
       }
     };
   }
@@ -315,6 +323,8 @@
   onMount(loadOrchestration);
   onDestroy(closeExecutionStream);
 
+  // Re-fetch when route param changes (same-route navigation)
+  $: data.id, loadOrchestration();
   $: openExecutionStream(currentExecutionId);
   $: if ($chatStore.agents && !loading) {
     applyNodeVisualContext();
@@ -334,6 +344,7 @@
       const response = await patchJson(`/api/orchestrations/${data.id}`, payload);
       if (!response.ok) throw new Error(`Save failed (${response.status})`);
       orchestration = await response.json().catch(() => orchestration);
+      invalidateCache('/api/orchestrations');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

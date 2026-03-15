@@ -10,6 +10,7 @@
   let message = '';
   let newKeyName = '';
   let creating = false;
+  let newKeySecret = '';
 
   async function fetchKeys() {
     loading = true;
@@ -36,7 +37,8 @@
       const payload = await response.json().catch(() => ({}));
       if (response.ok && payload?.ok !== false) {
         newKeyName = '';
-        message = 'API key created.';
+        newKeySecret = payload?.key?.token || payload?.token || payload?.secret || '';
+        message = newKeySecret ? '' : 'API key created.';
         invalidateCache('/api/user/api-keys');
         await fetchKeys();
       } else {
@@ -66,6 +68,16 @@
         <input bind:value={newKeyName} placeholder="Key name" />
         <button class="pill" type="submit" disabled={creating || !newKeyName.trim()}>{creating ? 'Creating...' : 'Create Key'}</button>
       </form>
+      {#if newKeySecret}
+        <div class="secret-banner">
+          <p class="secret-label">Copy your API key now — it will not be shown again:</p>
+          <div class="secret-row">
+            <code class="secret-value">{newKeySecret}</code>
+            <button class="pill" on:click={() => { navigator.clipboard?.writeText(newKeySecret); message = 'Copied to clipboard.'; }}>Copy</button>
+            <button class="pill" on:click={() => { newKeySecret = ''; }}>Dismiss</button>
+          </div>
+        </div>
+      {/if}
       {#if message}
         <p class="msg">{message}</p>
       {/if}
@@ -123,4 +135,8 @@
   th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 13px; }
   code { font-size: 12px; color: var(--muted); }
   .danger { padding: 6px 10px; border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); cursor: pointer; }
+  .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid rgba(249,115,22,.5); border-radius: 12px; background: rgba(249,115,22,.12); }
+  .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #fb923c; }
+  .secret-row { display: flex; gap: 8px; align-items: center; }
+  .secret-value { flex: 1; font-size: 12px; color: #fdba74; word-break: break-all; background: rgba(0,0,0,.3); padding: 8px; border-radius: 8px; }
 </style>

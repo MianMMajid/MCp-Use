@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { patchJson } from '@/lib/api';
+  import { patchJson, invalidateCache } from '@/lib/api';
   import { getCountries } from '@/data';
   import { loadActiveOrgState, setActiveOrgId } from '@/lib/active-org';
 
@@ -73,6 +73,7 @@
         country: selectedCountry?.name || '',
       });
       if (!response.ok) throw new Error(`Save failed (${response.status})`);
+      invalidateCache('/api/org');
       message = 'Address saved.';
       messageType = 'success';
     } catch (err) {

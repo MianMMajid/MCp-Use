@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, patchJson } from '@/lib/api';
+  import { loadJson, patchJson, invalidateCache } from '@/lib/api';
   import { loadActiveOrgState, setActiveOrgId } from '@/lib/active-org';
 
   let loading = true;
@@ -89,6 +89,7 @@
         country: form.country,
       });
       if (!response.ok) throw new Error(`Save failed (${response.status})`);
+      invalidateCache('/api/org');
       message = 'Settings saved successfully.';
       messageType = 'success';
     } catch (err) {

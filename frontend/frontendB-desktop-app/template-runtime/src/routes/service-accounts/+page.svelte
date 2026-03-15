@@ -19,6 +19,7 @@
   let expandedId = '';
   let keys = [];
   let keysLoading = false;
+  let newKeySecret = '';
 
   async function fetchAccounts() {
     loading = true;
@@ -92,7 +93,11 @@
   }
 
   async function generateKey(accountId) {
-    await postJson(`/api/org/${orgId}/service-accounts/${accountId}/keys`, {});
+    newKeySecret = '';
+    const response = await postJson(`/api/org/${orgId}/service-accounts/${accountId}/keys`, {});
+    const payload = await response.json().catch(() => ({}));
+    newKeySecret = payload?.key?.token || payload?.token || payload?.secret || '';
+    if (!newKeySecret) message = 'Key created (token unavailable).';
     await toggleManage(accountId);
     await toggleManage(accountId);
   }
@@ -126,6 +131,16 @@
         </div>
       {/if}
 
+      {#if newKeySecret}
+        <div class="secret-banner">
+          <p class="secret-label">Copy your service account key now — it will not be shown again:</p>
+          <div class="secret-row">
+            <code class="secret-value">{newKeySecret}</code>
+            <button class="pill" on:click={() => { navigator.clipboard?.writeText(newKeySecret); message = 'Copied to clipboard.'; }}>Copy</button>
+            <button class="pill" on:click={() => { newKeySecret = ''; }}>Dismiss</button>
+          </div>
+        </div>
+      {/if}
       {#if message}<p class="ok">{message}</p>{/if}
       {#if error}<p class="err">{error}</p>{/if}
     </div>
@@ -219,4 +234,8 @@
   ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   li { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
   .danger { border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); }
+  .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid rgba(249,115,22,.5); border-radius: 12px; background: rgba(249,115,22,.12); }
+  .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #fb923c; }
+  .secret-row { display: flex; gap: 8px; align-items: center; }
+  .secret-value { flex: 1; font-size: 12px; color: #fdba74; word-break: break-all; background: rgba(0,0,0,.3); padding: 8px; border-radius: 8px; }
 </style>

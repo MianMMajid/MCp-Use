@@ -1,11 +1,12 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, afterUpdate } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, patchJson } from '@/lib/api';
+  import { loadJson, patchJson, invalidateCache } from '@/lib/api';
   import { statusColor } from '@/lib/format';
 
   export let data;
+  let _loadedId = '';
 
   let loading = true;
   let saving = false;
@@ -101,6 +102,8 @@
   }
 
   async function loadPage() {
+    if (_loadedId === data.id && agent) return;
+    _loadedId = data.id;
     loading = true;
     error = '';
     try {
@@ -125,6 +128,8 @@
   }
 
   onMount(loadPage);
+  // Re-fetch when route param changes (same-route navigation)
+  $: data.id, loadPage();
 
   function equipSkill(skillId) {
     const id = String(skillId || '');
@@ -221,8 +226,10 @@
     error = '';
     try {
       const trimmedName = String(agentName || '').trim();
+      // Use data.id (from route param) instead of stale agent closure
+      const agentId = data.id;
       if (trimmedName && trimmedName !== String(agent.name || '')) {
-        const agentRes = await patchJson(`/api/agents/${agent.agentId || agent.id}`, { name: trimmedName });
+        const agentRes = await patchJson(`/api/agents/${agentId}`, { name: trimmedName });
         const agentPayload = await agentRes.json().catch(() => ({}));
         if (!agentRes.ok || agentPayload?.ok === false) {
           throw new Error(agentPayload?.error || `Failed to update agent name (${agentRes.status})`);
@@ -230,7 +237,7 @@
         agent = { ...agent, ...agentPayload, name: trimmedName };
       }
 
-      const response = await patchJson(`/api/agents/${agent.agentId || agent.id}/tools`, { equippedToolIds });
+      const response = await patchJson(`/api/agents/${agentId}/tools`, { equippedToolIds });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || `Failed to save toolbelt (${response.status})`);
@@ -239,6 +246,7 @@
         ? payload.equippedToolIds.map(String)
         : equippedToolIds;
       agent = { ...agent, equippedToolIds: equippedToolIds.slice() };
+      invalidateCache('/api/agents');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

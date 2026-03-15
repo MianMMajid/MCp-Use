@@ -349,6 +349,7 @@ function createChatStore() {
 
     patch({
       runError: '',
+      busy: true,
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
@@ -376,8 +377,8 @@ function createChatStore() {
           }
         ]
       });
-      await loadSessions(fallbackAgentId);
       invalidateCache(`/api/agents/${fallbackAgentId}/sessions`);
+      await loadSessions(fallbackAgentId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const next = get({ subscribe });
@@ -385,6 +386,8 @@ function createChatStore() {
         runError: message,
         messages: [...next.messages, { id: `err-${Date.now()}`, role: 'agent', content: message, error: true, timestamp: new Date().toISOString() }]
       });
+    } finally {
+      patch({ busy: false });
     }
   }
 
@@ -395,6 +398,7 @@ function createChatStore() {
     const state = get({ subscribe });
     patch({
       runError: '',
+      busy: true,
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
@@ -459,6 +463,8 @@ function createChatStore() {
         runError: message,
         messages: [...next.messages, { id: `err-${Date.now()}`, role: 'assistant', content: message, error: true, timestamp: new Date().toISOString() }]
       });
+    } finally {
+      patch({ busy: false });
     }
   }
 

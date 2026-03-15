@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
-  import { postJson } from '@/lib/api';
+  import { postJson, invalidateCache } from '@/lib/api';
   import { riskColor, riskLabel, statusColor } from '@/lib/format';
 
   let search = '';
@@ -35,6 +35,7 @@
       if (response.ok) {
         const payload = await response.json().catch(() => ({}));
         const newAgentId = String(payload?.id || payload?.agentId || '');
+        invalidateCache('/api/agents');
         if (newAgentId) {
           await goto(`/agents/${encodeURIComponent(newAgentId)}`);
         }

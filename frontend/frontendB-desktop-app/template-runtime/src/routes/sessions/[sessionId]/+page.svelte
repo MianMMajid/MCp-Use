@@ -8,8 +8,11 @@
   let error = '';
   let session = null;
   let runs = [];
+  let _loadedSessionId = '';
 
-  onMount(async () => {
+  async function loadSession() {
+    if (_loadedSessionId === data.sessionId && session) return;
+    _loadedSessionId = data.sessionId;
     loading = true;
     error = '';
     try {
@@ -21,7 +24,11 @@
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(loadSession);
+  // Re-fetch when route param changes
+  $: data.sessionId, loadSession();
 </script>
 
 <AppShell>

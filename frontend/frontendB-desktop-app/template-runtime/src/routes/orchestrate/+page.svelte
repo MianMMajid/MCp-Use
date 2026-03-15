@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
-  import { postJson } from '@/lib/api';
+  import { postJson, invalidateCache } from '@/lib/api';
 
   let creating = false;
   let error = '';
@@ -22,6 +22,7 @@
       }
       const id = payload?.id || payload?.orchestrationId;
       if (!id) throw new Error('Orchestration created but no id returned');
+      invalidateCache('/api/orchestrations');
       goto(`/orchestrate/${id}`);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
