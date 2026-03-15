@@ -56,8 +56,8 @@ export default function IntegrationsPage() {
         loadJson('/api/integrations/catalog'),
         loadJson('/api/integrations'),
       ])
-      if (c.status === 'fulfilled') setCatalog(Array.isArray(c.value?.integrations) ? c.value.integrations : Array.isArray(c.value?.catalog) ? c.value.catalog : Array.isArray(c.value) ? c.value : [])
-      if (i.status === 'fulfilled') setIntegrations(Array.isArray(i.value?.integrations) ? i.value.integrations : Array.isArray(i.value) ? i.value : [])
+      if (c.status === 'fulfilled') setCatalog(Array.isArray(c.value?.providers) ? c.value.providers : Array.isArray(c.value?.integrations) ? c.value.integrations : Array.isArray(c.value?.catalog) ? c.value.catalog : Array.isArray(c.value) ? c.value : [])
+      if (i.status === 'fulfilled') setIntegrations(Array.isArray(i.value?.items) ? i.value.items : Array.isArray(i.value?.integrations) ? i.value.integrations : Array.isArray(i.value) ? i.value : [])
       if (c.status === 'rejected' && i.status === 'rejected') throw new Error('All endpoints failed')
     } catch (err) { setError(err.message) }
     finally { setLoading(false) }
@@ -66,9 +66,11 @@ export default function IntegrationsPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   async function handleConnect(provider) {
+    const apiKey = window.prompt(`Enter API key or credential for ${provider}:`)
+    if (!apiKey) return
     setActionLoading(`connect-${provider}`)
     try {
-      await postJson(`/api/integrations/${encodeURIComponent(provider)}/connect`, {})
+      await postJson(`/api/integrations/${encodeURIComponent(provider)}/connect`, { credential: apiKey, apiKey })
       setMessage(`Connected to ${provider}`)
       fetchData()
     } catch (err) { setMessage(`Connect failed: ${err.message}`) }

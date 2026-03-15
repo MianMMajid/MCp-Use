@@ -323,10 +323,10 @@
           ?? runtimeCapabilitiesRes.value)
       }
       if (integrationCatalogRes.status === 'fulfilled') {
-        integrationCatalog = asArray(integrationCatalogRes.value?.integrations ?? integrationCatalogRes.value?.items)
+        integrationCatalog = asArray(integrationCatalogRes.value?.providers ?? integrationCatalogRes.value?.integrations ?? integrationCatalogRes.value?.items)
       }
       if (connectedIntegrationsRes.status === 'fulfilled') {
-        connectedIntegrations = asArray(connectedIntegrationsRes.value?.integrations ?? connectedIntegrationsRes.value?.items)
+        connectedIntegrations = asArray(connectedIntegrationsRes.value?.items ?? connectedIntegrationsRes.value?.integrations)
       }
       if (downstreamAppsRes.status === 'fulfilled') {
         downstreamApps = asArray(downstreamAppsRes.value?.apps ?? downstreamAppsRes.value?.items)
@@ -335,7 +335,7 @@
         downstreamTools = asArray(downstreamToolsRes.value?.tools ?? downstreamToolsRes.value?.items)
       }
       if (openclawCatalogRes.status === 'fulfilled') {
-        openclawCatalog = asArray(openclawCatalogRes.value?.catalog ?? openclawCatalogRes.value?.items)
+        openclawCatalog = asArray(openclawCatalogRes.value?.tools ?? openclawCatalogRes.value?.catalog ?? openclawCatalogRes.value?.items)
       }
       if (authMeRes.status === 'fulfilled') {
         authMe = authMeRes.value?.user ?? null

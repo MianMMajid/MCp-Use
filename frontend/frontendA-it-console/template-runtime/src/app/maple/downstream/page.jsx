@@ -53,13 +53,29 @@ export default function DownstreamPage() {
     setLoading(true)
     setError(null)
     try {
-      const [a, t] = await Promise.allSettled([
+      const [a] = await Promise.allSettled([
         loadJson('/api/downstream/apps'),
-        loadJson('/api/downstream/tools'),
       ])
-      if (a.status === 'fulfilled') setApps(Array.isArray(a.value?.apps) ? a.value.apps : Array.isArray(a.value) ? a.value : [])
-      if (t.status === 'fulfilled') setTools(t.value)
-      if (a.status === 'rejected' && t.status === 'rejected') throw new Error('All endpoints failed')
+      const appList = a.status === 'fulfilled'
+        ? (Array.isArray(a.value?.apps) ? a.value.apps : Array.isArray(a.value) ? a.value : [])
+        : []
+      setApps(appList)
+
+      // Fetch tools per-app (each call requires appId)
+      const toolMap = {}
+      const toolFetches = appList
+        .filter((app) => app.appId || app.id)
+        .map(async (app) => {
+          const id = app.appId || app.id
+          try {
+            const data = await loadJson(`/api/downstream/tools?appId=${encodeURIComponent(id)}`)
+            toolMap[id] = Array.isArray(data?.tools) ? data.tools : []
+          } catch { toolMap[id] = [] }
+        })
+      await Promise.allSettled(toolFetches)
+      setTools(toolMap)
+
+      if (a.status === 'rejected') throw new Error('Failed to load downstream apps')
     } catch (err) { setError(err.message) }
     finally { setLoading(false) }
   }, [])
@@ -68,7 +84,6 @@ export default function DownstreamPage() {
 
   function getToolsForApp(appId) {
     if (!tools) return []
-    if (Array.isArray(tools)) return tools.filter((t) => t.appId === appId)
     if (tools[appId]) return Array.isArray(tools[appId]) ? tools[appId] : []
     return []
   }

@@ -76,11 +76,42 @@ function LoginForm() {
     setGoogleLoading(true)
     setError('')
     try {
+      // Use Google Identity Services to obtain a credential token
+      const clientIdRes = await fetch('/api/auth/google/client-id')
+      const clientIdData = await clientIdRes.json()
+      const clientId = clientIdData.clientId
+      if (!clientId) {
+        setError('Google sign-in is not configured.')
+        setGoogleLoading(false)
+        return
+      }
+      // Dynamically load Google Identity Services if not already loaded
+      if (!window.google?.accounts?.id) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = 'https://accounts.google.com/gsi/client'
+          script.onload = resolve
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      }
+      const credential = await new Promise((resolve, reject) => {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response) => resolve(response.credential),
+          auto_select: false,
+        })
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            reject(new Error('Google sign-in was cancelled or not available.'))
+          }
+        })
+      })
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({}),
+        body: JSON.stringify({ credential }),
       })
       if (res.ok) {
         const data = await res.json()
