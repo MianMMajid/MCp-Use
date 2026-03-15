@@ -67,13 +67,20 @@ export function invalidateCache(pathOrPrefix) {
   }
 }
 
+const LONG_TIMEOUT_PATTERNS = ['/run', '/execute', '/smoke-test', '/simulate']
+
+function timeoutForPath(path) {
+  if (LONG_TIMEOUT_PATTERNS.some((p) => path.includes(p))) return 120_000
+  return DEFAULT_TIMEOUT_MS
+}
+
 export async function postJson(path, body) {
   const res = await fetchWithTimeout(path, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  })
+  }, timeoutForPath(path))
   return res
 }
 

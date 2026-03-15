@@ -116,6 +116,7 @@ function normalizeNode(input, idx = 0) {
     error: "",
     startedAt: "",
     completedAt: "",
+    nodeObjective: asString(raw.nodeObjective) ?? "",
     metadata: raw.metadata && typeof raw.metadata === "object" ? { ...raw.metadata } : {},
   };
 }
@@ -275,6 +276,7 @@ function toPublicNode(node) {
     completedAt: node.completedAt,
     dynamic: node.dynamic,
     spawned: node.spawned,
+    nodeObjective: node.nodeObjective || "",
   };
 }
 
@@ -334,10 +336,66 @@ function buildExecutionInputSummary(input) {
   }
 }
 
+function getNodePredecessors(execution, nodeId) {
+  return execution.graph.edges
+    .filter((edge) => edge.active && edge.target === nodeId)
+    .map((edge) => execution.graph.nodes.find((n) => n.id === edge.source))
+    .filter(Boolean);
+}
+
+function getNodeSuccessors(execution, nodeId) {
+  return execution.graph.edges
+    .filter((edge) => edge.active && edge.source === nodeId)
+    .map((edge) => execution.graph.nodes.find((n) => n.id === edge.target))
+    .filter(Boolean);
+}
+
+function describeNode(node) {
+  const label = node.label || node.id;
+  const agent = node.agentId ? ` (agent: ${node.agentId})` : "";
+  return `${label}${agent}`;
+}
+
 function buildNodeMessage(execution, node) {
-  const base = buildExecutionInputSummary(execution.input);
-  const objective = base || "Execute orchestration node.";
-  return `[Execution ${execution.executionId}] Node ${node.id} (${node.agentId || "unassigned"})\n${objective}`;
+  const fullObjective = buildExecutionInputSummary(execution.input) || "Execute orchestration node.";
+  const nodeObjective = node.nodeObjective || "";
+
+  const predecessors = getNodePredecessors(execution, node.id);
+  const successors = getNodeSuccessors(execution, node.id);
+
+  const sections = [];
+
+  sections.push(`== FULL OBJECTIVE ==\n${fullObjective}`);
+
+  if (predecessors.length > 0) {
+    const prevLines = predecessors.map((p) => {
+      const desc = describeNode(p);
+      const task = p.nodeObjective ? `: ${p.nodeObjective}` : "";
+      return `- ${desc}${task}`;
+    });
+    sections.push(`== PREVIOUS STEPS ==\n${prevLines.join("\n")}`);
+  } else {
+    sections.push("== PREVIOUS STEPS ==\nYou are the first node. No prior work.");
+  }
+
+  if (nodeObjective) {
+    sections.push(`== YOUR TASK ==\n${nodeObjective}`);
+  } else {
+    sections.push(`== YOUR TASK ==\n${fullObjective}`);
+  }
+
+  if (successors.length > 0) {
+    const nextLines = successors.map((s) => {
+      const desc = describeNode(s);
+      const task = s.nodeObjective ? `: ${s.nodeObjective}` : "";
+      return `- ${desc}${task}`;
+    });
+    sections.push(`== NEXT STEPS ==\n${nextLines.join("\n")}\nMake sure your output is useful for the next worker.`);
+  } else {
+    sections.push("== NEXT STEPS ==\nYou are the final node. Produce the finished result.");
+  }
+
+  return `[Execution ${execution.executionId}] Node ${node.id} (${node.agentId || "unassigned"})\n\n${sections.join("\n\n")}`;
 }
 
 function getIncomingActiveEdges(execution, nodeId) {
@@ -554,6 +612,78 @@ async function finalizeExecution(execution, status) {
   markControlChanged(execution);
 }
 
+async function decomposeObjective(execution) {
+  const fullObjective = buildExecutionInputSummary(execution.input);
+  if (!fullObjective) return;
+
+  const nodes = execution.graph.nodes;
+  const edges = execution.graph.edges.filter((e) => e.active);
+  if (nodes.length < 2) {
+    nodes[0].nodeObjective = fullObjective;
+    return;
+  }
+
+  const nodeList = nodes
+    .map((n) => `  - id: ${n.id}, label: ${n.label || n.id}, agent: ${n.agentId || "unassigned"}`)
+    .join("\n");
+  const edgeList = edges.map((e) => `  - ${e.source} → ${e.target}`).join("\n");
+
+  const plannerPrompt = [
+    "You are an orchestration planner. Given a user objective and a DAG of agent nodes, decompose the objective into a specific sub-task for each node.",
+    "",
+    `OBJECTIVE: ${fullObjective}`,
+    "",
+    "GRAPH NODES:",
+    nodeList,
+    "",
+    "GRAPH EDGES (execution order):",
+    edgeList,
+    "",
+    "Rules:",
+    "- Each node should get a clear, actionable sub-task that contributes to the full objective.",
+    "- Respect the graph order: upstream nodes produce inputs that downstream nodes consume.",
+    "- Be specific about what each node should produce as output.",
+    "- Respond with ONLY a JSON object mapping node id to sub-task string. No markdown, no explanation.",
+    '- Example: {"node-1": "Research topic X and produce a structured summary", "node-2": "Create a visual diagram from the research"}',
+  ].join("\n");
+
+  try {
+    const result = await runOpenClawTurn({
+      message: plannerPrompt,
+      sessionId: execution.sessionId,
+    });
+
+    const reply = (result.reply || "").trim();
+    let plan;
+    try {
+      plan = JSON.parse(reply);
+    } catch {
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        plan = JSON.parse(jsonMatch[0]);
+      }
+    }
+
+    if (plan && typeof plan === "object") {
+      for (const node of nodes) {
+        const objective = plan[node.id];
+        if (typeof objective === "string" && objective.trim()) {
+          node.nodeObjective = objective.trim();
+        }
+      }
+      emitExecutionEvent(execution, "objective_decomposed", {
+        plan,
+        nodeCount: nodes.length,
+      });
+    }
+  } catch (error) {
+    emitExecutionEvent(execution, "objective_decomposition_skipped", {
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    // Non-fatal: nodes fall back to the full objective
+  }
+}
+
 async function processExecutionLoop(executionId) {
   const execution = findExecution(executionId);
   if (!execution) return;
@@ -562,6 +692,10 @@ async function processExecutionLoop(executionId) {
   execution.status = "running";
   execution.startedAt = execution.startedAt || nowIso();
   execution.updatedAt = execution.startedAt;
+
+  if (execution.mode !== "dry_run") {
+    await decomposeObjective(execution);
+  }
 
   let stagnantTicks = 0;
   while (true) {
