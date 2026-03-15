@@ -1,0 +1,36 @@
+{
+	"/": [
+		"src/routes/+page.server.js"
+	],
+	"/admin/api/[...path]": [
+		"src/routes/admin/api/[...path]/+server.js"
+	],
+	"/api/[...path]": [
+		"src/routes/api/[...path]/+server.js"
+	],
+	"/attachments": [],
+	"/authentication": [],
+	"/contacts": [],
+	"/conversations": [],
+	"/errors": [],
+	"/groups": [],
+	"/health": [
+		"src/routes/health/+server.js"
+	],
+	"/legacy-docs": [],
+	"/login": [],
+	"/maple": [
+		"src/routes/maple/+page.server.js"
+	],
+	"/maple/[...legacy]": [
+		"src/routes/maple/[...legacy]/+page.server.js"
+	],
+	"/messages": [],
+	"/pagination": [],
+	"/quickstart": [],
+	"/sdks": [],
+	"/webhooks": [],
+	"/[slug]": [
+		"src/routes/[slug]/+page.server.js"
+	]
+}

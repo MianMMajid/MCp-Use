@@ -1,0 +1,15 @@
+import { SkeletonCard } from '@/components/skeleton'
+
+export default function AppLoading() {
+  return (
+    <div className="mx-auto max-w-4xl">
+      <div className="h-8 w-48 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+      <div className="mt-6 border-t border-zinc-950/10 dark:border-white/10" />
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    </div>
+  )
+}
