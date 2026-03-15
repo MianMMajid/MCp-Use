@@ -60,7 +60,17 @@ function parseSignedAuthCode(code) {
     }
 }
 
-/** Used-code set: jti -> expiresAt (bounded, prevents replay) */
+/**
+ * Used-code set: jti -> expiresAt (bounded, prevents replay).
+ *
+ * LIMITATION: This is per-process. In multi-replica deployments, the same auth
+ * code could theoretically be redeemed once per pod within the 5-minute TTL.
+ * Mitigation: codes are HMAC-signed and short-lived, and each redemption
+ * requires valid client_secret + optional PKCE, making cross-pod replay
+ * require both network interception and credential theft.
+ *
+ * For full cross-pod replay protection, migrate to a shared store (Redis/PG).
+ */
 const usedCodes = new Map();
 
 // ---------------------------------------------------------------------------

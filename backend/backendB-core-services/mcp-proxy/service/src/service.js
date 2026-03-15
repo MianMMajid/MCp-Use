@@ -93,7 +93,11 @@ if (!CREDENTIAL_SIGNING_KEY || CREDENTIAL_SIGNING_KEY === "maple-credential-key"
 
 function createSignedCredential(toolName, appId, scopes) {
     const credentialId = `cred-${randomUUID()}`;
-    const payload = `${credentialId}:${appId}:${toolName}:${Date.now()}`;
+    // Include sorted scopes in the HMAC payload so they are cryptographically
+    // bound to the credential. Cyber-proxy must verify that the scopes header
+    // matches the scopes embedded in the signed token.
+    const sortedScopes = [...scopes].sort().join(",");
+    const payload = `${credentialId}:${appId}:${toolName}:${Date.now()}:${sortedScopes}`;
     // Use full 64-char hex digest — truncation weakens HMAC security.
     const signature = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
         .update(payload).digest("hex");
@@ -109,10 +113,10 @@ function createSignedCredential(toolName, appId, scopes) {
 
 // Finding 5: Verification function for signed credentials — cyber-proxy
 // should call this to validate tokens before trusting scope claims.
-export function verifySignedCredential(token) {
+export function verifySignedCredential(token, claimedScopes) {
     if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
     const parts = token.split(":");
-    if (parts.length < 5) return { valid: false, reason: "malformed_token" };
+    if (parts.length < 6) return { valid: false, reason: "malformed_token" };
     const signature = parts[parts.length - 1];
     const payload = parts.slice(0, -1).join(":");
     const expectedSig = createHmac("sha256", CREDENTIAL_SIGNING_KEY)
@@ -123,12 +127,21 @@ export function verifySignedCredential(token) {
     if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
         return { valid: false, reason: "invalid_signature" };
     }
-    // Parse credential fields
+    // Parse credential fields: credentialId:appId:toolName:timestamp:scopes:signature
     const [credentialId, appId, toolName, timestampStr] = parts;
+    // Extract the scopes portion (between timestamp and signature)
+    const scopesPortion = parts.slice(4, -1).join(":");
     const timestamp = Number(timestampStr);
     // Reject credentials older than 1 hour
     if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
-    return { valid: true, credentialId, appId, toolName, timestamp };
+    // Verify claimed scopes match the signed scopes to prevent scope tampering.
+    if (claimedScopes) {
+        const claimedSorted = [...claimedScopes].sort().join(",");
+        if (claimedSorted !== scopesPortion) {
+            return { valid: false, reason: "scope_mismatch" };
+        }
+    }
+    return { valid: true, credentialId, appId, toolName, timestamp, scopes: scopesPortion.split(",").filter(Boolean) };
 }
 function scopeToCredentialScopes(scope) {
     const scopes = ["execute"];

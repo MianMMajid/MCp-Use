@@ -159,10 +159,14 @@ export async function verifyAuditChain(options = {}) {
   }
 
   const limit = Math.max(1, Math.min(10_000, Number(options.limit) || 1000));
+  const tenantId = options.tenantId ?? "";
+  // Scope verification to the caller's tenant to prevent cross-tenant chain reads.
+  const tenantFilter = tenantId ? `WHERE tenant_id = $2` : "";
+  const queryParams = tenantId ? [limit, tenantId] : [limit];
   const result = await db.pool.query(
     `SELECT sequence_id, event_id, event_type, timestamp, source_service, tenant_id, org_id, user_id, severity, summary, payload_json, previous_hash, record_hash
-     FROM audit_chain ORDER BY sequence_id ASC LIMIT $1`,
-    [limit]
+     FROM audit_chain ${tenantFilter} ORDER BY sequence_id ASC LIMIT $1`,
+    queryParams
   );
 
   let previousHash = "";

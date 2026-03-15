@@ -25,13 +25,24 @@ import {
 import { ensureExecutionPersistenceWatch } from "./orchestration-routes.js";
 import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 
-async function verifiedScope(c) {
+/**
+ * Resolve verified tenant scope. Observability endpoints MUST be tenant-scoped
+ * to prevent cross-tenant data leakage. Omitting tenant headers is rejected
+ * (fail-closed) unless allowEmpty is explicitly true.
+ */
+async function verifiedScope(c, { allowEmpty = false } = {}) {
   const scope = await resolveVerifiedTenantScope({
     tenantId: asString(c.req.header("x-tenant-id")) ?? "",
     orgId: asString(c.req.header("x-org-id")) ?? "",
     tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
   });
+  // Reject unverified scopes when a tenantId is present
   if (!scope.verified && scope.tenantId) {
+    return { error: true, tenantId: "", orgId: "" };
+  }
+  // Reject missing tenant scope on observability endpoints (fail-closed).
+  // An empty orgId alone is not sufficient for scoping.
+  if (!allowEmpty && !scope.tenantId) {
     return { error: true, tenantId: "", orgId: "" };
   }
   return { error: false, tenantId: scope.tenantId, orgId: scope.orgId };
@@ -270,7 +281,11 @@ server.app.get("/api/observability/orchestrations/audit-chain/verify", async (c)
   const unauthorized = await requireApiKeyResponse(c, database);
   if (unauthorized) return unauthorized;
 
+  const scope = await verifiedScope(c);
+  if (scope.error) return c.json({ ok: false, error: "Unverified tenant scope rejected" }, 403);
+
   const result = await verifyAuditChain({
+    tenantId: scope.tenantId,
     limit: parseBoundedInteger(c.req.query("limit"), 1000, 1, 10_000),
     database,
   });
@@ -319,20 +334,30 @@ server.app.get("/api/observability/orchestrations/dead-letter", async (c) => {
   const limit = parseBoundedInteger(c.req.query("limit"), 50, 1, 1000);
   const offset = parseBoundedInteger(c.req.query("offset") ?? c.req.query("cursor"), 0, 0, 1_000_000);
 
+  // Tenant-scoped dead-letter query. The event_json column contains a JSON
+  // object with tenantId at the top level or nested in payload. We filter in
+  // SQL via JSON extraction to avoid loading all rows into memory.
+  const tenantFilter = scope.tenantId
+    ? `AND (event_json::jsonb->>'tenantId' = $3 OR event_json::jsonb->'payload'->>'tenantId' = $3)`
+    : "";
+  const queryParams = scope.tenantId ? [limit, offset, scope.tenantId] : [limit, offset];
+  const countParams = scope.tenantId ? [scope.tenantId] : [];
+
   const result = await database.pool.query(
     `SELECT outbox_id, event_json, status, created_at, updated_at, attempts, last_error
        FROM gateway_audit_outbox
-      WHERE status = 'dead_letter'
+      WHERE status = 'dead_letter' ${tenantFilter}
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2`,
-    [limit, offset],
+    queryParams,
   );
 
   const countResult = await database.pool.query(
-    `SELECT COUNT(*)::int AS total FROM gateway_audit_outbox WHERE status = 'dead_letter'`,
+    `SELECT COUNT(*)::int AS total FROM gateway_audit_outbox WHERE status = 'dead_letter' ${tenantFilter ? `AND (event_json::jsonb->>'tenantId' = $1 OR event_json::jsonb->'payload'->>'tenantId' = $1)` : ""}`,
+    countParams,
   );
 
-  const allItems = result.rows.map((row) => {
+  const items = result.rows.map((row) => {
     let event = null;
     try {
       event = JSON.parse(row.event_json);
@@ -350,21 +375,13 @@ server.app.get("/api/observability/orchestrations/dead-letter", async (c) => {
     };
   });
 
-  // Filter by tenant: parse event_json tenantId
-  const items = scope.tenantId
-    ? allItems.filter((item) => {
-        const eventTenantId = item.event?.payload?.tenantId ?? item.event?.tenantId ?? "";
-        return eventTenantId === scope.tenantId;
-      })
-    : allItems;
-
   const total = Number(countResult.rows[0]?.total ?? 0);
-  const nextOffset = offset + allItems.length < total ? offset + allItems.length : null;
+  const nextOffset = offset + items.length < total ? offset + items.length : null;
 
   return c.json({
     ok: true,
     items,
-    total: items.length,
+    total,
     offset,
     cursor: String(offset),
     nextOffset,
@@ -381,24 +398,23 @@ server.app.post("/api/observability/orchestrations/dead-letter/:eventId/replay",
 
   const eventId = asString(c.req.param("eventId")) ?? "";
 
-  // Verify the event belongs to the caller's tenant before replaying
-  if (scope.tenantId) {
-    const check = await database.pool.query(
-      `SELECT event_json FROM gateway_audit_outbox WHERE outbox_id = $1 AND status = 'dead_letter'`,
-      [eventId],
-    );
-    if (check.rows.length === 0) {
+  // Always verify the event belongs to the caller's tenant before replaying.
+  const check = await database.pool.query(
+    `SELECT event_json FROM gateway_audit_outbox WHERE outbox_id = $1 AND status = 'dead_letter'`,
+    [eventId],
+  );
+  if (check.rows.length === 0) {
+    return c.json({ ok: false, error: "Dead-letter event not found." }, 404);
+  }
+  try {
+    const event = JSON.parse(check.rows[0].event_json);
+    const eventTenantId = event?.payload?.tenantId ?? event?.tenantId ?? "";
+    if (eventTenantId !== scope.tenantId) {
       return c.json({ ok: false, error: "Dead-letter event not found." }, 404);
     }
-    try {
-      const event = JSON.parse(check.rows[0].event_json);
-      const eventTenantId = event?.payload?.tenantId ?? event?.tenantId ?? "";
-      if (eventTenantId && eventTenantId !== scope.tenantId) {
-        return c.json({ ok: false, error: "Dead-letter event not found." }, 404);
-      }
-    } catch {
-      // If event_json is unparseable, allow replay (it's already broken)
-    }
+  } catch {
+    // If event_json is unparseable, reject to be safe
+    return c.json({ ok: false, error: "Dead-letter event is malformed." }, 400);
   }
 
   const now = new Date().toISOString();

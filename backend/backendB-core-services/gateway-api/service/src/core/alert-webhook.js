@@ -148,11 +148,13 @@ export async function listAlertWebhooks(tenantId, options = {}) {
 export async function deleteAlertWebhook(webhookId, options = {}) {
   const db = options.database ?? _database;
   if (!hasPool(db)) return;
-  if (options.tenantId) {
-    await db.pool.query(`DELETE FROM modifier_alert_webhooks WHERE id = $1 AND tenant_id = $2`, [webhookId, options.tenantId]);
-  } else {
-    await db.pool.query(`DELETE FROM modifier_alert_webhooks WHERE id = $1`, [webhookId]);
-  }
+  // Always scope by tenantId to prevent cross-tenant deletion.
+  // An empty tenantId matches only webhooks that were created without a tenant.
+  const tenantId = options.tenantId ?? "";
+  await db.pool.query(
+    `DELETE FROM modifier_alert_webhooks WHERE id = $1 AND tenant_id = $2`,
+    [webhookId, tenantId]
+  );
 }
 
 /**
@@ -272,14 +274,13 @@ export async function getAlertDeliveryLog(webhookId, options = {}) {
   const db = options.database ?? _database;
   if (!hasPool(db)) return [];
 
-  // Verify webhook belongs to caller's tenant before returning delivery log
-  if (options.tenantId) {
-    const ownerCheck = await db.pool.query(
-      `SELECT 1 FROM modifier_alert_webhooks WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-      [webhookId, options.tenantId]
-    );
-    if (ownerCheck.rows.length === 0) return [];
-  }
+  // Always verify webhook belongs to caller's tenant before returning delivery log.
+  const tenantId = options.tenantId ?? "";
+  const ownerCheck = await db.pool.query(
+    `SELECT 1 FROM modifier_alert_webhooks WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [webhookId, tenantId]
+  );
+  if (ownerCheck.rows.length === 0) return [];
 
   const limit = Math.max(1, Math.min(200, Number(options.limit) || 50));
   const result = await db.pool.query(

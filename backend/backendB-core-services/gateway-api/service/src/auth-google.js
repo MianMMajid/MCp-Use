@@ -55,6 +55,6 @@ export async function verifyGoogleJwt(token) {
     if (!verifier.verify(keys[kid], signature)) {
         throw new Error("Invalid signature");
     }
-    return { email: payload.email, name: payload.name || "" };
+    return { email: payload.email, name: payload.name || "", email_verified: payload.email_verified !== false };
 }
 //# sourceMappingURL=auth-google.js.map

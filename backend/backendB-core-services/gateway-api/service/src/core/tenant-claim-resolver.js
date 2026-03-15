@@ -291,12 +291,15 @@ export async function resolveVerifiedTenantScope(headerOverrides = {}) {
     };
   }
 
-  // Fallback: header-only (unverified)
+  // Fallback: no tenant headers provided. Mark as unverified with method "none"
+  // so callers can decide whether to accept unscoped access.
+  // Previously this returned verified:true for empty headers, allowing
+  // observability endpoints to leak global data.
   return {
     tenantId: headerTenantId,
     orgId: headerOrgId,
     userId,
-    verified: !headerTenantId && !headerOrgId ? true : false,
-    method: headerTenantId ? "header_unverified" : "none",
+    verified: false,
+    method: "none",
   };
 }
