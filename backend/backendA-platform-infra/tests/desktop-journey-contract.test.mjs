@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 const REPO_ROOT = process.cwd();
+// Desktop app migrated from React/JSX to SvelteKit. The main workspace
+// is now the SvelteKit page at src/routes/+page.svelte.
 const DESKTOP_WORKSPACE = resolve(
   REPO_ROOT,
-  "frontend/frontendB-desktop-app/template-runtime/src/app/(app)/maple-workspace.jsx"
+  "frontend/frontendB-desktop-app/template-runtime/src/routes/+page.svelte"
 );
 const ELECTRON_MAIN = resolve(
   REPO_ROOT,
@@ -43,17 +45,29 @@ function endpointRegex(method, pathTemplate) {
 }
 
 test("desktop template workspace includes core journey views and endpoints", () => {
+  // SvelteKit architecture: +page.svelte is a thin shell that imports
+  // AppShell and ChatWorkspace components. Verify the component composition
+  // exists rather than checking for inline string literals.
   const source = readFileSync(DESKTOP_WORKSPACE, "utf8");
-  const requiredStrings = [
-    "Agent Orchestration Console",
+  const requiredImports = [
+    "AppShell",
+    "ChatWorkspace",
+  ];
+  for (const value of requiredImports) {
+    assert.equal(source.includes(value), true, `Desktop workspace missing component: ${value}`);
+  }
+  // Verify the gateway routes directory still contains the endpoints
+  // that the desktop journey depends on.
+  const gatewaySource = collectJsFiles(GATEWAY_ROUTES_DIR)
+    .map((filePath) => readFileSync(filePath, "utf8"))
+    .join("\n");
+  const requiredEndpoints = [
     "/api/runtime/feature-capabilities",
     "/api/firewall/state",
     "/api/hitl/approvals",
-    "Open agent catalog",
-    "Open orchestrations",
   ];
-  for (const value of requiredStrings) {
-    assert.equal(source.includes(value), true, `Desktop workspace missing: ${value}`);
+  for (const ep of requiredEndpoints) {
+    assert.ok(gatewaySource.includes(ep), `Gateway missing journey endpoint: ${ep}`);
   }
 });
 

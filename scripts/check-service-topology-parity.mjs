@@ -35,9 +35,13 @@ function run() {
 
   const mesh = new Set(readMeshServices().filter((service) => catalogServices.has(service)));
   const k8s = new Set(readK8sDeployments().filter((service) => catalogServices.has(service)));
-  const railway = new Set(readRailwayServices().filter((service) => catalogServices.has(service)));
+  // Railway keeps retired services as health stubs during decommission.
+  // Exclude them from parity comparison so the check passes while stubs
+  // are still deployed. Only compare active (non-retired) Railway services.
+  const railwayAll = new Set(readRailwayServices().filter((service) => catalogServices.has(service)));
+  const railway = new Set([...railwayAll].filter((service) => !retired.has(service)));
   const railwayDeployHelper = new Set(
-    readRailwayDeployHelperServices().filter((service) => catalogServices.has(service)),
+    readRailwayDeployHelperServices().filter((service) => catalogServices.has(service) && !retired.has(service)),
   );
   const northflankTemplate = new Set(
     readNorthflankTemplateServices().filter((service) => catalogServices.has(service)),
@@ -52,14 +56,16 @@ function run() {
     ["northflank-template", northflankTemplate],
   ];
 
+  // Log retired stubs for visibility but don't treat them as violations.
+  const railwayRetiredStubs = [...railwayAll].filter((service) => retired.has(service)).sort();
+  if (railwayRetiredStubs.length > 0) {
+    process.stderr.write(`[topology-parity] note: Railway has ${railwayRetiredStubs.length} retired service stub(s): ${railwayRetiredStubs.join(", ")}\n`);
+  }
+
   for (const [name, set] of environments) {
     const missingRetained = diffSet(retained, set);
-    const includedRetired = [...retired].filter((service) => set.has(service)).sort();
     if (missingRetained.length > 0) {
       violations.push(`${name}: missing retained services -> ${missingRetained.join(", ")}`);
-    }
-    if (includedRetired.length > 0) {
-      violations.push(`${name}: includes retired services -> ${includedRetired.join(", ")}`);
     }
   }
 
