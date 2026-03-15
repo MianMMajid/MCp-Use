@@ -26,12 +26,30 @@ Archived retired services:
 - `backend/legacy/retired-services/model-router`
 - `backend/legacy/retired-services/secrets-broker`
 
+## Prerequisites
+
+- **Node.js 22+** (`nvm use` reads `.nvmrc` automatically)
+- **Docker** (for local PostgreSQL 16 and Redis 7 — auto-provisioned)
+- **npm 8+** (ships with Node 22)
+- **git** (for repo root detection in scripts)
+
+Optional:
+- **OpenClaw CLI** — only needed with `npm run dev:fast:openclaw`
+
 ## Quick Start
 
 ```bash
 npm install
 npm run dev
 ```
+
+This single command:
+1. Runs preflight checks (config, TLS certs, contracts)
+2. Builds all 8 backend services
+3. Starts PostgreSQL and Redis via Docker (auto-provisioned)
+4. Generates local TLS certificates
+5. Launches the full service mesh + 3 frontend dev servers
+6. Waits for all services to be ready (~2-3 minutes on first run)
 
 Fast local loop (`npm run dev`) starts local dependencies plus gateway, core services, and A/B/C surfaces.
 
@@ -175,6 +193,17 @@ Railway topology is parity-checked against mesh and K8s via:
 
 - `backend/backendA-platform-infra/deploy/northflank/template.backend-mesh.json`
 - `backend/backendA-platform-infra/deploy/northflank/README.md`
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `npm run dev` hangs on "waiting for postgres" | Ensure Docker is running: `docker info` |
+| Port 5432 or 6379 already in use | Stop existing containers: `docker rm -f maple-dev-postgres maple-dev-redis` |
+| Node.js version mismatch | Install correct version: `nvm install && nvm use` |
+| Services crash on startup | Check logs: `tail -f .maple/dev-fast/logs/<service>.log` |
+| TLS cert errors | Force regeneration: `MAPLE_FORCE_CERT_REGEN=1 npm run dev` |
+| Stale processes after crash | Clean up: `npm run local:down` then `npm run dev` |
 
 ## Additional Docs
 
