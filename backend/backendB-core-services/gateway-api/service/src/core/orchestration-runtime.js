@@ -49,7 +49,7 @@ function clamp(value, min, max) {
 function toExecutionEvent(execution, eventType, payload = {}) {
   const sequence = ++executionEventSequence;
   return {
-    id: `orch_evt_${sequence}`,
+    id: `orch_evt_${execution.executionId}_${sequence}`,
     sequence,
     cursor: String(sequence),
     executionId: execution.executionId,
@@ -97,42 +97,72 @@ function normalizeDelegationPolicy(input) {
   };
 }
 
+function extractNodeData(raw) {
+  return raw?.data && typeof raw.data === "object" ? raw.data : {};
+}
+
 function isInstructionLikeNode(input) {
   const raw = input && typeof input === "object" ? input : {};
+  const data = extractNodeData(raw);
   const id = asString(raw.id) ?? "";
-  const role = asString(raw.role ?? raw.metadata?.role) ?? "";
-  const agentId = asString(raw.agentId) ?? "";
-  return id === "instruction-root" || role === "instruction" || agentId === "instruction";
+  const role = asString(raw.role ?? data.role ?? raw.metadata?.role ?? raw.type ?? data.type) ?? "";
+  const agentId = asString(raw.agentId ?? data.agentId) ?? "";
+  const label = asString(raw.label ?? data.label ?? raw.name) ?? "";
+  return (
+    id === "instruction-root" ||
+    role === "instruction" ||
+    agentId === "instruction" ||
+    label.toLowerCase() === "instruction-root"
+  );
 }
 
 function normalizeNode(input, idx = 0) {
   const raw = input && typeof input === "object" ? input : {};
+  const data = extractNodeData(raw);
   const id = asString(raw.id) ?? `node-${idx + 1}`;
   const metadata = raw.metadata && typeof raw.metadata === "object" ? { ...raw.metadata } : {};
   const isInstruction = isInstructionLikeNode(raw);
+  const role = isInstruction
+    ? "instruction"
+    : asString(raw.role ?? data.role ?? metadata.role ?? raw.type ?? data.type) ?? "";
+  const nodeObjective =
+    asString(raw.nodeObjective ?? data.nodeObjective ?? data.objective ?? data.prompt ?? data.description) ?? "";
   if (isInstruction) {
     metadata.isInstruction = true;
     metadata.role = "instruction";
   }
   return {
     id,
-    label: asString(raw.label) ?? asString(raw.name) ?? id,
-    agentId: isInstruction ? "" : asString(raw.agentId) ?? "",
-    role: isInstruction ? "instruction" : asString(raw.role ?? metadata.role) ?? "",
-    position: raw.position && typeof raw.position === "object" ? raw.position : { x: 0, y: 0 },
-    config: raw.config && typeof raw.config === "object" ? { ...raw.config } : {},
-    dynamic: raw.dynamic === true,
-    spawned: raw.spawned === true,
+    label: asString(raw.label ?? data.label) ?? asString(raw.name ?? data.name) ?? id,
+    agentId: isInstruction ? "" : asString(raw.agentId ?? data.agentId) ?? "",
+    role,
+    position:
+      raw.position && typeof raw.position === "object"
+        ? raw.position
+        : (data.position && typeof data.position === "object" ? data.position : { x: 0, y: 0 }),
+    config: {
+      ...(raw.config && typeof raw.config === "object" ? raw.config : {}),
+      ...(data.config && typeof data.config === "object" ? data.config : {}),
+    },
+    dynamic: raw.dynamic === true || data.dynamic === true,
+    spawned: raw.spawned === true || data.spawned === true,
     status: "pending",
     retryCount: 0,
-    maxRetries: clamp(asInteger(raw.maxRetries ?? raw.config?.maxRetries, 1), 0, 10),
+    maxRetries: clamp(
+      asInteger(raw.maxRetries ?? data.maxRetries ?? raw.config?.maxRetries ?? data.config?.maxRetries, 1),
+      0,
+      10,
+    ),
     runId: "",
     outputPreview: "",
     error: "",
     startedAt: "",
     completedAt: "",
-    nodeObjective: asString(raw.nodeObjective) ?? "",
-    metadata,
+    nodeObjective,
+    metadata: {
+      ...metadata,
+      ...(role ? { role } : {}),
+    },
   };
 }
 

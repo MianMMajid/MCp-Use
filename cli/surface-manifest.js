@@ -41,6 +41,108 @@ function mapAgentRunPrompt({ body }) {
   return body;
 }
 
+function parseBooleanLike(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  const text = String(value).trim().toLowerCase();
+  if (!text) return undefined;
+  if (["1", "true", "yes", "on"].includes(text)) return true;
+  if (["0", "false", "no", "off"].includes(text)) return false;
+  return undefined;
+}
+
+function parseIntegerLike(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseInlineJson(value, fallback = undefined) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function collectKeyValueObject(values) {
+  const output = {};
+  for (const raw of arrayOption(values)) {
+    const entry = String(raw ?? "");
+    const separator = entry.indexOf("=");
+    if (separator <= 0) continue;
+    const key = entry.slice(0, separator).trim();
+    const value = entry.slice(separator + 1).trim();
+    if (!key) continue;
+    const jsonValue = parseInlineJson(value, undefined);
+    output[key] = jsonValue === undefined ? value : jsonValue;
+  }
+  return output;
+}
+
+function buildNotificationPreferencesBody(body = {}, options = {}) {
+  const categories = {
+    approvals: parseBooleanLike(options.approvals),
+    escalations: parseBooleanLike(options.escalations),
+    run_failures: parseBooleanLike(options.runFailures),
+    system_alerts: parseBooleanLike(options.systemAlerts),
+  };
+  const channels = {
+    email: parseBooleanLike(options.email),
+    in_app: parseBooleanLike(options.inApp),
+  };
+  const nextCategories = Object.fromEntries(Object.entries(categories).filter(([, value]) => value !== undefined));
+  const nextChannels = Object.fromEntries(Object.entries(channels).filter(([, value]) => value !== undefined));
+  if (Object.keys(nextCategories).length > 0) body.categories = nextCategories;
+  if (Object.keys(nextChannels).length > 0) body.channels = nextChannels;
+  return body;
+}
+
+function shouldSetNotificationPreferences(options = {}) {
+  return [
+    "approvals",
+    "escalations",
+    "runFailures",
+    "systemAlerts",
+    "email",
+    "inApp",
+  ].some((key) => options[key] !== undefined);
+}
+
+function buildTaskSchedule(options = {}) {
+  const startAt = options.startAt;
+  const endAt = options.endAt;
+  const timezone = options.timezone;
+  const intervalMinutes = parseIntegerLike(options.intervalMinutes);
+  const maxRepeats = parseIntegerLike(options.maxRepeats);
+  if (!startAt && !endAt && !timezone && intervalMinutes === undefined && maxRepeats === undefined) {
+    return undefined;
+  }
+  return {
+    ...(startAt ? { startAt } : {}),
+    ...(endAt ? { endAt } : {}),
+    ...(timezone ? { timezone } : {}),
+    ...(intervalMinutes !== undefined ? { intervalMinutes } : {}),
+    ...(maxRepeats !== undefined ? { maxRepeats } : {}),
+  };
+}
+
+function buildTaskAssignment(options = {}) {
+  if (options.agentId) {
+    return { agentId: String(options.agentId).trim() };
+  }
+  if (options.orchestrationId) {
+    return { orchestrationId: String(options.orchestrationId).trim() };
+  }
+  return undefined;
+}
+
+function positionalValue(positional, index) {
+  return positional[index] === undefined ? undefined : String(positional[index]).trim();
+}
+
 export const CLI_SURFACE_MANIFEST = [
   spec({
     id: "auth.login",
@@ -327,10 +429,20 @@ export const CLI_SURFACE_MANIFEST = [
   spec({
     id: "notifications.preferences.get",
     commandPath: ["notifications", "preferences"],
-    description: "Get notification preferences",
+    description: "Get or update notification preferences",
     path: "/api/notifications/preferences",
+    methodResolver: ({ options }) => (shouldSetNotificationPreferences(options) ? "POST" : "GET"),
     backendRoutes: ["GET /api/notifications/preferences", "POST /api/notifications/preferences"],
     frontendPaths: ["/api/notifications/preferences"],
+    options: [
+      option("--approvals <true|false>", "Enable approval notifications"),
+      option("--escalations <true|false>", "Enable escalation notifications"),
+      option("--run-failures <true|false>", "Enable run failure notifications", { key: "runFailures" }),
+      option("--system-alerts <true|false>", "Enable system alert notifications", { key: "systemAlerts" }),
+      option("--email <true|false>", "Enable email delivery"),
+      option("--in-app <true|false>", "Enable in-app delivery", { key: "inApp" }),
+    ],
+    bodyBuilder: ({ body, options }) => buildNotificationPreferencesBody(body, options),
   }),
   spec({
     id: "notifications.preferences.set",
@@ -340,6 +452,15 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/notifications/preferences",
     backendRoutes: ["POST /api/notifications/preferences"],
     frontendPaths: ["/api/notifications/preferences"],
+    options: [
+      option("--approvals <true|false>", "Enable approval notifications"),
+      option("--escalations <true|false>", "Enable escalation notifications"),
+      option("--run-failures <true|false>", "Enable run failure notifications", { key: "runFailures" }),
+      option("--system-alerts <true|false>", "Enable system alert notifications", { key: "systemAlerts" }),
+      option("--email <true|false>", "Enable email delivery"),
+      option("--in-app <true|false>", "Enable in-app delivery", { key: "inApp" }),
+    ],
+    bodyBuilder: ({ body, options }) => buildNotificationPreferencesBody(body, options),
   }),
   spec({
     id: "runtime.status",
@@ -397,6 +518,20 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/org/:orgId",
     backendRoutes: ["PATCH /api/org/:orgId"],
     args: [arg("orgId", "Organization ID", { pathParam: true })],
+    options: [
+      option("--name <name>", "Organization name"),
+      option("--description <text>", "Organization description"),
+      option("--bio <text>", "Organization bio"),
+      option("--email <email>", "Organization email"),
+      option("--city <city>", "Organization city"),
+      option("--region <region>", "Organization region"),
+      option("--country <country>", "Organization country"),
+      option("--postal-code <code>", "Postal code", { key: "postal_code" }),
+      option("--address <text>", "Street address"),
+      option("--currency <code>", "Billing currency"),
+      option("--status <status>", "Organization status"),
+    ],
+    bodyKeys: ["name", "description", "bio", "email", "city", "region", "country", "postal_code", "address", "currency", "status"],
   }),
   spec({
     id: "org.members",
@@ -477,6 +612,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "List personal API keys",
     path: "/api/user/api-keys",
     backendRoutes: ["GET /api/user/api-keys", "POST /api/user/api-keys", "DELETE /api/user/api-keys/:keyId"],
+    args: [arg("orgId", "Optional org context for parity", { optional: true })],
   }),
   spec({
     id: "org.create-api-key",
@@ -485,6 +621,7 @@ export const CLI_SURFACE_MANIFEST = [
     method: "POST",
     path: "/api/user/api-keys",
     backendRoutes: ["POST /api/user/api-keys"],
+    args: [arg("orgId", "Optional org context for parity", { optional: true })],
     options: [option("--name <name>", "Display name"), option("--expires-in-days <days>", "Expiry window", { key: "expiresInDays" })],
     bodyKeys: ["name", "expiresInDays"],
   }),
@@ -561,8 +698,16 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get usage summary",
     path: "/api/usage/summary",
     backendRoutes: ["GET /api/usage/summary"],
+    args: [arg("orgId", "Optional organization ID", { optional: true })],
     options: [option("--window <window>", "Window"), option("--org-id <orgId>", "Organization ID", { key: "orgId" })],
     queryKeys: ["window", "orgId"],
+    queryBuilder: ({ positional, options, query }) => {
+      const positionalOrgId = positionalValue(positional, 0);
+      if (positionalOrgId && !options.orgId) {
+        query.set("orgId", positionalOrgId);
+      }
+      return query;
+    },
   }),
   spec({
     id: "org.usage-timeseries",
@@ -570,15 +715,20 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get usage timeseries",
     path: "/api/usage/timeseries",
     backendRoutes: ["GET /api/usage/timeseries"],
+    args: [arg("orgId", "Optional organization ID", { optional: true })],
     options: [
       option("--days <n>", "Number of days"),
       option("--window <window>", "Window alias (for example 7d)"),
       option("--org-id <orgId>", "Organization ID", { key: "orgId" }),
     ],
     queryKeys: ["days", "orgId"],
-    queryBuilder: ({ options, query }) => {
+    queryBuilder: ({ positional, options, query }) => {
       const days = String(options.days || "").trim();
       const windowValue = String(options.window || "").trim().toLowerCase();
+      const positionalOrgId = positionalValue(positional, 0);
+      if (positionalOrgId && !options.orgId) {
+        query.set("orgId", positionalOrgId);
+      }
       if (!days && /^\d+d$/.test(windowValue)) {
         query.set("days", String(Number.parseInt(windowValue.slice(0, -1), 10)));
       }
@@ -591,6 +741,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get limit state",
     path: "/api/limits",
     backendRoutes: ["GET /api/limits", "POST /api/limits/override"],
+    args: [arg("orgId", "Optional organization ID", { optional: true })],
   }),
   spec({
     id: "org.override-limit",
@@ -1752,6 +1903,34 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/downstream/dispatch",
     backendRoutes: ["POST /api/downstream/dispatch"],
     frontendPaths: ["/api/downstream/dispatch"],
+    options: [
+      option("--app-id <id>", "Primary downstream app ID", { key: "appId" }),
+      option("--tool-name <name>", "Tool name", { key: "toolName" }),
+      option("--session-id <id>", "Dispatch session ID", { key: "sessionId" }),
+      option("--trace-id <id>", "Trace ID", { key: "traceId" }),
+      option("--chain-app-id <id>", "Chain app ID", { key: "chainAppIds", collect: true }),
+      option("--argument <key=value>", "Tool argument", { key: "arguments", collect: true }),
+      option("--arguments-json <json>", "Inline JSON tool arguments", { key: "argumentsJson" }),
+    ],
+    bodyBuilder: ({ body, options }) => {
+      const inlineArgs = parseInlineJson(options.argumentsJson, {});
+      const collectedArgs = collectKeyValueObject(options.arguments ?? options.argument);
+      return {
+        ...body,
+        ...(options.appId ? { appId: options.appId } : {}),
+        ...(options.toolName ? { toolName: options.toolName } : {}),
+        ...(options.sessionId ? { sessionId: options.sessionId } : {}),
+        ...(options.traceId ? { traceId: options.traceId } : {}),
+        ...(arrayOption(options.chainAppIds ?? options.chainAppId).length > 0
+          ? { chainAppIds: arrayOption(options.chainAppIds ?? options.chainAppId) }
+          : {}),
+        arguments: {
+          ...(body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments) ? body.arguments : {}),
+          ...(inlineArgs && typeof inlineArgs === "object" && !Array.isArray(inlineArgs) ? inlineArgs : {}),
+          ...collectedArgs,
+        },
+      };
+    },
   }),
   spec({
     id: "firewall.chat",
@@ -1932,6 +2111,14 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/skills/import",
     backendRoutes: ["POST /api/skills/import"],
     frontendPaths: ["/api/skills/import"],
+    options: [
+      option("--tool-id <id>", "Skill/tool ID", { key: "toolId" }),
+      option("--name <name>", "Display name"),
+      option("--description <text>", "Description"),
+      option("--schema <json>", "Inline JSON schema"),
+      option("--schema-file <path>", "JSON schema file path", { key: "schemaFile" }),
+    ],
+    bodyKeys: ["toolId", "name", "description"],
   }),
   spec({
     id: "skills.smoke-test",
@@ -1981,6 +2168,24 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/tasks",
     backendRoutes: ["POST /api/tasks"],
     frontendPaths: ["/api/tasks"],
+    options: [
+      option("--title <title>", "Task title"),
+      option("--prompt <text>", "Task prompt"),
+      option("--agent-id <id>", "Assign to an agent", { key: "agentId" }),
+      option("--orchestration-id <id>", "Assign to an orchestration", { key: "orchestrationId" }),
+      option("--start-at <iso>", "Schedule start timestamp", { key: "startAt" }),
+      option("--end-at <iso>", "Schedule end timestamp", { key: "endAt" }),
+      option("--timezone <tz>", "IANA timezone"),
+      option("--interval-minutes <n>", "Repeat interval in minutes", { key: "intervalMinutes" }),
+      option("--max-repeats <n>", "Maximum repeat count", { key: "maxRepeats" }),
+    ],
+    bodyBuilder: ({ body, options }) => ({
+      ...body,
+      ...(options.title ? { title: options.title } : {}),
+      ...(options.prompt ? { prompt: options.prompt } : {}),
+      ...(buildTaskSchedule(options) ? { schedule: buildTaskSchedule(options) } : {}),
+      ...(buildTaskAssignment(options) ? { assignment: buildTaskAssignment(options) } : {}),
+    }),
   }),
   spec({
     id: "tasks.update",
@@ -1991,6 +2196,21 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["PATCH /api/tasks/:taskId"],
     frontendPaths: ["/api/tasks/:param"],
     args: [arg("taskId", "Task ID", { pathParam: true })],
+    options: [
+      option("--title <title>", "Task title"),
+      option("--prompt <text>", "Task prompt"),
+      option("--start-at <iso>", "Schedule start timestamp", { key: "startAt" }),
+      option("--end-at <iso>", "Schedule end timestamp", { key: "endAt" }),
+      option("--timezone <tz>", "IANA timezone"),
+      option("--interval-minutes <n>", "Repeat interval in minutes", { key: "intervalMinutes" }),
+      option("--max-repeats <n>", "Maximum repeat count", { key: "maxRepeats" }),
+    ],
+    bodyBuilder: ({ body, options }) => ({
+      ...body,
+      ...(options.title ? { title: options.title } : {}),
+      ...(options.prompt ? { prompt: options.prompt } : {}),
+      ...(buildTaskSchedule(options) ? { schedule: buildTaskSchedule(options) } : {}),
+    }),
   }),
   spec({
     id: "tasks.delete",
@@ -2084,6 +2304,14 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/firewalls",
     backendRoutes: ["POST /api/firewalls"],
     frontendPaths: ["/api/firewalls"],
+    options: [
+      option("--name <name>", "Firewall name"),
+      option("--policy-text <text>", "Policy YAML", { key: "policyText" }),
+      option("--scope <scope>", "global or agent"),
+      option("--assigned-agent-id <id>", "Assigned agent ID", { key: "assignedAgentId" }),
+      option("--folder <name>", "Folder name"),
+    ],
+    bodyKeys: ["name", "policyText", "scope", "assignedAgentId", "folder"],
   }),
   spec({
     id: "firewalls.update",
@@ -2094,6 +2322,14 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["PATCH /api/firewalls/:id"],
     frontendPaths: ["/api/firewalls/:param"],
     args: [arg("id", "Firewall ID", { pathParam: true })],
+    options: [
+      option("--name <name>", "Firewall name"),
+      option("--policy-text <text>", "Policy YAML", { key: "policyText" }),
+      option("--scope <scope>", "global or agent"),
+      option("--assigned-agent-id <id>", "Assigned agent ID", { key: "assignedAgentId" }),
+      option("--folder <name>", "Folder name"),
+    ],
+    bodyKeys: ["name", "policyText", "scope", "assignedAgentId", "folder"],
   }),
   spec({
     id: "firewalls.archive",
@@ -2135,6 +2371,8 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/firewalls/:id/versions"],
     frontendPaths: ["/api/firewalls/:param/versions"],
     args: [arg("id", "Firewall ID", { pathParam: true })],
+    options: [option("--policy-text <text>", "Policy YAML", { key: "policyText" })],
+    bodyKeys: ["policyText"],
   }),
   spec({
     id: "firewalls.activate-version",
@@ -2156,6 +2394,12 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/firewalls/:id/validate"],
     frontendPaths: ["/api/firewalls/:param/validate"],
     args: [arg("id", "Firewall ID", { pathParam: true })],
+    options: [
+      option("--version-id <id>", "Firewall version ID", { key: "versionId" }),
+      option("--policy-text <text>", "Policy YAML override", { key: "policyText" }),
+      option("--agent-id <id>", "Agent ID for preview", { key: "agentId" }),
+    ],
+    bodyKeys: ["versionId", "policyText", "agentId"],
   }),
   spec({
     id: "firewalls.simulate",
@@ -2166,6 +2410,14 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/firewalls/:id/simulate"],
     frontendPaths: ["/api/firewalls/:param/simulate"],
     args: [arg("id", "Firewall ID", { pathParam: true })],
+    options: [
+      option("--prompt <text>", "Simulation prompt"),
+      option("--request <text>", "Raw simulation request", { key: "request" }),
+      option("--version-id <id>", "Firewall version ID", { key: "versionId" }),
+      option("--policy-text <text>", "Policy YAML override", { key: "policyText" }),
+      option("--agent-id <id>", "Agent ID for preview", { key: "agentId" }),
+    ],
+    bodyKeys: ["prompt", "request", "versionId", "policyText", "agentId"],
   }),
   spec({
     id: "firewalls.add-text-entry",
@@ -2176,6 +2428,12 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/firewalls/:id/entries/text"],
     frontendPaths: ["/api/firewalls/:param/entries/text"],
     args: [arg("id", "Firewall ID", { pathParam: true })],
+    options: [
+      option("--content <text>", "Entry content"),
+      option("--preview <text>", "Preview text"),
+      option("--name <name>", "Entry name"),
+    ],
+    bodyKeys: ["content", "preview", "name"],
   }),
   spec({
     id: "firewalls.upload-file-entry",

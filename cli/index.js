@@ -53,7 +53,10 @@ function createCommandTree(root) {
     const leaf = new Command(spec.commandPath.at(-1));
     leaf.description(spec.description || spec.id);
     for (const definition of spec.args || []) {
-      leaf.argument(`<${definition.name}>`, definition.description || definition.name);
+      leaf.argument(
+        definition.optional ? `[${definition.name}]` : `<${definition.name}>`,
+        definition.description || definition.name
+      );
     }
     for (const definition of spec.options || []) {
       if (definition.collect) {
@@ -91,11 +94,16 @@ function collectValue(value, previous = []) {
   return [...flattenOptionsArray(previous), value];
 }
 
-function buildPath(spec, positional) {
+function buildArgumentValues(spec, positional) {
   const byName = new Map();
   for (let idx = 0; idx < (spec.args || []).length; idx += 1) {
     byName.set(spec.args[idx].name, positional[idx]);
   }
+  return byName;
+}
+
+function buildPath(spec, positional) {
+  const byName = buildArgumentValues(spec, positional);
   let path = spec.path || "";
   for (const definition of spec.args || []) {
     if (definition.pathParam) {
@@ -110,10 +118,7 @@ function buildBody(spec, positional, options) {
     ...(spec.bodyStatic || {}),
     ...mergeBodyOptions(options),
   };
-  const argumentValues = new Map();
-  for (let idx = 0; idx < (spec.args || []).length; idx += 1) {
-    argumentValues.set(spec.args[idx].name, positional[idx]);
-  }
+  const argumentValues = buildArgumentValues(spec, positional);
   for (const definition of spec.options || []) {
     const key = optionKey(definition);
     const value = commandOptionValue(options[key]);
@@ -127,12 +132,12 @@ function buildBody(spec, positional, options) {
     }
   }
   if (typeof spec.bodyBuilder === "function") {
-    Object.assign(body, spec.bodyBuilder({ positional, options, body: { ...body } }) || {});
+    Object.assign(body, spec.bodyBuilder({ positional, args: argumentValues, options, body: { ...body } }) || {});
   }
   return body;
 }
 
-function buildQuery(spec, options) {
+function buildQuery(spec, positional, options) {
   const query = mergeQueryOptions(options);
   for (const definition of spec.options || []) {
     const key = optionKey(definition);
@@ -145,9 +150,16 @@ function buildQuery(spec, options) {
     }
   }
   if (typeof spec.queryBuilder === "function") {
-    spec.queryBuilder({ options, query });
+    spec.queryBuilder({ options, query, positional, args: buildArgumentValues(spec, positional) });
   }
   return query;
+}
+
+function resolveMethod(spec, positional, options) {
+  if (typeof spec.methodResolver === "function") {
+    return String(spec.methodResolver({ positional, options }) || spec.method || "GET").toUpperCase();
+  }
+  return String(spec.method || "GET").toUpperCase();
 }
 
 function requestHeadersFromOptions(options) {
@@ -197,8 +209,20 @@ function buildRequestPayload(spec, positional, options) {
       },
     ]);
   }
+  if (spec.id === "skills.import") {
+    const body = buildBody(spec, positional, options);
+    const schemaFilePath = commandOptionValue(options.schemaFile);
+    if (schemaFilePath) {
+      body.schema = JSON.parse(readFileSync(resolvePath(String(schemaFilePath)), "utf8"));
+    } else if (options.schema !== undefined) {
+      body.schema = maybeParseJson(String(options.schema)) ?? body.schema;
+    }
+    return {
+      body: Object.keys(body).length > 0 ? body : undefined,
+    };
+  }
   const body = buildBody(spec, positional, options);
-  const method = String(spec.method || "GET").toUpperCase();
+  const method = resolveMethod(spec, positional, options);
   return {
     body:
       method === "GET" || method === "HEAD"
@@ -228,9 +252,9 @@ async function executeManifestCommand(spec, positional, options) {
 
 async function executeRequest(spec, profileName, profile, positional, options) {
   const { path } = buildPath(spec, positional);
-  const query = buildQuery(spec, options);
+  const query = buildQuery(spec, positional, options);
   const requestPath = `${path}${query.size ? `?${query.toString()}` : ""}`;
-  const method = String(spec.method || "GET").toUpperCase();
+  const method = resolveMethod(spec, positional, options);
   const requestPayload = buildRequestPayload(spec, positional, options);
   const response = await httpRequest({
     profileName,
@@ -259,10 +283,10 @@ async function executeRequest(spec, profileName, profile, positional, options) {
 
 async function executeEventStream(spec, profileName, profile, positional, options) {
   const { path } = buildPath(spec, positional);
-  const query = buildQuery(spec, options);
+  const query = buildQuery(spec, positional, options);
   const requestPath = `${path}${query.size ? `?${query.toString()}` : ""}`;
   const body = buildBody(spec, positional, options);
-  const method = String(spec.method || "GET").toUpperCase();
+  const method = resolveMethod(spec, positional, options);
   const events = [];
   await httpSse({
     profileName,

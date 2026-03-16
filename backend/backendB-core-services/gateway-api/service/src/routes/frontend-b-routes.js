@@ -152,6 +152,20 @@ async function resolveTaskOrchestrationRuntime(ownerUserId, orchestrationId) {
     return null;
   }
 
+  const currentNodes = Array.isArray(orchestration.nodes) ? orchestration.nodes : [];
+  const currentEdges = Array.isArray(orchestration.edges) ? orchestration.edges : [];
+  if (currentNodes.length > 0 || currentEdges.length > 0) {
+    return {
+      orchestration: {
+        ...orchestration,
+        nodes: currentNodes,
+        edges: currentEdges,
+      },
+      versionId: null,
+      definitionVersion: asString(orchestration.updatedAt) ?? "",
+    };
+  }
+
   if (typeof database.findLatestOrchestrationVersion !== "function") {
     return {
       orchestration,

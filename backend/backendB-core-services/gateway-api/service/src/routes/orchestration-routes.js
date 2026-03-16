@@ -302,7 +302,7 @@ async function readExecutionGraphFromDb(executionId) {
   if (!database?.pool) return null;
   const [nodesResult, edgesResult, versionResult] = await Promise.all([
     database.pool.query(
-      `SELECT node_id, status, retry_count, started_at, completed_at, error_text, output_preview
+      `SELECT node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json
          FROM orchestration_execution_nodes
         WHERE execution_id = $1
         ORDER BY node_id ASC`,
@@ -330,17 +330,23 @@ async function readExecutionGraphFromDb(executionId) {
   return {
     executionId,
     runtimeGraphVersion: Number(versionResult.rows[0]?.runtime_graph_version ?? 1),
-    nodes: nodesResult.rows.map((row) => ({
-      id: row.node_id,
-      role: row.node_id === "instruction-root" ? "instruction" : "",
-      status: row.status,
-      retryCount: Number(row.retry_count ?? 0),
-      startedAt: row.started_at ?? "",
-      completedAt: row.completed_at ?? "",
-      error: row.error_text ?? "",
-      outputPreview: row.output_preview ?? "",
-      isInstruction: row.node_id === "instruction-root",
-    })),
+    nodes: nodesResult.rows.map((row) => {
+      const metadata = parsePayload(row.cost_json, {});
+      return {
+        id: row.node_id,
+        label: metadata.label ?? row.node_id,
+        agentId: metadata.agentId ?? "",
+        role: metadata.role ?? (row.node_id === "instruction-root" ? "instruction" : ""),
+        status: row.status,
+        retryCount: Number(row.retry_count ?? 0),
+        startedAt: row.started_at ?? "",
+        completedAt: row.completed_at ?? "",
+        error: row.error_text ?? "",
+        outputPreview: row.output_preview ?? "",
+        nodeObjective: metadata.nodeObjective ?? "",
+        isInstruction: metadata.isInstruction === true || row.node_id === "instruction-root",
+      };
+    }),
     edges: edgesResult.rows.map((row) => ({
       id: row.edge_id,
       source: row.source_node_id,
@@ -372,10 +378,14 @@ async function readExecutionTimelineFromDb(executionId, cursor = "0", limit = 30
         WHERE execution_id = $1`,
       [executionId],
     );
+    const maxSequence = Number(latest.rows[0]?.max_sequence ?? afterSequence);
+    if (maxSequence === 0) {
+      return null;
+    }
     return {
       executionId,
       items: [],
-      latestCursor: String(Number(latest.rows[0]?.max_sequence ?? afterSequence)),
+      latestCursor: String(maxSequence),
     };
   }
 
@@ -445,7 +455,7 @@ async function persistExecutionSnapshot(executionId) {
   const nodes = graph.nodes ?? [];
   if (nodes.length > 0) {
     const ids = [], execIds = [], nodeIds = [], statuses = [], retryCounts = [];
-    const startedAts = [], completedAts = [], errorTexts = [], outputPreviews = [];
+    const startedAts = [], completedAts = [], errorTexts = [], outputPreviews = [], nodeMetadata = [];
     for (const node of nodes) {
       ids.push(`${execution.executionId}:${node.id}`);
       execIds.push(execution.executionId);
@@ -456,6 +466,13 @@ async function persistExecutionSnapshot(executionId) {
       completedAts.push(node.completedAt || null);
       errorTexts.push(node.error ?? "");
       outputPreviews.push(node.outputPreview ?? "");
+      nodeMetadata.push(JSON.stringify({
+        label: node.label ?? node.id,
+        agentId: node.agentId ?? "",
+        role: node.role ?? "",
+        nodeObjective: node.nodeObjective ?? "",
+        isInstruction: node.isInstruction === true || node.metadata?.isInstruction === true,
+      }));
     }
     await database.pool.query(
       `INSERT INTO orchestration_execution_nodes
@@ -470,19 +487,20 @@ async function persistExecutionSnapshot(executionId) {
          t.completed_at,
          t.error_text,
          t.output_preview,
-         '{}'::jsonb
+         t.cost_json
        FROM UNNEST(
          $1::text[], $2::text[], $3::text[], $4::text[], $5::int[],
-         $6::timestamptz[], $7::timestamptz[], $8::text[], $9::text[]
-       ) AS t(id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview)
+         $6::timestamptz[], $7::timestamptz[], $8::text[], $9::text[], $10::text[]
+       ) AS t(id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
        ON CONFLICT (id) DO UPDATE
        SET status = EXCLUDED.status,
            retry_count = EXCLUDED.retry_count,
            started_at = EXCLUDED.started_at,
            completed_at = EXCLUDED.completed_at,
            error_text = EXCLUDED.error_text,
-           output_preview = EXCLUDED.output_preview`,
-      [ids, execIds, nodeIds, statuses, retryCounts, startedAts, completedAts, errorTexts, outputPreviews],
+           output_preview = EXCLUDED.output_preview,
+           cost_json = EXCLUDED.cost_json`,
+      [ids, execIds, nodeIds, statuses, retryCounts, startedAts, completedAts, errorTexts, outputPreviews, nodeMetadata],
     );
   }
 
@@ -624,6 +642,20 @@ async function findLatestOrchestrationVersion(orchestrationId) {
 }
 
 async function resolveDefinitionForRuntime(orchestration, definitionVersion) {
+  const currentNodes = Array.isArray(orchestration?.nodes) ? orchestration.nodes : [];
+  const currentEdges = Array.isArray(orchestration?.edges) ? orchestration.edges : [];
+  const hasCurrentDefinition = currentNodes.length > 0 || currentEdges.length > 0;
+  if (!definitionVersion && hasCurrentDefinition) {
+    return {
+      orchestration: {
+        ...orchestration,
+        nodes: currentNodes,
+        edges: currentEdges,
+      },
+      versionRecord: null,
+      resolvedDefinitionVersion: asString(orchestration.updatedAt) ?? "",
+    };
+  }
   const versionRecord =
     (await findOrchestrationVersion(orchestration.id, definitionVersion)) ??
     (await findLatestOrchestrationVersion(orchestration.id));
@@ -769,17 +801,20 @@ export function registerOrchestrationRoutes(app) {
     const executionId = asString(c.req.param("executionId")) ?? "";
     const cursor = asString(c.req.query("cursor")) ?? "0";
     const limit = parseBoundedInteger(c.req.query("limit"), 300, 1, 1000);
+    const execution = (await readExecutionFromDb(executionId)) ?? getOrchestrationExecution(executionId);
     const timeline = (await readExecutionTimelineFromDb(executionId, cursor, limit))
       ?? getOrchestrationExecutionTimeline(executionId, { cursor, limit });
-    if (!timeline) {
+    if (!timeline && !execution) {
       return c.json({ ok: false, error: "Execution not found." }, 404);
     }
+    const items = timeline?.items ?? [];
+    const latestCursor = timeline?.latestCursor ?? cursor;
     return c.json({
       ok: true,
-      timeline: timeline.items,
-      items: timeline.items,
-      latestCursor: timeline.latestCursor,
-      cursor: timeline.latestCursor,
+      timeline: items,
+      items,
+      latestCursor,
+      cursor: latestCursor,
     });
   });
 
@@ -790,11 +825,13 @@ export function registerOrchestrationRoutes(app) {
     const executionId = asString(c.req.param("executionId")) ?? "";
     const fromDbExecution = await readExecutionFromDb(executionId);
     if (fromDbExecution) {
-      const [graph, timeline, mutations] = await Promise.all([
+      const [graph, dbTimeline, mutations] = await Promise.all([
         readExecutionGraphFromDb(executionId),
         readExecutionTimelineFromDb(executionId, "0", 1000),
         readExecutionMutationsFromDb(executionId),
       ]);
+      const runtimeTimeline = getOrchestrationExecutionTimeline(executionId, { cursor: "0", limit: 1000 });
+      const timelineItems = dbTimeline?.items ?? runtimeTimeline?.items ?? [];
       return c.json({
         ok: true,
         execution: fromDbExecution,
@@ -806,7 +843,7 @@ export function registerOrchestrationRoutes(app) {
           edges: [],
           approvals: [],
         },
-        timeline: timeline?.items ?? [],
+        timeline: timelineItems,
         mutations,
       });
     }
