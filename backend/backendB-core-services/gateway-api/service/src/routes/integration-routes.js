@@ -13,6 +13,13 @@ import {
   resolveIntegrationOAuthAvailability,
   revokeIntegrationOAuthToken,
 } from "../core/integration-oauth.js";
+import {
+  completeCliBrowserFlow,
+  createCliBrowserFlow,
+  failCliBrowserFlow,
+  getCliBrowserFlow,
+  serializeCliBrowserFlow,
+} from "../core/cli-browser-flow-store.js";
 
 const INTEGRATION_CATALOG = [
   { id: "google-workspace", name: "Google Workspace", defaultAuthType: "oauth2" },
@@ -219,6 +226,10 @@ function buildCallbackRedirect(c, payload) {
   return target.toString();
 }
 
+function integrationCliFlowPath(provider, flowId) {
+  return `/api/integrations/${encodeURIComponent(provider)}/oauth/cli/${encodeURIComponent(flowId)}`;
+}
+
 export function registerIntegrationRoutes(app, options) {
   const database = options.database;
   const auditEmitter =
@@ -270,6 +281,105 @@ export function registerIntegrationRoutes(app, options) {
       return toApiIntegration(record, entry);
     });
     return c.json({ ok: true, items });
+  });
+
+  app.post("/api/integrations/:provider/oauth/cli/start", async (c) => {
+    const auth = await requireSession(c, database);
+    if (auth.error) {
+      return auth.error;
+    }
+    ensureIntegrationMethods(database);
+
+    const provider = normalizeProvider(c.req.param("provider"));
+    const definition = catalogById.get(provider);
+    if (!provider || !definition || definition.defaultAuthType !== "oauth2") {
+      return c.json({ error: "OAuth is unavailable for this provider." }, 404);
+    }
+
+    const availability = resolveIntegrationOAuthAvailability(provider);
+    if (!availability.configured) {
+      return c.json(
+        {
+          error: "OAuth provider is not configured.",
+          missing: availability.missing,
+        },
+        503
+      );
+    }
+
+    const flow = createCliBrowserFlow("integration-oauth", {
+      provider,
+      userId: auth.session.user.id,
+    });
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      ok: true,
+      flowId: flow.flowId,
+      provider,
+      browserUrl: `${origin}${integrationCliFlowPath(provider, flow.flowId)}?view=browser`,
+      pollUrl: integrationCliFlowPath(provider, flow.flowId),
+      expiresAt: flow.expiresAt,
+    });
+  });
+
+  app.get("/api/integrations/:provider/oauth/cli/:flowId", async (c) => {
+    const provider = normalizeProvider(c.req.param("provider"));
+    const flowId = asString(c.req.param("flowId"));
+    const flow = getCliBrowserFlow(flowId);
+    if (!flow || flow.kind !== "integration-oauth") {
+      return c.json({ error: "CLI integration flow not found." }, 404);
+    }
+    if (asString(flow.payload?.provider) !== provider) {
+      return c.json({ error: "CLI integration flow provider mismatch." }, 400);
+    }
+
+    if (String(c.req.query("view")).trim().toLowerCase() === "browser") {
+      const auth = await requireSession(c, database);
+      if (auth.error) {
+        failCliBrowserFlow(flowId, "Authentication required.");
+        return auth.error;
+      }
+      if (auth.session.user.id !== asString(flow.payload?.userId)) {
+        failCliBrowserFlow(flowId, "CLI integration flow session mismatch.");
+        return c.json({ error: "CLI integration flow session mismatch." }, 403);
+      }
+
+      const oauthStatus = asString(c.req.query("oauth")).toLowerCase();
+      if (oauthStatus === "success") {
+        const integration = await database.findUserIntegration(auth.session.user.id, provider);
+        if (!integration || asString(integration.status) !== "connected") {
+          failCliBrowserFlow(flowId, "Integration callback succeeded but no active connection was found.");
+          return new Response("Integration callback did not create an active connection.", {
+            status: 400,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
+        }
+        completeCliBrowserFlow(flowId, {
+          provider,
+          integration: toApiIntegration(integration, catalogById.get(provider)),
+        });
+        return new Response(
+          "<!DOCTYPE html><html><body><p>Integration connected. Return to the Maple CLI.</p></body></html>",
+          { headers: { "Content-Type": "text/html; charset=utf-8" } }
+        );
+      }
+      if (oauthStatus === "error") {
+        const reason = asString(c.req.query("reason")) || "OAuth flow failed.";
+        failCliBrowserFlow(flowId, reason);
+        return new Response(`OAuth flow failed: ${reason}`, {
+          status: 400,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+
+      const returnTo = `${integrationCliFlowPath(provider, flowId)}?view=browser`;
+      return c.redirect(
+        `/api/integrations/${encodeURIComponent(provider)}/oauth/start?redirect=1&returnTo=${encodeURIComponent(returnTo)}`,
+        302
+      );
+    }
+
+    return c.json(serializeCliBrowserFlow(flow));
   });
 
   app.get("/api/integrations/:provider/oauth/start", async (c) => {

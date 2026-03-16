@@ -69,6 +69,7 @@ declare module '$env/static/private' {
 	export const MAPLE_OPENCLAW_MODIFIER_ENABLED: string;
 	export const MAPLE_LOCK_BRIDGE_TARGET: string;
 	export const ANDROID_SDK_ROOT: string;
+	export const NODE_OPTIONS: string;
 	export const CYBER_ALLOWED_DOMAINS: string;
 	export const CYBER_PROXY_PORT: string;
 	export const MAPLE_OPENCLAW_MODIFIER_DANGEROUS_TOOLS: string;
@@ -132,6 +133,7 @@ declare module '$env/static/private' {
 	export const OPENCLAW_GATEWAY_WS_URL: string;
 	export const MAPLE_PRINT_SECRETS: string;
 	export const PATH: string;
+	export const CYBER_ALLOW_LOCAL_TARGETS: string;
 	export const AUDIT_WRITER_HOST: string;
 	export const ZSH_TMUX_AUTOSTART: string;
 	export const _: string;
@@ -144,6 +146,7 @@ declare module '$env/static/private' {
 	export const MAPLE_RECOVERY_EMAIL_FROM: string;
 	export const DEFAULT_MODEL: string;
 	export const AUDIT_WRITER_PORT: string;
+	export const MAPLE_GATEWAY_ORIGIN: string;
 	export const STRIPE_PRICE_ENTERPRISE: string;
 	export const PWD: string;
 	export const npm_command: string;
@@ -237,6 +240,7 @@ declare module '$env/static/private' {
 	export const OPENCLAW_BRIDGE_TOKEN: string;
 	export const MAPLE_RECOVERY_EMAIL_PROVIDER: string;
 	export const MAPLE_RECOVERY_DELIVERY_REQUIRED: string;
+	export const CYBER_ALLOWED_LOCAL_HOSTS: string;
 	export const CONTEXT_WALL_PORT: string;
 	export const MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_BATCH_SIZE: string;
 	export const MAPLE_OPENCLAW_AGENT_REQUIRED: string;
@@ -376,6 +380,7 @@ declare module '$env/dynamic/private' {
 		MAPLE_OPENCLAW_MODIFIER_ENABLED: string;
 		MAPLE_LOCK_BRIDGE_TARGET: string;
 		ANDROID_SDK_ROOT: string;
+		NODE_OPTIONS: string;
 		CYBER_ALLOWED_DOMAINS: string;
 		CYBER_PROXY_PORT: string;
 		MAPLE_OPENCLAW_MODIFIER_DANGEROUS_TOOLS: string;
@@ -439,6 +444,7 @@ declare module '$env/dynamic/private' {
 		OPENCLAW_GATEWAY_WS_URL: string;
 		MAPLE_PRINT_SECRETS: string;
 		PATH: string;
+		CYBER_ALLOW_LOCAL_TARGETS: string;
 		AUDIT_WRITER_HOST: string;
 		ZSH_TMUX_AUTOSTART: string;
 		_: string;
@@ -451,6 +457,7 @@ declare module '$env/dynamic/private' {
 		MAPLE_RECOVERY_EMAIL_FROM: string;
 		DEFAULT_MODEL: string;
 		AUDIT_WRITER_PORT: string;
+		MAPLE_GATEWAY_ORIGIN: string;
 		STRIPE_PRICE_ENTERPRISE: string;
 		PWD: string;
 		npm_command: string;
@@ -544,6 +551,7 @@ declare module '$env/dynamic/private' {
 		OPENCLAW_BRIDGE_TOKEN: string;
 		MAPLE_RECOVERY_EMAIL_PROVIDER: string;
 		MAPLE_RECOVERY_DELIVERY_REQUIRED: string;
+		CYBER_ALLOWED_LOCAL_HOSTS: string;
 		CONTEXT_WALL_PORT: string;
 		MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_BATCH_SIZE: string;
 		MAPLE_OPENCLAW_AGENT_REQUIRED: string;

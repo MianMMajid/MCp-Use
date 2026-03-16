@@ -3,6 +3,9 @@
   "type": "module",
   "version": "1.0.0",
   "description": "MCP server: maple",
+  "bin": {
+    "maple": "./cli/index.js"
+  },
   "author": "",
   "license": "MIT",
   "keywords": [
@@ -78,7 +81,10 @@
     "northflank:args": "node backend/backendA-platform-infra/deploy/northflank/generate-args.mjs",
     "northflank:oneclick": "node backend/backendA-platform-infra/deploy/northflank/prepare-oneclick.mjs",
     "postinstall": "echo \"Skipping postinstall type generation\"",
-    "check:frontend-warning-budget": "node scripts/check-frontend-warning-budget.mjs --log artifacts/matrix/frontend-flow.log"
+    "check:frontend-warning-budget": "node scripts/check-frontend-warning-budget.mjs --log artifacts/matrix/frontend-flow.log",
+    "check:cli-surface": "node scripts/check-cli-frontend-coverage.mjs",
+    "check:cli-routes": "node scripts/check-cli-route-contract.mjs",
+    "test:cli": "node --test cli/tests/*.test.mjs backend/backendB-core-services/gateway-api/service/tests/cli-browser-flows.test.mjs"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.11.0",
@@ -95,6 +101,7 @@
     "@testing-library/svelte": "^5.3.1",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.6.2",
+    "commander": "^14.0.3",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "js-yaml": "^4.1.1",
