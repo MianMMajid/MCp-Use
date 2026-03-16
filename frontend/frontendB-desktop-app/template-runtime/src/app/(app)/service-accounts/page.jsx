@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { loadJson, postJson, deleteJson, invalidateCache, getCached } from '@/lib/api'
+import { loadActiveOrgState } from '@/lib/active-org'
 import { Heading, Subheading } from '@/components/heading'
 import { Badge } from '@/components/badge'
 import {
@@ -17,9 +18,10 @@ import { Divider } from '@/components/divider'
 import { SkeletonRows } from '@/components/skeleton'
 
 export default function ServiceAccountsPage() {
-  const _c = getCached('/api/org/default/service-accounts')
+  const [orgId, setOrgId] = useState('')
+  const _c = orgId ? getCached(`/api/org/${orgId}/service-accounts`) : null
   const [accounts, setAccounts] = useState(() => _c ? (Array.isArray(_c) ? _c : _c.accounts ?? _c.items ?? []) : null)
-  const [loading, setLoading] = useState(!_c)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
@@ -37,12 +39,38 @@ export default function ServiceAccountsPage() {
   const [newKeyValue, setNewKeyValue] = useState(null)
   const [generatingKey, setGeneratingKey] = useState(false)
 
-  // Use a default orgId (from context or first available)
-  const orgId = 'default'
-
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      try {
+        const active = await loadActiveOrgState()
+        if (cancelled) return
+        if (!active.activeOrgId) {
+          setOrgId('')
+          setAccounts([])
+          setError('No organization is available for this account.')
+          setLoading(false)
+          return
+        }
+        setOrgId(active.activeOrgId)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err))
+          setLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!orgId) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setError('')
       try {
         const data = await loadJson(`/api/org/${orgId}/service-accounts`)
         if (cancelled) return
@@ -50,8 +78,10 @@ export default function ServiceAccountsPage() {
           Array.isArray(data) ? data : data.accounts ?? data.items ?? [],
         )
       } catch (err) {
-        if (!cancelled)
+        if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err))
+          setAccounts([])
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -59,7 +89,7 @@ export default function ServiceAccountsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [orgId])
 
   async function handleCreate() {
     setCreating(true)
@@ -72,6 +102,7 @@ export default function ServiceAccountsPage() {
       const data = await res.json()
       if (res.ok) {
         invalidateCache('/api/org')
+        invalidateCache(`/api/org/${orgId}/service-accounts`)
         setAccounts((prev) => [
           ...(prev ?? []),
           data.account ?? data,
@@ -127,6 +158,7 @@ export default function ServiceAccountsPage() {
       const data = await res.json()
       if (res.ok) {
         invalidateCache('/api/org')
+        invalidateCache(`/api/org/${orgId}/service-accounts/${accountId}/keys`)
         setNewKeyValue(data.key ?? data.apiKey ?? data.secret ?? data.value)
         setMessage('Key generated. Copy it now — it will not be shown again.')
         setMessageType('success')
@@ -158,6 +190,7 @@ export default function ServiceAccountsPage() {
         `/api/org/${orgId}/service-accounts/${accountId}/keys/${keyId}`,
       )
       invalidateCache('/api/org')
+      invalidateCache(`/api/org/${orgId}/service-accounts/${accountId}/keys`)
       setKeys((prev) => (prev ? prev.filter((k) => (k.id ?? k.keyId) !== keyId) : prev))
       setMessage('Key revoked.')
       setMessageType('success')

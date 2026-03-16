@@ -332,12 +332,14 @@ async function readExecutionGraphFromDb(executionId) {
     runtimeGraphVersion: Number(versionResult.rows[0]?.runtime_graph_version ?? 1),
     nodes: nodesResult.rows.map((row) => ({
       id: row.node_id,
+      role: row.node_id === "instruction-root" ? "instruction" : "",
       status: row.status,
       retryCount: Number(row.retry_count ?? 0),
       startedAt: row.started_at ?? "",
       completedAt: row.completed_at ?? "",
       error: row.error_text ?? "",
       outputPreview: row.output_preview ?? "",
+      isInstruction: row.node_id === "instruction-root",
     })),
     edges: edgesResult.rows.map((row) => ({
       id: row.edge_id,
@@ -458,10 +460,21 @@ async function persistExecutionSnapshot(executionId) {
     await database.pool.query(
       `INSERT INTO orchestration_execution_nodes
          (id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
-       SELECT * FROM UNNEST(
+       SELECT
+         t.id,
+         t.execution_id,
+         t.node_id,
+         t.status,
+         t.retry_count,
+         t.started_at,
+         t.completed_at,
+         t.error_text,
+         t.output_preview,
+         '{}'::jsonb
+       FROM UNNEST(
          $1::text[], $2::text[], $3::text[], $4::text[], $5::int[],
          $6::timestamptz[], $7::timestamptz[], $8::text[], $9::text[]
-       ), '{}' AS cost_json
+       ) AS t(id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview)
        ON CONFLICT (id) DO UPDATE
        SET status = EXCLUDED.status,
            retry_count = EXCLUDED.retry_count,
@@ -1201,7 +1214,7 @@ export function registerOrchestrationRoutes(app) {
     if (!executionTasks.has(executionId)) {
       // Auto-generate tasks from execution graph nodes
       const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
-      const nodes = graph?.nodes || [];
+      const nodes = (graph?.nodes || []).filter((node) => node.isInstruction !== true);
       const now = new Date().toISOString();
       const tasks = nodes.map((node, idx) => ({
         id: `${executionId}-task-${idx + 1}`,
@@ -1246,7 +1259,7 @@ export function registerOrchestrationRoutes(app) {
     // Ensure tasks exist
     if (!executionTasks.has(executionId)) {
       const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
-      const nodes = graph?.nodes || [];
+      const nodes = (graph?.nodes || []).filter((node) => node.isInstruction !== true);
       const now = new Date().toISOString();
       executionTasks.set(executionId, nodes.map((node, idx) => ({
         id: `${executionId}-task-${idx + 1}`,

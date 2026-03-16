@@ -97,13 +97,28 @@ function normalizeDelegationPolicy(input) {
   };
 }
 
+function isInstructionLikeNode(input) {
+  const raw = input && typeof input === "object" ? input : {};
+  const id = asString(raw.id) ?? "";
+  const role = asString(raw.role ?? raw.metadata?.role) ?? "";
+  const agentId = asString(raw.agentId) ?? "";
+  return id === "instruction-root" || role === "instruction" || agentId === "instruction";
+}
+
 function normalizeNode(input, idx = 0) {
   const raw = input && typeof input === "object" ? input : {};
   const id = asString(raw.id) ?? `node-${idx + 1}`;
+  const metadata = raw.metadata && typeof raw.metadata === "object" ? { ...raw.metadata } : {};
+  const isInstruction = isInstructionLikeNode(raw);
+  if (isInstruction) {
+    metadata.isInstruction = true;
+    metadata.role = "instruction";
+  }
   return {
     id,
     label: asString(raw.label) ?? asString(raw.name) ?? id,
-    agentId: asString(raw.agentId) ?? "",
+    agentId: isInstruction ? "" : asString(raw.agentId) ?? "",
+    role: isInstruction ? "instruction" : asString(raw.role ?? metadata.role) ?? "",
     position: raw.position && typeof raw.position === "object" ? raw.position : { x: 0, y: 0 },
     config: raw.config && typeof raw.config === "object" ? { ...raw.config } : {},
     dynamic: raw.dynamic === true,
@@ -117,7 +132,7 @@ function normalizeNode(input, idx = 0) {
     startedAt: "",
     completedAt: "",
     nodeObjective: asString(raw.nodeObjective) ?? "",
-    metadata: raw.metadata && typeof raw.metadata === "object" ? { ...raw.metadata } : {},
+    metadata,
   };
 }
 
@@ -197,10 +212,10 @@ export function validateOrchestrationDefinition(definition, options = {}) {
     }
     nodeIds.add(node.id);
 
-    if (strict && !node.agentId) {
+    if (strict && !node.agentId && !node.metadata?.isInstruction) {
       errors.push({ code: "NODE_AGENT_REQUIRED", message: `Node ${node.id} is missing agentId.` });
     }
-    if (!node.agentId) {
+    if (!node.agentId && !node.metadata?.isInstruction) {
       warnings.push({ code: "NODE_AGENT_MISSING", message: `Node ${node.id} has no agentId; execution may fail.` });
     }
   }
@@ -266,6 +281,7 @@ function toPublicNode(node) {
     id: node.id,
     label: node.label,
     agentId: node.agentId,
+    role: node.role || node.metadata?.role || "",
     status: node.status,
     retryCount: node.retryCount,
     maxRetries: node.maxRetries,
@@ -277,6 +293,7 @@ function toPublicNode(node) {
     dynamic: node.dynamic,
     spawned: node.spawned,
     nodeObjective: node.nodeObjective || "",
+    isInstruction: node.metadata?.isInstruction === true,
   };
 }
 
@@ -532,6 +549,20 @@ async function runNode(execution, node) {
   });
   markControlChanged(execution);
 
+  if (node.metadata?.isInstruction) {
+    node.status = "succeeded";
+    node.completedAt = nowIso();
+    node.outputPreview = node.nodeObjective || buildExecutionInputSummary(execution.input) || "Instruction node acknowledged.";
+    emitExecutionEvent(execution, "node_succeeded", {
+      nodeId: node.id,
+      runId: "",
+      instruction: true,
+      outputPreview: node.outputPreview,
+    });
+    markControlChanged(execution);
+    return;
+  }
+
   if (execution.mode === "dry_run") {
     await sleep(120);
     node.status = "succeeded";
@@ -616,8 +647,15 @@ async function decomposeObjective(execution) {
   const fullObjective = buildExecutionInputSummary(execution.input);
   if (!fullObjective) return;
 
-  const nodes = execution.graph.nodes;
+  const nodes = execution.graph.nodes.filter((node) => !node.metadata?.isInstruction);
   const edges = execution.graph.edges.filter((e) => e.active);
+  const instructionNodes = execution.graph.nodes.filter((node) => node.metadata?.isInstruction);
+  for (const node of instructionNodes) {
+    node.nodeObjective = fullObjective;
+  }
+  if (nodes.length === 0) {
+    return;
+  }
   if (nodes.length < 2) {
     nodes[0].nodeObjective = fullObjective;
     return;

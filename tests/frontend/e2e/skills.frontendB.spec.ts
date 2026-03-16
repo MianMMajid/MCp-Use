@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+function resolvedBaseUrl() {
+  return String(test.info().project.use.baseURL || "http://127.0.0.1:4102");
+}
+
+function absoluteUrl(path: string) {
+  return new URL(path, resolvedBaseUrl()).toString();
+}
+
 function asJson(body: unknown) {
   return {
     status: 200,
@@ -10,7 +18,7 @@ function asJson(body: unknown) {
 
 test.describe("frontend B skills import and governed proof", () => {
   test("imports a registry skill and shows governed execution proof", async ({ page }) => {
-    const baseURL = String(test.info().project.use.baseURL);
+    const baseURL = resolvedBaseUrl();
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
     ]);
@@ -141,7 +149,7 @@ test.describe("frontend B skills import and governed proof", () => {
       await route.fulfill(asJson({ ok: true }));
     });
 
-    await page.goto("/skills");
+    await page.goto(absoluteUrl("/skills"));
 
     await page.locator('input[placeholder="skills"]').first().fill("skills");
     await page.locator('input[placeholder="skills"]').nth(1).fill("skills");

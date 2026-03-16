@@ -167,6 +167,14 @@
     };
   }
 
+  function persistentFlowNodes(nodes) {
+    return ensureInstructionNode(nodes).filter((node) => String(node.id) !== INSTRUCTION_NODE_ID && !node.data?.isInstruction);
+  }
+
+  function persistentFlowEdges(edges) {
+    return edges.filter((edge) => String(edge.source) !== INSTRUCTION_NODE_ID && String(edge.target) !== INSTRUCTION_NODE_ID);
+  }
+
   function mapFlowNodeToPanel(node) {
     if (!node) return null;
     return {
@@ -338,8 +346,8 @@
       const payload = {
         name: orchestrationName.trim() || data.id,
         description: orchestrationInstructions,
-        nodes: ensureInstructionNode(flowNodes).map(toApiNode),
-        edges: flowEdges.map(toApiEdge),
+        nodes: persistentFlowNodes(flowNodes).map(toApiNode),
+        edges: persistentFlowEdges(flowEdges).map(toApiEdge),
       };
       const response = await patchJson(`/api/orchestrations/${data.id}`, payload);
       if (!response.ok) throw new Error(`Save failed (${response.status})`);

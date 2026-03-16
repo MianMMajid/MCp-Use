@@ -1,0 +1,108 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "Go home" [ref=e8] [cursor=pointer]:
+          - img "Mayple" [ref=e9]
+        - button "Toggle sidebar" [ref=e10] [cursor=pointer]:
+          - img [ref=e11]
+      - navigation "Primary" [ref=e13]:
+        - button "Skills" [ref=e14] [cursor=pointer]:
+          - img [ref=e16]
+          - generic [ref=e18]: Skills
+        - button "Agents" [ref=e19] [cursor=pointer]:
+          - img [ref=e21]
+          - generic [ref=e23]: Agents
+        - button "Builder" [ref=e24] [cursor=pointer]:
+          - img [ref=e26]
+          - generic [ref=e28]: Builder
+        - button "Firewalls" [ref=e29] [cursor=pointer]:
+          - img [ref=e31]
+          - generic [ref=e33]: Firewalls
+        - button "Tasks" [ref=e34] [cursor=pointer]:
+          - img [ref=e36]
+          - generic [ref=e38]: Tasks
+        - button "New Chat" [ref=e39] [cursor=pointer]:
+          - img [ref=e41]
+          - generic [ref=e43]: New Chat
+        - button "Search" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+          - generic [ref=e48]: Search
+      - paragraph [ref=e51]: "Chat is ready. Optional: select an agent to route to agent runtime."
+      - button "Profile" [ref=e53] [cursor=pointer]:
+        - generic [ref=e54]: M
+  - main [ref=e56]:
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - heading "Orchestration Builder" [level=1] [ref=e60]
+          - generic [ref=e61]:
+            - generic [ref=e62]: name
+            - textbox "name" [ref=e63]:
+              - /placeholder: Name this orchestration...
+              - text: Customer Intake Orchestration
+        - button "Save" [ref=e65] [cursor=pointer]
+      - generic [ref=e66]:
+        - complementary [ref=e67]:
+          - generic [ref=e68]:
+            - heading "Agents" [level=3] [ref=e69]
+            - textbox "Search..." [ref=e70]
+          - paragraph [ref=e72]: No agents found
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - combobox [ref=e75]:
+              - option "Select execution"
+              - option "exec-1 · running" [selected]
+            - button "Start Live" [ref=e76] [cursor=pointer]
+            - button "Dry Run" [ref=e77] [cursor=pointer]
+            - button "Pause" [ref=e78] [cursor=pointer]
+            - button "Resume" [ref=e79] [cursor=pointer]
+            - button "Cancel" [ref=e80] [cursor=pointer]
+            - button "Mutate +Node" [ref=e81] [cursor=pointer]
+            - generic [ref=e82]: running
+          - region "Orchestration flow canvas" [ref=e83]:
+            - application [ref=e84]:
+              - generic [ref=e86]:
+                - generic:
+                  - generic:
+                    - img
+                  - generic:
+                    - group [ref=e87]:
+                      - generic [ref=e88]:
+                        - button "Handle" [ref=e89]
+                        - generic [ref=e90]:
+                          - strong [ref=e92]: instruction
+                          - generic [ref=e93]: instruction
+                          - generic [ref=e95]: START
+                        - button "Handle" [ref=e96]
+                    - group [ref=e97]:
+                      - generic [ref=e98]:
+                        - button "Handle" [ref=e99]
+                        - generic [ref=e100]:
+                          - strong [ref=e102]: Gather Inputs
+                          - generic [ref=e103]: agent-a
+                          - generic [ref=e105]: OC
+                        - button "Handle" [ref=e106]
+              - link "Svelte Flow attribution" [ref=e108] [cursor=pointer]:
+                - /url: https://svelteflow.dev
+                - text: Svelte Flow
+              - img
+              - generic "Control Panel" [ref=e110]:
+                - button "Zoom In" [disabled]:
+                  - img
+                - button "Zoom Out" [ref=e111] [cursor=pointer]:
+                  - img [ref=e112]
+                - button "Fit View" [ref=e114] [cursor=pointer]:
+                  - img [ref=e115]
+                - button "Toggle Interactivity" [ref=e117] [cursor=pointer]:
+                  - img [ref=e118]
+          - generic [ref=e120]:
+            - generic [ref=e121]:
+              - generic [ref=e122]: task
+              - textbox "task" [ref=e123]:
+                - /placeholder: Give a task to execute and split across agents...
+            - button "Execute Task" [disabled] [ref=e124] [cursor=pointer]
+```

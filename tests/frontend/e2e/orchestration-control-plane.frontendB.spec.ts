@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+function resolvedBaseUrl() {
+  return String(test.info().project.use.baseURL || "http://127.0.0.1:4102");
+}
+
+function absoluteUrl(path: string) {
+  return new URL(path, resolvedBaseUrl()).toString();
+}
+
 function asJson(body: unknown) {
   return {
     status: 200,
@@ -10,7 +18,7 @@ function asJson(body: unknown) {
 
 test.describe("frontend B orchestration control plane wiring", () => {
   test("runs routes redirect into orchestration chat mode", async ({ page }) => {
-    const baseURL = String(test.info().project.use.baseURL);
+    const baseURL = resolvedBaseUrl();
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
     ]);
@@ -36,15 +44,15 @@ test.describe("frontend B orchestration control plane wiring", () => {
       await route.fulfill(asJson({ ok: true }));
     });
 
-    await page.goto("/runs");
+    await page.goto(absoluteUrl("/runs"));
     await expect(page).toHaveURL(/\/\?mode=orchestration$/);
 
-    await page.goto("/runs/exec-99");
+    await page.goto(absoluteUrl("/runs/exec-99"));
     await expect(page).toHaveURL(/\/\?mode=orchestration&executionId=exec-99&panel=timeline$/);
   });
 
   test("runtime command bar maps actions to canonical orchestration APIs", async ({ page }) => {
-    const baseURL = String(test.info().project.use.baseURL);
+    const baseURL = resolvedBaseUrl();
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
     ]);
@@ -151,7 +159,7 @@ test.describe("frontend B orchestration control plane wiring", () => {
       await route.fulfill(asJson({ ok: true }));
     });
 
-    await page.goto("/orchestrate/orch-1");
+    await page.goto(absoluteUrl("/orchestrate/orch-1"));
 
     await expect(page.getByText(/Runtime Control Plane/i)).toBeVisible();
     await expect(page.getByRole("button", { name: "Validate" })).toBeVisible();

@@ -514,6 +514,15 @@ async function createFrontendBNotification(userId, title, body, type = "system_a
   });
 }
 
+function toOpenClawSessionId(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || `frontend-b-task-${Date.now().toString(36)}`;
+}
+
 async function dispatchTask(ownerUserId, task) {
   const assignment = task.assignment ?? {};
   if (assignment.type === "agent" && assignment.agentId) {
@@ -524,7 +533,7 @@ async function dispatchTask(ownerUserId, task) {
     const result = await runOpenClawLongform({
       objective: task.prompt || task.title,
       agentId: agent.id,
-      sessionId: `frontend-b-task:${task.id}`,
+      sessionId: toOpenClawSessionId(`frontend-b-task-${task.id}`),
     });
     return { kind: "agent", id: result.runId };
   }

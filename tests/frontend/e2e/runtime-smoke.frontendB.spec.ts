@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+function resolvedBaseUrl() {
+  return String(test.info().project.use.baseURL || "http://127.0.0.1:4102");
+}
+
+function absoluteUrl(path: string) {
+  return new URL(path, resolvedBaseUrl()).toString();
+}
+
 function asJson(body: unknown) {
   return {
     status: 200,
@@ -14,7 +22,7 @@ test.describe("frontend B runtime smoke", () => {
       await route.fulfill(asJson({ ok: true, items: [] }));
     });
 
-    await page.goto("/login");
+    await page.goto(absoluteUrl("/login"));
 
     await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
     await expect(page.getByPlaceholder("Email")).toBeVisible();
@@ -22,7 +30,7 @@ test.describe("frontend B runtime smoke", () => {
   });
 
   test("authenticated app routes still bootstrap the desktop runtime", async ({ page }) => {
-    const baseURL = String(test.info().project.use.baseURL);
+    const baseURL = resolvedBaseUrl();
     await page.context().addCookies([
       { name: "maple_session", value: "playwright-session", url: baseURL },
     ]);
@@ -66,7 +74,7 @@ test.describe("frontend B runtime smoke", () => {
       await route.fulfill(asJson({ ok: true, items: [] }));
     });
 
-    await page.goto("/skills");
+    await page.goto(absoluteUrl("/skills"));
 
     await expect(page.getByRole("heading", { name: "Skills Toolbox" })).toBeVisible();
     await expect(page.getByText("OpenClaw CLI")).toBeVisible();

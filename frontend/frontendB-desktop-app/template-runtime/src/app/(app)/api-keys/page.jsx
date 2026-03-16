@@ -22,9 +22,19 @@ function isExpired(dateStr) {
   }
 }
 
+function normalizeApiKey(item) {
+  if (!item || typeof item !== 'object') return null
+  const id = item.id ?? item.keyId ?? ''
+  return {
+    ...item,
+    id,
+    keyId: item.keyId ?? id,
+  }
+}
+
 export default function ApiKeysPage() {
   const _c = getCached('/api/user/api-keys')
-  const [keys, setKeys] = useState(() => _c ? (_c?.items || []) : null)
+  const [keys, setKeys] = useState(() => _c ? ((_c?.items || []).map(normalizeApiKey).filter(Boolean)) : null)
   const [loading, setLoading] = useState(!_c)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -49,7 +59,7 @@ export default function ApiKeysPage() {
   async function fetchKeys() {
     try {
       const data = await loadJson('/api/user/api-keys')
-      setKeys(data?.items || [])
+      setKeys((data?.items || []).map(normalizeApiKey).filter(Boolean))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -100,9 +110,9 @@ export default function ApiKeysPage() {
     setMessage('')
 
     try {
-      await deleteJson(`/api/user/api-keys/${deleteTarget.id}`)
+      await deleteJson(`/api/user/api-keys/${deleteTarget.keyId || deleteTarget.id}`)
       invalidateCache('/api/user/api-keys')
-      setKeys((prev) => (prev || []).filter((k) => k.id !== deleteTarget.id))
+      setKeys((prev) => (prev || []).filter((k) => (k.keyId || k.id) !== (deleteTarget.keyId || deleteTarget.id)))
       setMessage(`API key "${deleteTarget.name}" deleted.`)
       setMessageType('success')
     } catch {
