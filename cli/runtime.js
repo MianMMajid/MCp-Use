@@ -363,6 +363,20 @@ export function persistBrowserFlowCookie(profileName, origin, sessionCookie) {
   saveCookies(store);
 }
 
+function shouldPreferSessionAuth(options = {}, cookieHeader = "") {
+  if (!cookieHeader) {
+    return false;
+  }
+  if (options.admin) {
+    return false;
+  }
+  const authMode = String(options.authMode || "session-or-api-key").trim().toLowerCase();
+  if (authMode === "none" || authMode === "api-key-only") {
+    return false;
+  }
+  return true;
+}
+
 function resolveRequestHeaders(profile, profileName, origin, options = {}) {
   const headers = {
     accept: options.accept || "application/json",
@@ -375,7 +389,12 @@ function resolveRequestHeaders(profile, profileName, origin, options = {}) {
   const apiKey = options.admin
     ? options.apiKey || profile.adminApiKey || profile.apiKey
     : options.apiKey || profile.apiKey;
-  if (apiKey && !headers["x-api-key"] && !headers.authorization) {
+  if (
+    apiKey &&
+    !headers["x-api-key"] &&
+    !headers.authorization &&
+    !shouldPreferSessionAuth(options, cookieHeader)
+  ) {
     headers["x-api-key"] = apiKey;
   }
   if (options.contentType) {
@@ -416,7 +435,17 @@ function finalizeResponse(profileName, origin, res, buffers) {
   };
 }
 
-export function httpRequest({ profileName, profile, baseOrigin, path, method = "GET", body, headers, admin = false }) {
+export function httpRequest({
+  profileName,
+  profile,
+  baseOrigin,
+  path,
+  method = "GET",
+  body,
+  headers,
+  admin = false,
+  authMode,
+}) {
   const origin = normalizeOrigin(baseOrigin, DEFAULT_GATEWAY_ORIGIN);
   const url = new URL(path, origin);
   const payload =
@@ -430,6 +459,7 @@ export function httpRequest({ profileName, profile, baseOrigin, path, method = "
   const requestHeaders = resolveRequestHeaders(profile, profileName, origin, {
     headers,
     admin,
+    authMode,
     contentType:
       payload === null
         ? undefined
@@ -461,6 +491,7 @@ export function httpSse({
   body,
   headers,
   admin = false,
+  authMode,
   onEvent,
 }) {
   const origin = normalizeOrigin(baseOrigin, DEFAULT_GATEWAY_ORIGIN);
@@ -476,6 +507,7 @@ export function httpSse({
   const requestHeaders = resolveRequestHeaders(profile, profileName, origin, {
     headers,
     accept: "text/event-stream",
+    authMode,
     contentType:
       payload === null
         ? undefined

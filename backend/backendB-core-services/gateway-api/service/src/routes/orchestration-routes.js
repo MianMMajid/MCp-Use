@@ -1062,7 +1062,7 @@ export function registerOrchestrationRoutes(app) {
     }
 
     const body = await readJsonBody(c);
-    const authContext = authContextStorage.getStore();
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
     const bindings = Array.isArray(body.roleBindings) ? body.roleBindings : [];
     const byRole = new Map(bindings.map((b) => [b.roleId, b]));
 

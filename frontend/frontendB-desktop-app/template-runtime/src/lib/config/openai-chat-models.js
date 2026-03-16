@@ -3,6 +3,14 @@ export const LEGACY_CHAT_MODEL_STORAGE_KEY = 'mayple_dummy_model';
 
 export const OPENAI_CHAT_MODEL_FAMILIES = [
   {
+    modelId: 'gpt-4o',
+    title: 'GPT-4o',
+    subtitle: 'Fast multimodal OpenAI chat model',
+    efforts: [
+      { id: 'standard', title: 'Standard', subtitle: 'Default GPT-4o chat mode' }
+    ]
+  },
+  {
     modelId: 'gpt-5.4',
     title: 'GPT-5.4',
     subtitle: 'General-purpose GPT-5.4 chat model',

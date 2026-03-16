@@ -84,11 +84,24 @@ function toDateKey(timestamp) {
   return String(timestamp ?? "").slice(0, 10);
 }
 
+function isUndefinedColumnError(err) {
+  return err?.code === "42703";
+}
+
+function isUndefinedTableError(err) {
+  return err?.code === "42P01";
+}
+
+function isNotNullViolation(err, columnName) {
+  return err?.code === "23502" && String(err?.message ?? "").includes(`column "${columnName}"`);
+}
+
 export class PlatformStore {
   constructor(options = {}) {
     this.database = options.database;
     this.allowInMemoryStore = options.allowInMemoryStore === true;
     this.initialized = false;
+    this.tableColumns = new Map();
     this.memory = {
       orgs: new Map(),
       invites: new Map(),
@@ -224,6 +237,30 @@ export class PlatformStore {
       }
     }
     this.initialized = true;
+  }
+
+  async getTableColumns(tableName) {
+    if (!hasPool(this.database)) {
+      return new Set();
+    }
+    if (this.tableColumns.has(tableName)) {
+      return this.tableColumns.get(tableName);
+    }
+    const result = await this.database.pool.query(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = $1
+      `,
+      [tableName]
+    );
+    const columns = new Set(result.rows.map((row) => String(row.column_name)));
+    this.tableColumns.set(tableName, columns);
+    return columns;
+  }
+
+  async hasTableColumn(tableName, columnName) {
+    return (await this.getTableColumns(tableName)).has(columnName);
   }
 
   async listOrganizationsForUser(userId) {
@@ -1128,9 +1165,14 @@ export class PlatformStore {
       }));
     }
 
+    const previewColumn = (await this.hasTableColumn("business_user_api_keys", "key_preview"))
+      ? "key_preview"
+      : (await this.hasTableColumn("business_user_api_keys", "fingerprint"))
+        ? "fingerprint"
+        : "''";
     const result = await this.database.pool.query(
       `
-        SELECT key_id, name, key_preview, created_at, expires_at
+        SELECT key_id, name, ${previewColumn} AS key_preview, created_at, expires_at
         FROM business_user_api_keys
         WHERE user_id = $1
         ORDER BY created_at DESC
@@ -1181,14 +1223,39 @@ export class PlatformStore {
       };
     }
 
-    await this.database.pool.query(
-      `
-        INSERT INTO business_user_api_keys (
-          key_id, user_id, name, key_hash, key_preview, created_at, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `,
-      [keyId, normalizedUserId, name, hash, preview, createdAt, expiresAt || null]
-    );
+    const apiKeyColumns = ["key_id", "user_id", "name", "key_hash", "created_at", "expires_at"];
+    const apiKeyValues = [keyId, normalizedUserId, name, hash, createdAt, expiresAt || null];
+    if (await this.hasTableColumn("business_user_api_keys", "key_preview")) {
+      apiKeyColumns.splice(4, 0, "key_preview");
+      apiKeyValues.splice(4, 0, preview);
+    }
+    if (await this.hasTableColumn("business_user_api_keys", "fingerprint")) {
+      apiKeyColumns.splice(4, 0, "fingerprint");
+      apiKeyValues.splice(4, 0, preview);
+    }
+    const apiKeyParams = apiKeyColumns.map((_, index) => `$${index + 1}`).join(", ");
+    try {
+      await this.database.pool.query(
+        `
+          INSERT INTO business_user_api_keys (${apiKeyColumns.join(", ")})
+          VALUES (${apiKeyParams})
+        `,
+        apiKeyValues
+      );
+    } catch (err) {
+      if (!isNotNullViolation(err, "expires_at")) {
+        throw err;
+      }
+      const retryValues = [...apiKeyValues];
+      retryValues[retryValues.length - 1] = expiresAt || "";
+      await this.database.pool.query(
+        `
+          INSERT INTO business_user_api_keys (${apiKeyColumns.join(", ")})
+          VALUES (${apiKeyParams})
+        `,
+        retryValues
+      );
+    }
     return {
       keyId,
       name,
@@ -1235,9 +1302,12 @@ export class PlatformStore {
       return this.memory.serviceAccounts.get(normalizedOrgId) ?? [];
     }
 
+    const accountIdColumn = (await this.hasTableColumn("business_service_accounts", "account_id"))
+      ? "account_id"
+      : "id";
     const accountsResult = await this.database.pool.query(
       `
-        SELECT account_id, org_id, name, created_at
+        SELECT ${accountIdColumn} AS account_id, org_id, name, created_at
         FROM business_service_accounts
         WHERE org_id = $1
         ORDER BY created_at DESC
@@ -1248,9 +1318,14 @@ export class PlatformStore {
     if (accountIds.length === 0) {
       return [];
     }
+    const keyPreviewColumn = (await this.hasTableColumn("business_service_account_keys", "key_preview"))
+      ? "key_preview"
+      : (await this.hasTableColumn("business_service_account_keys", "fingerprint"))
+        ? "fingerprint"
+        : "''";
     const keysResult = await this.database.pool.query(
       `
-        SELECT key_id, account_id, key_preview, created_at, expires_at
+        SELECT key_id, account_id, ${keyPreviewColumn} AS key_preview, created_at, expires_at
         FROM business_service_account_keys
         WHERE account_id = ANY($1::text[])
         ORDER BY created_at DESC
@@ -1295,17 +1370,25 @@ export class PlatformStore {
       return account?.keys ?? [];
     }
 
+    const accountIdColumn = (await this.hasTableColumn("business_service_accounts", "account_id"))
+      ? "account_id"
+      : "id";
     const accountCheck = await this.database.pool.query(
-      `SELECT account_id FROM business_service_accounts WHERE account_id = $1 AND org_id = $2 LIMIT 1`,
+      `SELECT ${accountIdColumn} AS account_id FROM business_service_accounts WHERE ${accountIdColumn} = $1 AND org_id = $2 LIMIT 1`,
       [normalizedAccountId, normalizedOrgId]
     );
     if (accountCheck.rows.length === 0) {
       return [];
     }
 
+    const keyPreviewColumn = (await this.hasTableColumn("business_service_account_keys", "key_preview"))
+      ? "key_preview"
+      : (await this.hasTableColumn("business_service_account_keys", "fingerprint"))
+        ? "fingerprint"
+        : "''";
     const result = await this.database.pool.query(
       `
-        SELECT key_id, account_id, key_preview, created_at, expires_at
+        SELECT key_id, account_id, ${keyPreviewColumn} AS key_preview, created_at, expires_at
         FROM business_service_account_keys
         WHERE account_id = $1
         ORDER BY created_at DESC
@@ -1347,12 +1430,24 @@ export class PlatformStore {
       return account;
     }
 
+    const serviceAccountColumns = ["org_id", "name", "created_at"];
+    const serviceAccountValues = [normalizedOrgId, normalizedName, createdAt];
+    if (await this.hasTableColumn("business_service_accounts", "id")) {
+      serviceAccountColumns.unshift("id");
+      serviceAccountValues.unshift(accountId);
+    }
+    if (await this.hasTableColumn("business_service_accounts", "account_id")) {
+      const insertAt = serviceAccountColumns[0] === "id" ? 1 : 0;
+      serviceAccountColumns.splice(insertAt, 0, "account_id");
+      serviceAccountValues.splice(insertAt, 0, accountId);
+    }
+    const serviceAccountParams = serviceAccountColumns.map((_, index) => `$${index + 1}`).join(", ");
     await this.database.pool.query(
       `
-        INSERT INTO business_service_accounts (account_id, org_id, name, created_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO business_service_accounts (${serviceAccountColumns.join(", ")})
+        VALUES (${serviceAccountParams})
       `,
-      [accountId, normalizedOrgId, normalizedName, createdAt]
+      serviceAccountValues
     );
     return {
       id: accountId,
@@ -1401,11 +1496,14 @@ export class PlatformStore {
       };
     }
 
+    const accountIdColumn = (await this.hasTableColumn("business_service_accounts", "account_id"))
+      ? "account_id"
+      : "id";
     const accountResult = await this.database.pool.query(
       `
-        SELECT account_id
+        SELECT ${accountIdColumn} AS account_id
         FROM business_service_accounts
-        WHERE account_id = $1 AND org_id = $2
+        WHERE ${accountIdColumn} = $1 AND org_id = $2
         LIMIT 1
       `,
       [normalizedAccountId, normalizedOrgId]
@@ -1413,14 +1511,43 @@ export class PlatformStore {
     if (!accountResult.rows[0]) {
       return null;
     }
-    await this.database.pool.query(
-      `
-        INSERT INTO business_service_account_keys (
-          key_id, account_id, key_hash, key_preview, created_at, expires_at
-        ) VALUES ($1, $2, $3, $4, $5, $6)
-      `,
-      [keyId, normalizedAccountId, hash, preview, createdAt, expiresAt || null]
-    );
+    const serviceAccountKeyColumns = ["key_id", "account_id", "key_hash", "created_at", "expires_at"];
+    const serviceAccountKeyValues = [keyId, normalizedAccountId, hash, createdAt, expiresAt || null];
+    if (await this.hasTableColumn("business_service_account_keys", "org_id")) {
+      serviceAccountKeyColumns.splice(2, 0, "org_id");
+      serviceAccountKeyValues.splice(2, 0, normalizedOrgId);
+    }
+    if (await this.hasTableColumn("business_service_account_keys", "key_preview")) {
+      serviceAccountKeyColumns.splice(serviceAccountKeyColumns.length - 2, 0, "key_preview");
+      serviceAccountKeyValues.splice(serviceAccountKeyValues.length - 2, 0, preview);
+    }
+    if (await this.hasTableColumn("business_service_account_keys", "fingerprint")) {
+      serviceAccountKeyColumns.splice(serviceAccountKeyColumns.length - 2, 0, "fingerprint");
+      serviceAccountKeyValues.splice(serviceAccountKeyValues.length - 2, 0, preview);
+    }
+    const serviceAccountKeyParams = serviceAccountKeyColumns.map((_, index) => `$${index + 1}`).join(", ");
+    try {
+      await this.database.pool.query(
+        `
+          INSERT INTO business_service_account_keys (${serviceAccountKeyColumns.join(", ")})
+          VALUES (${serviceAccountKeyParams})
+        `,
+        serviceAccountKeyValues
+      );
+    } catch (err) {
+      if (!isNotNullViolation(err, "expires_at")) {
+        throw err;
+      }
+      const retryValues = [...serviceAccountKeyValues];
+      retryValues[retryValues.length - 1] = expiresAt || "";
+      await this.database.pool.query(
+        `
+          INSERT INTO business_service_account_keys (${serviceAccountKeyColumns.join(", ")})
+          VALUES (${serviceAccountKeyParams})
+        `,
+        retryValues
+      );
+    }
     return {
       keyId,
       fingerprint: preview,
@@ -1453,11 +1580,14 @@ export class PlatformStore {
       return before !== account.keys.length;
     }
 
+    const accountIdColumn = (await this.hasTableColumn("business_service_accounts", "account_id"))
+      ? "account_id"
+      : "id";
     const accountResult = await this.database.pool.query(
       `
-        SELECT account_id
+        SELECT ${accountIdColumn} AS account_id
         FROM business_service_accounts
-        WHERE account_id = $1 AND org_id = $2
+        WHERE ${accountIdColumn} = $1 AND org_id = $2
         LIMIT 1
       `,
       [normalizedAccountId, normalizedOrgId]

@@ -64,6 +64,28 @@ async function maybePublishRecoveryToken(notifier, payload) {
 let _recoveryStore;
 let _onRecoveryTokenIssued;
 
+function defaultRecoveryRedirectUrl() {
+  const configured = String(process.env.MAPLE_RECOVERY_RESET_BASE_URL ?? "").trim();
+  if (configured) {
+    return configured;
+  }
+  const gatewayOrigin = String(process.env.MAPLE_GATEWAY_ORIGIN ?? process.env.MCP_URL ?? "").trim().replace(/\/+$/g, "");
+  if (gatewayOrigin) {
+    return `${gatewayOrigin}/reset-password`;
+  }
+  return "https://127.0.0.1/reset-password";
+}
+
+function normalizeRecoveryRequestBody(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { redirectUrl: defaultRecoveryRedirectUrl() };
+  }
+  return {
+    ...body,
+    redirectUrl: body.redirectUrl ?? defaultRecoveryRedirectUrl(),
+  };
+}
+
 function getRecoveryStore() {
   if (!_recoveryStore) {
     _recoveryStore = new AuthRecoveryStore({ database });
@@ -92,7 +114,7 @@ export function registerAuthRecoveryRoutes(app) {
       return c.json({ error: "Too many requests. Please try again later." }, 429);
     }
 
-    const parsed = parseForgotPasswordRequest(await readJsonBody(c));
+    const parsed = parseForgotPasswordRequest(normalizeRecoveryRequestBody(await readJsonBody(c)));
     if (!parsed.ok) {
       return c.json({ error: parsed.error }, 400);
     }
@@ -131,7 +153,7 @@ export function registerAuthRecoveryRoutes(app) {
       return c.json({ error: "Too many requests. Please try again later." }, 429);
     }
 
-    const parsed = parseForgotPasswordRequest(await readJsonBody(c));
+    const parsed = parseForgotPasswordRequest(normalizeRecoveryRequestBody(await readJsonBody(c)));
     if (!parsed.ok) {
       return c.json({ error: parsed.error }, 400);
     }

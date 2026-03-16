@@ -39,3 +39,19 @@ test("maple auth login help exposes the session login command", () => {
   assert.match(result.stdout, /--username <username>/);
   assert.match(result.stdout, /--password <password>/);
 });
+
+test("maple auth forgot-password help exposes redirect-url", () => {
+  const result = runCli(["auth", "forgot-password", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--redirect-url <url>/);
+});
+
+test("maple frontend b create commands are available", () => {
+  const agents = runCli(["agents", "create", "--help"]);
+  assert.equal(agents.status, 0, agents.stderr);
+  assert.match(agents.stdout, /Create an agent definition/);
+
+  const orchestrations = runCli(["orchestrations", "create", "--help"]);
+  assert.equal(orchestrations.status, 0, orchestrations.stderr);
+  assert.match(orchestrations.stdout, /Create an orchestration/);
+});

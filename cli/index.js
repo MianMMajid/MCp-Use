@@ -181,6 +181,7 @@ async function executeRequest(spec, profileName, profile, positional, options) {
           : undefined,
     headers: requestHeadersFromOptions(options),
     admin: spec.base === "admin",
+    authMode: spec.authMode,
   });
   assertOkResponse(response, { label: spec.id });
   const payload = maybeParseJson(response.text) ?? response.text;
@@ -216,6 +217,7 @@ async function executeEventStream(spec, profileName, profile, positional, option
           : undefined,
     headers: requestHeadersFromOptions(options),
     admin: spec.base === "admin",
+    authMode: spec.authMode,
     onEvent: (event) => {
       if (options.follow || spec.id === "chat.stream") {
         if (options.json) {
@@ -243,6 +245,7 @@ async function executeBrowserFlow(spec, profileName, profile, positional, option
     body: {},
     headers: requestHeadersFromOptions(options),
     admin: spec.base === "admin",
+    authMode: spec.authMode,
   });
   assertOkResponse(startResponse, { label: spec.id });
   const startPayload = maybeParseJson(startResponse.text) || {};
@@ -283,6 +286,7 @@ async function executeIntegrationConnect(spec, profileName, profile, positional,
       body: {},
       headers: requestHeadersFromOptions(options),
       admin: spec.base === "admin",
+      authMode: spec.authMode,
     });
     assertOkResponse(startResponse, { label: spec.id });
     const startPayload = maybeParseJson(startResponse.text) || {};
@@ -325,6 +329,7 @@ async function executeIntegrationConnect(spec, profileName, profile, positional,
     body,
     headers: requestHeadersFromOptions(options),
     admin: spec.base === "admin",
+    authMode: spec.authMode,
   });
   assertOkResponse(response, { label: spec.id });
   printOutput(maybeParseJson(response.text) ?? response.text, { json: options.json });

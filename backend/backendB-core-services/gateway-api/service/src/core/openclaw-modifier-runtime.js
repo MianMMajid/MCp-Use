@@ -288,6 +288,22 @@ function parseDangerousReasons(tool, forceApproval, policy) {
   return reasons;
 }
 
+function isWildcardAllowedTool(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "*" || normalized === "all";
+}
+
+function policyAllowsTool(policy, tool) {
+  const allowedTools = Array.isArray(policy?.allowedTools) ? policy.allowedTools : [];
+  if (allowedTools.length === 0) {
+    return true;
+  }
+  if (allowedTools.some((entry) => isWildcardAllowedTool(entry))) {
+    return true;
+  }
+  return allowedTools.includes(tool);
+}
+
 function defaultPolicy() {
   return {
     allowedTools: [...openclawModifierAllowedTools],
@@ -506,7 +522,7 @@ function buildModifierPlan(requestBody, policy) {
   if (!isSupportedOpenClawCliTool(tool)) {
     throw new Error(`Unsupported OpenClaw tool '${tool}'.`);
   }
-  if (!policy.allowedTools.includes(tool)) {
+  if (!policyAllowsTool(policy, tool)) {
     throw new Error(`Tool '${tool}' is not allowlisted for modifier execution.`);
   }
 
@@ -1244,7 +1260,7 @@ export async function evaluateModifierGovernance(toolName, toolArgs, actorOverri
     }
 
     // Check if tool is explicitly blocked (not in allowedTools)
-    if (policy.allowedTools.length > 0 && !policy.allowedTools.includes(tool)) {
+    if (!policyAllowsTool(policy, tool)) {
       return { allowed: false, reason: `Tool '${tool}' is not allowlisted by modifier policy.`, requiresApproval: false };
     }
 

@@ -8,7 +8,15 @@ STATE_FILE="${STATE_DIR}/pids.json"
 
 cd "${ROOT_DIR}"
 
-DEV_FAST_OPENCLAW="${DEV_FAST_OPENCLAW:-0}"
+if [ -z "${DEV_FAST_OPENCLAW+x}" ]; then
+  if command -v openclaw >/dev/null 2>&1; then
+    DEV_FAST_OPENCLAW=1
+  else
+    DEV_FAST_OPENCLAW=0
+  fi
+else
+  DEV_FAST_OPENCLAW="${DEV_FAST_OPENCLAW}"
+fi
 SKIP_BOOTSTRAP=0
 
 while (( $# > 0 )); do
@@ -65,6 +73,24 @@ export DEV_FAST_OPENCLAW
 source "${SCRIPT_DIR}/env-fast.defaults.sh"
 
 bash "${SCRIPT_DIR}/generate-local-certs.sh" >/dev/null
+
+configure_openclaw_default_model() {
+  if [ "${DEV_FAST_OPENCLAW:-0}" != "1" ]; then
+    return
+  fi
+  if ! command -v openclaw >/dev/null 2>&1; then
+    return
+  fi
+  if [ -z "${OPENAI_API_KEY:-}" ] || [ "${OPENAI_API_KEY}" = "ci-test-openai-key" ]; then
+    echo "[dev-fast] Skipping OpenClaw OpenAI model seed; no real OPENAI_API_KEY is configured"
+    return
+  fi
+
+  echo "[dev-fast] Seeding OpenClaw dev profile to openai/gpt-4o"
+  if ! openclaw --dev models set openai/gpt-4o >/dev/null 2>&1; then
+    echo "[dev-fast] Warning: failed to seed OpenClaw default model to openai/gpt-4o" >&2
+  fi
+}
 
 is_port_open() {
   local port="$1"
@@ -153,6 +179,7 @@ ensure_redis() {
 
 ensure_postgres
 ensure_redis
+configure_openclaw_default_model
 
 echo "[dev-fast] Launching full local fast stack"
 exec node "${SCRIPT_DIR}/dev-fast-stack.mjs"

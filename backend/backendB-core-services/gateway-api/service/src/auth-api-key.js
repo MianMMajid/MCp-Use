@@ -78,56 +78,56 @@ export function isApiKeyPresent(xApiKey, authorization) {
     return Boolean(extractApiKeyFromHeaders(xApiKey, authorization));
 }
 export async function requireApiKeyResponse(c, database, options = {}) {
-    const allowSessionAuth = options.allowSession ?? true;
-    const requireApiKey = options.requireApiKey ?? false;
-    const xApiKey = c.req.header("x-api-key");
-    const authorization = c.req.header("authorization");
-    const cookieHeader = c.req.header("cookie");
+  const allowSessionAuth = options.allowSession ?? true;
+  const requireApiKey = options.requireApiKey ?? false;
+  const xApiKey = c.req.header("x-api-key");
+  const authorization = c.req.header("authorization");
+  const cookieHeader = c.req.header("cookie");
     const unauthorizedBody = (reason) => ({
         ...apiErrorPayload("UNAUTHORIZED", "Unauthorized"),
         reason,
         hint: "Provide x-api-key / Authorization bearer token or sign in via /login.",
     });
-    const apiKeyResult = verifyIncomingApiKey(xApiKey, authorization);
-    const apiKeyProvided = isApiKeyPresent(xApiKey, authorization);
-    if (apiKeyResult.ok && (requireApiKey || apiKeyProvided || apiKeyAuthEnabled || effectiveAllowNoAuth())) {
-        setAuthContext(c, {
-            method: apiKeyAuthEnabled ? "api_key" : "bypass",
-            keyFingerprint: apiKeyResult.keyFingerprint,
-            role: apiKeyAuthEnabled && apiKeyProvided ? "admin" : "user",
-            authBypass: !apiKeyAuthEnabled && effectiveAllowNoAuth,
-        });
-        return undefined;
+  if (!requireApiKey && allowSessionAuth) {
+    const session = await findRequestSession(database, cookieHeader);
+    if (session) {
+      setAuthContext(c, {
+        method: "session",
+        keyFingerprint: undefined,
+        userId: session.userId,
+        username: session.user.username,
+        role: session.user.role ?? "user",
+        authBypass: false,
+      });
+      return undefined;
     }
-    // Check platform-generated API keys (maple_user_*, maple_sa_*)
-    if (apiKeyProvided && !apiKeyResult.ok) {
-        const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
-        const generated = await verifyGeneratedApiKey(fromHeaders, database);
-        if (generated) {
-            setAuthContext(c, {
-                method: "generated_api_key",
-                keyFingerprint: generated.keyId,
-                userId: generated.userId,
-                role: generated.role,
-                authBypass: false,
-            });
-            return undefined;
-        }
+  }
+  const apiKeyResult = verifyIncomingApiKey(xApiKey, authorization);
+  const apiKeyProvided = isApiKeyPresent(xApiKey, authorization);
+  if (apiKeyResult.ok && (requireApiKey || apiKeyProvided || apiKeyAuthEnabled || effectiveAllowNoAuth())) {
+    setAuthContext(c, {
+      method: apiKeyAuthEnabled ? "api_key" : "bypass",
+      keyFingerprint: apiKeyResult.keyFingerprint,
+      role: apiKeyAuthEnabled && apiKeyProvided ? "admin" : "user",
+      authBypass: !apiKeyAuthEnabled && effectiveAllowNoAuth(),
+    });
+    return undefined;
+  }
+  // Check platform-generated API keys (maple_user_*, maple_sa_*)
+  if (apiKeyProvided && !apiKeyResult.ok) {
+    const fromHeaders = extractApiKeyFromHeaders(xApiKey, authorization);
+    const generated = await verifyGeneratedApiKey(fromHeaders, database);
+    if (generated) {
+      setAuthContext(c, {
+        method: "generated_api_key",
+        keyFingerprint: generated.keyId,
+        userId: generated.userId,
+        role: generated.role,
+        authBypass: false,
+      });
+      return undefined;
     }
-    if (!requireApiKey && allowSessionAuth) {
-        const session = await findRequestSession(database, cookieHeader);
-        if (session) {
-            setAuthContext(c, {
-                method: "session",
-                keyFingerprint: undefined,
-                userId: session.userId,
-                username: session.user.username,
-                role: session.user.role ?? "user",
-                authBypass: false,
-            });
-            return undefined;
-        }
-    }
+  }
     if (requireApiKey) {
         return c.json(unauthorizedBody(apiKeyResult.reason ?? "missing_key"), 401);
     }
