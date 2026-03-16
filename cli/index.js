@@ -53,7 +53,11 @@ function createCommandTree(root) {
       leaf.argument(`<${definition.name}>`, definition.description || definition.name);
     }
     for (const definition of spec.options || []) {
-      leaf.option(definition.flags, definition.description || "");
+      if (definition.collect) {
+        leaf.option(definition.flags, definition.description || "", collectValue, []);
+      } else {
+        leaf.option(definition.flags, definition.description || "");
+      }
     }
     addCommonOptions(leaf, spec);
     leaf.action(async (...values) => {

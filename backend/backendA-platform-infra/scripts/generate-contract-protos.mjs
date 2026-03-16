@@ -82,12 +82,14 @@ function parseMessages(lines) {
 
     let messageName = "";
     let declarationLine = "";
+    let declarationIndex = -1;
     while (i < lines.length && !messageName) {
       i += 1;
       const nameMatch = lines[i]?.match(/^export type ([A-Za-z0-9_]+) = Message/);
       if (nameMatch) {
         messageName = nameMatch[1];
         declarationLine = lines[i] ?? "";
+        declarationIndex = i;
       }
     }
 
@@ -97,12 +99,19 @@ function parseMessages(lines) {
       continue;
     }
 
+    let braceDepth =
+      (declarationLine.match(/\{/g) || []).length -
+      (declarationLine.match(/\}/g) || []).length;
     while (i < lines.length) {
       const fieldMatch = lines[i].match(/@generated from field: (.+);/);
       if (fieldMatch) {
         fields.push(`${fieldMatch[1]};`);
       }
-      if (lines[i].trim() === "};") break;
+      if (i > declarationIndex) {
+        braceDepth += (lines[i].match(/\{/g) || []).length;
+        braceDepth -= (lines[i].match(/\}/g) || []).length;
+      }
+      if (braceDepth <= 0) break;
       i += 1;
     }
 

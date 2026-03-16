@@ -39,7 +39,7 @@ export async function listToolsFromDownstreamCached(app, options = {}) {
             return inFlight;
         }
     }
-    const task = listToolsFromDownstream(app)
+    const task = listToolsFromDownstream(app, options.requestContextOverrides ?? {})
         .then((listed) => {
         setCachedDownstreamTools(app.id, listed);
         return listed;

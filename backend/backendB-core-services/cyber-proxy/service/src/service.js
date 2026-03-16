@@ -87,6 +87,22 @@ function normalizeRequestBody(body) {
         return undefined;
     }
     if (typeof body === "string") {
+        const trimmed = body.trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            return body;
+        }
+        if (/^[A-Za-z0-9+/=\s]+$/.test(trimmed)) {
+            try {
+                const decoded = Buffer.from(trimmed, "base64");
+                const decodedText = decoded.toString("utf8").trim();
+                if (decodedText.startsWith("{") || decodedText.startsWith("[")) {
+                    return decoded;
+                }
+            }
+            catch {
+                // Fall through to the original raw string handling.
+            }
+        }
         return body;
     }
     if (Buffer.isBuffer(body)) {
@@ -103,6 +119,32 @@ function normalizeRequestBody(body) {
     }
     return undefined;
 }
+function describeRequestBody(body) {
+    if (body === undefined || body === null) {
+        return { kind: "empty" };
+    }
+    if (typeof body === "string") {
+        return { kind: "string", length: body.length, preview: body.slice(0, 120) };
+    }
+    if (Buffer.isBuffer(body)) {
+        return { kind: "buffer", length: body.length, preview: body.toString("utf8", 0, 120) };
+    }
+    if (body instanceof Uint8Array) {
+        return { kind: "uint8array", length: body.byteLength, preview: Buffer.from(body).toString("utf8", 0, 120) };
+    }
+    if (Array.isArray(body)) {
+        return { kind: "array", length: body.length, preview: JSON.stringify(body.slice(0, 12)) };
+    }
+    if (typeof body === "object") {
+        const keys = Object.keys(body);
+        return {
+            kind: "object",
+            keys,
+            preview: JSON.stringify(body).slice(0, 160),
+        };
+    }
+    return { kind: typeof body };
+}
 /**
  * Verify an HMAC-signed credential token from mcp-proxy.
  * The token format is: credentialId:appId:toolName:timestamp:sortedScopes:signature
@@ -113,10 +155,14 @@ function verifyCredentialToken(token, claimedScopes) {
     if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
     const signingKey = process.env.MAPLE_CREDENTIAL_SIGNING_KEY;
     if (!signingKey) return { valid: false, reason: "no_signing_key" };
-    const parts = token.split(":");
-    if (parts.length < 6) return { valid: false, reason: "malformed_token" };
-    const signature = parts[parts.length - 1];
-    const payload = parts.slice(0, -1).join(":");
+    const separatorCount = (token.match(/:/g) || []).length;
+    if (separatorCount < 5) return { valid: false, reason: "malformed_token" };
+    const lastColon = token.lastIndexOf(":");
+    if (lastColon <= 0 || lastColon === token.length - 1) {
+        return { valid: false, reason: "malformed_token" };
+    }
+    const signature = token.slice(lastColon + 1);
+    const payload = token.slice(0, lastColon);
     const expectedSig = createHmac("sha256", signingKey)
         .update(payload).digest("hex");
     // Constant-time comparison prevents timing attacks
@@ -125,11 +171,14 @@ function verifyCredentialToken(token, claimedScopes) {
     if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
         return { valid: false, reason: "invalid_signature" };
     }
-    const [credentialId, appId, toolName, timestampStr] = parts;
+    const [credentialId, appId, toolName, timestampStr, ...scopeParts] = payload.split(":");
+    if (!credentialId || !appId || !toolName || !timestampStr || scopeParts.length === 0) {
+        return { valid: false, reason: "malformed_token" };
+    }
     const timestamp = Number(timestampStr);
     if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
     // Extract signed scopes (between timestamp and signature)
-    const signedScopes = parts.slice(4, -1).join(":");
+    const signedScopes = scopeParts.join(":");
     // Verify claimed scopes match signed scopes — prevents scope widening attacks
     if (claimedScopes) {
         const claimedSorted = [...claimedScopes].sort().join(",");
@@ -386,6 +435,13 @@ export function createCyberProxyService() {
                 const timer = setTimeout(() => controller.abort(), timeout);
                 try {
                     const requestBody = normalizeRequestBody(body);
+                    if (requestBody === undefined) {
+                        mapleLog("warn", "cyber_proxy_request_body_unparsed", {
+                            url,
+                            method: method || "GET",
+                            bodyShape: describeRequestBody(body),
+                        });
+                    }
                     const resp = await fetch(url, {
                         method: method || "GET",
                         headers: sanitizeOutboundHeaders(inboundHeaders),
@@ -420,6 +476,20 @@ export function createCyberProxyService() {
                     const respBody = Buffer.concat(chunks);
                     const respHeaders = {};
                     resp.headers.forEach((v, k) => { respHeaders[k] = v; });
+                    if (resp.status >= 400) {
+                        mapleLog("warn", "cyber_proxy_upstream_http_error", {
+                            url,
+                            method: method || "GET",
+                            statusCode: resp.status,
+                            requestBodyShape: describeRequestBody(body),
+                            requestBodyBytes: requestBody
+                                ? Buffer.isBuffer(requestBody)
+                                    ? requestBody.length
+                                    : Buffer.byteLength(String(requestBody))
+                                : 0,
+                            responsePreview: respBody.toString("utf8", 0, 240),
+                        });
+                    }
                     if (sizeExceeded) {
                         const reason = `Response exceeds scoped max_bytes (${totalBytes} > ${effectiveMaxBytes})`;
                         emitAuditEvent({

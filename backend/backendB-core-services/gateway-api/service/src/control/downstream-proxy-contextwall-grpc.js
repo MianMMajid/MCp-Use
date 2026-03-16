@@ -14,26 +14,28 @@ export function getContextWallClient() {
     }
     return pool;
 }
+function firstNonEmptyString(...values) {
+    for (const value of values) {
+        const normalized = String(value ?? "").trim();
+        if (normalized.length > 0) {
+            return normalized;
+        }
+    }
+    return "";
+}
 export function buildGatewayRequestContext(overrides = {}) {
     const authContext = authContextStorage.getStore();
     const requestLogContext = requestContextStorage.getStore();
-    const derivedTenantId = overrides.tenantId ??
-        requestLogContext?.tenantId ??
-        "default";
-    const derivedUserId = overrides.userId ??
-        authContext?.userId ??
-        authContext?.keyFingerprint ??
-        "anonymous";
-    const derivedDeviceId = overrides.deviceId ??
-        requestLogContext?.deviceId ??
-        "unknown-device";
+    const derivedTenantId = firstNonEmptyString(overrides.tenantId, requestLogContext?.tenantId, "default");
+    const derivedUserId = firstNonEmptyString(overrides.userId, authContext?.userId, authContext?.keyFingerprint, "anonymous");
+    const derivedDeviceId = firstNonEmptyString(overrides.deviceId, requestLogContext?.deviceId, "cli");
     return {
-        requestId: overrides.requestId ?? requestLogContext?.requestId ?? randomUUID().slice(0, 12),
-        sessionId: overrides.sessionId ?? requestLogContext?.sessionId ?? "",
-        traceId: overrides.traceId ?? requestLogContext?.traceId ?? "",
+        requestId: firstNonEmptyString(overrides.requestId, requestLogContext?.requestId, randomUUID().slice(0, 12)),
+        sessionId: firstNonEmptyString(overrides.sessionId, requestLogContext?.sessionId, ""),
+        traceId: firstNonEmptyString(overrides.traceId, requestLogContext?.traceId, ""),
         userId: derivedUserId,
-        keyFingerprint: authContext?.keyFingerprint ?? "",
-        sourceService: "gateway-api",
+        keyFingerprint: firstNonEmptyString(authContext?.keyFingerprint, ""),
+        sourceService: firstNonEmptyString(overrides.sourceService, "gateway-api"),
         tenantId: derivedTenantId,
         deviceId: derivedDeviceId,
     };

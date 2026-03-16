@@ -35,10 +35,10 @@ server.app.use("*", async (c, next) => {
     const requestId = typeof requestIdHeader === "string" && requestIdHeader.trim().length > 0
         ? requestIdHeader.trim()
         : randomUUID().slice(0, 12);
-    const tenantId = c.req.header("x-tenant-id") ?? "";
+    const tenantId = c.req.header("x-tenant-id") ?? "default";
     const deviceId = c.req.header("x-device-id") ??
         c.req.header("user-agent") ??
-        "";
+        "cli";
     const sessionId = c.req.header("x-maple-session-id") ??
         c.req.header("mcp-session-id") ??
         "";

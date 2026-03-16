@@ -121,6 +121,42 @@ async function waitForAuditChainEvent(tenantId, orgId, eventType, timeoutMs = 10
   return null;
 }
 
+async function waitForExecutionMetrics(executionId, timeoutMs = 10_000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await database.pool.query(
+      `
+        SELECT
+          x.status,
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM orchestration_execution_nodes n
+            WHERE n.execution_id = x.id
+          ), 0) AS node_count,
+          COALESCE((
+            SELECT COUNT(*)::int
+            FROM orchestration_execution_edges e
+            WHERE e.execution_id = x.id
+          ), 0) AS edge_count
+        FROM orchestration_executions x
+        WHERE x.id = $1
+        LIMIT 1
+      `,
+      [executionId],
+    );
+    const row = result.rows[0];
+    if (row && Number(row.node_count ?? 0) > 0 && Number(row.edge_count ?? 0) > 0) {
+      return {
+        nodeCount: Number(row.node_count ?? 0),
+        edgeCount: Number(row.edge_count ?? 0),
+        status: String(row.status ?? ""),
+      };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return null;
+}
+
 test("frontend b firewalls reject non-compilable revisions and expose diagnostics", async (t) => {
   if (!pgAvailable) return t.skip("PostgreSQL not reachable");
   const { cookie } = await createSessionUser("firewall-invalid");
@@ -345,6 +381,109 @@ test("frontend b task routes enforce ownership and the due-task worker marks unr
   assert.equal(failedTask.status, "failed");
   assert.match(String(failedTask.terminalReason ?? ""), /not found/i);
 });
+
+test(
+  "frontend b task run-now dispatches an orchestration with a persisted non-empty graph",
+  { skip: !OPENCLAW_AVAILABLE },
+  async (t) => {
+    if (!pgAvailable) return t.skip("PostgreSQL not reachable");
+    const owner = await createSessionUser("task-orchestration-dispatch");
+    const agentA = await createOwnedAgent(owner.user.id, "Task Orchestration Worker A");
+    const agentB = await createOwnedAgent(owner.user.id, "Task Orchestration Worker B");
+
+    const orchestration = await database.createOrchestration({
+      name: "Scheduled orchestration",
+      description: "Dispatch through task run-now",
+      ownerId: owner.user.id,
+      status: "active",
+      nodes: [
+        {
+          id: "node-a",
+          label: "Node A",
+          agentId: agentA.id,
+          status: "pending",
+          retryCount: 0,
+          maxRetries: 1,
+        },
+        {
+          id: "node-b",
+          label: "Node B",
+          agentId: agentB.id,
+          status: "pending",
+          retryCount: 0,
+          maxRetries: 1,
+        },
+      ],
+      edges: [
+        {
+          id: "edge-a-b",
+          source: "node-a",
+          target: "node-b",
+          active: true,
+          delegationPolicy: {},
+        },
+      ],
+    });
+
+    const version = await database.createOrchestrationVersion({
+      orchestrationId: orchestration.id,
+      version: "v1",
+      definition: {
+        nodes: orchestration.nodes,
+        edges: orchestration.edges,
+      },
+      createdBy: owner.user.id,
+    });
+
+    const createTask = await requestJson("/api/tasks", {
+      method: "POST",
+      cookie: owner.cookie,
+      body: {
+        title: "Dispatch orchestration now",
+        prompt: "Run the scheduled orchestration end to end.",
+        schedule: {
+          startAt: new Date(Date.now() + 60_000).toISOString(),
+          endAt: null,
+          timezone: "America/New_York",
+          intervalMinutes: 60,
+          maxRepeats: 1,
+        },
+        assignment: {
+          orchestrationId: orchestration.id,
+        },
+      },
+    });
+
+    assert.equal(createTask.response.status, 201);
+
+    const runNow = await requestJson(`/api/tasks/${createTask.payload.task.id}/run-now`, {
+      method: "POST",
+      cookie: owner.cookie,
+      body: {},
+    });
+
+    assert.equal(runNow.response.status, 200);
+    assert.equal(runNow.payload.ok, true);
+    assert.equal(runNow.payload.dispatch.kind, "orchestration");
+    assert.ok(runNow.payload.dispatch.id);
+
+    const metrics = await waitForExecutionMetrics(runNow.payload.dispatch.id);
+    assert.ok(metrics, "expected persisted execution graph metrics");
+    assert.equal(metrics.nodeCount, 2);
+    assert.equal(metrics.edgeCount, 1);
+
+    const record = await database.pool.query(
+      `
+        SELECT version_id
+        FROM orchestration_executions
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [runNow.payload.dispatch.id],
+    );
+    assert.equal(record.rows[0]?.version_id, version.id);
+  },
+);
 
 test("frontend b org profile fields persist through get and patch", async (t) => {
   if (!pgAvailable) return t.skip("PostgreSQL not reachable");

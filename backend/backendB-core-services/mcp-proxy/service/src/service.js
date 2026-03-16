@@ -127,10 +127,14 @@ function createSignedCredential(toolName, appId, scopes) {
 // should call this to validate tokens before trusting scope claims.
 export function verifySignedCredential(token, claimedScopes) {
     if (!token || typeof token !== "string") return { valid: false, reason: "missing_token" };
-    const parts = token.split(":");
-    if (parts.length < 6) return { valid: false, reason: "malformed_token" };
-    const signature = parts[parts.length - 1];
-    const payload = parts.slice(0, -1).join(":");
+    const separatorCount = (token.match(/:/g) || []).length;
+    if (separatorCount < 5) return { valid: false, reason: "malformed_token" };
+    const lastColon = token.lastIndexOf(":");
+    if (lastColon <= 0 || lastColon === token.length - 1) {
+        return { valid: false, reason: "malformed_token" };
+    }
+    const signature = token.slice(lastColon + 1);
+    const payload = token.slice(0, lastColon);
     const expectedSig = createHmac("sha256", ensureSigningKey())
         .update(payload).digest("hex");
     // Constant-time comparison prevents timing attacks that could leak the key.
@@ -139,10 +143,11 @@ export function verifySignedCredential(token, claimedScopes) {
     if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
         return { valid: false, reason: "invalid_signature" };
     }
-    // Parse credential fields: credentialId:appId:toolName:timestamp:scopes:signature
-    const [credentialId, appId, toolName, timestampStr] = parts;
-    // Extract the scopes portion (between timestamp and signature)
-    const scopesPortion = parts.slice(4, -1).join(":");
+    const [credentialId, appId, toolName, timestampStr, ...scopeParts] = payload.split(":");
+    if (!credentialId || !appId || !toolName || !timestampStr || scopeParts.length === 0) {
+        return { valid: false, reason: "malformed_token" };
+    }
+    const scopesPortion = scopeParts.join(":");
     const timestamp = Number(timestampStr);
     // Reject credentials older than 1 hour
     if (Date.now() - timestamp > 3600_000) return { valid: false, reason: "expired" };
@@ -228,7 +233,20 @@ function normalizeCyberReport(raw, statusCode) {
         resolvedIp: String(raw?.resolvedIp || ""),
     };
 }
-async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, credential) {
+function normalizeDispatchContext(context = {}, traceId = "") {
+    const normalized = context && typeof context === "object" ? context : {};
+    return {
+        requestId: String(normalized.requestId || ""),
+        sessionId: String(normalized.sessionId || ""),
+        traceId: String(normalized.traceId || traceId || ""),
+        userId: String(normalized.userId || "mcp-proxy"),
+        keyFingerprint: String(normalized.keyFingerprint || ""),
+        sourceService: String(normalized.sourceService || "mcp-proxy"),
+        tenantId: String(normalized.tenantId || "system"),
+        deviceId: String(normalized.deviceId || "mcp-proxy"),
+    };
+}
+async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, credential, requestContext = {}) {
     // Job mode: dispatch as isolated K8s Job (preserved — does not use gRPC client)
     if (config.toolRunnerMode === "job" && jobDispatcher) {
         try {
@@ -280,10 +298,7 @@ async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, crede
             outboundHeaders["x-maple-credential-scopes"] = credential.scopes.join(",");
         }
         const response = await cyberProxyBreaker.execute(() => grpcUnary(getCyberProxy(), "proxyHttpRequest", {
-            context: {
-                traceId: traceId || "",
-                sourceService: "mcp-proxy",
-            },
+            context: normalizeDispatchContext(requestContext, traceId),
             method: "POST",
             url,
             headers: outboundHeaders,
@@ -415,7 +430,13 @@ async function discoverToolsForApp(registry, appId, traceId) {
             id: `tools-discovery-${appId}-${Date.now()}`,
             method: "tools/list",
             params: {},
-        }, Math.min(config.toolExecutionTimeoutMs, 10_000), traceId, null);
+        }, Math.min(config.toolExecutionTimeoutMs, 10_000), traceId, null, {
+            traceId,
+            userId: "mcp-proxy",
+            tenantId: "system",
+            deviceId: "mcp-proxy",
+            sourceService: "mcp-proxy",
+        });
         if (!response.success) {
             mapleLog("warn", "downstream_tools_discovery_transport_failed", {
                 appId,
@@ -537,7 +558,7 @@ export function createMcpProxyService(registry, dispatcher) {
                 // Route all tool execution through cyber-proxy.
                 let dispatched;
                 try {
-                    dispatched = await dispatchViaToolRunner(appId, target.url, jsonRpcRequest, config.toolExecutionTimeoutMs, traceId, mintedCredential);
+                    dispatched = await dispatchViaToolRunner(appId, target.url, jsonRpcRequest, config.toolExecutionTimeoutMs, traceId, mintedCredential, call.request.context);
                     mapleLog("debug", "tool_execute_via_cyber_proxy", { appId, toolName, targetUrl: target.url });
                 }
                 catch (proxyErr) {
@@ -691,7 +712,7 @@ export function createMcpProxyService(registry, dispatcher) {
                                 arguments: toolArgs,
                             },
                         };
-                        const response = await dispatchViaToolRunner(appId, app.url, jsonRpcRequest, config.toolExecutionTimeoutMs, traceId, mintedCredential);
+                        const response = await dispatchViaToolRunner(appId, app.url, jsonRpcRequest, config.toolExecutionTimeoutMs, traceId, mintedCredential, call.request.context);
                         const durationMs = Date.now() - start;
                         const rpcResponse = response.payload;
                         if (!response.success) {
@@ -859,7 +880,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     });
                     return;
                 }
-                const response = await dispatchViaToolRunner(appId, target.url, payload, config.toolExecutionTimeoutMs, call.request.context?.traceId, mintedCredential);
+                const response = await dispatchViaToolRunner(appId, target.url, payload, config.toolExecutionTimeoutMs, call.request.context?.traceId, mintedCredential, call.request.context);
                 const responsePayload = response.payload;
                 const responseBody = responsePayload ?? { jsonrpc: "2.0", id: null, result: null };
                 emitAuditEvent({

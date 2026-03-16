@@ -136,6 +136,8 @@ message EnforcementSummary {
   int32 blocked_steps = 2;
   int32 redacted_steps = 3;
   map<string, int32> rule_hits = 4;
+  maple.common.v1.FirewallAction default_action = 5;
+  string enforced_at = 6;
 }
 
 message ToolInfo {

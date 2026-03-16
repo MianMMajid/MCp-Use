@@ -49,6 +49,20 @@ export async function evaluateFirewallStepViaGrpc(candidateStep) {
     });
     if (clients?.contextWall) {
         try {
+            const toolCall = candidateStep.toolCall
+                ? {
+                    name: candidateStep.toolCall.name,
+                    inputJson: candidateStep.toolCall.input
+                        ? Buffer.from(JSON.stringify(candidateStep.toolCall.input))
+                        : undefined,
+                    outputJson: candidateStep.toolCall.output
+                        ? Buffer.from(JSON.stringify(candidateStep.toolCall.output))
+                        : undefined,
+                }
+                : undefined;
+            const metadataJson = Object.keys(stepMetadata).length > 0
+                ? Buffer.from(JSON.stringify(stepMetadata))
+                : undefined;
             mapleLog("debug", "grpc_evaluate_step", { stepIndex: candidateStep.index });
             const response = await grpcUnary(clients.contextWall, "evaluateStep", {
                 context: grpcContext,
@@ -61,7 +75,8 @@ export async function evaluateFirewallStepViaGrpc(candidateStep) {
                     output: candidateStep.output ?? "",
                     command: candidateStep.command ?? "",
                     externalUrl: candidateStep.externalUrl ?? "",
-                    toolCall: candidateStep.toolCall ? { name: candidateStep.toolCall.name } : undefined,
+                    toolCall,
+                    metadataJson,
                     riskScore: candidateStep.riskScore,
                     guardStatus: `GUARD_ACTION_${candidateStep.guardStatus.toUpperCase()}`,
                 },

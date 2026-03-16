@@ -856,9 +856,9 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["PATCH /api/agents/:agentId/tools"],
     frontendPaths: ["/api/agents/:param/tools"],
     args: [arg("agentId", "Agent ID", { pathParam: true })],
-    options: [option("--equipped-tool-id <id>", "Repeatable equipped tool id", { key: "equippedToolIds" })],
+    options: [option("--equipped-tool-id <id>", "Repeatable equipped tool id", { key: "equippedToolIds", collect: true })],
     bodyBuilder: ({ options }) => ({
-      equippedToolIds: arrayOption(options.equippedToolIds),
+      equippedToolIds: arrayOption(options.equippedToolIds ?? options.equippedToolId),
     }),
   }),
   spec({

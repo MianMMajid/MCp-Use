@@ -10,6 +10,8 @@ export function registerDownstreamDispatchRoute(app) {
         if (unauthorized) {
             return unauthorized;
         }
+        const authContext = c.get("mapleAuthContext");
+        const requestContext = c.get("mapleRequestContext");
         const body = await readJsonBody(c);
         const appId = asString(body.appId);
         const chainInput = body.chainAppIds ?? body.chainApps ?? body.chain;
@@ -54,6 +56,9 @@ export function registerDownstreamDispatchRoute(app) {
                 sessionId,
                 traceId,
                 origin: "api",
+                tenantId: requestContext?.tenantId,
+                deviceId: requestContext?.deviceId,
+                userId: authContext?.userId,
             });
             const result = chainResult.finalResult;
             if (!chainResult.ok) {

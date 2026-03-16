@@ -25,6 +25,9 @@ export function createPreExecutionCandidateStep(options) {
         command: extractLikelyCommand(options.invocationSummary),
         externalUrl: extractFirstUrl(options.invocationSummary),
         metadata: {
+            tenantId: options.tenantId,
+            userId: options.userId,
+            deviceId: options.deviceId,
             downstream: {
                 appId: options.app.id,
                 appName: options.app.name,
@@ -80,6 +83,9 @@ export function createPostExecutionCandidateStep(options) {
         command: extractLikelyCommand(summary),
         externalUrl: extractFirstUrl(summary),
         metadata: {
+            tenantId: options.tenantId,
+            userId: options.userId,
+            deviceId: options.deviceId,
             downstream: {
                 appId: options.app.id,
                 appName: options.app.name,

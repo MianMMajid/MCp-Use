@@ -20,6 +20,9 @@ export async function dispatchDownstreamAndLogStage(options) {
         toolArgs: options.toolArgs,
         invocationSummary,
         origin: options.origin,
+        tenantId: options.tenantId,
+        userId: options.userId,
+        deviceId: options.deviceId,
     });
     // B1: Modifier governance check before firewall eval
     const modifierGovernanceEnabled = String(process.env.MAPLE_MODIFIER_GOVERNANCE_ENABLED ?? "0").trim().toLowerCase();
@@ -93,6 +96,9 @@ export async function dispatchDownstreamAndLogStage(options) {
             preExecutionStepIndex: preExecutionStep.index,
             preExecutionDecision,
             payload,
+            tenantId: options.tenantId,
+            userId: options.userId,
+            deviceId: options.deviceId,
         });
         const decision = await evaluateFirewallStepViaGrpc(candidateStep);
         const loggedStep = {
@@ -119,6 +125,9 @@ export async function dispatchDownstreamAndLogStage(options) {
         const dispatch = await dispatchToolToDownstream(app, options.toolName, options.toolArgs, {
             sessionId: trace.sessionId,
             traceId: trace.id,
+            tenantId: options.tenantId,
+            userId: options.userId,
+            deviceId: options.deviceId,
         });
         const { loggedStep, report } = await appendLoggedStep({
             output: dispatch.textPreview,

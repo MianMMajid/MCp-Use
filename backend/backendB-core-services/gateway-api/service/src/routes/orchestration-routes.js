@@ -611,8 +611,22 @@ async function findOrchestrationVersion(orchestrationId, definitionVersion) {
   }
 }
 
+async function findLatestOrchestrationVersion(orchestrationId) {
+  if (typeof database.findLatestOrchestrationVersion !== "function") {
+    return null;
+  }
+  try {
+    const version = await database.findLatestOrchestrationVersion(orchestrationId);
+    return version ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveDefinitionForRuntime(orchestration, definitionVersion) {
-  const versionRecord = await findOrchestrationVersion(orchestration.id, definitionVersion);
+  const versionRecord =
+    (await findOrchestrationVersion(orchestration.id, definitionVersion)) ??
+    (await findLatestOrchestrationVersion(orchestration.id));
   if (!versionRecord) {
     return {
       orchestration,

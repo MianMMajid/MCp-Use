@@ -19,6 +19,7 @@ import { createOrchestrationExecution } from "../core/orchestration-runtime.js";
 import { queryAuditChain } from "../core/audit-integrity.js";
 import { parseYaml } from "../core/policy-as-code.js";
 import { simulateModifierPolicy } from "../core/policy-simulator.js";
+import { ensureExecutionPersistenceWatch } from "./orchestration-routes.js";
 import {
   buildCompiledFirewallBundle,
   buildModifierPolicyPayloadFromFirewallBundle,
@@ -143,6 +144,48 @@ async function requireOwnedOrchestration(ownerUserId, orchestrationId) {
     return null;
   }
   return orchestration;
+}
+
+async function resolveTaskOrchestrationRuntime(ownerUserId, orchestrationId) {
+  const orchestration = await requireOwnedOrchestration(ownerUserId, orchestrationId);
+  if (!orchestration) {
+    return null;
+  }
+
+  if (typeof database.findLatestOrchestrationVersion !== "function") {
+    return {
+      orchestration,
+      versionId: null,
+      definitionVersion: asString(orchestration.updatedAt) ?? "",
+    };
+  }
+
+  try {
+    const versionRecord = await database.findLatestOrchestrationVersion(orchestration.id);
+    if (!versionRecord) {
+      return {
+        orchestration,
+        versionId: null,
+        definitionVersion: asString(orchestration.updatedAt) ?? "",
+      };
+    }
+    const definition = versionRecord.definition ?? {};
+    return {
+      orchestration: {
+        ...orchestration,
+        nodes: Array.isArray(definition.nodes) ? definition.nodes : [],
+        edges: Array.isArray(definition.edges) ? definition.edges : [],
+      },
+      versionId: versionRecord.id ?? null,
+      definitionVersion: asString(versionRecord.version) ?? asString(orchestration.updatedAt) ?? "",
+    };
+  } catch {
+    return {
+      orchestration,
+      versionId: null,
+      definitionVersion: asString(orchestration.updatedAt) ?? "",
+    };
+  }
 }
 
 function toolCategory(toolId = "") {
@@ -538,15 +581,18 @@ async function dispatchTask(ownerUserId, task) {
     return { kind: "agent", id: result.runId };
   }
   if (assignment.type === "orchestration" && assignment.orchestrationId) {
-    const orchestration = await requireOwnedOrchestration(ownerUserId, assignment.orchestrationId);
-    if (!orchestration) {
+    const resolved = await resolveTaskOrchestrationRuntime(ownerUserId, assignment.orchestrationId);
+    if (!resolved) {
       throw new Error("Assigned orchestration not found.");
     }
-    const result = createOrchestrationExecution(orchestration, {
+    const input = { objective: task.prompt || task.title };
+    const context = { source: "frontend-b-task", taskId: task.id };
+    const result = createOrchestrationExecution(resolved.orchestration, {
       mode: "live",
-      input: { objective: task.prompt || task.title },
+      input,
       requestedBy: ownerUserId,
-      context: { source: "frontend-b-task", taskId: task.id },
+      context,
+      definitionVersion: resolved.definitionVersion,
     });
     if (!result?.ok) {
       throw new Error(result?.error || "Execution creation failed.");
@@ -554,19 +600,20 @@ async function dispatchTask(ownerUserId, task) {
     if (typeof database.createOrchestrationExecutionRecord === "function") {
       await database.createOrchestrationExecutionRecord({
         id: result.executionId,
-        orchestrationId: orchestration.id,
-        versionId: null,
+        orchestrationId: resolved.orchestration.id,
+        versionId: resolved.versionId,
         status: result.status ?? "queued",
         mode: "live",
         requestedBy: ownerUserId,
-        input: { objective: task.prompt || task.title },
-        context: { source: "frontend-b-task", taskId: task.id },
+        input,
+        context,
         runLineage: [],
         createdAt: result.createdAt,
         startedAt: result.startedAt || null,
         completedAt: null,
       });
     }
+    await ensureExecutionPersistenceWatch(result.executionId);
     return { kind: "orchestration", id: result.executionId };
   }
   throw new Error("Assigned target is invalid.");
@@ -791,7 +838,7 @@ export function registerFrontendBRoutes(app) {
         "system_alerts",
         { taskId, dispatch }
       );
-      return c.json({ ok: true, task: taskShape(updated) });
+      return c.json({ ok: true, task: taskShape(updated), dispatch });
     } catch (error) {
       const failed = await frontendBStore.updateTask(auth.session.user.id, taskId, {
         status: "failed",

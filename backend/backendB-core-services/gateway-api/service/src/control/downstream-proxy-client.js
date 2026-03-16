@@ -39,8 +39,8 @@ export async function forwardJsonRpcToDownstream(app, payload, requestContextOve
         payload: normalizedPayload,
     };
 }
-export async function listToolsFromDownstream(app) {
-    const response = await mcpJsonRpcRequest(app, "tools/list", {});
+export async function listToolsFromDownstream(app, requestContextOverrides = {}) {
+    const response = await mcpJsonRpcRequest(app, "tools/list", {}, requestContextOverrides);
     const rawResult = asObject(response.result);
     const toolsRaw = Array.isArray(rawResult.tools) ? rawResult.tools : [];
     const tools = [];

@@ -8,6 +8,8 @@ export function registerDownstreamToolsRoute(app) {
         if (unauthorized) {
             return unauthorized;
         }
+        const authContext = c.get("mapleAuthContext");
+        const requestContext = c.get("mapleRequestContext");
         const appId = asString(c.req.query("appId"));
         if (!appId) {
             return c.json({ error: "appId query parameter is required." }, 400);
@@ -23,6 +25,13 @@ export function registerDownstreamToolsRoute(app) {
             const refresh = c.req.query("refresh") === "true";
             const listed = await listToolsFromDownstreamCached(downstreamApp, {
                 forceRefresh: refresh,
+                requestContextOverrides: {
+                    sessionId: requestContext?.sessionId,
+                    traceId: requestContext?.traceId,
+                    tenantId: requestContext?.tenantId,
+                    deviceId: requestContext?.deviceId,
+                    userId: authContext?.userId,
+                },
             });
             return c.json({
                 appId: downstreamApp.id,
