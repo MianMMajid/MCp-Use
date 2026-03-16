@@ -1,28 +1,31 @@
 import { server, database } from "../state.js";
 import { firewallChatPrimaryProvider, firewallChatStrictMode } from "../config.js";
-import { authContextStorage, requireApiKeyResponse } from "../auth.js";
+import { requireApiKeyResponse } from "../auth.js";
+import { getAuthContext } from "../auth-api-key.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, } from "../trace-helpers.js";
 import { buildFeatureCapabilitiesFromDependencyReport, evaluateGatewayRuntimeDependencies, } from "../core/runtime-dependencies.js";
 import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
 function resolveFirewallRequestContext(options) {
-    const authContext = authContextStorage.getStore();
+    const authContext = getAuthContext(options.context);
+    const requestContext = options.context?.get("mapleRequestContext") ?? {};
     // Use verified scope for tenantId — ignore body.tenantId to prevent spoofing
-    const tenantId = options.verifiedTenantId ?? "default";
+    const tenantId = options.verifiedTenantId ?? asString(requestContext.tenantId) ?? "default";
     // Use auth context for userId — ignore body.userId to prevent spoofing
     const userId = authContext?.userId ??
         authContext?.keyFingerprint ??
         "anonymous";
     const deviceId = asString(options.body.deviceId) ??
         asString(options.request.header("x-device-id")) ??
+        asString(requestContext.deviceId) ??
         asString(options.request.header("user-agent")) ??
-        "";
+        "cli";
     return {
         tenantId,
         userId,
         deviceId,
-        sessionId: options.sessionId ?? options.fallbackSessionId ?? "",
-        traceId: options.traceId ?? options.fallbackTraceId ?? "",
+        sessionId: options.sessionId ?? asString(requestContext.sessionId) ?? options.fallbackSessionId ?? "",
+        traceId: options.traceId ?? asString(requestContext.traceId) ?? options.fallbackTraceId ?? "",
     };
 }
 export function registerFirewallChatRoutes() {
@@ -47,6 +50,7 @@ export function registerFirewallChatRoutes() {
         });
         const requestContext = resolveFirewallRequestContext({
             body,
+            context: c,
             request: c.req,
             verifiedTenantId: scope.verified ? scope.tenantId : "default",
             traceId,
@@ -119,6 +123,7 @@ export function registerFirewallChatRoutes() {
         });
         const requestContext = resolveFirewallRequestContext({
             body,
+            context: c,
             request: c.req,
             verifiedTenantId: streamScope.verified ? streamScope.tenantId : "default",
             traceId,
