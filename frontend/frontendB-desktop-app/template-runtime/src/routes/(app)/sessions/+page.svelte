@@ -1,13 +1,37 @@
 <script>
+  import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
+
+  const AGENT_ID_KEY = 'selectedAgentId';
+
+  let restoringSelectedAgent = false;
+
+  onMount(async () => {
+    if (typeof window === 'undefined') return;
+
+    await chatStore.initialize();
+
+    const persistedAgentId = String(window.localStorage.getItem(AGENT_ID_KEY) || '');
+    if (get(chatStore).selectedAgentId || !persistedAgentId) return;
+
+    restoringSelectedAgent = true;
+    try {
+      await chatStore.restoreSelectedAgent(persistedAgentId);
+    } finally {
+      restoringSelectedAgent = false;
+    }
+  });
 </script>
 
 <AppShell>
   <section class="page card">
     <h1>Sessions</h1>
-    {#if !$chatStore.selectedAgentId}
+    {#if restoringSelectedAgent || !$chatStore.storageHydrated}
+      <p class="muted">Loading sessions...</p>
+    {:else if !$chatStore.selectedAgentId}
       <p class="muted">Select an agent in chat to load sessions.</p>
     {:else if $chatStore.sessionsLoading}
       <p class="muted">Loading sessions...</p>

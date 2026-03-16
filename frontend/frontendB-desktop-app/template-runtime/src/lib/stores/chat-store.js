@@ -262,6 +262,32 @@ function createChatStore() {
     await loadSessions(nextId);
   }
 
+  async function restoreSelectedAgent(agentId) {
+    const nextId = String(agentId || '');
+    const state = get({ subscribe });
+    const selectedAgent = state.agents.find((a) => String(a.agentId || a.id) === nextId) || null;
+    patch({
+      selectedAgentId: nextId,
+      selectedAgent,
+      mode: 'agent',
+      stackMode: 'frontend',
+      chatTarget: 'agent'
+    });
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(AGENT_ID_KEY, nextId);
+      window.localStorage.setItem(CHAT_MODE_KEY, 'agent');
+      window.localStorage.setItem(STACK_MODE_KEY, 'frontend');
+      writeWorkspaceQuery({
+        mode: 'agent',
+        stack: 'frontend',
+        orchestrationId: '',
+        executionId: '',
+        panel: ''
+      });
+    }
+    await loadSessions(nextId);
+  }
+
   async function selectOrchestration(orchestrationId) {
     const nextId = String(orchestrationId || '');
     const state = get({ subscribe });
@@ -572,6 +598,7 @@ function createChatStore() {
     subscribe,
     initialize,
     selectAgent,
+    restoreSelectedAgent,
     selectOrchestration,
     setChatTarget,
     setOrchestrationPanelTab,
