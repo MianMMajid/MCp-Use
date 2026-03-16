@@ -3,6 +3,15 @@ import { grpcUnary } from "../grpc-clients.js";
 import { errorMessage } from "../helpers.js";
 import { mapleLog, requestContextStorage } from "../logging.js";
 import { getGrpcClients } from "../state.js";
+
+function chatGrpcDeadlineMs() {
+  const raw = Number.parseInt(String(process.env.MAPLE_FIREWALL_CHAT_GRPC_TIMEOUT_MS || "60000"), 10);
+  if (!Number.isFinite(raw) || raw < 1000) {
+    return 60000;
+  }
+  return raw;
+}
+
 export async function evaluateFirewallStepViaGrpc(candidateStep) {
     const clients = getGrpcClients();
     const requestLogContext = requestContextStorage.getStore();
@@ -144,7 +153,7 @@ export async function generateViaGrpc(messages, systemPrompt, requestContext) {
             reasoningEffort: requestContext?.reasoningEffort ?? "",
             temperature: 0,
             maxTokens: 0,
-        }, { deadlineMs: 30000 });
+        }, { deadlineMs: chatGrpcDeadlineMs() });
         if (response?.allowed === false) {
             return {
                 content: response.blockedReason || "Request blocked by policy.",

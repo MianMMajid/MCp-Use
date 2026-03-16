@@ -1702,19 +1702,19 @@ export class PlatformStore {
     const startIso = points[0].ts;
     const sessionsResult = await this.database.pool.query(
       `
-        SELECT SUBSTRING(created_at, 1, 10) AS day, COUNT(*)::int AS count
+        SELECT TO_CHAR(created_at::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
         FROM sessions
-        WHERE user_id = $1 AND created_at >= $2
+        WHERE user_id = $1 AND created_at::timestamptz >= $2::timestamptz
         GROUP BY day
       `,
       [normalizedUserId, startIso]
     );
     const toolExecResult = await this.database.pool.query(
       `
-        SELECT SUBSTRING(timestamp, 1, 10) AS day, COUNT(*)::int AS count
+        SELECT TO_CHAR(timestamp::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, COUNT(*)::int AS count
         FROM audit_events
         WHERE user_id = $1
-          AND timestamp >= $2
+          AND timestamp::timestamptz >= $2::timestamptz
           AND event_type IN (
             'AUDIT_EVENT_TYPE_POLICY_EVALUATED',
             'AUDIT_EVENT_TYPE_POLICY_DENIED'

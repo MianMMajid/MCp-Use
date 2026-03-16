@@ -13,6 +13,8 @@ export async function generateOpenAI(apiKey, options) {
                     msg.name = m.name;
                 if (m.tool_call_id)
                     msg.tool_call_id = m.tool_call_id;
+                if (Array.isArray(m.tool_calls) && m.tool_calls.length > 0)
+                    msg.tool_calls = m.tool_calls;
                 return msg;
             }),
         };
@@ -76,6 +78,8 @@ export async function* streamOpenAI(apiKey, options) {
                     msg.name = m.name;
                 if (m.tool_call_id)
                     msg.tool_call_id = m.tool_call_id;
+                if (Array.isArray(m.tool_calls) && m.tool_calls.length > 0)
+                    msg.tool_calls = m.tool_calls;
                 return msg;
             }),
             stream: true,

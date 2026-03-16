@@ -24,6 +24,23 @@ function arrayOption(value) {
   return Array.isArray(value) ? value : value ? [value] : [];
 }
 
+function mapAgentRunPrompt({ body }) {
+  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const objective = typeof body.objective === "string" ? body.objective.trim() : "";
+  const mode = String(body.mode || "turn").trim().toLowerCase();
+  if (!prompt || message || objective) {
+    return body;
+  }
+  if (mode === "longform") {
+    body.objective = prompt;
+  } else {
+    body.message = prompt;
+  }
+  delete body.prompt;
+  return body;
+}
+
 export const CLI_SURFACE_MANIFEST = [
   spec({
     id: "auth.login",
@@ -86,7 +103,7 @@ export const CLI_SURFACE_MANIFEST = [
     frontendPaths: ["/api/auth/forgot-password"],
     options: [
       option("--email <email>", "Email address"),
-      option("--redirect-url <url>", "HTTPS reset-password redirect URL", { key: "redirectUrl" }),
+      option("--redirect-url <url>", "Reset-password redirect URL", { key: "redirectUrl" }),
     ],
     bodyKeys: ["email", "redirectUrl"],
   }),
@@ -239,10 +256,12 @@ export const CLI_SURFACE_MANIFEST = [
     options: [
       option("--message <text>", "Turn prompt"),
       option("--objective <text>", "Longform objective"),
+      option("--prompt <text>", "Prompt alias for turn/longform mode"),
       option("--mode <mode>", "turn or longform"),
       option("--session-id <id>", "Session ID", { key: "sessionId" }),
     ],
-    bodyKeys: ["message", "objective", "mode", "sessionId"],
+    bodyKeys: ["message", "objective", "prompt", "mode", "sessionId"],
+    bodyBuilder: mapAgentRunPrompt,
   }),
   spec({
     id: "agents.sessions",
@@ -551,8 +570,20 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get usage timeseries",
     path: "/api/usage/timeseries",
     backendRoutes: ["GET /api/usage/timeseries"],
-    options: [option("--window <window>", "Window"), option("--org-id <orgId>", "Organization ID", { key: "orgId" })],
-    queryKeys: ["window", "orgId"],
+    options: [
+      option("--days <n>", "Number of days"),
+      option("--window <window>", "Window alias (for example 7d)"),
+      option("--org-id <orgId>", "Organization ID", { key: "orgId" }),
+    ],
+    queryKeys: ["days", "orgId"],
+    queryBuilder: ({ options, query }) => {
+      const days = String(options.days || "").trim();
+      const windowValue = String(options.window || "").trim().toLowerCase();
+      if (!days && /^\d+d$/.test(windowValue)) {
+        query.set("days", String(Number.parseInt(windowValue.slice(0, -1), 10)));
+      }
+      return query;
+    },
   }),
   spec({
     id: "org.limits",
@@ -2155,6 +2186,7 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/firewalls/:id/entries/file"],
     frontendPaths: ["/api/firewalls/:param/entries/file"],
     args: [arg("id", "Firewall ID", { pathParam: true })],
+    options: [option("--file <path>", "Path to file to upload", { key: "filePath" })],
   }),
   spec({
     id: "firewalls.delete-entry",

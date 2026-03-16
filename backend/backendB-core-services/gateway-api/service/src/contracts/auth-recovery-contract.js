@@ -32,7 +32,14 @@ function isSafeRedirectUrl(value) {
   }
   try {
     const parsed = new URL(candidate);
-    return parsed.protocol === "https:";
+    if (parsed.protocol === "https:") {
+      return true;
+    }
+    if (parsed.protocol !== "http:") {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
   } catch {
     return false;
   }
@@ -54,7 +61,7 @@ export function parseForgotPasswordRequest(body) {
     return fail("email is required and must be valid.");
   }
   if (!isSafeRedirectUrl(redirectUrl)) {
-    return fail("redirectUrl is required and must be a valid https URL.");
+    return fail("redirectUrl is required and must be a valid redirect URL.");
   }
 
   return pass({ email, redirectUrl });

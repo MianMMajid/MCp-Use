@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+import { basename, resolve as resolvePath } from "node:path";
+
 import { CLI_SURFACE_MANIFEST } from "./surface-manifest.js";
 import {
   Command,
@@ -141,11 +144,69 @@ function buildQuery(spec, options) {
       query.set(key, String(value));
     }
   }
+  if (typeof spec.queryBuilder === "function") {
+    spec.queryBuilder({ options, query });
+  }
   return query;
 }
 
 function requestHeadersFromOptions(options) {
   return applyExtraHeaders({}, options);
+}
+
+function buildMultipartBody(parts) {
+  const boundary = `----maple-cli-${Date.now().toString(16)}`;
+  const buffers = [];
+  for (const part of parts) {
+    buffers.push(Buffer.from(`--${boundary}\r\n`));
+    if (part.filename) {
+      const contentType = String(part.contentType || "application/octet-stream");
+      buffers.push(
+        Buffer.from(
+          `Content-Disposition: form-data; name="${part.name}"; filename="${part.filename}"\r\n` +
+          `Content-Type: ${contentType}\r\n\r\n`
+        )
+      );
+      buffers.push(Buffer.isBuffer(part.value) ? part.value : Buffer.from(String(part.value ?? "")));
+      buffers.push(Buffer.from("\r\n"));
+      continue;
+    }
+    buffers.push(Buffer.from(`Content-Disposition: form-data; name="${part.name}"\r\n\r\n${String(part.value ?? "")}\r\n`));
+  }
+  buffers.push(Buffer.from(`--${boundary}--\r\n`));
+  return {
+    body: Buffer.concat(buffers),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+function buildRequestPayload(spec, positional, options) {
+  if (spec.id === "firewalls.upload-file-entry") {
+    const filePath = commandOptionValue(options.filePath ?? options.file);
+    if (!filePath) {
+      throw new Error("firewalls.upload-file-entry requires --file <path>.");
+    }
+    const absolutePath = resolvePath(String(filePath));
+    const fileBuffer = readFileSync(absolutePath);
+    return buildMultipartBody([
+      {
+        name: "file",
+        filename: basename(absolutePath),
+        contentType: "application/octet-stream",
+        value: fileBuffer,
+      },
+    ]);
+  }
+  const body = buildBody(spec, positional, options);
+  const method = String(spec.method || "GET").toUpperCase();
+  return {
+    body:
+      method === "GET" || method === "HEAD"
+        ? undefined
+        : Object.keys(body).length > 0 || spec.bodyStatic
+          ? body
+          : undefined,
+  };
 }
 
 async function executeManifestCommand(spec, positional, options) {
@@ -169,21 +230,17 @@ async function executeRequest(spec, profileName, profile, positional, options) {
   const { path } = buildPath(spec, positional);
   const query = buildQuery(spec, options);
   const requestPath = `${path}${query.size ? `?${query.toString()}` : ""}`;
-  const body = buildBody(spec, positional, options);
   const method = String(spec.method || "GET").toUpperCase();
+  const requestPayload = buildRequestPayload(spec, positional, options);
   const response = await httpRequest({
     profileName,
     profile,
     baseOrigin: originForBase(profile, spec.base),
     method,
     path: requestPath,
-    body:
-      method === "GET" || method === "HEAD"
-        ? undefined
-        : Object.keys(body).length > 0 || spec.bodyStatic
-          ? body
-          : undefined,
+    body: requestPayload.body,
     headers: requestHeadersFromOptions(options),
+    contentType: requestPayload.contentType,
     admin: spec.base === "admin",
     authMode: spec.authMode,
   });

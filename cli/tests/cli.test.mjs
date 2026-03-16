@@ -46,6 +46,18 @@ test("maple auth forgot-password help exposes redirect-url", () => {
   assert.match(result.stdout, /--redirect-url <url>/);
 });
 
+test("maple agents run help exposes prompt alias", () => {
+  const result = runCli(["agents", "run", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--prompt <text>/);
+});
+
+test("maple firewalls upload-file-entry help exposes file path", () => {
+  const result = runCli(["firewalls", "upload-file-entry", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--file <path>/);
+});
+
 test("maple frontend b create commands are available", () => {
   const agents = runCli(["agents", "create", "--help"]);
   assert.equal(agents.status, 0, agents.stderr);

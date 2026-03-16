@@ -443,6 +443,7 @@ export function httpRequest({
   method = "GET",
   body,
   headers,
+  contentType,
   admin = false,
   authMode,
 }) {
@@ -463,7 +464,7 @@ export function httpRequest({
     contentType:
       payload === null
         ? undefined
-        : headers?.["content-type"] || headers?.["Content-Type"] || "application/json",
+        : contentType || headers?.["content-type"] || headers?.["Content-Type"] || "application/json",
   });
   const options = createRequestOptions(url, requestHeaders, payload, profile);
   options.method = method.toUpperCase();

@@ -177,7 +177,8 @@ export function registerAgentManagementRoutes(app) {
         }
 
         const body = await readJsonBody(c);
-        const message = asString(body.message) ?? "";
+        const prompt = asString(body.prompt) ?? "";
+        const message = asString(body.message) ?? prompt;
         const objective = asString(body.objective) ?? "";
         const mode = asString(body.mode) ?? "turn";
         const targetAgentId = resolveOpenClawTargetFromAgent(agent);

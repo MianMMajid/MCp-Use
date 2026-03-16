@@ -102,6 +102,16 @@ function toProviderMessages(messages) {
             payload.name = String(message.name);
         if (message?.toolCallId)
             payload.tool_call_id = String(message.toolCallId);
+        if (Array.isArray(message?.toolCalls) && message.toolCalls.length > 0) {
+            payload.tool_calls = message.toolCalls.map((toolCall) => ({
+                id: String(toolCall?.id || randomUUID()),
+                type: "function",
+                function: {
+                    name: String(toolCall?.function?.name || ""),
+                    arguments: String(toolCall?.function?.arguments || "{}"),
+                },
+            }));
+        }
         return payload;
     });
 }
@@ -1119,6 +1129,14 @@ export function createContextWallService(approvalQueue, policyStore) {
                         {
                             role: "CHAT_ROLE_ASSISTANT",
                             content: reply,
+                            toolCalls: toolCalls.map((toolCall) => ({
+                                id: String(toolCall?.id || randomUUID()),
+                                type: "function",
+                                function: {
+                                    name: String(toolCall?.name || ""),
+                                    arguments: bytesToUtf8String(toolCall?.argumentsJson, "{}"),
+                                },
+                            })),
                         },
                     ];
                     for (const toolCall of toolCalls) {

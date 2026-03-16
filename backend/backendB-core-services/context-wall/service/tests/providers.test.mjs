@@ -110,6 +110,46 @@ test("generateOpenAI: includes tool calls when present", async () => {
   }
 });
 
+test("generateOpenAI: preserves assistant tool_calls in outgoing request", async () => {
+  const mock = mockFetch({
+    choices: [{ message: { content: "Done" }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 6, completion_tokens: 2, total_tokens: 8 },
+    model: "gpt-4o-mini",
+  });
+  try {
+    await generateOpenAI("test-key", {
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "user", content: "Look up OpenAI." },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "call_123",
+              type: "function",
+              function: { name: "wikipedia_summary", arguments: "{\"query\":\"OpenAI\"}" },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "call_123",
+          content: "{\"summary\":\"OpenAI is an AI research company.\"}",
+        },
+      ],
+    });
+    const body = JSON.parse(mock.calls[0].opts.body);
+    assert.equal(body.messages[1].role, "assistant");
+    assert.equal(Array.isArray(body.messages[1].tool_calls), true);
+    assert.equal(body.messages[1].tool_calls[0].id, "call_123");
+    assert.equal(body.messages[2].role, "tool");
+    assert.equal(body.messages[2].tool_call_id, "call_123");
+  } finally {
+    mock.restore();
+  }
+});
+
 // ── Anthropic Tests ──────────────────────────────────────────────────────────
 
 test("generateAnthropic: formats request with system message extraction", async () => {
