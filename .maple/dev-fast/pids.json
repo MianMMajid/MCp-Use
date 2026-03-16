@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-03-16T02:14:50.971Z",
+  "rootDir": "/Users/omarramadan/Desktop/mcp_firewall",
+  "processes": [
+    {
+      "name": "audit-writer",
+      "pid": 74406,
+      "command": "node backend/backendB-core-services/audit-writer/service/src/main.js",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/audit-writer.log"
+    },
+    {
+      "name": "context-wall",
+      "pid": 74419,
+      "command": "node backend/backendB-core-services/context-wall/service/src/main.js",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/context-wall.log"
+    },
+    {
+      "name": "mcp-proxy",
+      "pid": 74434,
+      "command": "node backend/backendB-core-services/mcp-proxy/service/src/main.js",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/mcp-proxy.log"
+    },
+    {
+      "name": "cyber-proxy",
+      "pid": 74450,
+      "command": "node backend/backendB-core-services/cyber-proxy/service/src/main.js",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/cyber-proxy.log"
+    },
+    {
+      "name": "toolhub",
+      "pid": 74464,
+      "command": "node backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/toolhub.log"
+    },
+    {
+      "name": "openclaw-gateway",
+      "pid": 74479,
+      "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/openclaw-gateway.log"
+    },
+    {
+      "name": "openclaw-bridge",
+      "pid": 74494,
+      "command": "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/openclaw-bridge.log"
+    },
+    {
+      "name": "gateway-api",
+      "pid": 74537,
+      "command": "node backend/backendB-core-services/gateway-api/service/src/main.js",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/gateway-api.log"
+    },
+    {
+      "name": "frontendA",
+      "pid": 74554,
+      "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendA.log"
+    },
+    {
+      "name": "frontendB",
+      "pid": 74567,
+      "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendB.log"
+    },
+    {
+      "name": "frontendC",
+      "pid": 74581,
+      "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103",
+      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendC.log"
+    }
+  ]
+}
