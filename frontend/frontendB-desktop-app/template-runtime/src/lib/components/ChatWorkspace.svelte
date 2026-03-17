@@ -4,6 +4,7 @@
   import { chatStore } from '@/lib/stores/chat-store';
   import { toastStore } from '@/lib/stores/toast-store';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   import SelectorPill from '@/lib/components/ui/SelectorPill.svelte';
   import ModelSelectorPill from '@/lib/components/ui/ModelSelectorPill.svelte';
 
@@ -145,9 +146,11 @@
     <div class="stream">
       {#if showCenteredComposer}
         <div class="empty-state">
-          <div class="empty-icon"><Icon name="spark" size={36} /></div>
+          <div class="empty-mascot">
+            <MaypleCharacter size={72} />
+          </div>
           <h2>{isOrchestration ? 'Start orchestration' : 'How can Mayple help?'}</h2>
-          <p>
+          <p class="empty-sub">
             {isOrchestration
               ? 'Define an objective, assign agents, and let Mayple coordinate.'
               : 'Ask a question, run a command, or explore your agent stack.'}
@@ -159,96 +162,90 @@
                 Open Builder →
               </button>
             </div>
-          {:else if !isOrchestration}
-            <div class="quick-prompts">
-              {#each quickPrompts as prompt}
-                <button class="quick-prompt" on:click={() => { message = prompt; submit(); }}>
-                  {prompt}
-                </button>
-              {/each}
-            </div>
           {/if}
-          <div class="floating-wrap">
-            <div class="composer-shell floating">
-              <textarea
-                class="composer"
-                rows="1"
-                bind:value={message}
-                on:keydown={onKeyDown}
-                placeholder={isOrchestration
-                  ? 'Describe the objective...'
-                  : 'Send a message...'}
-              ></textarea>
-              <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send"><Icon name="send" size={17} /></button>
-            </div>
-          </div>
         </div>
       {/if}
 
       {#each currentMessages as item, idx}
         {@const text = item.content || item.text || ''}
         {@const msgId = 'msg-' + idx}
-        <article class="bubble" class:user={item.role === 'user'} class:assistant={item.role !== 'user'}>
-          <div class="bubble-header">
-            <span class="avatar" class:avatar-user={item.role === 'user'} class:avatar-agent={item.role !== 'user'}>
+        {@const isUser = item.role === 'user'}
+        {@const prevSameRole = idx > 0 && currentMessages[idx - 1]?.role === item.role}
+        <div class="msg-row" class:msg-user={isUser} class:msg-agent={!isUser} class:msg-grouped={prevSameRole}>
+          {#if !prevSameRole}
+            <span class="msg-avatar">
               {roleInitial(item.role)}
             </span>
-            <span class="bubble-name">{roleName(item.role)}</span>
-            {#if item.timestamp || item.createdAt}
-              <span class="bubble-time">{formatTime(item.timestamp || item.createdAt)}</span>
-            {/if}
-          </div>
-          <div class="bubble-body">
+          {:else}
+            <span class="msg-avatar-spacer"></span>
+          {/if}
+          <div class="msg-bubble" class:msg-bubble-user={isUser} class:msg-bubble-agent={!isUser}>
             <p>{text}</p>
+            <div class="msg-meta">
+              {#if item.timestamp || item.createdAt}
+                <span class="msg-time">{formatTime(item.timestamp || item.createdAt)}</span>
+              {/if}
+              <button class="msg-copy" title="Copy" aria-label="Copy message" on:click={() => copyMessage(text, msgId)}>
+                <Icon name={copiedId === msgId ? 'check' : 'copy'} size={11} />
+              </button>
+            </div>
           </div>
-          <div class="bubble-actions">
-            <button class="action-btn" title="Copy" aria-label="Copy message" on:click={() => copyMessage(text, msgId)}>
-              <Icon name={copiedId === msgId ? 'check' : 'copy'} size={13} />
-            </button>
-          </div>
-        </article>
+        </div>
       {/each}
 
       {#if isStreaming}
-        <div class="typing-indicator">
-          <span class="avatar avatar-agent">{agentDisplayName().charAt(0)}</span>
-          <div class="typing-dots">
-            <span></span><span></span><span></span>
+        <div class="msg-row msg-agent">
+          <span class="msg-avatar">{agentDisplayName().charAt(0)}</span>
+          <div class="msg-bubble msg-bubble-agent msg-tail">
+            <div class="typing-dots">
+              <span></span><span></span><span></span>
+            </div>
           </div>
         </div>
       {/if}
 
       {#if $chatStore.runError && !isOrchestration}
         <div class="error">
-          <span class="error-icon"><Icon name="alert" size={15} /></span>
+          <Icon name="alert" size={14} />
           <span>{$chatStore.runError}</span>
         </div>
       {/if}
       {#if $chatStore.orchestrationError && isOrchestration}
         <div class="error">
-          <span class="error-icon"><Icon name="alert" size={15} /></span>
+          <Icon name="alert" size={14} />
           <span>{$chatStore.orchestrationError}</span>
         </div>
       {/if}
     </div>
   </div>
 
-  {#if !showCenteredComposer}
-    <footer class="composer-wrap">
-      <div class="composer-shell">
+  <footer class="composer-wrap">
+    <div class="composer-inner">
+      <div class="composer-shell" class:floating={showCenteredComposer}>
         <textarea
           class="composer"
           rows="1"
           bind:value={message}
           on:keydown={onKeyDown}
-          placeholder={isOrchestration
-            ? 'Describe the objective, assign timed tasks, or update constraints...'
-            : 'Send a message...'}
+          placeholder={isOrchestration ? 'Describe the objective...' : 'Message Mayple...'}
         ></textarea>
-        <button type="button" class="send" on:click={submit} disabled={$chatStore.streaming || $chatStore.busy} aria-label="Send"><Icon name="send" size={17} /></button>
+        {#if message.trim() || isStreaming}
+          <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send">
+            <Icon name="send" size={15} />
+          </button>
+        {/if}
       </div>
-    </footer>
-  {/if}
+      {#if showCenteredComposer && !isOrchestration && hasAgents}
+        <div class="suggestions">
+          {#each quickPrompts as prompt}
+            <button class="suggestion-chip" on:click={() => { message = prompt; submit(); }}>
+              {prompt}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </footer>
 </section>
 
 <style>
@@ -324,18 +321,32 @@
     justify-items: center;
   }
 
-  .empty-icon {
-    font-size: 40px;
-    opacity: 0.7;
-    margin-bottom: 4px;
-  }
+  .empty-mascot { margin-bottom: 8px; }
+  .empty-state h2 { margin: 0; color: var(--fg); font-size: 1.4rem; font-weight: 600; }
+  .empty-sub { margin: 0; font-size: 0.88rem; max-width: 340px; line-height: 1.45; }
 
-  .empty-state h2 {
-    margin: 0;
-    color: var(--fg);
-    font-size: 1.5rem;
-    font-weight: 600;
-  }
+  /* ── ChatGPT-style centered messages ── */
+  .msg-row { display: flex; align-items: flex-start; gap: 10px; animation: msg-in 0.2s ease-out both; }
+  .msg-row.msg-grouped { margin-top: -6px; }
+  @keyframes msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .msg-avatar { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .msg-row.msg-agent .msg-avatar { background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok-border); }
+  .msg-row.msg-user .msg-avatar { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(232,116,12,0.25); }
+  .msg-avatar-spacer { width: 28px; flex-shrink: 0; }
+  .msg-bubble { flex: 1; min-width: 0; padding: 0; position: relative; line-height: 1.6; font-size: 14px; }
+  .msg-bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+  .msg-bubble-user p { color: var(--fg); }
+  .msg-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; opacity: 0; transition: opacity 0.15s; }
+  .msg-row:hover .msg-meta { opacity: 1; }
+  .msg-time { font-size: 10px; color: var(--muted); }
+  .msg-copy { width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .msg-copy:hover { color: var(--accent); }
+  .typing-dots { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .typing-dots span { width: 6px; height: 6px; border-radius: 999px; background: var(--muted); animation: typing-bounce 1.2s ease-in-out infinite; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typing-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+  .error { border: 1px solid var(--danger-border); border-radius: 12px; background: var(--danger-soft); padding: 10px 14px; color: var(--danger); font-size: 13px; display: flex; align-items: center; gap: 8px; align-self: center; }
 
   .empty-state p {
     margin: 0;
@@ -553,47 +564,84 @@
   }
 
   .composer-wrap {
-    padding: 8px 16px 16px;
-    border-top: 1px solid var(--border);
+    padding: 8px 16px 12px;
+  }
+
+  .composer-inner {
+    width: min(680px, 100%);
+    margin: 0 auto;
+    display: grid;
+    gap: 8px;
   }
 
   .composer-shell {
-    width: min(900px, 100%);
-    margin: 0 auto;
     border: 1px solid var(--border);
-    border-radius: 22px;
+    border-radius: 24px;
     background: var(--bg-elevated);
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: flex-end;
-    padding: 8px;
-  }
-
-  .composer-shell.floating {
-    max-width: 760px;
+    padding: 6px 6px 6px 16px;
   }
 
   .composer {
     flex: 1;
-    min-height: 24px;
-    max-height: 180px;
+    min-height: 22px;
+    max-height: 160px;
     border: 0;
     background: transparent;
-    padding: 8px 10px;
+    padding: 8px 0;
     resize: none;
     outline: none;
+    font-size: 14px;
   }
 
   .send {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--accent-strong);
+    width: 32px;
+    height: 32px;
+    border: none;
     border-radius: 999px;
-    background: linear-gradient(145deg, var(--accent-light), var(--accent));
+    background: var(--accent);
     color: #fff;
     display: grid;
     place-items: center;
     cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, transform 0.1s;
+  }
+
+  .send:hover { background: var(--accent-strong); }
+  .send:active { transform: scale(0.94); }
+  .send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Suggestion chips (below composer) ── */
+  .suggestions {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 2px 2px;
+    scrollbar-width: none;
+  }
+
+  .suggestions::-webkit-scrollbar { display: none; }
+
+  .suggestion-chip {
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--btn-secondary-bg);
+    color: var(--fg);
+    padding: 7px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+
+  .suggestion-chip:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 
   @media (max-width: 1140px) {

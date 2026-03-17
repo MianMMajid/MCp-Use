@@ -152,18 +152,20 @@
   bind:this={dockEl}
 >
   <div class="dock-inner">
-    <!-- Grip handle — drag from here -->
-    <button
-      class="grip"
-      aria-label="Drag to reposition dock"
-      title="Drag to move"
-      on:mousedown={onGripDown}
-      on:touchstart={onGripDown}
-    >
-      <Icon name="grip" size={14} />
-    </button>
-
     <div class="nav-track" style:--pill-count={navItems.length + 1} style:--active-index={activeIndex}>
+      <!-- Grip handle — inside the track as first element -->
+      <span
+        class="grip"
+        role="button"
+        tabindex="0"
+        aria-label="Drag to reposition dock"
+        title="Drag to move"
+        on:mousedown={onGripDown}
+        on:touchstart={onGripDown}
+      >
+        <Icon name="grip" size={12} />
+      </span>
+
       {#if activeIndex >= 0}
         <div class="nav-indicator"></div>
       {/if}
@@ -176,7 +178,7 @@
           aria-label={item.label}
           aria-current={i === activeIndex ? 'page' : undefined}
         >
-          <Icon name={item.icon} size={18} />
+          <Icon name={item.icon} size={16} />
           {#if !isVertical}
             <span class="nav-label">{item.label}</span>
           {/if}
@@ -188,7 +190,7 @@
         on:click={() => { commandPaletteOpen = true; }}
         aria-label="Search and actions"
       >
-        <Icon name="search" size={18} />
+        <Icon name="search" size={16} />
         {#if !isVertical}
           <span class="nav-label">Search</span>
           <kbd class="kbd">⌘K</kbd>
@@ -233,17 +235,17 @@
 
   .dock.dragging { transition: none; }
 
-  /* Position classes */
-  .dock-bottom { bottom: 12px; left: 50%; right: auto; top: auto; transform: translateX(-50%); }
-  .dock-top    { top: 12px; left: 50%; right: auto; bottom: auto; transform: translateX(-50%); }
-  .dock-left   { left: 12px; top: 50%; right: auto; bottom: auto; transform: translateY(-50%); }
-  .dock-right  { right: 12px; top: 50%; left: auto; bottom: auto; transform: translateY(-50%); }
+  /* Position classes — decent margin from edges */
+  .dock-bottom { bottom: 24px; left: 50%; right: auto; top: auto; transform: translateX(-50%); }
+  .dock-top    { top: 24px; left: 50%; right: auto; bottom: auto; transform: translateX(-50%); }
+  .dock-left   { left: 24px; top: 50%; right: auto; bottom: auto; transform: translateY(-50%); }
+  .dock-right  { right: 24px; top: 50%; left: auto; bottom: auto; transform: translateY(-50%); }
 
   /* ── Inner layout ── */
   .dock-inner {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
     pointer-events: auto;
   }
 
@@ -251,30 +253,38 @@
     flex-direction: column;
   }
 
-  /* ── Grip handle ── */
+  /* ── Grip handle — inside the track, subtle separator ── */
   .grip {
-    width: 28px;
+    position: relative;
+    z-index: 1;
+    width: 16px;
     height: 28px;
     border: 0;
-    border-radius: 8px;
+    border-radius: 6px;
     background: transparent;
-    color: var(--muted);
+    color: var(--accent);
     cursor: grab;
     display: grid;
     place-items: center;
     padding: 0;
     flex-shrink: 0;
-    transition: color 0.15s, background 0.15s;
+    opacity: 0.7;
+    transition: opacity 0.15s, color 0.15s;
   }
 
   .grip:hover {
-    color: var(--accent);
-    background: var(--accent-soft);
+    opacity: 1;
+    color: var(--accent-strong);
   }
 
   .grip:active, .dock.dragging .grip {
     cursor: grabbing;
-    color: var(--accent);
+    opacity: 1;
+  }
+
+  .dock.vertical .grip {
+    width: 28px;
+    height: 16px;
   }
 
   /* ── Nav track ── */
@@ -283,12 +293,12 @@
     display: inline-flex;
     align-items: center;
     height: 44px;
-    padding: 3px;
-    background: var(--glass);
-    border: 1px solid var(--border);
+    padding: 3px 3px 3px 2px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
     border-radius: 22px;
     backdrop-filter: blur(16px) saturate(160%);
-    box-shadow: var(--shadow-soft);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   }
 
   .dock.vertical .nav-track {
@@ -306,8 +316,8 @@
     width: calc((100% - 6px) / var(--pill-count));
     height: calc(100% - 6px);
     border-radius: 19px;
-    background: var(--panel);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10), 0 0 0 1px rgba(232, 116, 12, 0.12);
     transform: translateX(calc(var(--active-index) * 100%));
     transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
     pointer-events: none;
@@ -370,10 +380,13 @@
   .nav-utils {
     display: flex;
     gap: 6px;
+    margin-left: 8px;
   }
 
   .dock.vertical .nav-utils {
     flex-direction: column;
+    margin-left: 0;
+    margin-top: 8px;
   }
 
   .util-btn {

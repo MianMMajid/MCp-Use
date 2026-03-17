@@ -22,6 +22,6 @@
     padding: 12px;
     /* Extra bottom padding for floating dock — safe for all positions
        since dock at top/left/right only needs 44px + 12px margin */
-    padding-bottom: 68px;
+    padding-bottom: 80px;
   }
 </style>
