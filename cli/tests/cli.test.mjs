@@ -89,6 +89,23 @@ test("maple cyber downloads help exposes scan filters", () => {
   assert.match(result.stdout, /--run-id <id>/);
 });
 
+test("maple cyber incident-state help exposes step-up aware mutation fields", () => {
+  const result = runCli(["cyber", "incident-state", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--state <state>/);
+  assert.match(result.stdout, /--disposition <text>/);
+  assert.match(result.stdout, /--challenge-token <token>/);
+});
+
+test("maple cyber suppression-create help exposes suppression workflow fields", () => {
+  const result = runCli(["cyber", "suppression-create", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--scope-type <type>/);
+  assert.match(result.stdout, /--scope-value <value>/);
+  assert.match(result.stdout, /--rollback-path <text>/);
+  assert.match(result.stdout, /--challenge-token <token>/);
+});
+
 test("maple frontend b create commands are available", () => {
   const agents = runCli(["agents", "create", "--help"]);
   assert.equal(agents.status, 0, agents.stderr);

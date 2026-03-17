@@ -483,6 +483,138 @@ export class MaplePostgresDatabase {
         );
         CREATE INDEX IF NOT EXISTS idx_orchestration_timeline_exec
           ON orchestration_timeline_events(execution_id, sequence ASC);
+
+        CREATE TABLE IF NOT EXISTS cyber_security_incidents (
+          incident_id TEXT PRIMARY KEY,
+          tenant_id TEXT NOT NULL DEFAULT '',
+          org_id TEXT NOT NULL DEFAULT '',
+          correlation_key TEXT NOT NULL DEFAULT '',
+          title TEXT NOT NULL DEFAULT '',
+          summary TEXT NOT NULL DEFAULT '',
+          severity TEXT NOT NULL DEFAULT 'RISK_SEVERITY_LOW',
+          priority TEXT NOT NULL DEFAULT 'medium',
+          state TEXT NOT NULL DEFAULT 'new',
+          disposition TEXT NOT NULL DEFAULT '',
+          escalation_state TEXT NOT NULL DEFAULT 'none',
+          owner_id TEXT NOT NULL DEFAULT '',
+          linked_case_id TEXT NOT NULL DEFAULT '',
+          tags_json TEXT NOT NULL DEFAULT '[]',
+          correlation_json TEXT NOT NULL DEFAULT '{}',
+          evidence_ids_json TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          detected_at TEXT NOT NULL,
+          resolved_at TEXT,
+          closed_at TEXT,
+          legal_hold BOOLEAN NOT NULL DEFAULT FALSE
+        );
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_incidents_scope
+          ON cyber_security_incidents(tenant_id, org_id, state, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_incidents_correlation
+          ON cyber_security_incidents(tenant_id, org_id, correlation_key);
+
+        CREATE TABLE IF NOT EXISTS cyber_security_evidence (
+          evidence_id TEXT PRIMARY KEY,
+          tenant_id TEXT NOT NULL DEFAULT '',
+          org_id TEXT NOT NULL DEFAULT '',
+          incident_id TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL,
+          external_id TEXT NOT NULL DEFAULT '',
+          trace_id TEXT NOT NULL DEFAULT '',
+          session_id TEXT NOT NULL DEFAULT '',
+          run_id TEXT NOT NULL DEFAULT '',
+          url TEXT NOT NULL DEFAULT '',
+          filename TEXT NOT NULL DEFAULT '',
+          content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+          size_bytes BIGINT NOT NULL DEFAULT 0,
+          sha256 TEXT NOT NULL DEFAULT '',
+          policy_reason TEXT NOT NULL DEFAULT '',
+          request_json TEXT NOT NULL DEFAULT '{}',
+          response_json TEXT NOT NULL DEFAULT '{}',
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          scan_json TEXT NOT NULL DEFAULT '{}',
+          provenance_json TEXT NOT NULL DEFAULT '{}',
+          object_ref TEXT NOT NULL DEFAULT '',
+          storage_path TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          archived_at TEXT,
+          legal_hold BOOLEAN NOT NULL DEFAULT FALSE
+        );
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_evidence_scope
+          ON cyber_security_evidence(tenant_id, org_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_evidence_incident
+          ON cyber_security_evidence(incident_id, created_at DESC);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_cyber_security_evidence_external
+          ON cyber_security_evidence(source, external_id);
+
+        CREATE TABLE IF NOT EXISTS cyber_security_quarantine_objects (
+          quarantine_id TEXT PRIMARY KEY,
+          evidence_id TEXT NOT NULL UNIQUE,
+          tenant_id TEXT NOT NULL DEFAULT '',
+          org_id TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL DEFAULT '',
+          classification TEXT NOT NULL DEFAULT 'unknown',
+          current_state TEXT NOT NULL DEFAULT 'pending_review',
+          release_disposition TEXT NOT NULL DEFAULT '',
+          review_status TEXT NOT NULL DEFAULT 'pending',
+          object_ref TEXT NOT NULL DEFAULT '',
+          storage_path TEXT NOT NULL DEFAULT '',
+          content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+          size_bytes BIGINT NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          reviewed_at TEXT,
+          reviewed_by TEXT NOT NULL DEFAULT '',
+          destroyed_at TEXT,
+          expires_at TEXT,
+          legal_hold BOOLEAN NOT NULL DEFAULT FALSE
+        );
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_quarantine_scope
+          ON cyber_security_quarantine_objects(tenant_id, org_id, current_state, updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS cyber_security_suppressions (
+          suppression_id TEXT PRIMARY KEY,
+          tenant_id TEXT NOT NULL DEFAULT '',
+          org_id TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'active',
+          scope_type TEXT NOT NULL,
+          scope_value TEXT NOT NULL,
+          provider TEXT NOT NULL DEFAULT '',
+          tool TEXT NOT NULL DEFAULT '',
+          policy_rule TEXT NOT NULL DEFAULT '',
+          rationale TEXT NOT NULL DEFAULT '',
+          rollback_path TEXT NOT NULL DEFAULT '',
+          approver TEXT NOT NULL DEFAULT '',
+          created_by TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          expires_at TEXT,
+          revoked_at TEXT,
+          revoked_by TEXT NOT NULL DEFAULT '',
+          metadata_json TEXT NOT NULL DEFAULT '{}'
+        );
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_suppressions_scope
+          ON cyber_security_suppressions(tenant_id, org_id, status, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS cyber_security_actions (
+          action_id TEXT PRIMARY KEY,
+          tenant_id TEXT NOT NULL DEFAULT '',
+          org_id TEXT NOT NULL DEFAULT '',
+          incident_id TEXT NOT NULL DEFAULT '',
+          evidence_id TEXT NOT NULL DEFAULT '',
+          quarantine_id TEXT NOT NULL DEFAULT '',
+          suppression_id TEXT NOT NULL DEFAULT '',
+          action_type TEXT NOT NULL,
+          actor_id TEXT NOT NULL DEFAULT '',
+          summary TEXT NOT NULL DEFAULT '',
+          payload_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_actions_incident
+          ON cyber_security_actions(incident_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_cyber_security_actions_quarantine
+          ON cyber_security_actions(quarantine_id, created_at DESC);
       `);
         }
         finally {

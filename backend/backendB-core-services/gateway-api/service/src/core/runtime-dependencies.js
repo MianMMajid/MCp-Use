@@ -3,6 +3,7 @@ import net from "node:net";
 import { loadGrpcTlsConfig } from "@maple/common";
 import { grpcUnary } from "../grpc-clients.js";
 import {
+  cyberQuarantineStorageDir,
   cyberQuarantineEnabled,
   cyberProxyAddress,
   downloadScanProvider,
@@ -281,6 +282,8 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
         contextPolicyUnavailable: checkMap.get("grpc.context_wall")?.ok !== true,
         cyberScanUnavailable: checkMap.get("grpc.cyber_proxy")?.ok !== true,
         virustotalUnavailable: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey,
+        evidenceStoreUnavailable: checkMap.get("db.postgres")?.ok !== true,
+        quarantineStoreUnavailable: checkMap.get("storage.cyber_quarantine")?.ok !== true,
       },
     },
     dependencies: report.checks.map((check) => ({
@@ -446,6 +449,14 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
     dbCheckResult = { ok: false, reason: "Database pool not initialized." };
   }
   checks.push(buildCheckRecord("db.postgres", "PostgreSQL connectivity", requireDatabase, dbCheckResult));
+  checks.push(
+    buildCheckRecord(
+      "storage.cyber_quarantine",
+      "Cyber quarantine storage path",
+      strict || cyberQuarantineEnabled,
+      await checkReadableFile(cyberQuarantineStorageDir)
+    )
+  );
 
   const requiredFailures = checks.filter((check) => check.required && !check.ok);
   return {

@@ -22,6 +22,7 @@ import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { database } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
+import { persistRunArtifactsAsEvidence } from "./cyber-security-service.js";
 import { buildAgentBaseline } from "../../../../shared/packages/maple-risk-engine/src/ml/cross-agent-detector.js";
 import { buildLocalScanResult, scanDownloadedContent } from "../../../../shared/packages/maple-security/src/download-scan.js";
 
@@ -299,6 +300,12 @@ async function completeRunRecord(run, output, artifacts = []) {
   run.status = session.cancelRequested ? "canceled" : "completed";
   run.output = output;
   run.artifacts = await withArtifactScans(artifacts);
+  await persistRunArtifactsAsEvidence(run, run.artifacts, { database }).catch((error) => {
+    mapleLog("warn", "openclaw_agent.evidence_persist_failed", {
+      runId: run.runId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
   run.cost = extractCostFromOutput(output);
   run.updatedAt = nowIso();
 

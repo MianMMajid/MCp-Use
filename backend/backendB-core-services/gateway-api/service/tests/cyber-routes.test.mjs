@@ -84,6 +84,7 @@ test("GET /api/cyber/status exposes combined provider and scanning state", async
   assert.equal(typeof payload.providers.cyberProxy.reachable, "boolean");
   assert.equal(typeof payload.scanning.provider, "string");
   assert.equal(typeof payload.recent.blockedCount, "number");
+  assert.equal(typeof payload.security?.incidents?.total, "number");
 });
 
 test("GET /api/cyber/events returns normalized cyber audit incidents", async () => {
@@ -139,3 +140,66 @@ printf '{"sessionId":"%s","response":{"text":"Scanned reply"},"usage":{"input_to
   }
 });
 
+test("GET /api/cyber/incidents and evidence surfaces the persisted security domain", async () => {
+  const incidentsResponse = await server.app.request("http://localhost/api/cyber/incidents?limit=10");
+  assert.equal(incidentsResponse.status, 200);
+  const incidentsPayload = await incidentsResponse.json();
+  assert.equal(incidentsPayload.ok, true);
+  assert.equal(incidentsPayload.items.length >= 1, true);
+  assert.equal(typeof incidentsPayload.items[0].incidentId, "string");
+
+  const downloadsResponse = await server.app.request("http://localhost/api/cyber/downloads?limit=1");
+  const downloadsPayload = await downloadsResponse.json();
+  const evidenceId = downloadsPayload.items[0]?.id;
+  assert.equal(typeof evidenceId, "string");
+
+  const evidenceResponse = await server.app.request(`http://localhost/api/cyber/evidence/${encodeURIComponent(evidenceId)}`);
+  assert.equal(evidenceResponse.status, 200);
+  const evidencePayload = await evidenceResponse.json();
+  assert.equal(evidencePayload.ok, true);
+  assert.equal(evidencePayload.item.evidenceId, evidenceId);
+});
+
+test("POST cyber incident and quarantine mutations succeed in no-auth test mode", async () => {
+  const incidentsResponse = await server.app.request("http://localhost/api/cyber/incidents?limit=1");
+  const incidentsPayload = await incidentsResponse.json();
+  const incidentId = incidentsPayload.items[0]?.incidentId;
+  assert.equal(typeof incidentId, "string");
+
+  const assignResponse = await server.app.request(`http://localhost/api/cyber/incidents/${encodeURIComponent(incidentId)}/assign`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ownerId: "secops" }),
+  });
+  assert.equal(assignResponse.status, 200);
+
+  const stateResponse = await server.app.request(`http://localhost/api/cyber/incidents/${encodeURIComponent(incidentId)}/state`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ state: "triaged" }),
+  });
+  assert.equal(stateResponse.status, 200);
+  const statePayload = await stateResponse.json();
+  assert.equal(statePayload.incident.state, "triaged");
+
+  const quarantineResponse = await server.app.request("http://localhost/api/cyber/quarantine");
+  const quarantinePayload = await quarantineResponse.json();
+  const quarantineId = quarantinePayload.items[0]?.quarantineId;
+  assert.equal(typeof quarantineId, "string");
+
+  const reviewResponse = await server.app.request(`http://localhost/api/cyber/quarantine/${encodeURIComponent(quarantineId)}/review`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reviewStatus: "benign" }),
+  });
+  assert.equal(reviewResponse.status, 200);
+
+  const suppressionResponse = await server.app.request("http://localhost/api/cyber/suppressions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ scopeType: "sha256", scopeValue: "abc123", rationale: "temporary allow" }),
+  });
+  assert.equal(suppressionResponse.status, 200);
+  const suppressionPayload = await suppressionResponse.json();
+  assert.equal(suppressionPayload.item.scopeType, "sha256");
+});

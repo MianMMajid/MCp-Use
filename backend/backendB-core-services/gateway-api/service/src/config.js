@@ -176,6 +176,9 @@ export const downloadScanProvider = downloadScanProviderRaw;
 export const downloadScanVirusTotalApiKey = optionalEnv("MAPLE_VIRUSTOTAL_API_KEY");
 export const downloadScanVirusTotalApiUrl = optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3");
 export const downloadScanTimeoutMs = optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 });
+export const cyberEvidenceSyncTtlMs = optionalEnvInt("MAPLE_CYBER_EVIDENCE_SYNC_TTL_MS", 2500, { min: 250, max: 60000 });
+export const cyberQuarantineStorageDir = optionalEnv("MAPLE_CYBER_QUARANTINE_STORAGE_DIR", `${process.cwd()}/.maple-security/quarantine`);
+export const cyberRequireStepUpForSensitiveMutations = optionalEnvBool("MAPLE_CYBER_REQUIRE_STEP_UP", true);
 export const cyberAllowedDomains = optionalEnv("CYBER_ALLOWED_DOMAINS")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())

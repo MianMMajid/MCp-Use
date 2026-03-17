@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Frontend D MCP Widgets</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem; }
+    li { margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Frontend D: MCP Widgets</h1>
+  <p>Widget sources are served from this endpoint for local Kubernetes debugging.</p>
+  <ul>
+    <li><a href="/arxiv-results/widget.tsx">arxiv-results/widget.tsx</a></li>
+    <li><a href="/book-results/widget.tsx">book-results/widget.tsx</a></li>
+    <li><a href="/github-card/widget.tsx">github-card/widget.tsx</a></li>
+    <li><a href="/replay-review/widget.tsx">replay-review/widget.tsx</a></li>
+    <li><a href="/risk-dashboard/widget.tsx">risk-dashboard/widget.tsx</a></li>
+    <li><a href="/search-results/widget.tsx">search-results/widget.tsx</a></li>
+    <li><a href="/trace-timeline/widget.tsx">trace-timeline/widget.tsx</a></li>
+    <li><a href="/weather-card/widget.tsx">weather-card/widget.tsx</a></li>
+    <li><a href="/wiki-card/widget.tsx">wiki-card/widget.tsx</a></li>
+  </ul>
+  <h2>Runtime Capabilities</h2>
+  <pre id="capabilitiesStatus">Loading /api/runtime/feature-capabilities ...</pre>
+  <script>
+    (async () => {
+      const panel = document.getElementById("capabilitiesStatus");
+      if (!panel) return;
+      try {
+        const response = await fetch("/api/runtime/feature-capabilities", {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          panel.textContent = `Capabilities unavailable (HTTP ${response.status}).`;
+          return;
+        }
+        const payload = await response.json();
+        panel.textContent = JSON.stringify(payload.features ?? {}, null, 2);
+      } catch (error) {
+        panel.textContent = `Capabilities unavailable: ${error?.message || String(error)}`;
+      }
+    })();
+  </script>
+</body>
+</html>

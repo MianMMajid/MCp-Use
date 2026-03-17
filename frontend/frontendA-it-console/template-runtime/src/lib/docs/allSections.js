@@ -30,8 +30,10 @@ export const allSections = {
   '/maple/cyber': [
     { title: 'Status', id: 'status' },
     { title: 'Policies', id: 'policies' },
+    { title: 'Incident queue', id: 'incident-queue' },
     { title: 'Download scans', id: 'download-scans' },
-    { title: 'Quarantine & Blocks', id: 'quarantine-blocks' },
+    { title: 'Quarantine objects', id: 'quarantine-objects' },
+    { title: 'Suppressions', id: 'suppressions' },
   ],
   '/maple/demo': [
     { title: 'Sessions', id: 'demo-sessions' },

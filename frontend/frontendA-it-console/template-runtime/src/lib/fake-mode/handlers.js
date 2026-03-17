@@ -393,6 +393,12 @@ function handleFirewall(pathname, method, state, body) {
           virustotalUnavailable: false,
         },
       },
+      security: {
+        evidenceStore: { durable: true, available: true, mode: 'postgres' },
+        quarantineStore: { durable: true, available: true, storagePath: '/tmp/maple-fake-quarantine', backlog: 1 },
+        incidents: { total: 1, open: 1, severeOpen: 1 },
+        suppressions: { active: 1 },
+      },
       recent: {
         blockedCount: 1,
         scannedCount: 3,
@@ -445,7 +451,8 @@ function handleFirewall(pathname, method, state, body) {
       ok: true,
       items: [
         {
-          id: 'artifact-fake-1',
+          id: 'evidence-fake-1',
+          incidentId: 'incident-fake-1',
           source: 'artifact',
           traceId: 'trace-fake-1',
           sessionId: 'session-fake-1',
@@ -474,6 +481,219 @@ function handleFirewall(pathname, method, state, body) {
       offset: 0,
       nextOffset: null,
     })
+  }
+
+  if (pathname === '/api/cyber/incidents' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          incidentId: 'incident-fake-1',
+          title: 'Download review required: sample.exe',
+          summary: 'Executable content triggered quarantine and analyst review.',
+          severity: 'RISK_SEVERITY_HIGH',
+          priority: 'high',
+          state: 'new',
+          disposition: '',
+          escalationState: 'pending',
+          ownerId: 'secops',
+          linkedCaseId: 'CASE-1001',
+          evidenceIds: ['evidence-fake-1'],
+          correlation: {
+            traceId: 'trace-fake-1',
+            sessionId: 'session-fake-1',
+            runId: 'run-fake-1',
+            url: 'https://evil.test/sample.exe',
+            sha256: 'fake',
+          },
+        },
+      ],
+      total: 1,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  {
+    const incidentParams = matchPath(pathname, '/api/cyber/incidents/:id')
+    if (incidentParams && method === 'GET') {
+      return asJson({
+        ok: true,
+        incident: {
+          incidentId: incidentParams.id,
+          title: 'Download review required: sample.exe',
+          summary: 'Executable content triggered quarantine and analyst review.',
+          severity: 'RISK_SEVERITY_HIGH',
+          priority: 'high',
+          state: 'new',
+          disposition: '',
+          escalationState: 'pending',
+          ownerId: 'secops',
+          linkedCaseId: 'CASE-1001',
+          correlation: {
+            traceId: 'trace-fake-1',
+            sessionId: 'session-fake-1',
+            runId: 'run-fake-1',
+            url: 'https://evil.test/sample.exe',
+            sha256: 'fake',
+          },
+          evidence: [
+            {
+              evidenceId: 'evidence-fake-1',
+              source: 'artifact',
+              filename: 'sample.exe',
+              traceId: 'trace-fake-1',
+              sessionId: 'session-fake-1',
+              runId: 'run-fake-1',
+              contentType: 'application/octet-stream',
+              sizeBytes: 128,
+              sha256: 'fake',
+              scan: { provider: 'local', status: 'completed', verdict: 'quarantined', blocked: true, quarantined: true, reasons: ['Executable content detected'] },
+            },
+          ],
+          quarantine: [
+            {
+              quarantineId: 'quarantine-fake-1',
+              evidenceId: 'evidence-fake-1',
+              currentState: 'pending_review',
+              reviewStatus: 'pending',
+              classification: 'quarantined',
+              storagePath: '/tmp/maple-fake-quarantine/sample.exe',
+            },
+          ],
+          timeline: [
+            {
+              actionId: 'timeline-fake-1',
+              actionType: 'incident_note',
+              actorId: 'secops',
+              summary: 'Analyst acknowledged incident.',
+              createdAt: nowIso(),
+              payload: { note: 'Acknowledge and review sample.' },
+            },
+          ],
+        },
+      })
+    }
+  }
+
+  {
+    const mutationParams = matchPath(pathname, '/api/cyber/incidents/:id/assign')
+    if (mutationParams && method === 'POST') {
+      return asJson({ ok: true, incident: { incidentId: mutationParams.id, ownerId: parseBody(body).ownerId || 'secops' } })
+    }
+  }
+
+  {
+    const mutationParams = matchPath(pathname, '/api/cyber/incidents/:id/state')
+    if (mutationParams && method === 'POST') {
+      return asJson({ ok: true, incident: { incidentId: mutationParams.id, state: parseBody(body).state || 'triaged' } })
+    }
+  }
+
+  {
+    const mutationParams = matchPath(pathname, '/api/cyber/incidents/:id/note')
+    if (mutationParams && method === 'POST') {
+      return asJson({ ok: true, incident: { incidentId: mutationParams.id, notedAt: nowIso() } })
+    }
+  }
+
+  {
+    const evidenceParams = matchPath(pathname, '/api/cyber/evidence/:id')
+    if (evidenceParams && method === 'GET') {
+      return asJson({
+        ok: true,
+        item: {
+          evidenceId: evidenceParams.id,
+          incidentId: 'incident-fake-1',
+          source: 'artifact',
+          filename: 'sample.exe',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          runId: 'run-fake-1',
+          contentType: 'application/octet-stream',
+          sizeBytes: 128,
+          sha256: 'fake',
+          scan: { provider: 'local', status: 'completed', verdict: 'quarantined', blocked: true, quarantined: true, reasons: ['Executable content detected'] },
+        },
+      })
+    }
+  }
+
+  if (pathname === '/api/cyber/quarantine' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          quarantineId: 'quarantine-fake-1',
+          evidenceId: 'evidence-fake-1',
+          currentState: 'pending_review',
+          reviewStatus: 'pending',
+          classification: 'quarantined',
+          storagePath: '/tmp/maple-fake-quarantine/sample.exe',
+          contentType: 'application/octet-stream',
+          sizeBytes: 128,
+        },
+      ],
+    })
+  }
+
+  {
+    const quarantineParams = matchPath(pathname, '/api/cyber/quarantine/:id/review')
+    if (quarantineParams && method === 'POST') {
+      return asJson({ ok: true, item: { quarantineId: quarantineParams.id, reviewStatus: parseBody(body).reviewStatus || 'reviewed' } })
+    }
+  }
+
+  {
+    const quarantineParams = matchPath(pathname, '/api/cyber/quarantine/:id/release')
+    if (quarantineParams && method === 'POST') {
+      return asJson({ ok: true, item: { quarantineId: quarantineParams.id, currentState: 'released' } })
+    }
+  }
+
+  {
+    const quarantineParams = matchPath(pathname, '/api/cyber/quarantine/:id/rescan')
+    if (quarantineParams && method === 'POST') {
+      return asJson({ ok: true, item: { quarantineId: quarantineParams.id, currentState: 'pending_review' } })
+    }
+  }
+
+  if (pathname === '/api/cyber/suppressions' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          suppressionId: 'suppression-fake-1',
+          status: 'active',
+          scopeType: 'sha256',
+          scopeValue: 'fake',
+          rationale: 'Temporary allow while analyst validates sample.',
+          approver: 'secops',
+          createdBy: 'secops',
+          createdAt: nowIso(),
+        },
+      ],
+    })
+  }
+
+  if (pathname === '/api/cyber/suppressions' && method === 'POST') {
+    const payload = parseBody(body)
+    return asJson({
+      ok: true,
+      item: {
+        suppressionId: state.nextId('suppression'),
+        status: 'active',
+        ...payload,
+        createdAt: nowIso(),
+      },
+    })
+  }
+
+  {
+    const suppressionParams = matchPath(pathname, '/api/cyber/suppressions/:id/revoke')
+    if (suppressionParams && method === 'POST') {
+      return asJson({ ok: true, item: { suppressionId: suppressionParams.id, status: 'revoked', revokedAt: nowIso() } })
+    }
   }
 
   return null
