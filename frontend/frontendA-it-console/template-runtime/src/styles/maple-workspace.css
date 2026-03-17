@@ -100,7 +100,7 @@
 
 .mw-docs-toggle {
   border: 1px solid var(--mw-line);
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--panel, #fff);
   color: var(--mw-ink);
   font-weight: 600;
   border-radius: 999px;
@@ -126,7 +126,7 @@
 
 .mw-navigation-column {
   border-right: 1px solid var(--mw-line);
-  background: rgba(255, 247, 238, 0.88);
+  background: var(--bg-soft, #f4f4f5);
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -141,7 +141,7 @@
 
 .mw-category-pill {
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--bg-soft, #f4f4f5);
   border-radius: 0.95rem;
   padding: 0.6rem 0.7rem;
   display: grid;
@@ -157,7 +157,7 @@
 
 .mw-category-pill-active {
   border-color: rgba(215, 104, 25, 0.48);
-  background: linear-gradient(145deg, rgba(255, 237, 215, 0.95), rgba(255, 255, 255, 0.95));
+  background: var(--caution-soft, rgba(217, 119, 6, 0.08));
   color: var(--mw-ink);
 }
 
@@ -180,7 +180,7 @@
 
 .mw-view-tab {
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--bg-soft, #f4f4f5);
   border-radius: 0.85rem;
   padding: 0.58rem 0.68rem;
   color: var(--mw-muted);
@@ -244,7 +244,7 @@
 .mw-view-card {
   border: 1px solid rgba(229, 215, 199, 0.85);
   border-radius: 0.95rem;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--panel, #fff);
   padding: 0.75rem 0.8rem;
 }
 
@@ -269,7 +269,7 @@
 .mw-context-explainer {
   border: 1px solid rgba(229, 215, 199, 0.85);
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--panel, #fff);
   padding: 0.8rem;
   display: grid;
   gap: 0.65rem;
@@ -344,7 +344,7 @@
 .mw-intervention {
   border: 1px solid rgba(229, 215, 199, 0.85);
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--panel, #fff);
   padding: 0.7rem;
   display: grid;
   gap: 0.62rem;
@@ -493,7 +493,7 @@
   width: 0;
   min-width: 0;
   border-left: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--panel, #fff);
   box-shadow: none;
   overflow: hidden;
   opacity: 0;
@@ -635,7 +635,7 @@
 
 .mw-chat-bubble-assistant {
   margin-right: 20%;
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--panel, #fff);
   border: 1px solid rgba(229, 215, 199, 0.95);
 }
 
@@ -972,7 +972,7 @@
   border: 1px solid rgba(232, 116, 12, 0.35);
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
-  background: rgba(255, 247, 238, 0.9);
+  background: var(--bg-soft, #f4f4f5);
 }
 
 .top-bar .mw-source-badge {
@@ -990,7 +990,7 @@
   height: calc(100dvh - 74px);
   z-index: 70;
   width: min(420px, 92vw);
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--panel, #fff);
   border-left: 1px solid var(--mw-line);
   box-shadow: -16px 0 44px rgba(0, 0, 0, 0.08);
   transform: translateX(102%);
@@ -1019,7 +1019,7 @@
 .mayple-shell-root .mw-docs-header {
   position: sticky;
   top: 0;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--panel, #fff);
   backdrop-filter: blur(8px);
   z-index: 2;
   border-bottom: 1px solid var(--mw-line);
