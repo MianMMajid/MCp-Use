@@ -121,36 +121,12 @@
               : 'Ask a question, run a command, or explore your agent stack.'}
           </p>
 
-          <!-- Selectors — centered in empty state -->
-          <div class="selector-row">
-            {#if showModelSelector}
+          <!-- Model selector — above input -->
+          {#if showModelSelector}
+            <div class="selector-row">
               <ModelSelectorPill />
-            {/if}
-            {#if isOrchestration}
-              <SelectorPill
-                label="Orchestration"
-                icon="orchestration"
-                value={$chatStore.selectedOrchestrationId}
-                options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
-                on:change={(e) => chatStore.selectOrchestration(e.detail)}
-              />
-            {:else}
-              <SelectorPill
-                label="Agent"
-                icon="agent"
-                value={$chatStore.selectedAgentId}
-                options={agentOptionsWithNone}
-                on:change={(e) => chatStore.selectAgent(e.detail)}
-              />
-            {/if}
-            <SelectorPill
-              label="Mode"
-              icon="chat"
-              value={$chatStore.chatTarget}
-              options={routeOptions}
-              on:change={(e) => chatStore.setChatTarget(e.detail)}
-            />
-          </div>
+            </div>
+          {/if}
 
           {#if !isOrchestration && !hasAgents}
             <div class="first-time-cta">
@@ -263,6 +239,35 @@
           </button>
         {/if}
       </div>
+      <!-- Agent/Mode selectors — below input -->
+      {#if showCenteredComposer}
+        <div class="below-selectors">
+          {#if isOrchestration}
+            <SelectorPill
+              label="Orchestration"
+              icon="orchestration"
+              value={$chatStore.selectedOrchestrationId}
+              options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
+              on:change={(e) => chatStore.selectOrchestration(e.detail)}
+            />
+          {:else}
+            <SelectorPill
+              label="Agent"
+              icon="agent"
+              value={$chatStore.selectedAgentId}
+              options={agentOptionsWithNone}
+              on:change={(e) => chatStore.selectAgent(e.detail)}
+            />
+          {/if}
+          <SelectorPill
+            label="Mode"
+            icon="chat"
+            value={$chatStore.chatTarget}
+            options={routeOptions}
+            on:change={(e) => chatStore.setChatTarget(e.detail)}
+          />
+        </div>
+      {/if}
       {#if showCenteredComposer && !isOrchestration && hasAgents}
         <div class="suggestions">
           {#each quickPrompts as prompt}
@@ -298,6 +303,15 @@
     flex-wrap: wrap;
     margin-top: 12px;
     margin-bottom: 4px;
+  }
+
+  .below-selectors {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
   }
 
   .stream-selectors {

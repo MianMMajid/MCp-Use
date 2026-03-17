@@ -110,13 +110,13 @@
     top: calc(100% + 8px);
     left: 0;
     width: 318px;
-    border-radius: 22px;
-    border: 1px solid var(--border);
+    border-radius: 16px;
+    border: 1px solid var(--border-strong);
     background: var(--panel);
-    box-shadow: var(--shadow-strong);
-    padding: 10px;
-    z-index: 30;
-    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    padding: 8px;
+    z-index: 40;
+    backdrop-filter: blur(20px);
   }
 
   .menu-title {
