@@ -1,9 +1,26 @@
 import { server, database } from "../state.js";
-import { bridgeOverrideLockEnabled } from "../config.js";
+import { bridgeOverrideLockEnabled, downloadScanProvider, downloadScanTimeoutMs, downloadScanVirusTotalApiKey, downloadScanVirusTotalApiUrl } from "../config.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { getTraceForCurrentOwner, getLatestTraceBySessionForCurrentOwner, createTraceForCurrentOwner, upsertTraceForCurrentOwner, auditAndPersist, buildCandidateStep, evaluateFirewallStepViaGrpc, } from "../trace-helpers.js";
+import { buildLocalScanResult, scanDownloadedContent } from "../../../../shared/packages/maple-security/src/download-scan.js";
+
+async function buildFirewallPayloadScan(body) {
+    return scanDownloadedContent({
+        provider: downloadScanProvider,
+        virustotalApiKey: downloadScanVirusTotalApiKey,
+        virustotalApiUrl: downloadScanVirusTotalApiUrl,
+        timeoutMs: downloadScanTimeoutMs,
+        content: Buffer.from(JSON.stringify(body ?? {})),
+        contentType: "application/json",
+        filename: "firewall-payload.json",
+        localResult: buildLocalScanResult({
+            threats: [],
+            quarantined: false,
+        }),
+    });
+}
 export function registerFirewallDecisionRoutes() {
     // ── POST /api/firewall/decision ────────────────────────────────────────────
     server.app.post("/api/firewall/decision", async (c) => {
@@ -15,6 +32,7 @@ export function registerFirewallDecisionRoutes() {
         const enforce = asBoolean(body.enforce, true);
         const traceId = asString(body.traceId);
         const sessionId = asString(body.sessionId);
+        const scan = await buildFirewallPayloadScan(body);
         let trace = traceId ? getTraceForCurrentOwner(traceId) : undefined;
         if (traceId && !trace) {
             return c.json({ error: "Trace not found." }, 404);
@@ -59,6 +77,7 @@ export function registerFirewallDecisionRoutes() {
                 evaluatedAt: decision.evaluatedAt,
                 bridgeLocked: bridgeOverrideLockEnabled,
                 step: decision.step,
+                scan,
             });
         }
         if (!trace) {
@@ -142,6 +161,7 @@ export function registerFirewallDecisionRoutes() {
             overallRiskScore: report.overallRiskScore,
             riskSeverity: report.severity,
             bridgeLocked: bridgeOverrideLockEnabled,
+            scan,
         });
     });
     // ── POST /api/firewall/preview ────────────────────────────────────────────
@@ -151,6 +171,7 @@ export function registerFirewallDecisionRoutes() {
             return unauthorized;
         }
         const body = await readJsonBody(c);
+        const scan = await buildFirewallPayloadScan(body);
         const candidateStep = buildCandidateStep(body, Number(body.stepIndex ?? 0), {
             actor: "agent",
             type: "tool_call",
@@ -170,6 +191,7 @@ export function registerFirewallDecisionRoutes() {
             evaluatedAt: decision.evaluatedAt,
             bridgeLocked: bridgeOverrideLockEnabled,
             step: decision.step,
+            scan,
         });
     });
 }

@@ -1452,6 +1452,212 @@ export function registerFrontendBRoutes(app) {
     return c.json({ ok: true, items: await loadNormalizedSkillCatalog() });
   });
 
+  // ── MCP Registry marketplace ─────────────────────────────────────
+  const _mcpRegistryCache = { servers: [], ts: 0 };
+  const MCP_REGISTRY_TTL = 5 * 60_000; // 5 min cache
+
+  async function fetchMcpRegistry(cursor, limit = 100) {
+    const url = new URL("https://registry.modelcontextprotocol.io/v0.1/servers");
+    url.searchParams.set("limit", String(limit));
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) throw new Error(`MCP Registry ${res.status}`);
+    return res.json();
+  }
+
+  async function getAllMcpRegistryServers() {
+    if (Date.now() - _mcpRegistryCache.ts < MCP_REGISTRY_TTL && _mcpRegistryCache.servers.length > 0) {
+      return _mcpRegistryCache.servers;
+    }
+    const all = [];
+    let cursor = undefined;
+    for (let page = 0; page < 20; page++) {
+      const data = await fetchMcpRegistry(cursor, 100);
+      const servers = data.servers || [];
+      for (const entry of servers) {
+        const srv = entry.server || {};
+        const meta = entry._meta || {};
+        const remotes = srv.remotes || [];
+        const remoteHeaders = remotes[0]?.headers || [];
+        const authHeaders = remoteHeaders.filter((h) => h.isSecret || h.isRequired);
+        all.push({
+          name: srv.name || "",
+          title: srv.title || srv.name || "",
+          description: srv.description || "",
+          version: srv.version || "",
+          websiteUrl: srv.websiteUrl || "",
+          repository: srv.repository?.url || "",
+          icons: srv.icons || [],
+          remotes: remotes.map((r) => ({ type: r.type, url: r.url })),
+          packages: (srv.packages || []).map((p) => ({
+            registryUrl: p.registryUrl || "",
+            name: p.name || "",
+            version: p.version || "",
+            runtime: p.runtime || "",
+            packageArguments: p.packageArguments || [],
+          })),
+          tools: (srv.tools || []).map((t) => ({ name: t.name, description: t.description })),
+          official: meta["io.modelcontextprotocol.registry/official"]?.status === "active",
+          transport: remotes.length > 0 ? "remote" : srv.packages?.length > 0 ? "package" : "unknown",
+          requiresAuth: authHeaders.length > 0,
+          authHeaders: authHeaders.map((h) => ({
+            name: h.name || "Authorization",
+            description: h.description || "",
+            isRequired: h.isRequired ?? true,
+          })),
+        });
+      }
+      cursor = data.metadata?.nextCursor;
+      if (!cursor) break;
+    }
+    // Dedupe by name (keep latest version)
+    const seen = new Map();
+    for (const s of all) {
+      if (!seen.has(s.name) || s.version > seen.get(s.name).version) {
+        seen.set(s.name, s);
+      }
+    }
+    _mcpRegistryCache.servers = [...seen.values()];
+    _mcpRegistryCache.ts = Date.now();
+    return _mcpRegistryCache.servers;
+  }
+
+  app.get("/api/skills/marketplace", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const query = asString(c.req.query("q"))?.toLowerCase() || "";
+    const category = asString(c.req.query("category")) || "";
+    const transportFilter = asString(c.req.query("transport")) || "";
+
+    try {
+      let servers = await getAllMcpRegistryServers();
+
+      if (query) {
+        servers = servers.filter((s) =>
+          s.name.toLowerCase().includes(query) ||
+          s.title.toLowerCase().includes(query) ||
+          s.description.toLowerCase().includes(query) ||
+          s.tools.some((t) => t.name.toLowerCase().includes(query))
+        );
+      }
+      if (transportFilter) {
+        servers = servers.filter((s) => s.transport === transportFilter);
+      }
+
+      return c.json({ ok: true, items: servers, total: servers.length });
+    } catch (err) {
+      return c.json({ ok: false, error: err instanceof Error ? err.message : String(err), items: [] }, 502);
+    }
+  });
+
+  app.post("/api/skills/marketplace/install", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    if (!hasPersistentStorage()) {
+      return c.json({ ok: false, error: "Persistent storage required." }, 503);
+    }
+
+    const body = await readJsonBody(c);
+    const serverName = asString(body.name);
+    const apiKey = asString(body.apiKey);
+    const customHeaders = body.headers && typeof body.headers === "object" ? body.headers : {};
+    if (!serverName) {
+      return c.json({ ok: false, error: "Server name is required." }, 400);
+    }
+
+    // Find in registry
+    let servers;
+    try {
+      servers = await getAllMcpRegistryServers();
+    } catch (err) {
+      return c.json({ ok: false, error: "Failed to fetch MCP registry." }, 502);
+    }
+    const server = servers.find((s) => s.name === serverName);
+    if (!server) {
+      return c.json({ ok: false, error: `Server "${serverName}" not found in MCP registry.` }, 404);
+    }
+
+    // Register as a skill in our governance store
+    const toolId = serverName.replace(/[^a-zA-Z0-9._:-]/g, "-").substring(0, 128);
+    const tool = await governanceStore.upsertTool({
+      toolId,
+      name: server.title || serverName,
+      description: server.description,
+      schema: {
+        tools: server.tools,
+        _mcp: {
+          source: "mcp-registry",
+          serverName,
+          version: server.version,
+          transport: server.transport,
+          remotes: server.remotes,
+          packages: server.packages,
+          websiteUrl: server.websiteUrl,
+          repository: server.repository,
+          installedAt: new Date().toISOString(),
+          apiKey: apiKey || undefined,
+          authHeaderName: server.authHeaders?.[0]?.name || undefined,
+        },
+      },
+      source: "mcp-registry",
+    });
+
+    // Register as a downstream app if remote URL available
+    let downstream = null;
+    const remoteUrl = server.remotes?.[0]?.url;
+    if (remoteUrl) {
+      try {
+        const { downstreamAppRegistry } = await import("../config.js");
+        const { clearDownstreamToolsCache } = await import("../control/downstream-resolution.js");
+        const appId = `mcp-registry:${toolId}`;
+        // Build auth headers from API key or custom headers
+        const appHeaders = { ...customHeaders };
+        if (apiKey) {
+          // Determine the right header name from server metadata
+          const authHeaderName = server.authHeaders?.[0]?.name || "Authorization";
+          if (authHeaderName.toLowerCase() === "authorization") {
+            appHeaders[authHeaderName] = `Bearer ${apiKey}`;
+          } else {
+            appHeaders[authHeaderName] = apiKey;
+          }
+        }
+        const app = {
+          id: appId,
+          name: server.title || serverName,
+          description: `[mcp-registry] ${serverName} - ${server.description || ""}`,
+          mcpUrl: remoteUrl,
+          enabled: true,
+          timeoutMs: 15_000,
+          authScheme: "raw",
+          headers: Object.keys(appHeaders).length > 0 ? appHeaders : undefined,
+        };
+        downstreamAppRegistry.set(appId, app);
+        clearDownstreamToolsCache(appId);
+        downstream = { appId, mcpUrl: remoteUrl, status: "connected" };
+      } catch (err) {
+        downstream = { error: err instanceof Error ? err.message : String(err), status: "metadata_only" };
+      }
+    }
+
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_TOOL_DISPATCHED",
+      sourceService: "gateway-api",
+      sessionId: auth.session.id,
+      userId: auth.session.user.id,
+      summary: `Installed MCP server ${serverName} from registry`,
+      payload: {
+        tenantId: `user:${auth.session.user.id}`,
+        orgId: "default",
+        toolId,
+        source: "mcp-registry",
+        action: "marketplace_install",
+        downstream: downstream?.status,
+      },
+    });
+
+    return c.json({ ok: true, tool, server, downstream }, 201);
+  });
+
   app.post("/api/skills/import", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) return auth.error;
@@ -1498,6 +1704,186 @@ export function registerFrontendBRoutes(app) {
       },
       201
     );
+  });
+
+  // ── Skill ZIP upload ────────────────────────────────────────────
+  app.post("/api/skills/upload", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    if (!hasPersistentStorage()) {
+      return c.json({ ok: false, error: "Persistent storage required for skill upload." }, 503);
+    }
+
+    let formData;
+    try {
+      formData = await c.req.formData();
+    } catch {
+      return c.json({ ok: false, error: "Expected multipart/form-data with a file field." }, 400);
+    }
+
+    const file = formData.get("file");
+    if (!file || typeof file === "string") {
+      return c.json({ ok: false, error: "Missing file field." }, 400);
+    }
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      return c.json({ ok: false, error: "Only .zip skill bundles are supported." }, 400);
+    }
+
+    const { inflateRawSync } = await import("node:zlib");
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Parse zip entries (supports STORE and DEFLATE)
+    let manifest = null;
+    let metaJson = null;
+    let skillMd = null;
+    const entries = [];
+
+    let offset = 0;
+    while (offset + 30 <= buffer.length) {
+      if (buffer.readUInt32LE(offset) !== 0x04034b50) break;
+      const compressionMethod = buffer.readUInt16LE(offset + 8);
+      const compressedSize = buffer.readUInt32LE(offset + 18);
+      const uncompressedSize = buffer.readUInt32LE(offset + 22);
+      const nameLen = buffer.readUInt16LE(offset + 26);
+      const extraLen = buffer.readUInt16LE(offset + 28);
+      const entryName = buffer.toString("utf8", offset + 30, offset + 30 + nameLen);
+      const dataOffset = offset + 30 + nameLen + extraLen;
+      const dataSize = compressedSize > 0 ? compressedSize : uncompressedSize;
+
+      if (dataOffset + dataSize > buffer.length) break;
+
+      if (!entryName.endsWith("/") && dataSize > 0) {
+        let content = null;
+        try {
+          if (compressionMethod === 0) {
+            content = buffer.subarray(dataOffset, dataOffset + dataSize).toString("utf8");
+          } else if (compressionMethod === 8) {
+            content = inflateRawSync(buffer.subarray(dataOffset, dataOffset + dataSize)).toString("utf8");
+          }
+        } catch {}
+
+        entries.push({ name: entryName, content });
+        const baseName = entryName.split("/").pop();
+
+        if (content && (baseName === "manifest.json" || baseName === "package.json") && !manifest) {
+          try { manifest = JSON.parse(content); manifest._sourceFile = baseName; } catch {}
+        }
+        if (content && baseName === "_meta.json" && !metaJson) {
+          try { metaJson = JSON.parse(content); } catch {}
+        }
+        if (content && baseName === "SKILL.md" && !skillMd) {
+          skillMd = content;
+        }
+      }
+      offset = dataOffset + dataSize;
+    }
+
+    // Support ClawHub format: _meta.json + SKILL.md with YAML frontmatter
+    if (!manifest && (metaJson || skillMd)) {
+      manifest = { _sourceFile: "clawhub" };
+
+      if (metaJson) {
+        manifest.slug = metaJson.slug;
+        manifest.ownerId = metaJson.ownerId;
+        manifest.version = metaJson.version;
+        manifest.publishedAt = metaJson.publishedAt;
+      }
+
+      if (skillMd) {
+        // Parse YAML frontmatter from SKILL.md
+        const fmMatch = skillMd.match(/^---\n([\s\S]*?)\n---/);
+        if (fmMatch) {
+          const fmText = fmMatch[1];
+          const fmGet = (key) => {
+            const m = fmText.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
+            return m ? m[1].trim() : "";
+          };
+          manifest.name = fmGet("name") || metaJson?.slug || "";
+          manifest.description = fmGet("description") || "";
+          manifest.homepage = fmGet("homepage") || "";
+          // Parse metadata JSON block
+          const metaLine = fmText.match(/^metadata:\s*(\{[\s\S]*\})\s*$/m);
+          if (metaLine) {
+            try { manifest.metadata = JSON.parse(metaLine[1]); } catch {}
+          }
+        }
+        manifest._skillMd = skillMd;
+      }
+    }
+
+    if (!manifest) {
+      return c.json({
+        ok: false,
+        error: "No recognized skill format found. Expected: _meta.json + SKILL.md (ClawHub), or manifest.json / package.json.",
+        filesFound: entries.map((e) => e.name),
+      }, 400);
+    }
+
+    // Extract skill metadata — support both ClawHub and manifest.json formats
+    const toolId = asString(manifest.toolId) || asString(manifest.slug) || asString(manifest.name) || file.name.replace(/\.zip$/i, "").replace(/[^a-zA-Z0-9._:-]/g, "-");
+    const name = asString(manifest.displayName) || asString(manifest.name) || toolId;
+    const description = asString(manifest.description) || `Skill imported from ${file.name}`;
+    const schema = manifest.schema || manifest.inputSchema || {};
+    const mcpConfig = manifest.mcp || manifest.mcpServer || manifest.metadata?.clawdbot || null;
+
+    // Validate toolId format
+    const cleanToolId = toolId.replace(/[^a-zA-Z0-9._:-]/g, "-").substring(0, 128);
+    if (!cleanToolId) {
+      return c.json({ ok: false, error: "Could not derive a valid toolId from the manifest." }, 400);
+    }
+
+    // Register the skill in the governance store
+    const tool = await governanceStore.upsertTool({
+      toolId: cleanToolId,
+      name,
+      description,
+      schema: {
+        ...schema,
+        _bundle: {
+          fileName: file.name,
+          sizeBytes: buffer.length,
+          fileCount: entries.length,
+          manifestSource: manifest._sourceFile,
+          mcpConfig: mcpConfig || undefined,
+          uploadedAt: new Date().toISOString(),
+        },
+      },
+      source: "zip-upload",
+    });
+
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_TOOL_DISPATCHED",
+      sourceService: "gateway-api",
+      sessionId: auth.session.id,
+      userId: auth.session.user.id,
+      summary: `Uploaded skill bundle ${cleanToolId} from ${file.name}`,
+      payload: {
+        tenantId: `user:${auth.session.user.id}`,
+        orgId: "default",
+        toolId: cleanToolId,
+        source: "zip-upload",
+        action: "skills_upload",
+        fileCount: entries.length,
+      },
+    });
+
+    return c.json({
+      ok: true,
+      tool,
+      manifest: {
+        toolId: cleanToolId,
+        name,
+        description,
+        mcpConfig: mcpConfig || null,
+        fileCount: entries.length,
+        files: entries.map((e) => e.name),
+      },
+      storage: {
+        persistent: true,
+        registryRecord: await getStoredSkillRecord(cleanToolId),
+      },
+    }, 201);
   });
 
   app.post("/api/skills/:skillId/smoke-test", async (c) => {

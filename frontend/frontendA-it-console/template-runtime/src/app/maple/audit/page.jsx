@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { filterRecordsBySource, getAuditRecordSource } from '@/lib/maple-workspace/origin-filter'
 
 export const sections = [
   { title: 'Audit events', id: 'audit-events' },
@@ -53,6 +54,7 @@ export default function AuditPage() {
   const [auditEvents, setAuditEvents] = useState([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditStatusFilter, setAuditStatusFilter] = useState('')
+  const [auditSourceFilter, setAuditSourceFilter] = useState('all')
   const [auditOffset, setAuditOffset] = useState(0)
   const [auditNextOffset, setAuditNextOffset] = useState(null)
   const [exportFormat, setExportFormat] = useState('json')
@@ -88,7 +90,7 @@ export default function AuditPage() {
       params.set('limit', '100')
       if (auditStatusFilter) params.set('status', auditStatusFilter)
       const data = await loadJson(`/api/observability/orchestrations/audit-log?${params.toString()}`)
-      const items = Array.isArray(data?.items) ? data.items : []
+      const items = filterRecordsBySource(Array.isArray(data?.items) ? data.items : [], auditSourceFilter)
       setAuditEvents((prev) => (append ? [...prev, ...items] : items))
       setAuditOffset(data.offset ?? offset)
       setAuditNextOffset(data.nextOffset ?? null)
@@ -97,7 +99,7 @@ export default function AuditPage() {
     } finally {
       setAuditLoading(false)
     }
-  }, [auditStatusFilter])
+  }, [auditSourceFilter, auditStatusFilter])
 
   const fetchAuditChain = useCallback(async () => {
     setAuditChainLoading(true)
@@ -305,6 +307,16 @@ export default function AuditPage() {
                   onChange={(event) => setAuditStatusFilter(event.target.value)}
                   className="rounded-full border border-zinc-950/10 bg-white px-3 py-1 text-sm text-zinc-950 outline-2 outline-offset-2 outline-orange-500 focus:outline dark:border-white/10 dark:bg-zinc-900 dark:text-white"
                 />
+                <select
+                  value={auditSourceFilter}
+                  onChange={(event) => setAuditSourceFilter(event.target.value)}
+                  className="rounded-full border border-zinc-950/10 bg-white px-3 py-1 text-sm text-zinc-950 outline-2 outline-offset-2 outline-orange-500 focus:outline dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+                >
+                  <option value="all">all sources</option>
+                  <option value="context-wall">context-wall</option>
+                  <option value="cyber-proxy">cyber-proxy</option>
+                  <option value="gateway-api">gateway-api</option>
+                </select>
                 <Button variant="secondary" onClick={() => fetchAudit(0, false)} disabled={auditLoading}>
                   {auditLoading ? 'Loading...' : 'Search'}
                 </Button>
@@ -377,6 +389,9 @@ export default function AuditPage() {
                         <span className="text-sm font-medium text-zinc-950 dark:text-white">
                           {event.event?.eventType || event.eventType || event.type || 'event'}
                         </span>
+                        <Tag color="zinc" variant="small">
+                          {getAuditRecordSource(event) || 'unknown'}
+                        </Tag>
                         <Tag color={severityColor(event.event?.severity || event.severity)} variant="medium">
                           {String(event.event?.severity || event.severity || 'info').toUpperCase()}
                         </Tag>

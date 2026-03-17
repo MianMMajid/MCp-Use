@@ -47,6 +47,23 @@ function optionalEnvBool(key, fallback) {
         return false;
     throw new Error(`Invalid boolean for ${key}: "${raw}" (must be 0/1/true/false/yes/no)`);
 }
+function optionalEnvInt(key, fallback, { min, max } = {}) {
+    const raw = (process.env[key] ?? "").trim();
+    if (!raw) {
+        return fallback;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed)) {
+        throw new Error(`Invalid integer for ${key}: "${raw}"`);
+    }
+    if (min !== undefined && parsed < min) {
+        throw new Error(`${key} value ${parsed} is below minimum ${min}`);
+    }
+    if (max !== undefined && parsed > max) {
+        throw new Error(`${key} value ${parsed} is above maximum ${max}`);
+    }
+    return parsed;
+}
 function requireCsvList(key) {
     const raw = requireEnv(key);
     const normalized = raw
@@ -151,6 +168,39 @@ export const redisUrl = requireEnv("MAPLE_REDIS_URL");
 
 export const firewallChatPreferOpenClaw = requireEnvBool("MAPLE_FIREWALL_CHAT_PREFER_OPENCLAW");
 export const firewallChatStrictMode = requireEnvBool("MAPLE_FIREWALL_CHAT_STRICT_MODE");
+const downloadScanProviderRaw = optionalEnv("MAPLE_DOWNLOAD_SCAN_PROVIDER", "local").toLowerCase();
+if (downloadScanProviderRaw !== "local" && downloadScanProviderRaw !== "virustotal") {
+    throw new Error(`Invalid MAPLE_DOWNLOAD_SCAN_PROVIDER: "${downloadScanProviderRaw}" (must be "local" or "virustotal")`);
+}
+export const downloadScanProvider = downloadScanProviderRaw;
+export const downloadScanVirusTotalApiKey = optionalEnv("MAPLE_VIRUSTOTAL_API_KEY");
+export const downloadScanVirusTotalApiUrl = optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3");
+export const downloadScanTimeoutMs = optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 });
+export const cyberAllowedDomains = optionalEnv("CYBER_ALLOWED_DOMAINS")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+export const cyberBlockedDomains = optionalEnv("CYBER_BLOCKED_DOMAINS")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+export const cyberToolAllowedDomains = (() => {
+    const raw = optionalEnv("CYBER_TOOL_ALLOWED_DOMAINS_JSON", "{}");
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    }
+    catch {
+        return {};
+    }
+})();
+export const cyberAllowLocalTargets = optionalEnvBool("CYBER_ALLOW_LOCAL_TARGETS", false);
+export const cyberAllowedLocalHosts = optionalEnv("CYBER_ALLOWED_LOCAL_HOSTS")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+export const cyberMaxResponseBytes = optionalEnvInt("CYBER_MAX_RESPONSE_BYTES", 10 * 1024 * 1024, { min: 1024, max: 500 * 1024 * 1024 });
+export const cyberQuarantineEnabled = optionalEnvBool("CYBER_QUARANTINE_ENABLED", true);
 export const sessionPollEnabled = requireEnvBool("MAPLE_SESSION_POLL");
 export const sessionPollIntervalMs = requireEnvInt("MAPLE_SESSION_POLL_MS", { min: 1 });
 export const mcpFirewallDefaultAppId = requireEnv("MAPLE_MCP_FIREWALL_DEFAULT_APP");

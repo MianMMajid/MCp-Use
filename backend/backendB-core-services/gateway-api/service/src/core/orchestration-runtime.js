@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { asString } from "../helpers.js";
 import { runOpenClawTurn } from "./openclaw-agent-runtime.js";
+import { runNativeAgentTurn, agentRequiresNativeRuntime } from "./native-agent-runtime.js";
+import { database } from "../state.js";
 
 const executionStore = new Map();
+const agentCache = new Map();
 const executionWatchers = new Map();
 let executionEventSequence = 0;
 
@@ -374,8 +377,16 @@ function findExecution(executionId) {
 function buildExecutionInputSummary(input) {
   if (!input) return "";
   if (typeof input === "string") return input;
-  if (typeof input.message === "string") return input.message;
-  if (typeof input.objective === "string") return input.objective;
+  if (typeof input.message === "string" && input.message) return input.message;
+  if (typeof input.objective === "string" && input.objective) return input.objective;
+  if (typeof input.goal === "string" && input.goal) return input.goal;
+  // Check nested objectivePackage (from frontend execute payload)
+  if (input.objectivePackage?.goal) return input.objectivePackage.goal;
+  // Check conversationContext for user message
+  if (Array.isArray(input.conversationContext)) {
+    const userMsg = input.conversationContext.find((m) => m.role === "user");
+    if (userMsg?.content) return userMsg.content;
+  }
   try {
     return JSON.stringify(input).slice(0, 600);
   } catch {
@@ -403,6 +414,82 @@ function describeNode(node) {
   return `${label}${agent}`;
 }
 
+// ── Agent loading & capability validation ──────────────────────────
+
+async function loadAgentRecord(agentId) {
+  if (!agentId) return null;
+  const cached = agentCache.get(agentId);
+  if (cached && Date.now() - cached.ts < 30_000) return cached.agent;
+  try {
+    const agent = await database.findAgentById(agentId);
+    if (agent) agentCache.set(agentId, { agent, ts: Date.now() });
+    return agent ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getAgentCapabilities(agent) {
+  if (!agent) return [];
+  const fromConfig = agent.config?.toolbelt?.equippedToolIds;
+  if (Array.isArray(fromConfig) && fromConfig.length > 0) return fromConfig;
+  if (Array.isArray(agent.capabilities) && agent.capabilities.length > 0) return agent.capabilities;
+  return [];
+}
+
+/**
+ * Validate that every node with a nodeObjective has an agent with
+ * capabilities that are plausibly relevant to the task.
+ * Returns { ok, warnings[] } — warnings are advisory, not blocking.
+ * Returns { ok: false, errors[] } for hard failures (missing agents).
+ */
+export async function validateNodeCapabilities(execution) {
+  const errors = [];
+  const warnings = [];
+
+  for (const node of execution.graph.nodes) {
+    if (node.metadata?.isInstruction) continue;
+    if (!node.agentId) {
+      errors.push({
+        nodeId: node.id,
+        label: node.label || node.id,
+        type: "no_agent",
+        message: `Node "${node.label || node.id}" has no agent assigned.`,
+      });
+      continue;
+    }
+
+    const agent = await loadAgentRecord(node.agentId);
+    if (!agent) {
+      errors.push({
+        nodeId: node.id,
+        label: node.label || node.id,
+        agentId: node.agentId,
+        type: "agent_not_found",
+        message: `Agent "${node.agentId}" assigned to node "${node.label || node.id}" does not exist.`,
+      });
+      continue;
+    }
+
+    // Store agent record on the node for later use in runNode
+    node._agentRecord = agent;
+
+    const capabilities = getAgentCapabilities(agent);
+    if (capabilities.length === 0) {
+      warnings.push({
+        nodeId: node.id,
+        label: node.label || node.id,
+        agentId: node.agentId,
+        agentName: agent.name,
+        type: "no_tools",
+        message: `Agent "${agent.name}" on node "${node.label || node.id}" has no tools equipped. It will run with base LLM capabilities only.`,
+      });
+    }
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}
+
 function buildNodeMessage(execution, node) {
   const fullObjective = buildExecutionInputSummary(execution.input) || "Execute orchestration node.";
   const nodeObjective = node.nodeObjective || "";
@@ -412,37 +499,32 @@ function buildNodeMessage(execution, node) {
 
   const sections = [];
 
-  sections.push(`== FULL OBJECTIVE ==\n${fullObjective}`);
+  sections.push(`== OBJECTIVE ==\n${fullObjective}`);
 
   if (predecessors.length > 0) {
     const prevLines = predecessors.map((p) => {
       const desc = describeNode(p);
-      const task = p.nodeObjective ? `: ${p.nodeObjective}` : "";
-      return `- ${desc}${task}`;
+      const task = p.nodeObjective ? `\n  Task: ${p.nodeObjective}` : "";
+      const output = p.outputPreview ? `\n  Output: ${p.outputPreview}` : "";
+      return `- ${desc}${task}${output}`;
     });
     sections.push(`== PREVIOUS STEPS ==\n${prevLines.join("\n")}`);
-  } else {
-    sections.push("== PREVIOUS STEPS ==\nYou are the first node. No prior work.");
   }
 
-  if (nodeObjective) {
+  if (nodeObjective && nodeObjective !== fullObjective) {
     sections.push(`== YOUR TASK ==\n${nodeObjective}`);
-  } else {
-    sections.push(`== YOUR TASK ==\n${fullObjective}`);
+  }
+
+  const capabilities = getAgentCapabilities(node._agentRecord);
+  if (capabilities.length > 0) {
+    sections.push(`== YOUR TOOLS ==\nYou have these tools available: ${capabilities.join(", ")}.`);
   }
 
   if (successors.length > 0) {
-    const nextLines = successors.map((s) => {
-      const desc = describeNode(s);
-      const task = s.nodeObjective ? `: ${s.nodeObjective}` : "";
-      return `- ${desc}${task}`;
-    });
-    sections.push(`== NEXT STEPS ==\n${nextLines.join("\n")}\nMake sure your output is useful for the next worker.`);
-  } else {
-    sections.push("== NEXT STEPS ==\nYou are the final node. Produce the finished result.");
+    sections.push("Make sure your output is useful for the next agent in the chain.");
   }
 
-  return `[Execution ${execution.executionId}] Node ${node.id} (${node.agentId || "unassigned"})\n\n${sections.join("\n\n")}`;
+  return sections.join("\n\n");
 }
 
 function getIncomingActiveEdges(execution, nodeId) {
@@ -609,12 +691,25 @@ async function runNode(execution, node) {
   }
 
   try {
-    const result = await runOpenClawTurn({
-      message: buildNodeMessage(execution, node),
-      sessionId: execution.sessionId,
-      agentId: node.agentId || undefined,
-      parentRunId: execution.lastRunId || undefined,
-    });
+    const nodeTools = getAgentCapabilities(node._agentRecord);
+    const useNative = node._agentRecord && agentRequiresNativeRuntime(node._agentRecord);
+    const result = useNative
+      ? await runNativeAgentTurn({
+          message: buildNodeMessage(execution, node),
+          sessionId: execution.sessionId,
+          agentId: node.agentId || undefined,
+          tools: nodeTools,
+          agentName: node._agentRecord?.name,
+          agentDescription: node._agentRecord?.description,
+          parentRunId: execution.lastRunId || undefined,
+        })
+      : await runOpenClawTurn({
+          message: buildNodeMessage(execution, node),
+          sessionId: execution.sessionId,
+          agentId: node.agentId || undefined,
+          parentRunId: execution.lastRunId || undefined,
+          tools: nodeTools,
+        });
 
     node.runId = asString(result.runId) ?? "";
     node.status = "succeeded";
@@ -760,6 +855,22 @@ async function processExecutionLoop(executionId) {
   execution.status = "running";
   execution.startedAt = execution.startedAt || nowIso();
   execution.updatedAt = execution.startedAt;
+
+  // ── Capability validation gate ──
+  const capCheck = await validateNodeCapabilities(execution);
+  if (!capCheck.ok) {
+    for (const err of capCheck.errors) {
+      emitExecutionEvent(execution, "capability_error", err);
+    }
+    await finalizeExecution(execution, "failed");
+    execution.error = capCheck.errors.map((e) => e.message).join("; ");
+    return;
+  }
+  if (capCheck.warnings.length > 0) {
+    for (const warn of capCheck.warnings) {
+      emitExecutionEvent(execution, "capability_warning", warn);
+    }
+  }
 
   if (execution.mode !== "dry_run") {
     await decomposeObjective(execution);

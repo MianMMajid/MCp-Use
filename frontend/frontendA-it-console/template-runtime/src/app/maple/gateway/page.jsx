@@ -9,6 +9,7 @@ export const sections = [
   { title: 'Effective rules', id: 'effective-rules' },
   { title: 'Preview tool', id: 'preview-tool' },
   { title: 'Firewall state', id: 'firewall-state' },
+  { title: 'Cyber incidents', id: 'cyber-incidents' },
   { title: 'Streaming chat', id: 'streaming-chat' },
   { title: 'Firewall chat', id: 'firewall-chat' },
   { title: 'Capabilities', id: 'capabilities' },
@@ -103,6 +104,14 @@ function StatusCard({ label, value, detail, color }) {
   )
 }
 
+function scanColor(scan) {
+  const verdict = String(scan?.verdict || '').toLowerCase()
+  if (scan?.status === 'pending') return 'amber'
+  if (verdict === 'malicious') return 'rose'
+  if (verdict === 'quarantined') return 'amber'
+  return 'orange'
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -112,6 +121,9 @@ export default function FirewallDashboardPage() {
   const [capabilities, setCapabilities] = useState(null)
   const [chatCaps, setChatCaps] = useState(null)
   const [featureCaps, setFeatureCaps] = useState(null)
+  const [firewallCapabilities, setFirewallCapabilities] = useState(null)
+  const [cyberStatus, setCyberStatus] = useState(null)
+  const [cyberEvents, setCyberEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -141,11 +153,13 @@ export default function FirewallDashboardPage() {
     setLoading(true)
     setError(null)
     try {
-      const [r, cc, fc, fs] = await Promise.allSettled([
+      const [r, cc, fc, fs, cs, ce] = await Promise.allSettled([
         loadJson('/api/firewall/rules/effective'),
         loadJson('/api/chat/capabilities'),
         loadJson('/api/runtime/feature-capabilities'),
         loadJson('/api/firewall/state'),
+        loadJson('/api/cyber/status'),
+        loadJson('/api/cyber/events?limit=5'),
       ])
 
       if (r.status === 'fulfilled') {
@@ -155,6 +169,7 @@ export default function FirewallDashboardPage() {
       if (cc.status === 'fulfilled') setChatCaps(cc.value)
       if (fc.status === 'fulfilled') {
         const data = fc.value
+        setFirewallCapabilities(data.firewall ?? null)
         const raw = data.capabilities ?? data.features ?? data
         // Backend returns features as an object map — convert to array for rendering
         setFeatureCaps(
@@ -171,12 +186,19 @@ export default function FirewallDashboardPage() {
         )
       }
       if (fs.status === 'fulfilled') setFirewallState(fs.value)
+      if (cs.status === 'fulfilled') setCyberStatus(cs.value)
+      if (ce.status === 'fulfilled') {
+        const data = ce.value
+        setCyberEvents(Array.isArray(data?.items) ? data.items : [])
+      }
 
       if (
         r.status === 'rejected' &&
         cc.status === 'rejected' &&
         fc.status === 'rejected' &&
-        fs.status === 'rejected'
+        fs.status === 'rejected' &&
+        cs.status === 'rejected' &&
+        ce.status === 'rejected'
       ) {
         throw new Error('All endpoints failed')
       }
@@ -326,6 +348,7 @@ export default function FirewallDashboardPage() {
     ? featureCaps.filter((c) => c.enabled !== false).length
     : 0
   const totalCaps = featureCaps ? featureCaps.length : 0
+  const recentCyberIncidents = cyberEvents.filter((item) => item?.scan?.blocked || item?.scan?.quarantined || String(item?.eventType || '').includes('URL_BLOCKED'))
 
   return (
     <article className="flex h-full flex-col pt-16 pb-10">
@@ -335,8 +358,7 @@ export default function FirewallDashboardPage() {
             Firewall Dashboard
           </h1>
           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            Monitor firewall rules, preview decisions, chat with the firewall,
-            and inspect capabilities.
+            Monitor context-wall policy, cyber-proxy scanning, preview decisions, and firewall-aware chat in one surface.
           </p>
 
           {/* Error banner */}
@@ -364,7 +386,7 @@ export default function FirewallDashboardPage() {
                 <SkeletonCard />
               </div>
             ) : (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                 <StatusCard
                   label="Effective rules"
                   value={ruleCount}
@@ -386,6 +408,24 @@ export default function FirewallDashboardPage() {
                       : 'Check /api/chat/capabilities'
                   }
                   color={chatCaps ? 'green' : 'amber'}
+                />
+                <StatusCard
+                  label="Context-Wall"
+                  value={firewallCapabilities?.contextWallReachable ? 'Reachable' : 'Degraded'}
+                  detail={firewallCapabilities?.degradedStates?.contextPolicyUnavailable ? 'Context policy unavailable' : 'Policy evaluation reachable'}
+                  color={firewallCapabilities?.contextWallReachable ? 'green' : 'red'}
+                />
+                <StatusCard
+                  label="Cyber-Proxy"
+                  value={firewallCapabilities?.cyberProxyReachable ? 'Reachable' : 'Degraded'}
+                  detail={firewallCapabilities?.degradedStates?.cyberScanUnavailable ? 'Cyber scan unavailable' : `provider ${firewallCapabilities?.scanProvider || 'unknown'}`}
+                  color={firewallCapabilities?.cyberProxyReachable ? 'green' : 'red'}
+                />
+                <StatusCard
+                  label="Recent cyber"
+                  value={String(cyberStatus?.recent?.blockedCount ?? recentCyberIncidents.length)}
+                  detail={`${cyberStatus?.recent?.scannedCount ?? cyberEvents.length} scanned in the last window`}
+                  color={(cyberStatus?.recent?.blockedCount ?? recentCyberIncidents.length) > 0 ? 'amber' : 'green'}
                 />
               </div>
             )}
@@ -496,9 +536,42 @@ export default function FirewallDashboardPage() {
                       {previewResult.error}
                     </p>
                   ) : (
-                    <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
-                      {JSON.stringify(previewResult, null, 2)}
-                    </pre>
+                    <div className="space-y-3">
+                      {(previewResult.decision || previewResult.shouldBlock != null) && (
+                        <div className="rounded-lg border border-zinc-950/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-zinc-950 dark:text-white">Context policy decision</span>
+                            <Tag color={previewResult.shouldBlock ? 'rose' : 'orange'} variant="medium">
+                              {String(previewResult.decision || (previewResult.shouldBlock ? 'deny' : 'allow'))}
+                            </Tag>
+                            {previewResult.rule && <Tag color="zinc" variant="small">{String(previewResult.rule)}</Tag>}
+                          </div>
+                          <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <p>executeAllowed={String(Boolean(previewResult.executeAllowed))} shouldBlock={String(Boolean(previewResult.shouldBlock))}</p>
+                            {previewResult.message && <p>{previewResult.message}</p>}
+                          </div>
+                        </div>
+                      )}
+                      {previewResult.scan && (
+                        <div className="rounded-lg border border-zinc-950/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-zinc-950 dark:text-white">Payload/download scan verdict</span>
+                            <Tag color={scanColor(previewResult.scan)} variant="medium">{String(previewResult.scan.verdict || previewResult.scan.status || 'unknown')}</Tag>
+                            <Tag color="zinc" variant="small">{String(previewResult.scan.provider || 'local')}</Tag>
+                          </div>
+                          <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <p>status={previewResult.scan.status} blocked={String(Boolean(previewResult.scan.blocked))} quarantined={String(Boolean(previewResult.scan.quarantined))}</p>
+                            <p>sha256={previewResult.scan.sha256} size={previewResult.scan.sizeBytes} contentType={previewResult.scan.contentType}</p>
+                            {Array.isArray(previewResult.scan.reasons) && previewResult.scan.reasons.length > 0 && (
+                              <p>reasons: {previewResult.scan.reasons.join(' | ')}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                        {JSON.stringify(previewResult, null, 2)}
+                      </pre>
+                    </div>
                   )}
                 </div>
               )}
@@ -516,6 +589,33 @@ export default function FirewallDashboardPage() {
               </div>
             ) : !loading ? (
               <p className="mt-4 text-sm text-zinc-500">Firewall state not available.</p>
+            ) : null}
+          </section>
+
+          <section id="cyber-incidents" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Recent cyber incidents
+            </h2>
+            {recentCyberIncidents.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {recentCyberIncidents.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-950 dark:text-white">{item.summary || item.eventType}</span>
+                      <Tag color={scanColor(item.scan)} variant="medium">{String(item.scan?.verdict || item.eventType || 'unknown')}</Tag>
+                      <Tag color="zinc" variant="small">{String(item.sourceService || 'cyber-proxy')}</Tag>
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      <p>policyReason={item.policyReason || '--'} traceId={item.traceId || '--'} sessionId={item.sessionId || '--'}</p>
+                      {item.url && <p>url={item.url}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : !loading ? (
+              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+                No recent blocked or quarantined cyber incidents. Use <a className="underline" href="/maple/cyber">Cyber Operations</a> for full scan history.
+              </p>
             ) : null}
           </section>
 

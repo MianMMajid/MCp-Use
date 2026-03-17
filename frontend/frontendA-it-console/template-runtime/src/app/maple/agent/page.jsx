@@ -68,6 +68,14 @@ function formatDate(d) {
   try { return new Date(d).toLocaleString() } catch { return d }
 }
 
+function scanColor(scan) {
+  const verdict = String(scan?.verdict || '').toLowerCase()
+  if (scan?.status === 'pending') return 'amber'
+  if (verdict === 'malicious') return 'rose'
+  if (verdict === 'quarantined') return 'amber'
+  return 'orange'
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -81,6 +89,7 @@ export default function AgentManagementPage() {
   const [expanded, setExpanded] = useState(null)
   const [detail, setDetail] = useState(null)
   const [artifacts, setArtifacts] = useState(null)
+  const [artifactsRunId, setArtifactsRunId] = useState('')
 
   // Chat state
   const [mode, setMode] = useState('turn')
@@ -124,7 +133,7 @@ export default function AgentManagementPage() {
   }
 
   async function toggleExpand(sessionId) {
-    if (expanded === sessionId) { setExpanded(null); setDetail(null); setArtifacts(null); return }
+    if (expanded === sessionId) { setExpanded(null); setDetail(null); setArtifacts(null); setArtifactsRunId(''); return }
     setExpanded(sessionId)
     try {
       const d = await loadJson(`/api/openclaw/agent/sessions/${sessionId}`)
@@ -135,6 +144,7 @@ export default function AgentManagementPage() {
   async function loadArtifacts(runId) {
     try {
       const d = await loadJson(`/api/openclaw/agent/runs/${runId}/artifacts`)
+      setArtifactsRunId(d?.runId || runId || '')
       setArtifacts(Array.isArray(d?.artifacts) ? d.artifacts : Array.isArray(d) ? d : [])
     } catch { setArtifacts([]) }
   }
@@ -287,7 +297,41 @@ export default function AgentManagementPage() {
             {artifacts && (
               <div className="mt-4 rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">Artifacts</h3>
-                <pre className="mt-2 overflow-auto text-xs text-zinc-600 dark:text-zinc-400">{JSON.stringify(artifacts, null, 2)}</pre>
+                <div className="mt-3 space-y-3">
+                  {artifacts.map((artifact, index) => (
+                    <div key={`${artifact.artifactType || 'artifact'}-${index}`} className="rounded-xl border border-zinc-950/10 p-3 dark:border-white/10">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-zinc-950 dark:text-white">{artifact.artifactType || `Artifact ${index + 1}`}</span>
+                        {artifact.scan && (
+                          <>
+                            <Tag color={scanColor(artifact.scan)} variant="medium">{String(artifact.scan.verdict || artifact.scan.status || 'unknown')}</Tag>
+                            <Tag color="zinc" variant="small">{String(artifact.scan.provider || 'local')}</Tag>
+                          </>
+                        )}
+                      </div>
+                      {artifact.scan && (
+                        <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          <p>status={artifact.scan.status} blocked={String(Boolean(artifact.scan.blocked))} quarantined={String(Boolean(artifact.scan.quarantined))}</p>
+                          <p>sha256={artifact.scan.sha256} size={artifact.scan.sizeBytes} contentType={artifact.scan.contentType}</p>
+                          {Array.isArray(artifact.scan.reasons) && artifact.scan.reasons.length > 0 && (
+                            <p>reasons: {artifact.scan.reasons.join(' | ')}</p>
+                          )}
+                          {(artifactsRunId || detail?.session?.sessionId) && (
+                            <p>
+                              <a
+                                className="underline"
+                                href={`/maple/cyber?runId=${encodeURIComponent(artifactsRunId || '')}&sessionId=${encodeURIComponent(detail?.session?.sessionId || '')}`}
+                              >
+                                Open in Cyber Operations
+                              </a>
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      <pre className="mt-3 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(artifact, null, 2)}</pre>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </section>

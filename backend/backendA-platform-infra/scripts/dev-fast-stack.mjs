@@ -134,8 +134,23 @@ function startProcess(definition) {
     stream.write(`[${nowIso()}] exited code=${code ?? "null"} signal=${signal ?? "null"}\n`);
     stream.end();
     if (!shuttingDown) {
-      console.error(`[dev-fast] Process exited unexpectedly: ${definition.name} (code=${code}, signal=${signal})`);
-      void shutdown(1);
+      if (definition.critical === false) {
+        console.warn(`[dev-fast] Non-critical process exited: ${definition.name} (code=${code}, signal=${signal}). Auto-restarting in 3s...`);
+        const restartCount = (entry._restartCount || 0) + 1;
+        if (restartCount > 5) {
+          console.error(`[dev-fast] ${definition.name} restarted ${restartCount} times. Giving up (other services continue).`);
+          return;
+        }
+        setTimeout(() => {
+          if (shuttingDown) return;
+          console.log(`[dev-fast] Restarting ${definition.name} (attempt ${restartCount})...`);
+          const restarted = launchProcess(definition);
+          restarted._restartCount = restartCount;
+        }, 3000);
+      } else {
+        console.error(`[dev-fast] Critical process exited unexpectedly: ${definition.name} (code=${code}, signal=${signal})`);
+        void shutdown(1);
+      }
     }
   });
 
@@ -316,6 +331,7 @@ const backendProcesses = [
     command: "node backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs",
     port: toolhubPort,
     env: sharedDevEnv,
+    critical: false,
   },
 ];
 
@@ -337,6 +353,7 @@ const frontendProcesses = [
     readyUrl: `http://127.0.0.1:${frontendAPort}/attachments`,
     env: sharedDevEnv,
     readyStatuses: [200],
+    critical: false,
   },
   {
     name: "frontendB",
@@ -345,6 +362,7 @@ const frontendProcesses = [
     readyUrl: `http://127.0.0.1:${frontendBPort}/login`,
     env: sharedDevEnv,
     readyStatuses: [200],
+    critical: false,
   },
   {
     name: "frontendC",
@@ -353,6 +371,7 @@ const frontendProcesses = [
     readyUrl: `http://127.0.0.1:${frontendCPort}/login`,
     env: sharedDevEnv,
     readyStatuses: [200],
+    critical: false,
   },
 ];
 
@@ -363,12 +382,14 @@ const openClawProcesses = openClawEnabled
         command: `openclaw --dev gateway run --port ${openClawGatewayPort} --allow-unconfigured --verbose`,
         port: openClawGatewayPort,
         env: sharedDevEnv,
+        critical: false,
       },
       {
         name: "openclaw-bridge",
         command: "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
         port: openClawBridgePort,
         env: sharedDevEnv,
+        critical: false,
       },
     ]
   : [];

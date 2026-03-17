@@ -107,6 +107,13 @@ function buildExecutionInput(body) {
   if (body.input && typeof body.input === "object") return body.input;
   if (asString(body.message)) return { message: asString(body.message) };
   if (asString(body.objective)) return { objective: asString(body.objective) };
+  // Support objectivePackage.goal from frontend
+  if (body.objectivePackage?.goal) return { message: body.objectivePackage.goal, objectivePackage: body.objectivePackage };
+  // Support conversationContext with user message
+  if (Array.isArray(body.conversationContext)) {
+    const userMsg = body.conversationContext.find((m) => m.role === "user");
+    if (userMsg?.content) return { message: userMsg.content, conversationContext: body.conversationContext };
+  }
   return body.input ?? {};
 }
 

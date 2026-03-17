@@ -10,9 +10,8 @@ export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
 export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
   { id: 'chat', label: 'Chat', description: 'Monitoring agent conversation and live recommendations.' },
   { id: 'observe', label: 'Monitor', description: 'Live telemetry and runtime snapshots.' },
-  { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
   { id: 'admin', label: 'System', description: 'Identity, integrations, and account operations.' },
-  { id: 'compliance', label: 'Compliance', description: 'Risk posture, compliance frameworks, and policy versioning.' },
+  { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
   { id: 'users', label: 'Users', description: 'User accounts, role assignments, and access governance.' },
 ])
 
@@ -66,6 +65,20 @@ const MAPLE_ROUTE_DEFINITIONS = [
       '/api/firewall/preview',
       '/api/firewall/decision',
       '/api/firewall/chat',
+    ],
+    preferredView: 'cybersecurity',
+  },
+  {
+    path: '/maple/cyber',
+    title: 'Cyber Operations',
+    category: 'firewalls',
+    tabLabel: 'Cyber Operations',
+    description: 'Inspect cyber-proxy status, download scans, and quarantine incidents.',
+    apiEndpoints: [
+      '/api/cyber/status',
+      '/api/cyber/policies',
+      '/api/cyber/events',
+      '/api/cyber/downloads',
     ],
     preferredView: 'cybersecurity',
   },
@@ -246,53 +259,6 @@ const MAPLE_ROUTE_DEFINITIONS = [
     apiEndpoints: ['/api/openclaw/agent/turn', '/api/hitl/approvals'],
     preferredView: 'settings',
   },
-  // ── Phase 6: Competitive Differentiation ──────────────────────────────
-  {
-    path: '/maple/risk-posture',
-    title: 'Risk Posture',
-    category: 'compliance',
-    tabLabel: 'Risk Posture',
-    description: 'Aggregate risk posture score, trend analysis, and actionable recommendations.',
-    apiEndpoints: ['/api/risk/posture'],
-    preferredView: 'risk',
-  },
-  {
-    path: '/maple/compliance',
-    title: 'Compliance',
-    category: 'compliance',
-    tabLabel: 'Compliance',
-    description: 'OWASP LLM Top 10 and NIST AI RMF compliance framework mapping.',
-    apiEndpoints: ['/api/compliance/frameworks', '/api/compliance/mappings'],
-    preferredView: 'frameworks',
-  },
-  {
-    path: '/maple/shadow-agents',
-    title: 'Shadow Agents',
-    category: 'observe',
-    tabLabel: 'Shadow Agents',
-    description: 'Discover unregistered agents operating through the firewall.',
-    apiEndpoints: ['/api/shadow-agents'],
-    preferredView: 'live',
-  },
-  {
-    path: '/maple/policy-history',
-    title: 'Policy History',
-    category: 'firewalls',
-    tabLabel: 'Policy History',
-    description: 'Policy version history with diff and rollback controls.',
-    apiEndpoints: ['/api/policies/versions'],
-    preferredView: 'rules',
-  },
-  // ── Phase 8: Customizable Dashboard ──────────────────────────────────
-  {
-    path: '/maple/dashboard',
-    title: 'Dashboard',
-    category: 'observe',
-    tabLabel: 'Dashboard',
-    description: 'Customizable widget dashboard with drag-and-drop layout.',
-    apiEndpoints: ['/api/dashboard/layout', '/api/dashboard/widgets/data'],
-    preferredView: 'live',
-  },
 ]
 
 function uniqueList(values) {
@@ -332,11 +298,6 @@ const ROUTE_SURFACE_BY_PATH = Object.freeze({
   '/maple/integrations': { category: 'admin', view: 'marketplace' },
   '/maple/usage': { category: 'admin', view: 'control' },
   '/maple/desktop': { category: 'admin', view: 'control' },
-  '/maple/risk-posture': { category: 'compliance', view: 'risk' },
-  '/maple/compliance': { category: 'compliance', view: 'frameworks' },
-  '/maple/shadow-agents': { category: 'observe', view: 'live' },
-  '/maple/policy-history': { category: 'firewalls', view: 'rules' },
-  '/maple/dashboard': { category: 'observe', view: 'live' },
 })
 
 const PRIMARY_FUNCTION_BY_SURFACE = Object.freeze({
