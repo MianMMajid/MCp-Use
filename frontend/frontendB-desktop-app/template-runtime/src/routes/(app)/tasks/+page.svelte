@@ -2,7 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api';
+  import { toastStore } from '@/lib/stores/toast-store';
 
   let loading = true;
   let error = '';
@@ -196,10 +198,33 @@
     await refresh();
   }
 
+  // Delete confirmation
+  let confirmOpen = false;
+  let confirmTaskId = '';
+  let confirmTaskTitle = '';
+  let deletingTask = false;
+
+  function requestDeleteTask(taskId, title) {
+    confirmTaskId = taskId;
+    confirmTaskTitle = title || taskId;
+    confirmOpen = true;
+    openMenuTaskId = '';
+  }
+
   async function removeTask(taskId) {
-    await deleteJson(`/api/tasks/${taskId}`);
-    invalidateCache('/api/tasks');
-    await refresh();
+    if (deletingTask) return;
+    deletingTask = true;
+    try {
+      await deleteJson(`/api/tasks/${taskId}`);
+      invalidateCache('/api/tasks');
+      toastStore.success('Task deleted');
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(`Failed to delete task: ${error}`);
+    } finally {
+      deletingTask = false;
+    }
   }
 </script>
 
@@ -285,7 +310,7 @@
         <div class="task-grid">
           {#each tasks as task}
             {@const fw = firewallForTask(task)}
-            <article class="task-card">
+            <article class="task-card" class:menu-open={openMenuTaskId === task.id}>
               <div class="task-top">
                 <div>
                   <p class="title">{task.title}</p>
@@ -353,7 +378,7 @@
                       <button on:click={() => { commandTask(task.id, 'pause').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Pause</button>
                       <button on:click={() => { commandTask(task.id, 'resume').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Resume</button>
                       <button on:click={() => { commandTask(task.id, 'run-now').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Run Now</button>
-                      <button class="danger-item" on:click={() => { removeTask(task.id).catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Delete</button>
+                      <button class="danger-item" on:click={() => requestDeleteTask(task.id, task.title)}>Delete</button>
                     </div>
                   {/if}
                 </div>
@@ -366,8 +391,19 @@
   </section>
 </AppShell>
 
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title="Delete Task"
+  message={`Are you sure you want to delete "${confirmTaskTitle}"? This action cannot be undone.`}
+  confirmLabel="Delete"
+  danger
+  onConfirm={() => removeTask(confirmTaskId)}
+/>
+
+<svelte:window on:click={() => { if (openMenuTaskId) openMenuTaskId = ''; }} on:keydown={(e) => { if (e.key === 'Escape') openMenuTaskId = ''; }} />
+
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
   .section { padding: 13px; display: grid; gap: 10px; }
   .header {
     padding: 8px 11px;
@@ -424,7 +460,9 @@
     padding: 10px;
     display: grid;
     gap: 9px;
+    position: relative;
   }
+  .task-card.menu-open { z-index: 10; }
   .task-top { display: flex; gap: 10px; justify-content: space-between; align-items: start; }
   .title { margin: 0; font-weight: 700; font-size: 14px; }
   .prompt { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
@@ -436,7 +474,7 @@
     border: 1px solid rgba(148,163,184,.3);
     background: var(--row-bg);
   }
-  .status.running { color: #6ee7b7; border-color: rgba(16,185,129,.44); background: rgba(16,185,129,.16); box-shadow: 0 0 0 6px rgba(16,185,129,.12); animation: pulse 1.6s infinite; }
+  .status.running { color: var(--ok); border-color: var(--ok-border); background: var(--ok-soft); box-shadow: 0 0 0 6px var(--ok-soft); animation: pulse 1.6s infinite; }
   .status.paused { color: #9ca3af; border-color: rgba(107,114,128,.45); background: var(--row-bg); }
   .status.blocked { color: #fca5a5; border-color: rgba(251,113,133,.44); background: rgba(251,113,133,.16); }
   .status.queued { color: #fcd34d; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.14); }
@@ -457,8 +495,8 @@
     border: 1px solid rgba(16,185,129,.35);
     border-radius: 999px;
     padding: 5px 8px;
-    background: rgba(16,185,129,.12);
-    color: #6ee7b7;
+    background: var(--ok-soft);
+    color: var(--ok);
     font-size: 11px;
     cursor: pointer;
     white-space: nowrap;
@@ -479,7 +517,7 @@
     min-width: 124px;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: rgba(13,17,24,.95);
+    background: var(--panel);
     padding: 4px;
     display: grid;
     gap: 2px;

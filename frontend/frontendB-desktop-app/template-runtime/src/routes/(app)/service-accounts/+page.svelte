@@ -217,7 +217,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; }
   .section { padding: 14px; }
   h1, h2 { margin: 0; }
   h2 { font-size: 14px; }
@@ -241,7 +241,7 @@
     padding: 9px 11px;
     outline: none;
   }
-  .ok { margin: 10px 0 0; color: #6ee7b7; font-size: 13px; }
+  .ok { margin: 10px 0 0; color: var(--ok); font-size: 13px; }
   .err { margin: 10px 0 0; color: var(--warn); font-size: 13px; }
   .muted { margin: 0; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
@@ -251,8 +251,8 @@
   ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   li { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
   .danger { border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); }
-  .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid rgba(249,115,22,.5); border-radius: 12px; background: rgba(249,115,22,.12); }
-  .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #fb923c; }
+  .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid var(--caution-border); border-radius: 12px; background: var(--caution-soft); }
+  .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--caution); }
   .secret-row { display: flex; gap: 8px; align-items: center; }
-  .secret-value { flex: 1; font-size: 12px; color: #fdba74; word-break: break-all; background: rgba(0,0,0,.3); padding: 8px; border-radius: 8px; }
+  .secret-value { flex: 1; font-size: 12px; color: var(--fg); word-break: break-all; background: var(--pre-bg); padding: 8px; border-radius: 8px; font-family: monospace; }
 </style>

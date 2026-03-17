@@ -124,6 +124,10 @@ export async function updateOrchestration(orchestrationId, body = {}) {
   return parseApiResponse(response)
 }
 
+export async function deleteOrchestration(orchestrationId) {
+  return deleteJson(`/api/orchestrations/${orchestrationId}`)
+}
+
 export async function loadExecutionTasks(executionId) {
   const payload = await loadJson(`/api/orchestrations/executions/${executionId}/tasks`)
   return Array.isArray(payload?.items) ? payload.items : []

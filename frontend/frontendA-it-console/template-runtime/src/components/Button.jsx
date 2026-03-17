@@ -14,16 +14,23 @@ function ArrowIcon(props) {
   )
 }
 
+const baseStyles =
+  'inline-flex gap-0.5 justify-center items-center overflow-hidden text-sm font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none'
+
 const variantStyles = {
   primary:
-    'rounded-full bg-zinc-900 py-1 px-3 text-white hover:bg-zinc-700 dark:bg-orange-400/10 dark:text-orange-400 dark:ring-1 dark:ring-inset dark:ring-orange-400/20 dark:hover:bg-orange-400/10 dark:hover:text-orange-300 dark:hover:ring-orange-300',
+    'rounded-full bg-amber-500 py-2 px-5 text-white shadow-sm hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 dark:active:bg-amber-600',
   secondary:
-    'rounded-full bg-zinc-100 py-1 px-3 text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800/40 dark:text-zinc-400 dark:ring-1 dark:ring-inset dark:ring-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-300',
+    'rounded-full bg-white py-2 px-5 text-zinc-800 ring-1 ring-inset ring-zinc-300 shadow-sm hover:bg-zinc-50 active:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600 dark:hover:bg-zinc-700 dark:active:bg-zinc-600',
   filled:
-    'rounded-full bg-zinc-900 py-1 px-3 text-white hover:bg-zinc-700 dark:bg-orange-500 dark:text-white dark:hover:bg-orange-400',
+    'rounded-full bg-amber-500 py-2 px-5 text-white shadow-sm hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-400 dark:active:bg-amber-600',
+  destructive:
+    'rounded-full bg-red-600 py-2 px-5 text-white shadow-sm hover:bg-red-700 active:bg-red-800 dark:bg-red-600 dark:hover:bg-red-500',
   outline:
-    'rounded-full py-1 px-3 text-zinc-700 ring-1 ring-inset ring-zinc-900/10 hover:bg-zinc-900/2.5 hover:text-zinc-900 dark:text-zinc-400 dark:ring-white/10 dark:hover:bg-white/5 dark:hover:text-white',
-  text: 'text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-500',
+    'rounded-full py-2 px-5 text-zinc-700 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 active:bg-zinc-100 dark:text-zinc-300 dark:ring-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-white',
+  ghost:
+    'rounded-full py-2 px-5 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 active:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white',
+  text: 'text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300',
 }
 
 export function Button({
@@ -33,11 +40,7 @@ export function Button({
   arrow,
   ...props
 }) {
-  className = clsx(
-    'inline-flex gap-0.5 justify-center overflow-hidden text-sm font-medium transition',
-    variantStyles[variant],
-    className,
-  )
+  className = clsx(baseStyles, variantStyles[variant], className)
 
   let arrowIcon = (
     <ArrowIcon

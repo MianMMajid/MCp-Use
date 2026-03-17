@@ -1,7 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, postJson, patchJson, deleteJson, postForm, invalidateCache } from '@/lib/api';
+  import { toastStore } from '@/lib/stores/toast-store';
 
   let loading = true;
   let error = '';
@@ -169,16 +171,66 @@
     }
   }
 
-  async function toggleArchive(item) {
+  // Confirmation state
+  let confirmOpen = false;
+  let confirmTitle = '';
+  let confirmMessage = '';
+  let confirmLabel = 'Confirm';
+  let confirmDanger = false;
+  let confirmAction = () => {};
+
+  function requestConfirm(title, message, action, { label = 'Confirm', danger = false } = {}) {
+    confirmTitle = title;
+    confirmMessage = message;
+    confirmLabel = label;
+    confirmDanger = danger;
+    confirmAction = action;
+    confirmOpen = true;
+  }
+
+  function requestArchive(item) {
     const action = item.archived ? 'restore' : 'archive';
-    const response = await postJson(`/api/firewalls/${item.id}/${action}`, {});
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.ok === false) {
-      error = payload?.error || `Failed to ${action} firewall`;
-      return;
+    requestConfirm(
+      `${item.archived ? 'Restore' : 'Archive'} Firewall`,
+      `Are you sure you want to ${action} "${item.name}"?`,
+      () => toggleArchive(item),
+      { label: item.archived ? 'Restore' : 'Archive', danger: !item.archived }
+    );
+  }
+
+  function requestRemoveEntry(entryId, entryName) {
+    requestConfirm(
+      'Remove Entry',
+      `Are you sure you want to remove "${entryName || entryId}"? This cannot be undone.`,
+      () => removeEntry(entryId),
+      { label: 'Remove', danger: true }
+    );
+  }
+
+  let busyAction = false;
+
+  async function toggleArchive(item) {
+    if (busyAction) return;
+    busyAction = true;
+    const action = item.archived ? 'restore' : 'archive';
+    try {
+      const response = await postJson(`/api/firewalls/${item.id}/${action}`, {});
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        const msg = payload?.error || `Failed to ${action} firewall`;
+        error = msg;
+        toastStore.error(msg);
+        return;
+      }
+      toastStore.success(`Firewall ${action}d`);
+      invalidateCache('/api/firewalls');
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(error);
+    } finally {
+      busyAction = false;
     }
-    invalidateCache('/api/firewalls');
-    await refresh();
   }
 
   async function runValidation() {
@@ -255,14 +307,19 @@
   }
 
   async function removeEntry(entryId) {
-    if (!selectedObject) return;
+    if (!selectedObject || busyAction) return;
+    busyAction = true;
     error = '';
     try {
       await deleteJson(`/api/firewalls/${selectedObject.id}/entries/${entryId}`);
       invalidateCache('/api/firewalls');
+      toastStore.success('Entry removed');
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      toastStore.error(`Failed to remove entry: ${error}`);
+    } finally {
+      busyAction = false;
     }
   }
 </script>
@@ -346,7 +403,7 @@
             </div>
             <div class="row-actions">
               <button class="pill" on:click={saveMetadata}>Save Metadata</button>
-              <button class="pill" on:click={() => toggleArchive(selectedObject)}>{selectedObject.archived ? 'Restore' : 'Archive'}</button>
+              <button class="pill" on:click={() => requestArchive(selectedObject)}>{selectedObject.archived ? 'Restore' : 'Archive'}</button>
             </div>
           </div>
 
@@ -462,7 +519,7 @@
                         <p class="muted">{entry.mimeType} · {formatBytes(entry.sizeBytes)}</p>
                         {#if entry.preview}<pre>{entry.preview}</pre>{/if}
                       </div>
-                      <button class="pill" on:click={() => removeEntry(entry.id)}>Remove</button>
+                      <button class="pill" on:click={() => requestRemoveEntry(entry.id, entry.name)}>Remove</button>
                     </article>
                   {/each}
                 {/if}
@@ -502,8 +559,17 @@
   </section>
 </AppShell>
 
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title={confirmTitle}
+  message={confirmMessage}
+  confirmLabel={confirmLabel}
+  danger={confirmDanger}
+  onConfirm={confirmAction}
+/>
+
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; }
   .section { padding: 14px; }
   .head, .sidebar-head, .detail-head, .version-head, .row-actions { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
   .builder { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -528,8 +594,8 @@
   pre { overflow: auto; white-space: pre-wrap; }
   .muted, small { color: var(--muted); }
   .err { margin: 8px 0 0; color: var(--warn); }
-  .warn { color: #fdba74; }
-  .safe { color: #86efac; }
+  .warn { color: var(--caution); }
+  .safe { color: var(--ok); }
   .upload { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
   .upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   @media (max-width: 900px) {

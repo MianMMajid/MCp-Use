@@ -1,6 +1,7 @@
 <script>
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import Icon from '@/lib/components/icons/Icon.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
   import { postJson, invalidateCache } from '@/lib/api';
   import { riskColor, riskLabel, statusColor } from '@/lib/format';
@@ -23,8 +24,8 @@
     const color = statusColor(value);
     if (color === 'green') return 'badge green';
     if (color === 'red') return 'badge red';
-    if (color === 'orange') return 'badge orange';
-    if (color === 'sky') return 'badge sky';
+    if (color === 'sky') return 'badge info';
+    if (color === 'caution' || color === 'orange') return 'badge caution';
     return 'badge zinc';
   }
 
@@ -61,7 +62,7 @@
     </div>
 
     <div class="search card">
-      <span class="search-icon">⌕</span>
+      <span class="search-icon"><Icon name="search" size={16} /></span>
       <input bind:value={search} placeholder="Search agents..." />
     </div>
 
@@ -110,7 +111,7 @@
 
 <style>
   .page {
-    min-height: calc(100svh - 24px);
+    min-height: calc(100svh - 92px);
     display: grid;
     gap: 10px;
     align-content: start;
@@ -203,7 +204,7 @@
 
   .agent:hover {
     border-color: rgba(249, 115, 22, 0.42);
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--panel);
   }
 
   .top-btn {
@@ -260,11 +261,11 @@
     text-transform: lowercase;
   }
 
-  .green { color: #10b981; background: rgba(16, 185, 129, 0.14); border-color: rgba(16, 185, 129, 0.3); }
-  .red { color: #fb7185; background: rgba(251, 113, 133, 0.14); border-color: rgba(251, 113, 133, 0.3); }
-  .orange { color: #fb923c; background: rgba(251, 146, 60, 0.14); border-color: rgba(251, 146, 60, 0.3); }
-  .sky { color: #38bdf8; background: rgba(56, 189, 248, 0.14); border-color: rgba(56, 189, 248, 0.3); }
-  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.1); border-color: rgba(107, 107, 107, 0.22); }
+  .green { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
+  .red { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
+  .info { color: var(--info); background: var(--info-soft); border-color: var(--info-border); }
+  .caution { color: var(--caution); background: var(--caution-soft); border-color: var(--caution-border); }
+  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.18); }
 
   .empty {
     padding: 20px;

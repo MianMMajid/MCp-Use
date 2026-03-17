@@ -41,12 +41,17 @@ const ORANGE_KEYWORDS = new Set([
   'queued', 'waiting', 'paused', 'escalated', 'step_up_required',
 ])
 
+const INFO_KEYWORDS = new Set([
+  'info', 'processing', 'in_progress', 'live', 'syncing', 'deploying',
+])
+
 export function statusColor(status) {
   if (!status) return 'zinc'
   const s = String(status).toLowerCase()
   if (GREEN_KEYWORDS.has(s)) return 'green'
   if (RED_KEYWORDS.has(s)) return 'red'
-  if (ORANGE_KEYWORDS.has(s)) return 'orange'
+  if (INFO_KEYWORDS.has(s)) return 'sky'
+  if (ORANGE_KEYWORDS.has(s)) return 'caution'
   return 'zinc'
 }
 

@@ -2,7 +2,11 @@
   import { onMount, afterUpdate } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, patchJson, invalidateCache } from '@/lib/api';
+  import Icon from '@/lib/components/icons/Icon.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
+  import { loadJson, patchJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
+  import { chatStore } from '@/lib/stores/chat-store';
+  import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
 
   export let data;
@@ -23,6 +27,117 @@
   let selectedProfileId = '';
   let highlightedToolIds = new Set();
   let hoveredSkillId = '';
+
+  // ── Import skill state ──
+  let importOpen = false;
+  let importBusy = false;
+  let importError = '';
+  let importSuccess = '';
+  let importToolId = '';
+  let importName = '';
+  let importDescription = '';
+  let importSchemaText = '{}';
+
+  // ── Smoke test & governed proof state ──
+  let smokeTests = {};
+  let governedRuns = {};
+
+  // ── Delete agent state ──
+  let deleteConfirmOpen = false;
+  let deletingAgent = false;
+
+  async function deleteAgent() {
+    if (deletingAgent) return;
+    deletingAgent = true;
+    try {
+      await deleteJson(`/api/agents/${data.id}`);
+      invalidateCache('/api/agents');
+      await chatStore.fetchAgents();
+      if ($chatStore.selectedAgentId === String(data.id)) {
+        chatStore.selectAgent('');
+      }
+      toastStore.success(`Agent "${agentName || data.id}" deleted`);
+      goto('/orchestrate');
+    } catch (err) {
+      toastStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      deletingAgent = false;
+    }
+  }
+
+  function canRunGovernedProof(skill) {
+    return String(skill?.toolId || '').toLowerCase() === 'skills';
+  }
+
+  async function handleImport() {
+    importBusy = true;
+    importError = '';
+    importSuccess = '';
+    let schema;
+    try {
+      schema = importSchemaText.trim() ? JSON.parse(importSchemaText) : {};
+    } catch (err) {
+      importBusy = false;
+      importError = err instanceof Error ? err.message : 'Schema must be valid JSON.';
+      return;
+    }
+    try {
+      const response = await postJson('/api/skills/import', {
+        toolId: importToolId,
+        name: importName,
+        description: importDescription,
+        schema,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        importError = payload?.error || `Import failed (${response.status})`;
+        return;
+      }
+      importSuccess = `Imported ${payload.tool?.toolId || importToolId}`;
+      importToolId = '';
+      importName = '';
+      importDescription = '';
+      importSchemaText = '{}';
+      invalidateCache('/api/skills');
+      invalidateCache(`/api/agents/${data.id}/tools`);
+      _loadedId = '';
+      await loadPage();
+    } catch (err) {
+      importError = err instanceof Error ? err.message : String(err);
+    } finally {
+      importBusy = false;
+    }
+  }
+
+  async function runSmokeTest(skillId) {
+    smokeTests = { ...smokeTests, [skillId]: { loading: true, result: null, error: '' } };
+    try {
+      const response = await postJson(`/api/skills/${skillId}/smoke-test`, {});
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        smokeTests = { ...smokeTests, [skillId]: { loading: false, result: null, error: payload?.error || 'Test failed' } };
+        return;
+      }
+      smokeTests = { ...smokeTests, [skillId]: { loading: false, result: payload.result, error: '' } };
+    } catch (err) {
+      smokeTests = { ...smokeTests, [skillId]: { loading: false, result: null, error: err instanceof Error ? err.message : String(err) } };
+    }
+  }
+
+  async function runGovernedExecution(skillId, command) {
+    governedRuns = { ...governedRuns, [skillId]: { loading: true, command, result: null, proof: null, error: '' } };
+    try {
+      const response = await postJson(`/api/skills/${skillId}/governed-execution`, { command });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: null, proof: payload?.proof || null, error: payload?.error || 'Failed' } };
+        return;
+      }
+      governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: payload.result, proof: payload.proof || null, error: '' } };
+    } catch (err) {
+      governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: null, proof: null, error: err instanceof Error ? err.message : String(err) } };
+    }
+  }
 
   const quickProfiles = [
     {
@@ -97,7 +212,8 @@
     const color = statusColor(value);
     if (color === 'green') return 'badge green';
     if (color === 'red') return 'badge red';
-    if (color === 'orange') return 'badge orange';
+    if (color === 'sky') return 'badge info';
+    if (color === 'caution' || color === 'orange') return 'badge caution';
     return 'badge zinc';
   }
 
@@ -265,12 +381,15 @@
     {#if loading}
       <section class="card panel"><p class="muted">Loading Openclaw agent…</p></section>
     {:else if error}
-      <section class="card panel"><p class="err">{error}</p></section>
+      <section class="card panel" style="text-align:center; padding:32px;">
+        <p class="err">{error}</p>
+        <button class="pill" style="margin-top:12px; cursor:pointer;" on:click={() => goto('/orchestrate')}>Back to Builder</button>
+      </section>
     {:else}
       <section class="card panel identity">
         <div class="top">
           <button class="pill back-icon" aria-label="Back to agents" title="Back to agents" on:click={() => goto('/agents')}>
-            ←
+            <Icon name="arrow-left" size={16} />
           </button>
           <div class="name-wrap">
             <label>
@@ -280,6 +399,9 @@
           </div>
           <span class={badgeClass(agent?.status || 'unknown')}>{agent?.status || 'unknown'}</span>
           <button class="pill cta" on:click={createAgent} disabled={saving}>{saving ? 'Creating…' : 'Create Agent'}</button>
+          <button class="pill danger-pill" on:click={() => (deleteConfirmOpen = true)} disabled={deletingAgent} title="Delete agent">
+            <Icon name="close" size={14} />
+          </button>
         </div>
 
       </section>
@@ -322,11 +444,46 @@
           <section class="catalog">
             <div class="catalog-head">
               <h3>Skill Catalog</h3>
-              <div class="search">
-                <span class="search-icon">⌕</span>
-                <input bind:value={toolSearch} placeholder="Search tools..." />
+              <div class="catalog-actions">
+                <button class="pill subtle" on:click={() => (importOpen = !importOpen)}>
+                  {importOpen ? 'Close Import' : '+ Import Skill'}
+                </button>
+                <div class="search">
+                  <span class="search-icon"><Icon name="search" size={14} /></span>
+                  <input bind:value={toolSearch} placeholder="Search tools..." />
+                </div>
               </div>
             </div>
+
+            {#if importOpen}
+              <div class="import-form">
+                <div class="import-grid">
+                  <label>
+                    <span>Tool ID</span>
+                    <input bind:value={importToolId} placeholder="e.g. skills" />
+                  </label>
+                  <label>
+                    <span>Name</span>
+                    <input bind:value={importName} placeholder="Skill name" />
+                  </label>
+                </div>
+                <label class="import-stack">
+                  <span>Description</span>
+                  <textarea rows="2" bind:value={importDescription} placeholder="What does this skill do?"></textarea>
+                </label>
+                <label class="import-stack">
+                  <span>Schema JSON</span>
+                  <textarea rows="3" bind:value={importSchemaText} placeholder={'{}'}></textarea>
+                </label>
+                <div class="import-actions">
+                  <button class="pill cta" on:click={handleImport} disabled={importBusy || loading}>
+                    {importBusy ? 'Importing...' : 'Import'}
+                  </button>
+                  {#if importError}<span class="err">{importError}</span>{/if}
+                  {#if importSuccess}<span class="ok">{importSuccess}</span>{/if}
+                </div>
+              </div>
+            {/if}
             {#if filteredAvailableSkills.length === 0}
               <p class="muted">No available skills for this filter.</p>
             {:else}
@@ -351,8 +508,40 @@
                     <p class="tool-desc">{tool.description || 'Openclaw-compatible tool'}</p>
                     <div class="tool-foot">
                       <span class="source-tag">{tool.source || 'openclaw'}</span>
+                      <button
+                        class="pill mini test-btn"
+                        title="Smoke test"
+                        disabled={smokeTests[id]?.loading || draggingFromCatalog}
+                        on:click|stopPropagation={() => runSmokeTest(id)}
+                      >
+                        {smokeTests[id]?.loading ? '...' : 'Test'}
+                      </button>
+                      {#if canRunGovernedProof(tool)}
+                        <button
+                          class="pill mini proof-btn"
+                          title="Governed proof"
+                          disabled={governedRuns[id]?.loading || draggingFromCatalog}
+                          on:click|stopPropagation={() => runGovernedExecution(id, 'list')}
+                        >
+                          {governedRuns[id]?.loading ? '...' : 'Proof'}
+                        </button>
+                      {/if}
                       <button class="pill mini" title="Add skill" on:click={() => equipSkill(id)}>+</button>
                     </div>
+                    {#if smokeTests[id]?.result}
+                      <div class="test-result" class:pass={smokeTests[id].result.passed} class:fail={!smokeTests[id].result.passed}>
+                        {smokeTests[id].result.passed ? 'PASS' : 'FAIL'}
+                      </div>
+                    {/if}
+                    {#if smokeTests[id]?.error}
+                      <p class="test-err">{smokeTests[id].error}</p>
+                    {/if}
+                    {#if governedRuns[id]?.result}
+                      <div class="test-result pass">Governed proof ✓</div>
+                    {/if}
+                    {#if governedRuns[id]?.error}
+                      <p class="test-err">{governedRuns[id].error}</p>
+                    {/if}
                   </article>
                 {/each}
               </div>
@@ -377,7 +566,7 @@
 
           {#if equippedSkills.length === 0}
             <div class="empty-state">
-              <div class="ghost-icon">⚡</div>
+              <div class="ghost-icon"><Icon name="spark" size={28} /></div>
               <p>Drag skills here to power up your agent.</p>
             </div>
           {:else}
@@ -400,8 +589,17 @@
   </section>
 </AppShell>
 
+<ConfirmDialog
+  bind:open={deleteConfirmOpen}
+  title="Delete Agent"
+  message={`Are you sure you want to delete "${agentName || data.id}"? This action cannot be undone.`}
+  confirmLabel="Delete"
+  danger
+  onConfirm={deleteAgent}
+/>
+
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 10px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; }
   .panel { padding: 12px; display: grid; gap: 10px; }
 
   .top { display: flex; align-items: center; gap: 8px; }
@@ -438,6 +636,8 @@
   .tools-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 0 4px; }
   .tools-head p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
   .cta { padding: 7px 11px; border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.2); cursor: pointer; }
+  .danger-pill { padding: 7px 9px; border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger); cursor: pointer; }
+  .danger-pill:hover { background: var(--danger); color: #fff; }
 
   .profile-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .profile { padding: 6px 10px; border-color: rgba(249,115,22,.3); background: var(--btn-secondary-bg); cursor: pointer; font-size: 12px; }
@@ -466,13 +666,31 @@
   .category-pill.active { border-color: rgba(249,115,22,.6); background: rgba(249,115,22,.2); box-shadow: inset 3px 0 0 rgba(249,115,22,.92); }
   .category-pill.disabled { opacity: .45; cursor: not-allowed; border-style: dashed; }
 
-  .catalog-head { display: grid; grid-template-columns: auto minmax(260px, 420px); align-items: center; justify-content: space-between; gap: 8px; }
+  .catalog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .catalog-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Import form */
+  .import-form { border: 1px solid var(--border); border-radius: 12px; background: var(--row-bg); padding: 12px; display: grid; gap: 10px; margin-top: 8px; }
+  .import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+  .import-stack { display: grid; gap: 4px; }
+  .import-form label span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+  .import-form input, .import-form textarea { width: 100%; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--fg); padding: 7px 9px; outline: none; font: inherit; resize: vertical; }
+  .import-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .import-actions .ok { color: var(--ok); font-size: 12px; }
+  .import-actions .err { color: var(--warn); font-size: 12px; }
+
+  /* Test result badges */
+  .test-btn, .proof-btn { font-size: 11px; padding: 2px 6px; }
+  .test-result { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: center; }
+  .test-result.pass { color: var(--ok); background: var(--ok-soft); }
+  .test-result.fail { color: var(--warn); background: rgba(207, 94, 94, 0.12); }
+  .test-err { margin: 0; font-size: 11px; color: var(--warn); }
 
   .equipped-zone.drag-active {
     border-color: rgba(249,115,22,.7);
     border-style: dashed;
     box-shadow: inset 0 0 0 1px rgba(249,115,22,.35), 0 0 0 8px rgba(249,115,22,.08);
-    background: rgba(42,31,24,.52);
+    background: var(--accent-soft);
   }
 
   .tool-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); align-content: start; }
@@ -566,10 +784,11 @@
 
   .err { margin: 0; color: var(--warn); }
 
-  .green { color: #10b981; background: rgba(16, 185, 129, 0.14); border-color: rgba(16, 185, 129, 0.3); }
-  .red { color: #fb7185; background: rgba(251, 113, 133, 0.14); border-color: rgba(251, 113, 133, 0.3); }
-  .orange { color: #fb923c; background: rgba(251, 146, 60, 0.14); border-color: rgba(251, 146, 60, 0.3); }
-  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.1); border-color: rgba(107, 107, 107, 0.22); }
+  .green { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
+  .red { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
+  .info { color: var(--info); background: var(--info-soft); border-color: var(--info-border); }
+  .caution { color: var(--caution); background: var(--caution-soft); border-color: var(--caution-border); }
+  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.18); }
 
   @media (max-width: 1050px) {
     .toolbelt-layout { grid-template-columns: 1fr; }

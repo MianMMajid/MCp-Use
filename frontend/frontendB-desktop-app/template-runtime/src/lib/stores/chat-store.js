@@ -41,6 +41,10 @@ function readWorkspaceQuery() {
 
 function writeWorkspaceQuery({ mode, stack, orchestrationId, executionId, panel }) {
   if (typeof window === 'undefined') return;
+  // Only rewrite query params on the chat/workspace root — never on app routes
+  // like /firewalls, /tasks, /agents etc. where it causes state revert races
+  const path = window.location.pathname;
+  if (path !== '/' && !path.startsWith('/maple') && !path.startsWith('/agent-chat')) return;
   const url = new URL(window.location.href);
 
   if (mode) url.searchParams.set('mode', mode);
@@ -86,7 +90,8 @@ function createChatStore() {
     selectedOrchestration: null,
     orchestrationConversation: [],
     orchestrationError: '',
-    busy: false
+    busy: false,
+    busyStatus: '' // e.g. 'Sending to agent...', 'Streaming response...', 'Delegating to orchestration...'
   };
 
   const { subscribe, update, set } = writable(initial);
@@ -186,8 +191,15 @@ function createChatStore() {
     const agents = next.agents || [];
     const orchestrations = next.orchestrations || [];
 
-    const resolvedAgentId = next.selectedAgentId || '';
-    const resolvedOrchId = next.selectedOrchestrationId || String(orchestrations[0]?.id || '');
+    // Clear stale IDs if entity no longer exists
+    const storedAgentId = next.selectedAgentId || '';
+    const resolvedAgentId = storedAgentId && agents.some((a) => String(a.agentId || a.id) === String(storedAgentId))
+      ? storedAgentId
+      : '';
+    const storedOrchId = next.selectedOrchestrationId || '';
+    const resolvedOrchId = storedOrchId && orchestrations.some((o) => String(o.id) === String(storedOrchId))
+      ? storedOrchId
+      : String(orchestrations[0]?.id || '');
 
     patch({
       selectedAgentId: resolvedAgentId,
@@ -210,7 +222,10 @@ function createChatStore() {
         panel: mode === 'orchestration' ? orchestrationPanelTab : ''
       });
 
-      window.addEventListener('popstate', () => {
+      // Guard against duplicate listeners on re-init
+      if (!window.__mayple_popstate_bound) {
+        window.__mayple_popstate_bound = true;
+        window.addEventListener('popstate', () => {
         const current = get({ subscribe });
         const query = readWorkspaceQuery();
         const nextMode = query.mode ? normalizeMode(query.mode) : current.mode;
@@ -225,7 +240,8 @@ function createChatStore() {
           selectedOrchestrationId: nextOrchestrationId,
           selectedOrchestration: (current.orchestrations || []).find((item) => String(item.id) === String(nextOrchestrationId)) || null
         });
-      });
+        });
+      }
     }
 
     await Promise.all([
@@ -377,14 +393,17 @@ function createChatStore() {
     patch({
       runError: '',
       busy: true,
+      busyStatus: 'Sending to agent...',
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
     try {
+      patch({ busyStatus: 'Agent is thinking...' });
       const response = await postJson(`/api/agents/${fallbackAgentId}/run`, {
         message: content,
         sessionId: state.sessionId || undefined
       });
+      patch({ busyStatus: 'Processing response...' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || payload?.details || `Run failed (${response.status})`);
@@ -414,7 +433,7 @@ function createChatStore() {
         messages: [...next.messages, { id: `err-${Date.now()}`, role: 'agent', content: message, error: true, timestamp: new Date().toISOString() }]
       });
     } finally {
-      patch({ busy: false });
+      patch({ busy: false, busyStatus: '' });
     }
   }
 
@@ -426,6 +445,7 @@ function createChatStore() {
     patch({
       runError: '',
       busy: true,
+      busyStatus: 'Connecting...',
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
@@ -451,7 +471,7 @@ function createChatStore() {
       let reply = '';
       const replyId = `reply-${Date.now()}`;
       const replyTs = new Date().toISOString();
-      patch({ streaming: true });
+      patch({ streaming: true, busyStatus: 'Streaming response...' });
 
       // Add placeholder message that will be updated as chunks arrive
       const beforeStream = get({ subscribe });
@@ -510,7 +530,7 @@ function createChatStore() {
         messages: [...next.messages, { id: `err-${Date.now()}`, role: 'assistant', content: message, error: true, timestamp: new Date().toISOString() }]
       });
     } finally {
-      patch({ busy: false });
+      patch({ busy: false, busyStatus: '' });
     }
   }
 
@@ -531,7 +551,7 @@ function createChatStore() {
       createdAt: new Date().toISOString()
     };
 
-    patch({ orchestrationError: '', busy: true, orchestrationConversation: [...state.orchestrationConversation, local] });
+    patch({ orchestrationError: '', busy: true, busyStatus: 'Delegating to orchestration...', orchestrationConversation: [...state.orchestrationConversation, local] });
 
     try {
       const payload = await postOrchestrationConversation(orchestrationId, { message: content });
@@ -550,7 +570,7 @@ function createChatStore() {
     } catch (error) {
       patch({ orchestrationError: error instanceof Error ? error.message : String(error) });
     } finally {
-      patch({ busy: false });
+      patch({ busy: false, busyStatus: '' });
     }
   }
 
@@ -608,7 +628,9 @@ function createChatStore() {
     sendMessage,
     sendAgentMessage,
     sendGlobalChatMessage,
-    sendOrchestrationMessage
+    sendOrchestrationMessage,
+    fetchAgents: loadAgents,
+    fetchOrchestrations: loadOrchestrationList,
   };
 }
 
