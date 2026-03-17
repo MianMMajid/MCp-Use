@@ -83,6 +83,7 @@
     "postinstall": "echo \"Skipping postinstall type generation\"",
     "check:frontend-warning-budget": "node scripts/check-frontend-warning-budget.mjs --log artifacts/matrix/frontend-flow.log",
     "check:cli-surface": "node scripts/check-cli-frontend-coverage.mjs",
+    "check:frontendA:parity": "node scripts/check-frontendA-cli-parity.mjs",
     "check:cli-routes": "node scripts/check-cli-route-contract.mjs",
     "test:cli": "node --test cli/tests/*.test.mjs backend/backendB-core-services/gateway-api/service/tests/cli-browser-flows.test.mjs"
   },

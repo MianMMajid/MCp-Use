@@ -252,6 +252,32 @@ export const CLI_SURFACE_MANIFEST = [
     frontendPaths: ["/api/auth/google/client-id", "/api/auth/google"],
   }),
   spec({
+    id: "auth.sso-discover",
+    commandPath: ["auth", "sso-discover"],
+    description: "Discover whether an email domain should use SSO",
+    authMode: "none",
+    path: "/api/auth/sso/discover",
+    frontendPaths: ["/api/auth/sso/discover"],
+    queryKeys: ["email"],
+    options: [option("--email <email>", "Email address to inspect")],
+  }),
+  spec({
+    id: "auth.mfa-challenge",
+    commandPath: ["auth", "mfa-challenge"],
+    description: "Complete an MFA challenge during login",
+    authMode: "none",
+    method: "POST",
+    path: "/api/auth/mfa/challenge",
+    frontendPaths: ["/api/auth/mfa/challenge"],
+    options: [
+      option("--mfa-session-token <token>", "MFA session token", { key: "mfaSessionToken" }),
+      option("--code <code>", "One-time MFA code"),
+      option("--recovery-code <code>", "Recovery code", { key: "recoveryCode" }),
+      option("--trust-device <true|false>", "Remember this device", { key: "trustDevice" }),
+    ],
+    bodyKeys: ["mfaSessionToken", "code", "recoveryCode", "trustDevice"],
+  }),
+  spec({
     id: "user.profile",
     commandPath: ["user", "profile"],
     description: "Fetch the current user profile",
@@ -2499,6 +2525,42 @@ export const CLI_SURFACE_MANIFEST = [
       option("--schema-file <path>", "JSON schema file path", { key: "schemaFile" }),
     ],
     bodyKeys: ["toolId", "name", "description"],
+  }),
+  spec({
+    id: "skills.marketplace",
+    commandPath: ["skills", "marketplace"],
+    description: "Browse marketplace skills from the MCP registry",
+    path: "/api/skills/marketplace",
+    backendRoutes: ["GET /api/skills/marketplace"],
+    frontendPaths: ["/api/skills/marketplace"],
+    queryKeys: ["q", "category", "transport"],
+    options: [
+      option("--q <text>", "Search query"),
+      option("--category <name>", "Category filter"),
+      option("--transport <type>", "Transport filter"),
+    ],
+  }),
+  spec({
+    id: "skills.marketplace-install",
+    commandPath: ["skills", "marketplace-install"],
+    description: "Install a marketplace skill from the MCP registry",
+    method: "POST",
+    path: "/api/skills/marketplace/install",
+    backendRoutes: ["POST /api/skills/marketplace/install"],
+    frontendPaths: ["/api/skills/marketplace/install"],
+    options: [
+      option("--name <name>", "Marketplace server name"),
+      option("--api-key <key>", "Provider API key", { key: "apiKey" }),
+      option("--registry-header <key=value>", "Custom marketplace request header", { key: "headers", repeatable: true }),
+    ],
+    bodyKeys: ["name", "apiKey"],
+    bodyBuilder: ({ body, options }) => {
+      const headers = collectKeyValueObject(options.headers);
+      if (Object.keys(headers).length > 0) {
+        body.headers = headers;
+      }
+      return body;
+    },
   }),
   spec({
     id: "skills.smoke-test",

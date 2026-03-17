@@ -46,6 +46,19 @@ test("maple auth forgot-password help exposes redirect-url", () => {
   assert.match(result.stdout, /--redirect-url <url>/);
 });
 
+test("maple auth sso-discover and mfa-challenge help expose frontend auth flow fields", () => {
+  const sso = runCli(["auth", "sso-discover", "--help"]);
+  assert.equal(sso.status, 0, sso.stderr);
+  assert.match(sso.stdout, /--email <email>/);
+
+  const mfa = runCli(["auth", "mfa-challenge", "--help"]);
+  assert.equal(mfa.status, 0, mfa.stderr);
+  assert.match(mfa.stdout, /--mfa-session-token <token>/);
+  assert.match(mfa.stdout, /--code <code>/);
+  assert.match(mfa.stdout, /--recovery-code <code>/);
+  assert.match(mfa.stdout, /--trust-device <true\|false>/);
+});
+
 test("maple agents run help exposes prompt alias", () => {
   const result = runCli(["agents", "run", "--help"]);
   assert.equal(result.status, 0, result.stderr);
@@ -132,6 +145,19 @@ test("maple cyber suppression-create help exposes suppression workflow fields", 
   assert.match(result.stdout, /--scope-value <value>/);
   assert.match(result.stdout, /--rollback-path <text>/);
   assert.match(result.stdout, /--challenge-token <token>/);
+});
+
+test("maple skills marketplace commands expose marketplace discovery and install fields", () => {
+  const browse = runCli(["skills", "marketplace", "--help"]);
+  assert.equal(browse.status, 0, browse.stderr);
+  assert.match(browse.stdout, /--q <text>/);
+  assert.match(browse.stdout, /--transport <type>/);
+
+  const install = runCli(["skills", "marketplace-install", "--help"]);
+  assert.equal(install.status, 0, install.stderr);
+  assert.match(install.stdout, /--name <name>/);
+  assert.match(install.stdout, /--api-key <key>/);
+  assert.match(install.stdout, /--registry-header <key=value>/);
 });
 
 test("maple orchestrations review-break-glass help matches backend review contract", () => {

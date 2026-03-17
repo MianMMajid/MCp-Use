@@ -27,6 +27,12 @@
  * @property {MapleWorkspaceView} preferredView
  * @property {string[]} legacyAliases
  * @property {MapleWorkspaceView[]} docsViews
+ * @property {string[]} capabilityIds
+ * @property {string[]} securityDomains
+ * @property {string[]} cliCommands
+ * @property {string[]} legacySource
+ * @property {'implemented' | 'partial' | 'missing' | 'retired'} parityStatus
+ * @property {string[]} svelteSurfaces
  */
 
 export const MAPLE_WORKSPACE_CATEGORY_IDS = Object.freeze([

@@ -3,6 +3,7 @@ import {
   MAPLE_WORKSPACE_CATEGORY_IDS,
   isMapleWorkspaceCategory,
 } from './registry-types.js'
+import { getFrontendAParityForRoute } from './frontendA-parity-spec.js'
 
 export const MAPLE_WORKSPACE_PATH_PREFIX = '/maple'
 export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
@@ -349,6 +350,7 @@ function normalizeRouteRecord(route) {
       ? route.apiEndpoints.filter((endpoint) => typeof endpoint === 'string' && endpoint.startsWith('/'))
       : [],
   )
+  const parity = getFrontendAParityForRoute(route.path)
 
   return {
     path: route.path,
@@ -369,6 +371,12 @@ function normalizeRouteRecord(route) {
       ? uniqueList(route.legacyAliases.filter((value) => typeof value === 'string' && value.startsWith('/maple')))
       : [],
     docsViews,
+    capabilityIds: parity?.capabilityIds ?? [],
+    securityDomains: parity?.securityDomains ?? [],
+    cliCommands: parity?.cliCommands ?? [],
+    legacySource: parity?.legacySource ?? [],
+    parityStatus: parity?.parityStatus ?? 'missing',
+    svelteSurfaces: parity?.svelteSurfaces ?? [],
   }
 }
 
