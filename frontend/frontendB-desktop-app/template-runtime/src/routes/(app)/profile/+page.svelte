@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import AppShell from '@/lib/components/AppShell.svelte';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, postJson, deleteJson, patchJson, invalidateCache } from '@/lib/api';
   import { shellStore } from '@/lib/stores/shell-store';
   import { toastStore } from '@/lib/stores/toast-store';
@@ -102,6 +103,7 @@
       if (!res.ok) throw new Error(data?.error || 'Failed');
       revealedSecret = data?.key?.token || data?.token || data?.secret || '';
       newKeyName = '';
+      invalidateCache('/api/user/api-keys');
       const keysData = await loadJson('/api/user/api-keys').catch(() => ({ items: [] }));
       apiKeys = keysData?.items || [];
       toastStore.success('API key created');
@@ -109,12 +111,25 @@
     finally { creatingKey = false; }
   }
 
+  let confirmOpen = false;
+  let confirmKeyId = '';
+  let revokingKey = false;
+
+  function requestRevokeKey(id) {
+    confirmKeyId = id;
+    confirmOpen = true;
+  }
+
   async function revokeApiKey(id) {
+    if (revokingKey) return;
+    revokingKey = true;
     try {
       await deleteJson('/api/user/api-keys/' + id);
+      invalidateCache('/api/user/api-keys');
       apiKeys = apiKeys.filter((k) => String(k.id) !== String(id));
       toastStore.success('Key revoked');
     } catch (err) { toastStore.error(err.message); }
+    finally { revokingKey = false; }
   }
 
   function copySecret() {
@@ -127,6 +142,7 @@
     try {
       const res = await postJson('/api/notifications/preferences', { categories: notifCategories, channels: notifChannels });
       if (!res.ok) throw new Error('Failed to save');
+      invalidateCache('/api/notifications');
       toastStore.success('Notification preferences saved');
     } catch (err) { toastStore.error(err.message); }
     finally { savingNotifs = false; }
@@ -191,15 +207,15 @@
             <h2>Profile</h2>
             <div class="field-group">
               <div class="field">
-                <label>Username</label>
+                <span class="field-label">Username</span>
                 <p class="field-value">{profile?.username || '—'}</p>
               </div>
               <div class="field">
-                <label>Email</label>
+                <span class="field-label">Email</span>
                 <p class="field-value">{profile?.email || '—'}</p>
               </div>
               <div class="field">
-                <label>Member since</label>
+                <span class="field-label">Member since</span>
                 <p class="field-value">{profile?.createdAt ? formatDate(profile.createdAt) : '—'}</p>
               </div>
             </div>
@@ -294,7 +310,7 @@
                       <p class="key-name">{key.name || 'Unnamed'}</p>
                       <p class="key-meta">Created {formatDate(key.createdAt)} · Expires {key.expiresAt ? formatDate(key.expiresAt) : 'Never'}</p>
                     </div>
-                    <button class="pill danger-btn" on:click={() => revokeApiKey(key.id)}>Revoke</button>
+                    <button class="pill danger-btn" on:click={() => requestRevokeKey(key.id)}>Revoke</button>
                   </div>
                 {/each}
               </div>
@@ -337,6 +353,15 @@
     </div>
   </section>
 </AppShell>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title="Revoke API Key"
+  message="Are you sure you want to revoke this API key? Any integrations using it will stop working immediately."
+  confirmLabel="Revoke"
+  danger
+  onConfirm={() => revokeApiKey(confirmKeyId)}
+/>
 
 <style>
   .settings-page { min-height: calc(100svh - 92px); }
@@ -411,7 +436,8 @@
 
   /* ── Fields ── */
   .field-group { display: grid; gap: 14px; }
-  .field label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .field label,
+  .field .field-label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
   .field-value { margin: 0; font-size: 14px; }
 
   .form-stack { display: grid; gap: 14px; max-width: 400px; }

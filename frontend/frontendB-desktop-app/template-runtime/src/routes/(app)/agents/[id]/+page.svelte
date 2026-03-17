@@ -3,7 +3,10 @@
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import Icon from '@/lib/components/icons/Icon.svelte';
-  import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
+  import { loadJson, patchJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
+  import { chatStore } from '@/lib/stores/chat-store';
+  import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
 
   export let data;
@@ -38,6 +41,29 @@
   // ── Smoke test & governed proof state ──
   let smokeTests = {};
   let governedRuns = {};
+
+  // ── Delete agent state ──
+  let deleteConfirmOpen = false;
+  let deletingAgent = false;
+
+  async function deleteAgent() {
+    if (deletingAgent) return;
+    deletingAgent = true;
+    try {
+      await deleteJson(`/api/agents/${data.id}`);
+      invalidateCache('/api/agents');
+      await chatStore.fetchAgents();
+      if ($chatStore.selectedAgentId === String(data.id)) {
+        chatStore.selectAgent('');
+      }
+      toastStore.success(`Agent "${agentName || data.id}" deleted`);
+      goto('/orchestrate');
+    } catch (err) {
+      toastStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      deletingAgent = false;
+    }
+  }
 
   function canRunGovernedProof(skill) {
     return String(skill?.toolId || '').toLowerCase() === 'skills';
@@ -355,7 +381,10 @@
     {#if loading}
       <section class="card panel"><p class="muted">Loading Openclaw agent…</p></section>
     {:else if error}
-      <section class="card panel"><p class="err">{error}</p></section>
+      <section class="card panel" style="text-align:center; padding:32px;">
+        <p class="err">{error}</p>
+        <button class="pill" style="margin-top:12px; cursor:pointer;" on:click={() => goto('/orchestrate')}>Back to Builder</button>
+      </section>
     {:else}
       <section class="card panel identity">
         <div class="top">
@@ -370,6 +399,9 @@
           </div>
           <span class={badgeClass(agent?.status || 'unknown')}>{agent?.status || 'unknown'}</span>
           <button class="pill cta" on:click={createAgent} disabled={saving}>{saving ? 'Creating…' : 'Create Agent'}</button>
+          <button class="pill danger-pill" on:click={() => (deleteConfirmOpen = true)} disabled={deletingAgent} title="Delete agent">
+            <Icon name="close" size={14} />
+          </button>
         </div>
 
       </section>
@@ -557,6 +589,15 @@
   </section>
 </AppShell>
 
+<ConfirmDialog
+  bind:open={deleteConfirmOpen}
+  title="Delete Agent"
+  message={`Are you sure you want to delete "${agentName || data.id}"? This action cannot be undone.`}
+  confirmLabel="Delete"
+  danger
+  onConfirm={deleteAgent}
+/>
+
 <style>
   .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; }
   .panel { padding: 12px; display: grid; gap: 10px; }
@@ -595,6 +636,8 @@
   .tools-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 0 4px; }
   .tools-head p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
   .cta { padding: 7px 11px; border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.2); cursor: pointer; }
+  .danger-pill { padding: 7px 9px; border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger); cursor: pointer; }
+  .danger-pill:hover { background: var(--danger); color: #fff; }
 
   .profile-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .profile { padding: 6px 10px; border-color: rgba(249,115,22,.3); background: var(--btn-secondary-bg); cursor: pointer; font-size: 12px; }
@@ -647,7 +690,7 @@
     border-color: rgba(249,115,22,.7);
     border-style: dashed;
     box-shadow: inset 0 0 0 1px rgba(249,115,22,.35), 0 0 0 8px rgba(249,115,22,.08);
-    background: rgba(42,31,24,.52);
+    background: var(--accent-soft);
   }
 
   .tool-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); align-content: start; }

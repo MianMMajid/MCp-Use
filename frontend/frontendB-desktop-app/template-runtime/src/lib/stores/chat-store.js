@@ -41,6 +41,10 @@ function readWorkspaceQuery() {
 
 function writeWorkspaceQuery({ mode, stack, orchestrationId, executionId, panel }) {
   if (typeof window === 'undefined') return;
+  // Only rewrite query params on the chat/workspace root — never on app routes
+  // like /firewalls, /tasks, /agents etc. where it causes state revert races
+  const path = window.location.pathname;
+  if (path !== '/' && !path.startsWith('/maple') && !path.startsWith('/agent-chat')) return;
   const url = new URL(window.location.href);
 
   if (mode) url.searchParams.set('mode', mode);
@@ -186,8 +190,15 @@ function createChatStore() {
     const agents = next.agents || [];
     const orchestrations = next.orchestrations || [];
 
-    const resolvedAgentId = next.selectedAgentId || '';
-    const resolvedOrchId = next.selectedOrchestrationId || String(orchestrations[0]?.id || '');
+    // Clear stale IDs if entity no longer exists
+    const storedAgentId = next.selectedAgentId || '';
+    const resolvedAgentId = storedAgentId && agents.some((a) => String(a.agentId || a.id) === String(storedAgentId))
+      ? storedAgentId
+      : '';
+    const storedOrchId = next.selectedOrchestrationId || '';
+    const resolvedOrchId = storedOrchId && orchestrations.some((o) => String(o.id) === String(storedOrchId))
+      ? storedOrchId
+      : String(orchestrations[0]?.id || '');
 
     patch({
       selectedAgentId: resolvedAgentId,

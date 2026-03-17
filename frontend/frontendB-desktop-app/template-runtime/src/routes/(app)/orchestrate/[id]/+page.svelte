@@ -1,10 +1,13 @@
 <script>
   import '@xyflow/svelte/dist/style.css';
   import { onDestroy, onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { SvelteFlow, Background, Controls, addEdge, MarkerType } from '@xyflow/svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
+  import { deleteOrchestration } from '@/lib/orchestrations-api';
   import { toastStore } from '@/lib/stores/toast-store';
   import { chatStore } from '@/lib/stores/chat-store';
   import AgentPalette from '@/lib/components/orchestration/agent-palette.svelte';
@@ -42,6 +45,52 @@
   let taskInput = '';
   let executionPlan = [];
   let firewallLibrary = [];
+
+  // ── Navigation guard for unsaved changes ──
+  let leaveConfirmOpen = false;
+  let pendingLeaveHref = '';
+
+  function guardedNavigate(href) {
+    if (hasUnsavedChanges) {
+      pendingLeaveHref = href;
+      leaveConfirmOpen = true;
+    } else {
+      goto(href);
+    }
+  }
+
+  function confirmLeave() {
+    hasUnsavedChanges = false;
+    goto(pendingLeaveHref);
+  }
+
+  // ── Delete orchestration state ──
+  let deleteConfirmOpen = false;
+  let deletingOrch = false;
+
+  async function deleteThisOrchestration() {
+    if (deletingOrch) return;
+    // Block if running
+    if (runtimeStatus === 'running' || runtimeStatus === 'paused') {
+      toastStore.error('Cancel the running execution before deleting.');
+      return;
+    }
+    deletingOrch = true;
+    try {
+      await deleteOrchestration(data.id);
+      invalidateCache('/api/orchestrations');
+      await chatStore.fetchOrchestrations();
+      if ($chatStore.selectedOrchestrationId === String(data.id)) {
+        chatStore.selectOrchestration('');
+      }
+      toastStore.success(`Orchestration "${orchestrationName || data.id}" deleted`);
+      goto('/orchestrate');
+    } catch (err) {
+      toastStore.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      deletingOrch = false;
+    }
+  }
 
   $: selectedNode = mapFlowNodeToPanel(flowNodes.find((item) => item.id === selectedNodeId) || null);
   $: selectedEdge = mapFlowEdgeToPanel(flowEdges.find((item) => item.id === selectedEdgeId) || null);
@@ -326,6 +375,8 @@
         streamRetryTimer = setTimeout(() => connectExecutionStream(executionId), delay);
       } else {
         error = 'Execution stream disconnected after max retries.';
+        runtimeStatus = 'error';
+        toastStore.error('Stream disconnected. Reload or restart the execution.');
       }
     };
   }
@@ -419,6 +470,13 @@
   }
 
   async function execute(mode = 'live') {
+    error = ''; // Clear any stale error
+    // Validate: must have at least one agent node
+    const workerNodes = flowNodes.filter((n) => !n.data?.isInstruction);
+    if (workerNodes.length === 0) {
+      toastStore.error('Add at least one agent node to the canvas before executing.');
+      return;
+    }
     const objective = taskInput.trim() || orchestrationInstructions.trim() || orchestration?.name || data.id;
     executionPlan = generateExecutionPlan(objective);
     runtimeStatus = mode === 'dry_run' ? 'dry_run' : 'running';
@@ -587,7 +645,7 @@
   <section class="page">
     <header class="head card">
       <div class="title-wrap">
-        <button class="pill back-btn" on:click={() => goto('/orchestrate')} title="Back to Builder" aria-label="Back to Builder"><Icon name="arrow-left" size={16} /></button>
+        <button class="pill back-btn" on:click={() => guardedNavigate('/orchestrate')} title="Back to Builder" aria-label="Back to Builder"><Icon name="arrow-left" size={16} /></button>
         <h1>Orchestration Builder</h1>
         <label class="name-field">
           <span>name</span>
@@ -596,6 +654,9 @@
       </div>
       <div class="actions">
         <button class="pill" on:click={saveDefinition} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+        <button class="pill danger-pill" on:click={() => (deleteConfirmOpen = true)} disabled={deletingOrch} title="Delete orchestration">
+          <Icon name="close" size={14} />
+        </button>
       </div>
     </header>
 
@@ -693,14 +754,38 @@
       </div>
     </div>
 
-    {#if error}
-      <p class="error">{error}</p>
-    {/if}
     {#if loading}
-      <p class="muted">Loading orchestration...</p>
+      <div class="card" style="padding:32px; text-align:center;">
+        <p class="muted">Loading orchestration...</p>
+      </div>
+    {:else if error && !orchestration}
+      <div class="card" style="padding:32px; text-align:center;">
+        <p class="error">{error}</p>
+        <button class="pill" style="margin-top:12px; cursor:pointer;" on:click={() => goto('/orchestrate')}>Back to Builder</button>
+      </div>
+    {:else if error}
+      <p class="error">{error}</p>
     {/if}
   </section>
 </AppShell>
+
+<ConfirmDialog
+  bind:open={deleteConfirmOpen}
+  title="Delete Orchestration"
+  message={`Are you sure you want to delete "${orchestrationName || data.id}"? All configuration and history will be lost.`}
+  confirmLabel="Delete"
+  danger
+  onConfirm={deleteThisOrchestration}
+/>
+
+<ConfirmDialog
+  bind:open={leaveConfirmOpen}
+  title="Unsaved Changes"
+  message="You have unsaved changes. Leave without saving?"
+  confirmLabel="Leave"
+  danger
+  onConfirm={confirmLeave}
+/>
 
 <style>
   .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; align-content: start; }
@@ -708,6 +793,8 @@
   .head { padding: 12px; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
   .title-wrap { min-width: 0; display: flex; align-items: center; gap: 8px; }
   .back-btn { padding: 4px 10px; cursor: pointer; font-size: 16px; border-color: var(--border); background: var(--btn-secondary-bg); }
+  .danger-pill { padding: 7px 9px; border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger); cursor: pointer; }
+  .danger-pill:hover { background: var(--danger); color: #fff; }
   h1 { margin: 0; font-size: 1.2rem; }
   .name-field { display: grid; gap: 4px; max-width: 420px; }
   .name-field span { color: var(--muted); font-size: 11px; text-transform: lowercase; }

@@ -12,34 +12,46 @@
   let commandPaletteOpen = false;
   let dockPosition = 'bottom';  // bottom | top | left | right
   let dragging = false;
+  let dragStarted = false;  // true once threshold exceeded
+  let dragStartX = 0;
+  let dragStartY = 0;
   let dragX = 0;
   let dragY = 0;
+  let snapPreview = '';  // edge the dock will snap to during drag
   let dockEl;
   let trackEl;
   let pillEls = [];
-  let indicatorStyle = '';
+  let indicatorEl;
+
+  const DRAG_THRESHOLD = 8; // px before drag actually begins
 
   $: isVertical = dockPosition === 'left' || dockPosition === 'right';
 
   // Measure active pill and position indicator precisely
-  $: if (activeIndex >= 0 && trackEl && pillEls[activeIndex]) {
+  $: if (activeIndex >= 0 && trackEl && pillEls[activeIndex] && indicatorEl) {
     tick().then(updateIndicator);
   }
 
   function updateIndicator() {
-    if (activeIndex < 0 || !trackEl || !pillEls[activeIndex]) {
-      indicatorStyle = 'opacity: 0';
+    if (!indicatorEl || activeIndex < 0 || !trackEl || !pillEls[activeIndex]) {
+      if (indicatorEl) indicatorEl.style.opacity = '0';
       return;
     }
     const track = trackEl.getBoundingClientRect();
     const pill = pillEls[activeIndex].getBoundingClientRect();
+    const el = indicatorEl;
     if (isVertical) {
-      const top = pill.top - track.top;
-      indicatorStyle = `top: ${top}px; left: 4px; width: calc(100% - 8px); height: ${pill.height}px; opacity: 1`;
+      el.style.top = `${pill.top - track.top}px`;
+      el.style.left = '4px';
+      el.style.width = `calc(100% - 8px)`;
+      el.style.height = `${pill.height}px`;
     } else {
-      const left = pill.left - track.left;
-      indicatorStyle = `left: ${left}px; top: 3px; width: ${pill.width}px; height: calc(100% - 6px); opacity: 1`;
+      el.style.left = `${pill.left - track.left}px`;
+      el.style.top = '3px';
+      el.style.width = `${pill.width}px`;
+      el.style.height = `calc(100% - 6px)`;
     }
+    el.style.opacity = '1';
   }
 
   const navItems = [
@@ -67,16 +79,51 @@
     }
   }
 
+  // ── Drag helpers ──
+  function getEdgeForPosition(x, y) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const distTop = y;
+    const distBottom = vh - y;
+    const distLeft = x;
+    const distRight = vw - x;
+    const min = Math.min(distTop, distBottom, distLeft, distRight);
+    if (min === distTop) return 'top';
+    if (min === distBottom) return 'bottom';
+    if (min === distLeft) return 'left';
+    return 'right';
+  }
+
+  function getSnapTarget(edge) {
+    // Returns the CSS position the dock would snap to for a given edge
+    const m = 24;
+    switch (edge) {
+      case 'top':    return { left: '50%', top: `${m}px`, right: 'auto', bottom: 'auto', transform: 'translateX(-50%)' };
+      case 'bottom': return { left: '50%', top: 'auto', right: 'auto', bottom: `${m}px`, transform: 'translateX(-50%)' };
+      case 'left':   return { left: `${m}px`, top: '50%', right: 'auto', bottom: 'auto', transform: 'translateY(-50%)' };
+      case 'right':  return { left: 'auto', top: '50%', right: `${m}px`, bottom: 'auto', transform: 'translateY(-50%)' };
+    }
+  }
+
   // ── Drag handlers ──
   function onGripDown(event) {
     if (commandPaletteOpen) return;
-    event.preventDefault();
-    dragging = true;
+    // Don't call preventDefault on touchstart (passive listener)
+    if (!event.touches) event.preventDefault();
 
     const clientX = event.touches ? event.touches[0].clientX : event.clientX;
     const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    dragStartX = clientX;
+    dragStartY = clientY;
     dragX = clientX;
     dragY = clientY;
+    dragging = true;
+    dragStarted = false;
+    snapPreview = '';
+
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
 
     window.addEventListener('mousemove', onDragMove);
     window.addEventListener('mouseup', onDragEnd);
@@ -92,6 +139,17 @@
     dragX = clientX;
     dragY = clientY;
 
+    // Check drag threshold before starting visual drag
+    if (!dragStarted) {
+      const dx = clientX - dragStartX;
+      const dy = clientY - dragStartY;
+      if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+      dragStarted = true;
+    }
+
+    // Update snap preview
+    snapPreview = getEdgeForPosition(clientX, clientY);
+
     // Live preview — move dock to cursor position
     if (dockEl) {
       dockEl.style.position = 'fixed';
@@ -106,42 +164,61 @@
 
   function onDragEnd() {
     if (!dragging) return;
-    dragging = false;
 
     window.removeEventListener('mousemove', onDragMove);
     window.removeEventListener('mouseup', onDragEnd);
     window.removeEventListener('touchmove', onDragMove);
     window.removeEventListener('touchend', onDragEnd);
 
-    // Snap to nearest edge
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const distTop = dragY;
-    const distBottom = vh - dragY;
-    const distLeft = dragX;
-    const distRight = vw - dragX;
-    const min = Math.min(distTop, distBottom, distLeft, distRight);
+    // Re-enable text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
 
-    if (min === distTop) dockPosition = 'top';
-    else if (min === distBottom) dockPosition = 'bottom';
-    else if (min === distLeft) dockPosition = 'left';
-    else dockPosition = 'right';
-
-    // Clear inline drag styles — let CSS class handle positioning
-    if (dockEl) {
-      dockEl.style.position = '';
-      dockEl.style.left = '';
-      dockEl.style.top = '';
-      dockEl.style.right = '';
-      dockEl.style.bottom = '';
-      dockEl.style.transform = '';
-      dockEl.style.transition = '';
+    // If threshold was never exceeded, treat as a click — no position change
+    if (!dragStarted) {
+      dragging = false;
+      snapPreview = '';
+      return;
     }
+
+    // Animate to snap position instead of jumping
+    const newPosition = getEdgeForPosition(dragX, dragY);
+    const target = getSnapTarget(newPosition);
+
+    if (dockEl) {
+      // Apply snap target with smooth transition
+      dockEl.style.transition = 'left 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), top 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), right 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), bottom 0.35s cubic-bezier(0.2, 0.9, 0.3, 1), transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1)';
+      dockEl.style.left = target.left;
+      dockEl.style.top = target.top;
+      dockEl.style.right = target.right;
+      dockEl.style.bottom = target.bottom;
+      dockEl.style.transform = target.transform;
+
+      // After animation, clear inline styles and let CSS class take over
+      setTimeout(() => {
+        if (dockEl) {
+          dockEl.style.position = '';
+          dockEl.style.left = '';
+          dockEl.style.top = '';
+          dockEl.style.right = '';
+          dockEl.style.bottom = '';
+          dockEl.style.transform = '';
+          dockEl.style.transition = '';
+        }
+      }, 380);
+    }
+
+    dockPosition = newPosition;
+    dragging = false;
+    snapPreview = '';
 
     // Persist
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(DOCK_POS_KEY, dockPosition);
     }
+
+    // Re-measure indicator after orientation may have changed
+    tick().then(() => setTimeout(updateIndicator, 400));
   }
 
   // ── Lifecycle ──
@@ -195,14 +272,14 @@
         <Icon name="grip" size={16} />
       </span>
 
-      <div class="nav-indicator" style={indicatorStyle}></div>
+      <div class="nav-indicator" bind:this={indicatorEl}></div>
 
       {#each navItems as item, i}
         <button
           class="nav-pill"
           class:active={i === activeIndex}
           bind:this={pillEls[i]}
-          on:click={() => { goto(item.href); tick().then(updateIndicator); }}
+          on:click={() => goto(item.href)}
           aria-label={item.label}
           aria-current={i === activeIndex ? 'page' : undefined}
         >
@@ -245,6 +322,10 @@
     </div>
   </div>
 </nav>
+
+{#if dragStarted}
+  <div class="snap-zone snap-zone-{snapPreview}"></div>
+{/if}
 
 <CommandPalette bind:open={commandPaletteOpen} onClose={() => { commandPaletteOpen = false; }} />
 
@@ -437,6 +518,38 @@
     .nav-label { display: none; }
     .kbd { display: none; }
     .nav-pill { min-width: 48px; padding: 0 10px; }
+  }
+
+  /* ── Snap zone preview ── */
+  .snap-zone {
+    position: fixed;
+    z-index: 49;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .snap-zone-bottom {
+    bottom: 0; left: 0; right: 0; height: 6px;
+    background: linear-gradient(to top, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  .snap-zone-top {
+    top: 0; left: 0; right: 0; height: 6px;
+    background: linear-gradient(to bottom, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  .snap-zone-left {
+    top: 0; bottom: 0; left: 0; width: 6px;
+    background: linear-gradient(to right, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  .snap-zone-right {
+    top: 0; bottom: 0; right: 0; width: 6px;
+    background: linear-gradient(to left, var(--accent), transparent);
+    opacity: 0.5;
   }
 
   @media (prefers-reduced-motion: reduce) {

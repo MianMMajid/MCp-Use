@@ -2,8 +2,11 @@
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
-  import { postJson, invalidateCache } from '@/lib/api';
+  import { postJson, deleteJson, loadJson, invalidateCache } from '@/lib/api';
+  import { deleteOrchestration, listOrchestrationExecutions } from '@/lib/orchestrations-api';
+  import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
 
   let activeTab = 'orchestrations';
@@ -11,7 +14,98 @@
   let orchSearch = '';
   let creatingAgent = false;
   let creatingOrch = false;
+  let deleting = false;
   let error = '';
+
+  // Delete confirmation state
+  let confirmOpen = false;
+  let confirmTitle = '';
+  let confirmMessage = '';
+  let confirmAction = () => {};
+
+  // Context menu state
+  let openMenuId = '';
+
+  function closeMenu() { openMenuId = ''; }
+
+  function onMenuKeyDown(event) {
+    if (event.key === 'Escape') closeMenu();
+  }
+
+  async function requestDelete(type, id, name) {
+    openMenuId = '';
+
+    // Guard: agent used in orchestrations
+    if (type === 'agent') {
+      const referencingFlows = orchestrations.filter((o) => {
+        const nodes = o.nodes || o.graph?.nodes || [];
+        return nodes.some((n) => String(n.agentId || n.data?.agentId || '') === String(id));
+      });
+      if (referencingFlows.length > 0) {
+        const flowNames = referencingFlows.map((o) => o.name || o.id).join(', ');
+        confirmTitle = 'Agent In Use';
+        confirmMessage = `This agent is referenced by: ${flowNames}. Deleting it will leave orphaned nodes in those orchestrations. Continue?`;
+        confirmAction = () => performDelete(type, id, name);
+        confirmOpen = true;
+        return;
+      }
+    }
+
+    // Guard: orchestration has running executions
+    if (type === 'orchestration') {
+      try {
+        const executions = await listOrchestrationExecutions(id, 10);
+        const active = executions.filter((e) => {
+          const s = String(e.status || '').toLowerCase();
+          return s === 'running' || s === 'in_progress' || s === 'paused';
+        });
+        if (active.length > 0) {
+          confirmTitle = 'Active Executions';
+          confirmMessage = `This orchestration has ${active.length} active execution(s). Deleting it may leave dangling processes. Continue?`;
+          confirmAction = () => performDelete(type, id, name);
+          confirmOpen = true;
+          return;
+        }
+      } catch { /* Can't check — proceed with normal confirm */ }
+    }
+
+    confirmTitle = `Delete ${type === 'agent' ? 'Agent' : 'Orchestration'}`;
+    confirmMessage = `Are you sure you want to delete "${name || id}"? This action cannot be undone.`;
+    confirmAction = () => performDelete(type, id, name);
+    confirmOpen = true;
+  }
+
+  async function performDelete(type, id, name) {
+    if (deleting) return;
+    deleting = true;
+    error = '';
+    try {
+      if (type === 'orchestration') {
+        await deleteOrchestration(id);
+        invalidateCache('/api/orchestrations');
+        await chatStore.fetchOrchestrations();
+        // Clear selection if this was the selected orchestration
+        if ($chatStore.selectedOrchestrationId === String(id)) {
+          chatStore.selectOrchestration('');
+        }
+        toastStore.success(`Orchestration "${name || id}" deleted`);
+      } else {
+        await deleteJson(`/api/agents/${id}`);
+        invalidateCache('/api/agents');
+        await chatStore.fetchAgents();
+        // Clear selection if this was the selected agent
+        if ($chatStore.selectedAgentId === String(id)) {
+          chatStore.selectAgent('');
+        }
+        toastStore.success(`Agent "${name || id}" deleted`);
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(`Failed to delete: ${error}`);
+    } finally {
+      deleting = false;
+    }
+  }
 
   $: agents = Array.isArray($chatStore.agents) ? $chatStore.agents : [];
   $: orchestrations = Array.isArray($chatStore.orchestrations) ? $chatStore.orchestrations : [];
@@ -117,7 +211,11 @@
       </div>
 
       <div class="orch-list">
-        {#if filteredOrch.length === 0}
+        {#if filteredOrch.length === 0 && orchSearch}
+          <div class="card empty-state">
+            <p class="muted">No orchestrations match "{orchSearch}"</p>
+          </div>
+        {:else if filteredOrch.length === 0}
           <div class="card empty-state">
             <div class="empty-icon"><Icon name="orchestration" size={32} /></div>
             <h3>No orchestrations yet</h3>
@@ -128,18 +226,29 @@
           </div>
         {:else}
           {#each filteredOrch as item}
-            <button class="card orch-row" on:click={() => goto(`/orchestrate/${item.id}`)}>
-              <div class="orch-info">
-                <p class="orch-name">{item.name || item.id}</p>
-                {#if item.description}
-                  <p class="orch-desc">{item.description}</p>
+            <div class="card orch-row">
+              <button class="orch-main" on:click={() => goto(`/orchestrate/${item.id}`)}>
+                <div class="orch-info">
+                  <p class="orch-name">{item.name || item.id}</p>
+                  {#if item.description}
+                    <p class="orch-desc">{item.description}</p>
+                  {/if}
+                </div>
+                <div class="orch-meta">
+                  <span class={badgeClass(item.status)}>{item.status || 'draft'}</span>
+                  <span class="arrow"><Icon name="chevron" size={14} /></span>
+                </div>
+              </button>
+              <div class="ctx-menu-wrap">
+                <button class="ctx-trigger pill" on:click|stopPropagation={() => (openMenuId = openMenuId === item.id ? '' : item.id)}>⋯</button>
+                {#if openMenuId === item.id}
+                  <div class="ctx-menu">
+                    <button on:click={() => { openMenuId = ''; goto(`/orchestrate/${item.id}`); }}>Edit</button>
+                    <button class="danger-item" on:click={() => requestDelete('orchestration', item.id, item.name)}>Delete</button>
+                  </div>
                 {/if}
               </div>
-              <div class="orch-meta">
-                <span class={badgeClass(item.status)}>{item.status || 'draft'}</span>
-                <span class="arrow"><Icon name="chevron" size={14} /></span>
-              </div>
-            </button>
+            </div>
           {/each}
         {/if}
       </div>
@@ -157,7 +266,11 @@
       </div>
 
       <div class="agent-grid">
-        {#if filteredAgents.length === 0}
+        {#if filteredAgents.length === 0 && agentSearch}
+          <div class="card empty-state wide">
+            <p class="muted">No agents match "{agentSearch}"</p>
+          </div>
+        {:else if filteredAgents.length === 0}
           <div class="card empty-state wide">
             <div class="empty-icon"><Icon name="agent" size={32} /></div>
             <h3>No agents yet</h3>
@@ -170,10 +283,22 @@
           {#each filteredAgents as agent}
             {@const id = agent.agentId || agent.id}
             <article class="card agent-card">
-              <button class="agent-top" type="button" on:click={() => goto(`/agents/${id}`)}>
-                <p class="agent-name">{agent.name || id}</p>
-                <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
-              </button>
+              <div class="agent-top-row">
+                <button class="agent-top" type="button" on:click={() => goto(`/agents/${id}`)}>
+                  <p class="agent-name">{agent.name || id}</p>
+                  <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
+                </button>
+                <div class="ctx-menu-wrap">
+                  <button class="ctx-trigger pill" on:click|stopPropagation={() => (openMenuId = openMenuId === id ? '' : id)}>⋯</button>
+                  {#if openMenuId === id}
+                    <div class="ctx-menu">
+                      <button on:click={() => { openMenuId = ''; goto(`/agents/${id}`); }}>Configure</button>
+                      <button on:click={async () => { openMenuId = ''; await chatStore.selectAgent(id); goto('/?mode=agent'); }}>Chat</button>
+                      <button class="danger-item" on:click={() => requestDelete('agent', id, agent.name)}>Delete</button>
+                    </div>
+                  {/if}
+                </div>
+              </div>
               {#if agent.description}
                 <p class="agent-desc">{agent.description}</p>
               {/if}
@@ -194,6 +319,17 @@
     {/if}
   </section>
 </AppShell>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title={confirmTitle}
+  message={confirmMessage}
+  confirmLabel="Delete"
+  danger
+  onConfirm={confirmAction}
+/>
+
+<svelte:window on:click={closeMenu} on:keydown={onMenuKeyDown} />
 
 <style>
   .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; }
@@ -222,8 +358,9 @@
 
   /* Orchestration list */
   .orch-list { display: grid; gap: 8px; }
-  .orch-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; text-align: left; transition: border-color 0.15s; }
+  .orch-row { display: flex; align-items: center; gap: 0; padding: 0; transition: border-color 0.15s; }
   .orch-row:hover { border-color: var(--accent); }
+  .orch-main { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 8px 14px 16px; cursor: pointer; text-align: left; border: 0; background: transparent; color: inherit; }
   .orch-info { min-width: 0; }
   .orch-name { margin: 0; font-size: 14px; font-weight: 600; }
   .orch-desc { margin: 4px 0 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -234,7 +371,8 @@
   .agent-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .agent-card { padding: 12px; text-align: left; transition: border-color 0.15s; }
   .agent-card:hover { border-color: rgba(232, 116, 12, 0.4); }
-  .agent-top { width: 100%; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .agent-top-row { display: flex; align-items: center; gap: 4px; }
+  .agent-top { flex: 1; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .agent-name { flex: 1; margin: 0; font-size: 13px; font-weight: 600; }
   .agent-desc { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
   .agent-meta { margin-top: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -256,6 +394,38 @@
   .empty-icon { font-size: 28px; opacity: 0.6; }
   .empty-state h3 { margin: 0; font-size: 15px; }
   .empty-state p { margin: 0; color: var(--muted); font-size: 12px; max-width: 280px; }
+
+  /* Context menu */
+  .ctx-menu-wrap { position: relative; flex-shrink: 0; }
+  .ctx-trigger { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; border-color: transparent; background: transparent; color: var(--muted); }
+  .ctx-trigger:hover { color: var(--fg); background: var(--glass); }
+  .ctx-menu {
+    position: absolute;
+    right: 0;
+    top: 34px;
+    z-index: 12;
+    min-width: 130px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    padding: 4px;
+    display: grid;
+    gap: 2px;
+  }
+  .ctx-menu button {
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fg);
+    text-align: left;
+    padding: 7px 10px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .ctx-menu button:hover { background: var(--accent-soft); }
+  .ctx-menu .danger-item { color: var(--danger); }
+  .ctx-menu .danger-item:hover { background: var(--danger-soft); }
 
   @media (max-width: 720px) {
     .top-bar { flex-direction: column; align-items: flex-start; }

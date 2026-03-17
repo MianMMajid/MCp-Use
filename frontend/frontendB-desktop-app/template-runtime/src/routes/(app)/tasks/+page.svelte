@@ -2,7 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api';
+  import { toastStore } from '@/lib/stores/toast-store';
 
   let loading = true;
   let error = '';
@@ -196,10 +198,33 @@
     await refresh();
   }
 
+  // Delete confirmation
+  let confirmOpen = false;
+  let confirmTaskId = '';
+  let confirmTaskTitle = '';
+  let deletingTask = false;
+
+  function requestDeleteTask(taskId, title) {
+    confirmTaskId = taskId;
+    confirmTaskTitle = title || taskId;
+    confirmOpen = true;
+    openMenuTaskId = '';
+  }
+
   async function removeTask(taskId) {
-    await deleteJson(`/api/tasks/${taskId}`);
-    invalidateCache('/api/tasks');
-    await refresh();
+    if (deletingTask) return;
+    deletingTask = true;
+    try {
+      await deleteJson(`/api/tasks/${taskId}`);
+      invalidateCache('/api/tasks');
+      toastStore.success('Task deleted');
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(`Failed to delete task: ${error}`);
+    } finally {
+      deletingTask = false;
+    }
   }
 </script>
 
@@ -353,7 +378,7 @@
                       <button on:click={() => { commandTask(task.id, 'pause').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Pause</button>
                       <button on:click={() => { commandTask(task.id, 'resume').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Resume</button>
                       <button on:click={() => { commandTask(task.id, 'run-now').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Run Now</button>
-                      <button class="danger-item" on:click={() => { removeTask(task.id).catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Delete</button>
+                      <button class="danger-item" on:click={() => requestDeleteTask(task.id, task.title)}>Delete</button>
                     </div>
                   {/if}
                 </div>
@@ -365,6 +390,17 @@
     </section>
   </section>
 </AppShell>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title="Delete Task"
+  message={`Are you sure you want to delete "${confirmTaskTitle}"? This action cannot be undone.`}
+  confirmLabel="Delete"
+  danger
+  onConfirm={() => removeTask(confirmTaskId)}
+/>
+
+<svelte:window on:click={() => { if (openMenuTaskId) openMenuTaskId = ''; }} on:keydown={(e) => { if (e.key === 'Escape') openMenuTaskId = ''; }} />
 
 <style>
   .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
@@ -479,7 +515,7 @@
     min-width: 124px;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: rgba(13,17,24,.95);
+    background: var(--panel);
     padding: 4px;
     display: grid;
     gap: 2px;
