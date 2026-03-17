@@ -696,6 +696,130 @@ function handleFirewall(pathname, method, state, body) {
     }
   }
 
+  if (pathname === '/api/firewall/filesystem/status' && method === 'GET') {
+    return asJson({
+      ok: true,
+      guard: { available: true, mode: 'fork-capable' },
+      classifier: { available: true, model: 'gpt-4o-mini', required: false },
+      archiveStore: { available: true, mode: 'filesystem' },
+      counts: { total: 2, pending: 1, approved: 0, promoted: 1, denied: 0 },
+    })
+  }
+
+  if (pathname === '/api/firewall/filesystem/mutations' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          planId: 'fsp-fake-1',
+          tenantId: 'tenant-fake',
+          orgId: 'org-fake',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          sourceSurface: 'downstream_dispatch',
+          sourceType: 'tool_call',
+          actorUserId: 'secops',
+          workspaceRoot: '/tmp/maple-fake-workspace',
+          taskText: 'Delete generated build output',
+          lane: 'direct_allow',
+          status: 'promoted',
+          plan: {
+            candidatePathCount: 2,
+            candidatePaths: ['/tmp/maple-fake-workspace/dist/app.js', '/tmp/maple-fake-workspace/dist/app.css'],
+            operations: [{ op: 'delete', path: '/tmp/maple-fake-workspace/dist/app.js' }],
+            pathClassifications: [{ path: '/tmp/maple-fake-workspace/dist/app.js', classification: 'generated', reasons: ['Path matches generated/build-output patterns'] }],
+          },
+          modelAssessment: { available: true, confidence: 0.93, recommendedLane: 'direct_allow' },
+          validation: { valid: true, message: 'Forked mutation bundle executed without escaping approved roots.' },
+          promotion: { archivedFiles: [], restoreOps: [] },
+        },
+        {
+          planId: 'fsp-fake-2',
+          tenantId: 'tenant-fake',
+          orgId: 'org-fake',
+          traceId: 'trace-fake-2',
+          sessionId: 'session-fake-2',
+          sourceSurface: 'openclaw_modifier',
+          sourceType: 'tool_call',
+          actorUserId: 'secops',
+          workspaceRoot: '/tmp/maple-fake-workspace',
+          taskText: 'Delete source file from repo',
+          lane: 'fork_required',
+          status: 'pending_review',
+          plan: {
+            candidatePathCount: 1,
+            candidatePaths: ['/tmp/maple-fake-workspace/src/index.js'],
+            operations: [{ op: 'delete', path: '/tmp/maple-fake-workspace/src/index.js' }],
+            pathClassifications: [{ path: '/tmp/maple-fake-workspace/src/index.js', classification: 'user_authored', reasons: ['Source/config/document path treated as user-authored'] }],
+          },
+          modelAssessment: { available: true, confidence: 0.42, recommendedLane: 'fork_required' },
+          validation: {},
+          promotion: {},
+        },
+      ],
+      total: 2,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id')
+    if (params && method === 'GET') {
+      return asJson({
+        ok: true,
+        item: {
+          planId: params.id,
+          tenantId: 'tenant-fake',
+          orgId: 'org-fake',
+          traceId: 'trace-fake-2',
+          sessionId: 'session-fake-2',
+          sourceSurface: 'openclaw_modifier',
+          sourceType: 'tool_call',
+          actorUserId: 'secops',
+          workspaceRoot: '/tmp/maple-fake-workspace',
+          taskText: 'Delete source file from repo',
+          lane: 'fork_required',
+          status: 'pending_review',
+          plan: {
+            candidatePathCount: 1,
+            candidatePaths: ['/tmp/maple-fake-workspace/src/index.js'],
+            operations: [{ op: 'delete', path: '/tmp/maple-fake-workspace/src/index.js' }],
+            pathClassifications: [{ path: '/tmp/maple-fake-workspace/src/index.js', classification: 'user_authored', reasons: ['Source/config/document path treated as user-authored'] }],
+          },
+          modelAssessment: { available: true, confidence: 0.42, recommendedLane: 'fork_required' },
+          validation: {},
+          promotion: {},
+        },
+      })
+    }
+  }
+
+  if (pathname === '/api/firewall/filesystem/preflight' && method === 'POST') {
+    return asJson({ ok: true, item: { planId: state.nextId('fsp'), lane: 'fork_required', status: 'pending_review', taskText: 'Previewed mutation' } }, 201)
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id/decision')
+    if (params && method === 'POST') {
+      return asJson({ ok: true, item: { planId: params.id, status: parseBody(body).action === 'deny' ? 'denied' : 'approved' } })
+    }
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id/promote')
+    if (params && method === 'POST') {
+      return asJson({ ok: true, item: { planId: params.id, status: 'promoted', promotion: { promotedAt: nowIso() } } })
+    }
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id/restore')
+    if (params && method === 'POST') {
+      return asJson({ ok: true, item: { planId: params.id, status: 'restored', restoredAt: nowIso() } })
+    }
+  }
+
   return null
 }
 

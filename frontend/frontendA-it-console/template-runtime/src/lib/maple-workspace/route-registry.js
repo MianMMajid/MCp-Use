@@ -69,6 +69,23 @@ const MAPLE_ROUTE_DEFINITIONS = [
     preferredView: 'cybersecurity',
   },
   {
+    path: '/maple/interventions',
+    title: 'Filesystem Interventions',
+    category: 'firewalls',
+    tabLabel: 'Filesystem Interventions',
+    description: 'Review mutation plans, promote forked bundles, and restore archived content.',
+    apiEndpoints: [
+      '/api/firewall/filesystem/status',
+      '/api/firewall/filesystem/preflight',
+      '/api/firewall/filesystem/mutations',
+      '/api/firewall/filesystem/mutations/:planId',
+      '/api/firewall/filesystem/mutations/:planId/decision',
+      '/api/firewall/filesystem/mutations/:planId/promote',
+      '/api/firewall/filesystem/mutations/:planId/restore',
+    ],
+    preferredView: 'cybersecurity',
+  },
+  {
     path: '/maple/cyber',
     title: 'Cyber Operations',
     category: 'firewalls',

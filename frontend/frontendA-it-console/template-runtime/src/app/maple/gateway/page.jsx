@@ -3,13 +3,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
-import { degradedSecurityMessage, scanColor, scanLabel } from '@/lib/maple-workspace/cyber-view-model'
+import { degradedSecurityMessage, mutationLaneColor, mutationLaneLabel, scanColor, scanLabel } from '@/lib/maple-workspace/cyber-view-model'
 
 export const sections = [
   { title: 'Status', id: 'status' },
   { title: 'Effective rules', id: 'effective-rules' },
   { title: 'Preview tool', id: 'preview-tool' },
   { title: 'Firewall state', id: 'firewall-state' },
+  { title: 'Filesystem interventions', id: 'filesystem-interventions' },
   { title: 'Cyber incidents', id: 'cyber-incidents' },
   { title: 'Streaming chat', id: 'streaming-chat' },
   { title: 'Firewall chat', id: 'firewall-chat' },
@@ -117,6 +118,8 @@ export default function FirewallDashboardPage() {
   const [firewallCapabilities, setFirewallCapabilities] = useState(null)
   const [cyberStatus, setCyberStatus] = useState(null)
   const [cyberEvents, setCyberEvents] = useState([])
+  const [filesystemStatus, setFilesystemStatus] = useState(null)
+  const [filesystemPlans, setFilesystemPlans] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -146,13 +149,15 @@ export default function FirewallDashboardPage() {
     setLoading(true)
     setError(null)
     try {
-      const [r, cc, fc, fs, cs, ce] = await Promise.allSettled([
+      const [r, cc, fc, fs, cs, ce, fss, fsp] = await Promise.allSettled([
         loadJson('/api/firewall/rules/effective'),
         loadJson('/api/chat/capabilities'),
         loadJson('/api/runtime/feature-capabilities'),
         loadJson('/api/firewall/state'),
         loadJson('/api/cyber/status'),
         loadJson('/api/cyber/events?limit=5'),
+        loadJson('/api/firewall/filesystem/status'),
+        loadJson('/api/firewall/filesystem/mutations?limit=5'),
       ])
 
       if (r.status === 'fulfilled') {
@@ -184,6 +189,11 @@ export default function FirewallDashboardPage() {
         const data = ce.value
         setCyberEvents(Array.isArray(data?.items) ? data.items : [])
       }
+      if (fss.status === 'fulfilled') setFilesystemStatus(fss.value)
+      if (fsp.status === 'fulfilled') {
+        const data = fsp.value
+        setFilesystemPlans(Array.isArray(data?.items) ? data.items : [])
+      }
 
       if (
         r.status === 'rejected' &&
@@ -191,7 +201,9 @@ export default function FirewallDashboardPage() {
         fc.status === 'rejected' &&
         fs.status === 'rejected' &&
         cs.status === 'rejected' &&
-        ce.status === 'rejected'
+        ce.status === 'rejected' &&
+        fss.status === 'rejected' &&
+        fsp.status === 'rejected'
       ) {
         throw new Error('All endpoints failed')
       }
@@ -342,6 +354,7 @@ export default function FirewallDashboardPage() {
     : 0
   const totalCaps = featureCaps ? featureCaps.length : 0
   const recentCyberIncidents = cyberEvents.filter((item) => item?.scan?.blocked || item?.scan?.quarantined || String(item?.eventType || '').includes('URL_BLOCKED'))
+  const recentFilesystemPlans = Array.isArray(filesystemPlans) ? filesystemPlans : []
 
   return (
     <article className="flex h-full flex-col pt-16 pb-10">
@@ -379,7 +392,7 @@ export default function FirewallDashboardPage() {
                 <SkeletonCard />
               </div>
             ) : (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-7">
                 <StatusCard
                   label="Effective rules"
                   value={ruleCount}
@@ -419,6 +432,12 @@ export default function FirewallDashboardPage() {
                   value={String(cyberStatus?.recent?.blockedCount ?? recentCyberIncidents.length)}
                   detail={degradedSecurityMessage(cyberStatus) || `${cyberStatus?.recent?.scannedCount ?? cyberEvents.length} scanned in the last window`}
                   color={(cyberStatus?.recent?.blockedCount ?? recentCyberIncidents.length) > 0 ? 'amber' : 'green'}
+                />
+                <StatusCard
+                  label="Mutation guard"
+                  value={filesystemStatus?.guard?.mode || 'Unknown'}
+                  detail={`pending ${filesystemStatus?.counts?.pending ?? 0} • promoted ${filesystemStatus?.counts?.promoted ?? 0}`}
+                  color={filesystemStatus?.guard?.available ? 'green' : 'red'}
                 />
               </div>
             )}
@@ -583,6 +602,57 @@ export default function FirewallDashboardPage() {
             ) : !loading ? (
               <p className="mt-4 text-sm text-zinc-500">Firewall state not available.</p>
             ) : null}
+          </section>
+
+          <section id="filesystem-interventions" className="mt-10">
+            <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">
+              Filesystem interventions
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Mutation guard status, recent intervention plans, and direct access to the review workflow.
+            </p>
+            <div className="mt-4 rounded-2xl border border-zinc-950/10 bg-white p-5 dark:border-white/10 dark:bg-zinc-900">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Tag color={filesystemStatus?.guard?.available ? 'orange' : 'rose'} variant="medium">
+                    {filesystemStatus?.guard?.mode || 'unknown'}
+                  </Tag>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    classifier {filesystemStatus?.classifier?.available ? filesystemStatus?.classifier?.model : 'unavailable'}
+                  </span>
+                </div>
+                <a className="text-sm underline text-zinc-600 dark:text-zinc-300" href="/maple/interventions">
+                  Open interventions
+                </a>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <StatusCard label="Pending" value={String(filesystemStatus?.counts?.pending ?? 0)} detail="waiting for decision" color="yellow" />
+                <StatusCard label="Approved" value={String(filesystemStatus?.counts?.approved ?? 0)} detail="ready for promotion" color="yellow" />
+                <StatusCard label="Promoted" value={String(filesystemStatus?.counts?.promoted ?? 0)} detail="active changes" color="green" />
+              </div>
+              <div className="mt-4 space-y-3">
+                {recentFilesystemPlans.length === 0 ? (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No recent filesystem mutation plans.</p>
+                ) : (
+                  recentFilesystemPlans.map((item) => (
+                    <div key={item.planId} className="rounded-xl border border-zinc-950/10 px-4 py-3 dark:border-white/10">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-zinc-950 dark:text-white">{item.taskText || item.planId}</p>
+                          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {(item.plan?.candidatePaths || []).length} paths • {item.workspaceRoot || '--'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Tag color={mutationLaneColor(item)} variant="medium">{mutationLaneLabel(item)}</Tag>
+                          <Tag color="zinc" variant="small">{item.status}</Tag>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </section>
 
           <section id="cyber-incidents" className="mt-10">

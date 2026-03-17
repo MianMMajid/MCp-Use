@@ -66,6 +66,34 @@ test("maple firewall chat help exposes frontend A context options", () => {
   assert.match(result.stdout, /--include-context/);
 });
 
+test("maple firewall filesystem-preflight help exposes mutation planning fields", () => {
+  const result = runCli(["firewall", "filesystem-preflight", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--operations-json <json>/);
+  assert.match(result.stdout, /--workspace-root <path>/);
+  assert.match(result.stdout, /--tool-name <name>/);
+});
+
+test("maple firewall filesystem-decision help exposes step-up aware review fields", () => {
+  const result = runCli(["firewall", "filesystem-decision", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--action <approve\|deny>/);
+  assert.match(result.stdout, /--reason <text>/);
+  assert.match(result.stdout, /--challenge-token <token>/);
+});
+
+test("maple firewall filesystem-promote and restore help expose promotion workflow fields", () => {
+  const promote = runCli(["firewall", "filesystem-promote", "--help"]);
+  assert.equal(promote.status, 0, promote.stderr);
+  assert.match(promote.stdout, /--reason <text>/);
+  assert.match(promote.stdout, /--challenge-token <token>/);
+
+  const restore = runCli(["firewall", "filesystem-restore", "--help"]);
+  assert.equal(restore.status, 0, restore.stderr);
+  assert.match(restore.stdout, /--reason <text>/);
+  assert.match(restore.stdout, /--challenge-token <token>/);
+});
+
 test("maple admin decide-approval help exposes frontend A decision fields", () => {
   const result = runCli(["admin", "decide-approval", "--help"]);
   assert.equal(result.status, 0, result.stderr);

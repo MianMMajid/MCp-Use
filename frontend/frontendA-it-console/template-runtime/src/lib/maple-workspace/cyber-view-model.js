@@ -40,3 +40,26 @@ export function degradedSecurityMessage(status) {
   if (status?.security?.quarantineStore?.available === false) blockers.push('quarantine store unavailable')
   return blockers.join(', ')
 }
+
+export function mutationLaneColor(item) {
+  const lane = String(item?.lane || '').toLowerCase()
+  if (lane === 'hard_deny') return 'rose'
+  if (lane === 'fork_required' || lane === 'approval_required') return 'amber'
+  if (lane === 'direct_allow') return 'orange'
+  return 'zinc'
+}
+
+export function mutationLaneLabel(item) {
+  const lane = String(item?.lane || '').toLowerCase()
+  if (lane === 'hard_deny') return 'hard deny'
+  if (lane === 'fork_required') return 'fork required'
+  if (lane === 'approval_required') return 'approval required'
+  if (lane === 'direct_allow') return 'direct allow'
+  return lane || 'unknown'
+}
+
+export function mutationStatusLabel(item) {
+  const status = String(item?.status || '').toLowerCase()
+  if (status === 'direct_ready') return 'ready'
+  return status || 'unknown'
+}

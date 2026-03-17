@@ -1,6 +1,7 @@
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { database, server } from "../state.js";
+import { allowNoAuth } from "../config.js";
 import {
   getCyberPolicies,
   getCyberStatus,
@@ -38,7 +39,7 @@ async function verifiedScope(c, { allowEmpty = true } = {}) {
   const actor = actorContext();
   const rawTenantId = asString(c.req.header("x-tenant-id")) ?? "";
   const rawOrgId = asString(c.req.header("x-org-id")) ?? "";
-  if ((actor.authBypass || String(process.env.MAPLE_ALLOW_NO_AUTH ?? "") === "1") && !allowEmpty && !rawTenantId && !rawOrgId) {
+  if ((actor.authBypass || allowNoAuth) && !allowEmpty && !rawTenantId && !rawOrgId) {
     return { error: false, tenantId: "", orgId: "" };
   }
   const scope = await resolveVerifiedTenantScope({
@@ -67,7 +68,7 @@ function actorContext() {
 
 async function enforceSensitiveMutation(c, body, scope) {
   const actor = actorContext();
-  if (actor.authBypass || String(process.env.MAPLE_ALLOW_NO_AUTH ?? "") === "1") {
+  if (actor.authBypass || allowNoAuth) {
     return null;
   }
   if (actor.method !== "session" || !actor.userId) {

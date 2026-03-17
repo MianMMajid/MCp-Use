@@ -144,7 +144,7 @@ function startProcess(definition) {
         setTimeout(() => {
           if (shuttingDown) return;
           console.log(`[dev-fast] Restarting ${definition.name} (attempt ${restartCount})...`);
-          const restarted = launchProcess(definition);
+          const restarted = startProcess(definition);
           restarted._restartCount = restartCount;
         }, 3000);
       } else {

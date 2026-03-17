@@ -1,4 +1,4 @@
-import { mkdir, writeFile, stat, rename } from "node:fs/promises";
+import { mkdir, writeFile, stat, rename, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   cyberObjectStoreBaseUrl,
@@ -69,6 +69,23 @@ async function putHttpObject(key, content, contentType) {
   };
 }
 
+async function readFilesystemObject(objectRef) {
+  const storagePath = String(objectRef).replace(/^file:\/\//, "");
+  return readFile(storagePath);
+}
+
+async function readHttpObject(objectRef) {
+  const token = String(cyberObjectStoreToken ?? "").trim();
+  const response = await fetch(objectRef, {
+    method: "GET",
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error(`Remote object store read failed: ${response.status}`);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
 async function markFilesystemSuffix(key, suffix) {
   const path = join(cyberObjectStoreStorageDir, key);
   try {
@@ -101,6 +118,12 @@ export function getCyberObjectStore() {
         return putHttpObject(key, content, contentType);
       }
       return putFilesystemObject(key, content, contentType);
+    },
+    async readImmutableObject(objectRef) {
+      if (String(objectRef).startsWith("file://")) {
+        return readFilesystemObject(objectRef);
+      }
+      return readHttpObject(objectRef);
     },
     async markHeld(objectRef) {
       if (!objectRef) return false;

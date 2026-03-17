@@ -3,7 +3,7 @@ import * as protoLoader from "@grpc/proto-loader";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII } from "@maple/security";
+import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII, buildFilesystemMutationPlan } from "@maple/security";
 import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
 import { generateOpenAI } from "./providers/openai.js";
 import { generateAnthropic } from "./providers/anthropic.js";
@@ -214,6 +214,42 @@ function toProtoPolicyDecision(decision) {
         recommendation: decision.recommendation,
         redactedPatterns: decision.redactedPatterns ?? [],
         evaluatedAt: decision.evaluatedAt,
+    };
+}
+
+function evaluateFilesystemMutationDecision(input = {}) {
+    const plan = buildFilesystemMutationPlan({
+        toolName: input.toolName,
+        toolArgs: input.toolArgs,
+        command: input.command,
+        sourceSurface: "context_wall",
+        sourceType: input.sourceType ?? "tool_call",
+        traceId: input.traceId,
+        sessionId: input.sessionId,
+        taskText: input.taskText,
+    }, {
+        workspaceRoot: process.cwd(),
+        allowedRoots: [process.cwd()],
+    });
+    if (!plan.detected || plan.lane === "direct_allow" || plan.lane === "none") {
+        return null;
+    }
+    return {
+        enabled: true,
+        action: "deny",
+        shouldBlock: true,
+        severity: plan.lane === "hard_deny" ? "critical" : "high",
+        message: plan.laneMessage || `Filesystem mutation requires ${plan.lane}.`,
+        recommendation: plan.lane === "hard_deny"
+            ? "Keep the request blocked."
+            : "Use the filesystem intervention workflow and promote the reviewed bundle from an isolated fork.",
+        rule: `filesystem-mutation-${plan.lane}`,
+        redactedPatterns: [],
+        evaluatedAt: new Date().toISOString(),
+        defaultAction: "deny",
+        step: undefined,
+        lane: plan.lane,
+        plan,
     };
 }
 function toProtoPolicyRule(rule) {
@@ -547,6 +583,45 @@ export function createContextWallService(approvalQueue, policyStore) {
             guardStatus: "pending",
         }, normalizedContext);
         const decision = evaluateFirewallStep(candidateStep, getExternalRules());
+        const mutationDecision = evaluateFilesystemMutationDecision({
+            toolName: `${appId}.${toolName}`,
+            toolArgs: parsedArgs,
+            traceId,
+            sessionId,
+            taskText: JSON.stringify(parsedArgs),
+        });
+        if (mutationDecision) {
+            await emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_POLICY_DENIED",
+                summary: `Filesystem mutation blocked for ${appId}.${toolName}`,
+                severity: `RISK_SEVERITY_${mutationDecision.severity.toUpperCase()}`,
+                traceId,
+                payload: {
+                    appId,
+                    toolName,
+                    targetUrl,
+                    sessionId,
+                    lane: mutationDecision.lane,
+                    workspaceRoot: mutationDecision.plan.workspaceRoot,
+                    candidatePaths: mutationDecision.plan.candidatePaths,
+                },
+            }, { required: true });
+            return {
+                allowed: false,
+                blockedReason: mutationDecision.message,
+                decision: toProtoPolicyDecision(mutationDecision),
+                success: false,
+                resultJson: Buffer.from(JSON.stringify({
+                    error: mutationDecision.message,
+                    lane: mutationDecision.lane,
+                    candidatePaths: mutationDecision.plan.candidatePaths,
+                })),
+                errorMessage: mutationDecision.message,
+                durationMs: 0,
+                appId,
+                toolName,
+            };
+        }
         let effectiveDecision = decision;
         if (decision.shouldBlock) {
             await approvalQueue.enqueue(traceId, approvalStepIndex, candidateStep, { timeoutMs: config.hitlApprovalTimeoutMs });
@@ -694,7 +769,17 @@ export function createContextWallService(approvalQueue, policyStore) {
             try {
                 const context = normalizeRequestContext(call.request.context);
                 const step = withContextMetadata(stepFromProto(call.request.step), context);
-                const decision = evaluateFirewallStep(step, getExternalRules());
+                const firewallDecision = evaluateFirewallStep(step, getExternalRules());
+                const mutationDecision = evaluateFilesystemMutationDecision({
+                    toolName: step.toolCall?.name,
+                    toolArgs: step.toolCall?.input,
+                    command: step.command,
+                    traceId: context.traceId,
+                    sessionId: context.sessionId,
+                    taskText: step.prompt || step.output || step.command || "",
+                    sourceType: step.type,
+                });
+                const decision = mutationDecision ?? firewallDecision;
                 mapleLog("debug", "context_wall_evaluate_step", { stepIndex: step.index, action: decision.action });
                 if (decision.action === "deny") {
                     await approvalQueue.enqueue(context.traceId || "unknown", step.index, step, { timeoutMs: config.hitlApprovalTimeoutMs });

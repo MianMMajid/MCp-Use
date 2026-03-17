@@ -34,6 +34,11 @@ export const allSections = {
     { title: 'Quarantine objects', id: 'quarantine-objects' },
     { title: 'Suppressions', id: 'suppressions' },
   ],
+  '/maple/interventions': [
+    { title: 'Summary', id: 'summary' },
+    { title: 'Queue', id: 'queue' },
+    { title: 'Detail', id: 'detail' },
+  ],
   '/maple/downstream': [
     { title: 'Connected apps', id: 'connected-apps' },
     { title: 'Dispatch', id: 'dispatch' },

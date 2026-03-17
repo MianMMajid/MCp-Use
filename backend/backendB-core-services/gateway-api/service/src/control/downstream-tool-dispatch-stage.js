@@ -5,6 +5,8 @@ import { resolveDownstreamApp } from "./downstream-resolution.js";
 import { resolveProxyTrace } from "./downstream-dispatch-log-trace.js";
 import { createPostExecutionCandidateStep, createPreExecutionCandidateStep, createPreExecutionLoggedStep, setTraceDispatchMetadata, } from "./downstream-tool-dispatch-steps.js";
 import { evaluateModifierGovernance } from "../core/openclaw-modifier-runtime.js";
+import { preflightFilesystemMutation } from "../core/filesystem-intervention-service.js";
+import { database } from "../state.js";
 export async function dispatchDownstreamAndLogStage(options) {
     const app = resolveDownstreamApp(options.appId);
     const trace = resolveProxyTrace({
@@ -24,6 +26,44 @@ export async function dispatchDownstreamAndLogStage(options) {
         userId: options.userId,
         deviceId: options.deviceId,
     });
+    const filesystemMutation = await preflightFilesystemMutation({
+        toolName: options.toolName,
+        toolArgs: options.toolArgs,
+        sourceSurface: "downstream_dispatch",
+        sourceType: "tool_call",
+        traceId: options.traceId,
+        sessionId: options.sessionId,
+        taskText: invocationSummary,
+    }, {
+        database,
+        tenantId: options.tenantId || "default",
+        orgId: options.orgId || "default",
+        traceId: options.traceId,
+        sessionId: options.sessionId,
+        actorUserId: options.userId || "",
+    });
+    if (filesystemMutation && filesystemMutation.lane !== "direct_allow") {
+        trace.status = filesystemMutation.lane === "hard_deny" ? "quarantined" : "pending_approval";
+        upsertTraceForCurrentOwner(trace);
+        const report = auditAndPersist(trace);
+        return {
+            ok: false,
+            blockedByPolicy: true,
+            preExecutionWouldBlock: true,
+            trace,
+            step: preExecutionCandidateStep,
+            preExecutionStep: preExecutionCandidateStep,
+            preExecutionDecision: {
+                shouldBlock: true,
+                message: filesystemMutation.plan?.laneMessage || filesystemMutation.plan?.lane_message || filesystemMutation.plan?.message || filesystemMutation.lane,
+            },
+            report,
+            app,
+            failure: `Filesystem mutation guard blocked before downstream execution: ${filesystemMutation.plan?.laneMessage || filesystemMutation.lane}`,
+            filesystemMutationPlanId: filesystemMutation.planId,
+            filesystemMutationLane: filesystemMutation.lane,
+        };
+    }
     // B1: Modifier governance check before firewall eval
     const modifierGovernanceEnabled = String(process.env.MAPLE_MODIFIER_GOVERNANCE_ENABLED ?? "0").trim().toLowerCase();
     if (modifierGovernanceEnabled === "1" || modifierGovernanceEnabled === "true") {

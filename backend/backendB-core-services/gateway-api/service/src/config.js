@@ -64,6 +64,19 @@ function optionalEnvInt(key, fallback, { min, max } = {}) {
     }
     return parsed;
 }
+function optionalJsonArrayEnv(key, fallback = []) {
+    const raw = (process.env[key] ?? "").trim();
+    if (!raw) {
+        return [...fallback];
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [...fallback];
+    }
+    catch {
+        return [...fallback];
+    }
+}
 function requireCsvList(key) {
     const raw = requireEnv(key);
     const normalized = raw
@@ -197,6 +210,15 @@ export const malwareSandboxApiToken = optionalEnv("MAPLE_MALWARE_SANDBOX_API_TOK
 export const malwareSandboxTimeoutMs = optionalEnvInt("MAPLE_MALWARE_SANDBOX_TIMEOUT_MS", 5000, { min: 250, max: 60000 });
 export const malwareSandboxRequired = optionalEnvBool("MAPLE_MALWARE_SANDBOX_REQUIRED", false);
 export const cyberRequireStepUpForSensitiveMutations = optionalEnvBool("MAPLE_CYBER_REQUIRE_STEP_UP", true);
+export const filesystemMutationAllowedRoots = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_ALLOWED_ROOTS", [process.cwd()]);
+export const filesystemMutationProtectedRoots = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_PROTECTED_ROOTS", []);
+export const filesystemMutationGeneratedPatterns = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_GENERATED_PATTERNS", []);
+export const filesystemMutationSensitivePatterns = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_SENSITIVE_PATTERNS", []);
+export const filesystemMutationDirectMaxPaths = optionalEnvInt("MAPLE_FILESYSTEM_GUARD_DIRECT_MAX_PATHS", 4, { min: 1, max: 500 });
+export const filesystemMutationPromotionMaxPaths = optionalEnvInt("MAPLE_FILESYSTEM_GUARD_PROMOTION_MAX_PATHS", 200, { min: 1, max: 10_000 });
+export const filesystemMutationForksEnabled = optionalEnvBool("MAPLE_FILESYSTEM_GUARD_FORKS_ENABLED", true);
+export const filesystemMutationModel = optionalEnv("MAPLE_FILESYSTEM_GUARD_MODEL", "gpt-4o-mini");
+export const filesystemMutationClassifierRequired = optionalEnvBool("MAPLE_FILESYSTEM_GUARD_CLASSIFIER_REQUIRED", false);
 export const cyberAllowedDomains = optionalEnv("CYBER_ALLOWED_DOMAINS")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())

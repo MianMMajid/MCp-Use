@@ -4,6 +4,9 @@ import test from 'node:test'
 import {
   degradedSecurityMessage,
   incidentColor,
+  mutationLaneColor,
+  mutationLaneLabel,
+  mutationStatusLabel,
   scanColor,
   scanLabel,
 } from '../src/lib/maple-workspace/cyber-view-model.js'
@@ -40,4 +43,11 @@ test('degraded security message surfaces critical dependency failures', () => {
   assert.match(message, /reputation enrichment degraded/)
   assert.match(message, /evidence store unavailable/)
   assert.match(message, /quarantine store unavailable/)
+})
+
+test('mutation helpers surface intervention lane and status state', () => {
+  assert.equal(mutationLaneColor({ lane: 'hard_deny' }), 'rose')
+  assert.equal(mutationLaneLabel({ lane: 'fork_required' }), 'fork required')
+  assert.equal(mutationStatusLabel({ status: 'direct_ready' }), 'ready')
+  assert.equal(mutationStatusLabel({ status: 'promoted' }), 'promoted')
 })
