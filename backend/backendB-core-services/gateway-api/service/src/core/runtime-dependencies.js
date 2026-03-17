@@ -178,6 +178,13 @@ function capabilityFromDependencies(name, requiredDeps, checkMap) {
   };
 }
 
+function collectHardBlockers(checkMap, ids = []) {
+  return ids
+    .map((id) => checkMap.get(id))
+    .filter((check) => check && check.ok !== true)
+    .map((check) => ({ id: check.id, reason: check.reason }));
+}
+
 function resolveGoogleAuthCapability(checkMap) {
   const googleConfigured = checkMap.get("config.google_client_id")?.ok === true;
   return {
@@ -252,11 +259,18 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       requiredDeps: [],
     },
     downloadScanning: {
-      enabled: true,
-      reason: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey
-        ? "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured."
-        : "ok",
-      requiredDeps: [],
+      enabled:
+        checkMap.get("db.postgres")?.ok === true &&
+        checkMap.get("storage.cyber_quarantine")?.ok === true,
+      reason:
+        checkMap.get("db.postgres")?.ok !== true
+          ? checkMap.get("db.postgres")?.reason
+          : checkMap.get("storage.cyber_quarantine")?.ok !== true
+            ? checkMap.get("storage.cyber_quarantine")?.reason
+            : downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey
+              ? "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured."
+              : "ok",
+      requiredDeps: ["db.postgres", "storage.cyber_quarantine"],
     },
     scanEnrichment: {
       enabled: downloadScanProvider !== "virustotal" || Boolean(downloadScanVirusTotalApiKey),
@@ -285,6 +299,7 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
         evidenceStoreUnavailable: checkMap.get("db.postgres")?.ok !== true,
         quarantineStoreUnavailable: checkMap.get("storage.cyber_quarantine")?.ok !== true,
       },
+      hardBlockers: collectHardBlockers(checkMap, ["db.postgres", "storage.cyber_quarantine", "grpc.context_wall", "grpc.cyber_proxy"]),
     },
     dependencies: report.checks.map((check) => ({
       id: check.id,

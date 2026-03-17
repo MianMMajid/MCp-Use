@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { degradedSecurityMessage, incidentColor, scanColor, scanLabel } from '@/lib/maple-workspace/cyber-view-model'
 
 export const sections = [
   { title: 'Status', id: 'status' },
@@ -40,24 +41,6 @@ async function sendJson(path, body = {}) {
     throw new Error(payload?.error || `${path} -> ${response.status}`)
   }
   return payload
-}
-
-function scanColor(scan) {
-  const verdict = String(scan?.verdict || '').toLowerCase()
-  if (scan?.status === 'pending') return 'amber'
-  if (scan?.quarantined) return 'amber'
-  if (scan?.blocked || verdict === 'malicious') return 'rose'
-  if (verdict === 'safe') return 'orange'
-  return 'zinc'
-}
-
-function incidentColor(item) {
-  const severity = String(item?.severity || '').toLowerCase()
-  const state = String(item?.state || '').toLowerCase()
-  if (state === 'closed' || state === 'resolved') return 'zinc'
-  if (severity.includes('high')) return 'rose'
-  if (severity.includes('medium')) return 'amber'
-  return 'orange'
 }
 
 function boolText(value) {
@@ -271,6 +254,7 @@ export default function CyberOperationsPage() {
               <div className="rounded-xl border border-zinc-950/10 p-4 dark:border-white/10">
                 <p className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Quarantine backlog</p>
                 <p className="mt-2 text-sm text-zinc-950 dark:text-white">{status?.security?.quarantineStore?.backlog ?? quarantine.length}</p>
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{degradedSecurityMessage(status) || 'all critical security dependencies reachable'}</p>
               </div>
             </div>
           </Card>
@@ -363,7 +347,7 @@ export default function CyberOperationsPage() {
                   <div key={item.id} className="rounded-xl border border-zinc-950/10 p-4 dark:border-white/10">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-zinc-950 dark:text-white">{item.filename || item.id}</span>
-                      <Tag color={scanColor(item.scan)} variant="medium">{item.scan?.verdict || item.scan?.status || 'unknown'}</Tag>
+                      <Tag color={scanColor(item.scan)} variant="medium">{scanLabel(item.scan)}</Tag>
                       <Tag color="zinc" variant="small">{item.scan?.provider || 'unknown'}</Tag>
                       <Tag color="zinc" variant="small">{item.source}</Tag>
                       {item.incidentId && (

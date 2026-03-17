@@ -2323,8 +2323,8 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/operations/orchestrations/break-glass/:id/review"],
     frontendPaths: ["/api/operations/orchestrations/break-glass/:param/review"],
     args: [arg("id", "Break-glass ID", { pathParam: true })],
-    options: [option("--decision <decision>", "Review decision"), option("--reason <reason>", "Review reason")],
-    bodyKeys: ["decision", "reason"],
+    options: [option("--approved <true|false>", "Whether the break-glass request is approved"), option("--notes <notes>", "Review notes")],
+    bodyKeys: ["approved", "notes"],
   }),
   spec({
     id: "orchestrations.escalation-history",

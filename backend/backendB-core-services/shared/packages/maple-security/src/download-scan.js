@@ -47,6 +47,16 @@ function buildLocalReasons(localResult = {}) {
   return [...new Set([...threats, ...(quarantineReason ? [quarantineReason] : [])])];
 }
 
+function stageFromVerdict(status, verdict) {
+  if (status === "pending") {
+    return "analysis_pending";
+  }
+  if (verdict === "safe" || verdict === "malicious" || verdict === "quarantined") {
+    return "final_verdict";
+  }
+  return "local_heuristic";
+}
+
 async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -105,6 +115,7 @@ async function enrichWithVirusTotal(baseScan, options) {
       return {
         ...baseScan,
         provider: "virustotal",
+        stage: "reputation_enriched",
         status: "completed",
         verdict: vt.verdict,
         reasons: [...new Set([...baseScan.reasons, ...vt.reasons])],
@@ -124,6 +135,7 @@ async function enrichWithVirusTotal(baseScan, options) {
         return {
           ...baseScan,
           provider: "virustotal",
+          stage: "analysis_pending",
           status: "pending",
           verdict: baseScan.verdict === "safe" ? "pending" : baseScan.verdict,
           reasons: [...new Set([...baseScan.reasons, "VirusTotal analysis queued"])],
@@ -135,6 +147,7 @@ async function enrichWithVirusTotal(baseScan, options) {
     return {
       ...baseScan,
       provider: "virustotal",
+      stage: "analysis_pending",
       status: "pending",
       reasons: [...new Set([...baseScan.reasons, `VirusTotal unavailable (${lookup.response.status})`])],
       checkedAt: new Date().toISOString(),
@@ -143,6 +156,7 @@ async function enrichWithVirusTotal(baseScan, options) {
     return {
       ...baseScan,
       provider: "virustotal",
+      stage: "analysis_pending",
       status: "pending",
       reasons: [...new Set([...baseScan.reasons, `VirusTotal error: ${error instanceof Error ? error.message : String(error)}`])],
       checkedAt: new Date().toISOString(),
@@ -155,6 +169,7 @@ export async function scanDownloadedContent(options = {}) {
   const localResult = options.localResult ?? {};
   const baseScan = {
     provider: "local",
+    stage: "local_heuristic",
     status: "completed",
     verdict: localVerdictFromResult(localResult),
     sha256: sha256Hex(content),
@@ -168,7 +183,10 @@ export async function scanDownloadedContent(options = {}) {
 
   const provider = String(options.provider ?? "local").trim().toLowerCase();
   if (provider !== "virustotal") {
-    return baseScan;
+    return {
+      ...baseScan,
+      stage: stageFromVerdict(baseScan.status, baseScan.verdict),
+    };
   }
 
   return enrichWithVirusTotal(baseScan, {

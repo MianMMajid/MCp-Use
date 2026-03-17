@@ -179,9 +179,9 @@ export function closeContextWallClients() {
     mcpProxyPool?.close();
     auditWriterPool?.close();
 }
-function emitAuditEvent(opts) {
+async function emitAuditEvent(opts, { required = false } = {}) {
     try {
-        auditWriterBreaker.execute(() => grpcUnary(getAuditWriter(), "appendEvent", {
+        await auditWriterBreaker.execute(() => grpcUnary(getAuditWriter(), "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -192,10 +192,12 @@ function emitAuditEvent(opts) {
                 severity: opts.severity ?? "RISK_SEVERITY_LOW",
                 summary: opts.summary,
             },
-        })).catch(() => {});
+        }));
     }
-    catch {
-        // fire-and-forget
+    catch (error) {
+        if (required || String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production") {
+            throw error;
+        }
     }
 }
 function toProtoPolicyDecision(decision) {
@@ -547,8 +549,8 @@ export function createContextWallService(approvalQueue, policyStore) {
         const decision = evaluateFirewallStep(candidateStep, getExternalRules());
         let effectiveDecision = decision;
         if (decision.shouldBlock) {
-            approvalQueue.enqueue(traceId, approvalStepIndex, candidateStep);
-            emitAuditEvent({
+            await approvalQueue.enqueue(traceId, approvalStepIndex, candidateStep, { timeoutMs: config.hitlApprovalTimeoutMs });
+            await emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_HITL_REQUESTED",
                 summary: `HITL requested for ${appId}.${toolName}`,
                 severity: `RISK_SEVERITY_${decision.severity.toUpperCase()}`,
@@ -561,10 +563,10 @@ export function createContextWallService(approvalQueue, policyStore) {
                     sessionId,
                     stepIndex: approvalStepIndex,
                 },
-            });
+            }, { required: true });
             const approval = await approvalQueue.waitForResolution(traceId, approvalStepIndex, config.hitlApprovalTimeoutMs);
             if (!approval) {
-                emitAuditEvent({
+                await emitAuditEvent({
                     eventType: "AUDIT_EVENT_TYPE_HITL_TIMEOUT",
                     summary: `HITL timed out for ${appId}.${toolName}`,
                     severity: "RISK_SEVERITY_HIGH",
@@ -578,7 +580,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                         stepIndex: approvalStepIndex,
                         timeoutMs: config.hitlApprovalTimeoutMs,
                     },
-                });
+                }, { required: true });
                 return {
                     allowed: false,
                     blockedReason: `Approval timed out for ${appId}.${toolName}.`,
@@ -593,7 +595,7 @@ export function createContextWallService(approvalQueue, policyStore) {
             }
             if (approval.action !== "allow") {
                 const denyReason = approval.reason || decision.message || "Rejected by approver";
-                emitAuditEvent({
+                await emitAuditEvent({
                     eventType: "AUDIT_EVENT_TYPE_HITL_REJECTED",
                     summary: `HITL rejected ${appId}.${toolName}`,
                     severity: "RISK_SEVERITY_HIGH",
@@ -607,7 +609,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                         sessionId,
                         stepIndex: approvalStepIndex,
                     },
-                });
+                }, { required: true });
                 return {
                     allowed: false,
                     blockedReason: denyReason,
@@ -626,7 +628,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 shouldBlock: false,
                 message: approval.reason || `Approved by ${approval.approverId || "human reviewer"}`,
             };
-            emitAuditEvent({
+            await emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_HITL_APPROVED",
                 summary: `HITL approved ${appId}.${toolName}`,
                 traceId,
@@ -639,7 +641,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                     sessionId,
                     stepIndex: approvalStepIndex,
                 },
-            });
+            }, { required: true });
         }
         const requestedScope = request.scope;
         const derivedScope = deriveScopeFromArguments(parsedArgs);
@@ -659,7 +661,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 allowFileDownload: Boolean(mergedScope.allowFileDownload),
             } : undefined,
         }));
-        emitAuditEvent({
+        await emitAuditEvent({
             eventType: response?.success ? "AUDIT_EVENT_TYPE_TOOL_COMPLETED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",
             summary: `Tool ${appId}.${toolName} executed via context-wall`,
             traceId: request.traceId || request.context?.traceId,
@@ -684,7 +686,7 @@ export function createContextWallService(approvalQueue, policyStore) {
         };
     };
     const serviceImpl = {
-        EvaluateStep(call, callback) {
+        async EvaluateStep(call, callback) {
             if (!checkRateLimit(extractPeerId(call))) {
                 callback({ code: grpc.status.RESOURCE_EXHAUSTED, message: "Rate limit exceeded" });
                 return;
@@ -695,7 +697,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 const decision = evaluateFirewallStep(step, getExternalRules());
                 mapleLog("debug", "context_wall_evaluate_step", { stepIndex: step.index, action: decision.action });
                 if (decision.action === "deny") {
-                    approvalQueue.enqueue(context.traceId || "unknown", step.index, step);
+                    await approvalQueue.enqueue(context.traceId || "unknown", step.index, step, { timeoutMs: config.hitlApprovalTimeoutMs });
                 }
                 callback(null, {
                     decision: toProtoPolicyDecision(decision),
@@ -796,13 +798,13 @@ export function createContextWallService(approvalQueue, policyStore) {
                 callback({ code: grpc.status.INTERNAL, message: err.message });
             }
         },
-        SubmitApproval(call, callback) {
+        async SubmitApproval(call, callback) {
             try {
                 const { traceId, stepIndex, action, reason, approverId } = call.request;
                 const guardAction = action === "GUARD_ACTION_ALLOW" ? "allow" : action === "GUARD_ACTION_BLOCK" ? "block" : "pending";
-                const result = approvalQueue.resolve(traceId, stepIndex, guardAction, reason || "", approverId || "");
+                const result = await approvalQueue.resolve(traceId, stepIndex, guardAction, reason || "", approverId || "");
                 if (result) {
-                    emitAuditEvent({
+                    await emitAuditEvent({
                         eventType: guardAction === "allow" ? "AUDIT_EVENT_TYPE_HITL_APPROVED" : "AUDIT_EVENT_TYPE_HITL_REJECTED",
                         summary: `HITL decision recorded for ${traceId}:${stepIndex}`,
                         traceId,
@@ -812,7 +814,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                             reason: reason || "",
                             approverId: approverId || "",
                         },
-                    });
+                    }, { required: true });
                 }
                 callback(null, {
                     accepted: result !== null,
@@ -855,10 +857,10 @@ export function createContextWallService(approvalQueue, policyStore) {
             call.on("close", safeUnwatch);
             call.on("error", safeUnwatch);
         },
-        ListPendingApprovals(call, callback) {
+        async ListPendingApprovals(call, callback) {
             try {
                 const requestedSessionId = String(call.request?.sessionId || "");
-                const pending = approvalQueue.getPending();
+                const pending = await approvalQueue.getPending();
                 callback(null, {
                     approvals: pending
                         .filter((event) => !requestedSessionId || stepSessionId(event.step) === requestedSessionId)

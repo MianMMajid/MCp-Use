@@ -220,7 +220,7 @@ export function registerOpsGovernanceRoutes(app) {
     }
     const limit = parseLimit(c.req.query("limit"), 20, 100);
     const cursor = asString(c.req.query("cursor")) ?? "";
-    const listed = listOpenClawRuns({ limit, cursor });
+    const listed = await listOpenClawRuns({ limit, cursor });
     return c.json({ ok: true, items: listed.items, nextCursor: listed.nextCursor });
   });
 
@@ -229,7 +229,7 @@ export function registerOpsGovernanceRoutes(app) {
     if (unauthorized) {
       return unauthorized;
     }
-    const run = getOpenClawRun(c.req.param("runId"));
+    const run = await getOpenClawRun(c.req.param("runId"));
     if (!run) {
       return c.json({ error: "Run not found." }, 404);
     }
@@ -241,7 +241,7 @@ export function registerOpsGovernanceRoutes(app) {
     if (unauthorized) {
       return unauthorized;
     }
-    const timeline = getOpenClawRunTimeline(c.req.param("runId"));
+    const timeline = await getOpenClawRunTimeline(c.req.param("runId"));
     if (!timeline) {
       return c.json({ error: "Run not found." }, 404);
     }
@@ -253,7 +253,7 @@ export function registerOpsGovernanceRoutes(app) {
     if (unauthorized) {
       return unauthorized;
     }
-    const result = getOpenClawRunChildren(c.req.param("runId"));
+    const result = await getOpenClawRunChildren(c.req.param("runId"));
     if (!result) {
       return c.json({ error: "Run not found." }, 404);
     }

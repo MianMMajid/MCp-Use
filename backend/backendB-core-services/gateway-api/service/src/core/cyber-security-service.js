@@ -31,6 +31,24 @@ function hasPersistentStore(database) {
   return Boolean(database?.pool && typeof database.pool.query === "function" && typeof database.pool.connect === "function");
 }
 
+function hasVerifiedScope(options = {}) {
+  return typeof options.tenantId === "string" && typeof options.orgId === "string";
+}
+
+function requireVerifiedScope(options = {}, operation = "cyber_security_operation") {
+  if (!hasVerifiedScope(options)) {
+    throw new Error(`${operation} requires verified tenant and org scope.`);
+  }
+  return {
+    tenantId: asString(options.tenantId),
+    orgId: asString(options.orgId),
+  };
+}
+
+function matchesScope(record, scope) {
+  return asString(record?.tenantId) === scope.tenantId && asString(record?.orgId) === scope.orgId;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -76,10 +94,14 @@ function eventSourceService(entry = {}) {
 function normalizeScan(scan, fallback = {}) {
   const source = asObject(scan);
   const base = asObject(fallback);
+  const status = asString(source.status, asString(base.status, "missing"));
+  const verdict = asString(source.verdict, asString(base.verdict, "unknown"));
+  const stage = asString(source.stage, asString(base.stage, status === "pending" ? "analysis_pending" : "final_verdict"));
   return {
     provider: asString(source.provider, asString(base.provider, "unknown")),
-    status: asString(source.status, asString(base.status, "missing")),
-    verdict: asString(source.verdict, asString(base.verdict, "unknown")),
+    stage,
+    status,
+    verdict,
     sha256: asString(source.sha256, asString(base.sha256)),
     contentType: asString(source.contentType, asString(base.contentType, "application/octet-stream")),
     sizeBytes: toInt(source.sizeBytes ?? base.sizeBytes ?? 0, 0),
@@ -388,11 +410,12 @@ async function persistArtifactBytes(evidence, artifact) {
 
 async function appendSecurityAction(action, options = {}) {
   const database = options.database;
+  const scope = requireVerifiedScope(options, "append_security_action");
   const createdAt = action.createdAt ?? nowIso();
   const normalized = {
     actionId: action.actionId ?? `cyber-action-${randomUUID()}`,
-    tenantId: asString(action.tenantId),
-    orgId: asString(action.orgId),
+    tenantId: asString(action.tenantId, scope.tenantId),
+    orgId: asString(action.orgId, scope.orgId),
     incidentId: asString(action.incidentId),
     evidenceId: asString(action.evidenceId),
     quarantineId: asString(action.quarantineId),
@@ -830,7 +853,7 @@ async function listAllOpenClawRuns() {
   const items = [];
   let cursor = "";
   do {
-    const page = listOpenClawRuns({ cursor, limit: 100 });
+    const page = await listOpenClawRuns({ cursor, limit: 100 });
     items.push(...asArray(page.items));
     cursor = asString(page.nextCursor);
   } while (cursor);
@@ -990,10 +1013,14 @@ export async function listSecurityIncidents(filters = {}, options = {}) {
 
 export async function getSecurityIncidentById(incidentId, options = {}) {
   const database = options.database;
+  const scope = requireVerifiedScope(options, "get_security_incident_by_id");
   await synchronizeCyberSecurityState({ database, force: false });
   let incident;
   if (hasPersistentStore(database)) {
-    const result = await database.pool.query(`SELECT * FROM cyber_security_incidents WHERE incident_id = $1 LIMIT 1`, [incidentId]);
+    const result = await database.pool.query(
+      `SELECT * FROM cyber_security_incidents WHERE incident_id = $1 AND tenant_id = $2 AND org_id = $3 LIMIT 1`,
+      [incidentId, scope.tenantId, scope.orgId],
+    );
     if (result.rows.length === 0) return null;
     incident = toSqlIncident(result.rows[0]);
     const evidenceResult = await database.pool.query(
@@ -1017,9 +1044,10 @@ export async function getSecurityIncidentById(incidentId, options = {}) {
     };
   }
   incident = MEMORY_STATE.incidents.get(incidentId) ?? null;
+  if (incident && !matchesScope(incident, scope)) return null;
   if (!incident) return null;
-  const evidence = [...MEMORY_STATE.evidence.values()].filter((item) => item.incidentId === incidentId);
-  const quarantine = [...MEMORY_STATE.quarantine.values()].filter((item) => evidence.some((entry) => entry.evidenceId === item.evidenceId));
+  const evidence = [...MEMORY_STATE.evidence.values()].filter((item) => item.incidentId === incidentId && matchesScope(item, scope));
+  const quarantine = [...MEMORY_STATE.quarantine.values()].filter((item) => matchesScope(item, scope) && evidence.some((entry) => entry.evidenceId === item.evidenceId));
   const actions = await loadActions({ incidentId }, options);
   return { ...incident, evidence, quarantine, timeline: actions };
 }
@@ -1095,9 +1123,13 @@ export async function listSecurityEvidence(filters = {}, options = {}) {
 
 export async function getSecurityEvidenceById(evidenceId, options = {}) {
   const database = options.database;
+  const scope = requireVerifiedScope(options, "get_security_evidence_by_id");
   await synchronizeCyberSecurityState({ database });
   if (hasPersistentStore(database)) {
-    const result = await database.pool.query(`SELECT * FROM cyber_security_evidence WHERE evidence_id = $1 LIMIT 1`, [evidenceId]);
+    const result = await database.pool.query(
+      `SELECT * FROM cyber_security_evidence WHERE evidence_id = $1 AND tenant_id = $2 AND org_id = $3 LIMIT 1`,
+      [evidenceId, scope.tenantId, scope.orgId],
+    );
     if (result.rows.length === 0) return null;
     const evidence = toSqlEvidence(result.rows[0]);
     const quarantineResult = await database.pool.query(`SELECT * FROM cyber_security_quarantine_objects WHERE evidence_id = $1 LIMIT 1`, [evidenceId]);
@@ -1108,8 +1140,9 @@ export async function getSecurityEvidenceById(evidenceId, options = {}) {
     };
   }
   const evidence = MEMORY_STATE.evidence.get(evidenceId) ?? null;
+  if (evidence && !matchesScope(evidence, scope)) return null;
   if (!evidence) return null;
-  const quarantine = [...MEMORY_STATE.quarantine.values()].find((item) => item.evidenceId === evidenceId) ?? null;
+  const quarantine = [...MEMORY_STATE.quarantine.values()].find((item) => item.evidenceId === evidenceId && matchesScope(item, scope)) ?? null;
   return {
     ...evidence,
     quarantine,
@@ -1178,11 +1211,12 @@ export async function listSecuritySuppressions(filters = {}, options = {}) {
 
 export async function createSecuritySuppression(input, options = {}) {
   const database = options.database;
+  const scope = requireVerifiedScope(options, "create_security_suppression");
   const now = nowIso();
   const suppression = {
     suppressionId: `suppression-${randomUUID()}`,
-    tenantId: asString(input.tenantId),
-    orgId: asString(input.orgId),
+    tenantId: asString(input.tenantId, scope.tenantId),
+    orgId: asString(input.orgId, scope.orgId),
     status: "active",
     scopeType: asString(input.scopeType),
     scopeValue: asString(input.scopeValue),
@@ -1247,6 +1281,7 @@ export async function createSecuritySuppression(input, options = {}) {
 
 export async function revokeSecuritySuppression(suppressionId, input, options = {}) {
   const database = options.database;
+  const scope = requireVerifiedScope(options, "revoke_security_suppression");
   const revokedAt = nowIso();
   if (hasPersistentStore(database)) {
     const result = await database.pool.query(
@@ -1255,8 +1290,10 @@ export async function revokeSecuritySuppression(suppressionId, input, options = 
               revoked_at = $2,
               revoked_by = $3
         WHERE suppression_id = $1
+          AND tenant_id = $4
+          AND org_id = $5
         RETURNING *`,
-      [suppressionId, revokedAt, asString(input.revokedBy)],
+      [suppressionId, revokedAt, asString(input.revokedBy), scope.tenantId, scope.orgId],
     );
     if (result.rows.length === 0) return null;
     const suppression = toSqlSuppression(result.rows[0]);
@@ -1272,6 +1309,7 @@ export async function revokeSecuritySuppression(suppressionId, input, options = 
     return suppression;
   }
   const suppression = MEMORY_STATE.suppressions.get(suppressionId);
+  if (suppression && !matchesScope(suppression, scope)) return null;
   if (!suppression) return null;
   suppression.status = "revoked";
   suppression.revokedAt = revokedAt;
@@ -1280,6 +1318,7 @@ export async function revokeSecuritySuppression(suppressionId, input, options = 
 }
 
 export async function assignSecurityIncident(incidentId, input, options = {}) {
+  requireVerifiedScope(options, "assign_security_incident");
   const existing = await getSecurityIncidentById(incidentId, options);
   if (!existing) return null;
   const next = await upsertIncident({
@@ -1300,6 +1339,7 @@ export async function assignSecurityIncident(incidentId, input, options = {}) {
 }
 
 export async function updateSecurityIncidentState(incidentId, input, options = {}) {
+  requireVerifiedScope(options, "update_security_incident_state");
   const existing = await getSecurityIncidentById(incidentId, options);
   if (!existing) return null;
   const state = asString(input.state, existing.state);
@@ -1327,6 +1367,7 @@ export async function updateSecurityIncidentState(incidentId, input, options = {
 }
 
 export async function addSecurityIncidentNote(incidentId, input, options = {}) {
+  requireVerifiedScope(options, "add_security_incident_note");
   const incident = await getSecurityIncidentById(incidentId, options);
   if (!incident) return null;
   await appendSecurityAction({
@@ -1350,8 +1391,9 @@ export async function addSecurityIncidentNote(incidentId, input, options = {}) {
 
 export async function reviewSecurityQuarantine(quarantineId, input, options = {}) {
   const database = options.database;
-  const list = await listSecurityQuarantine({}, options);
-  const existing = list.find((item) => item.quarantineId === quarantineId) ?? null;
+  const scope = requireVerifiedScope(options, "review_security_quarantine");
+  const list = await listSecurityQuarantine({ tenantId: scope.tenantId, orgId: scope.orgId }, options);
+  const existing = list.find((item) => item.quarantineId === quarantineId && matchesScope(item, scope)) ?? null;
   if (!existing) return null;
   const reviewStatus = asString(input.reviewStatus, "reviewed");
   const currentState = reviewStatus === "malicious" ? "contained" : reviewStatus === "benign" ? "approved_release" : "reviewed";
@@ -1375,13 +1417,14 @@ export async function reviewSecurityQuarantine(quarantineId, input, options = {}
     actionType: "quarantine_reviewed",
     summary: `Quarantine reviewed as ${reviewStatus}`,
     payload: { reviewStatus, notes: asString(input.notes) },
-  }, { database });
+  }, { ...options, database, tenantId: scope.tenantId, orgId: scope.orgId });
   return next;
 }
 
 export async function releaseSecurityQuarantine(quarantineId, input, options = {}) {
-  const list = await listSecurityQuarantine({}, options);
-  const existing = list.find((item) => item.quarantineId === quarantineId) ?? null;
+  const scope = requireVerifiedScope(options, "release_security_quarantine");
+  const list = await listSecurityQuarantine({ tenantId: scope.tenantId, orgId: scope.orgId }, options);
+  const existing = list.find((item) => item.quarantineId === quarantineId && matchesScope(item, scope)) ?? null;
   if (!existing) return null;
   const next = await upsertQuarantine({
     ...existing,
@@ -1407,8 +1450,9 @@ export async function releaseSecurityQuarantine(quarantineId, input, options = {
 }
 
 export async function rescanSecurityQuarantine(quarantineId, input, options = {}) {
-  const list = await listSecurityQuarantine({}, options);
-  const existing = list.find((item) => item.quarantineId === quarantineId) ?? null;
+  const scope = requireVerifiedScope(options, "rescan_security_quarantine");
+  const list = await listSecurityQuarantine({ tenantId: scope.tenantId, orgId: scope.orgId }, options);
+  const existing = list.find((item) => item.quarantineId === quarantineId && matchesScope(item, scope)) ?? null;
   if (!existing) return null;
   const evidence = await getSecurityEvidenceById(existing.evidenceId, options);
   if (!evidence) return null;

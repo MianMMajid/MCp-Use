@@ -13,6 +13,7 @@ applyGatewayTestEnvDefaults({
 });
 
 const { server, database } = await import("../src/state.js");
+const originalPool = database.pool;
 const {
   runOpenClawTurn,
   shutdownOpenClawRuntime,
@@ -74,6 +75,9 @@ database.pool = {
 
 test.after(async () => {
   await shutdownOpenClawRuntime();
+  if (originalPool && typeof originalPool.end === "function") {
+    await originalPool.end().catch(() => {});
+  }
 });
 
 test("GET /api/cyber/status exposes combined provider and scanning state", async () => {

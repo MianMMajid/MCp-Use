@@ -32,8 +32,8 @@ export function registerSearchRoutes(app) {
 
             if (requestedTypes.has("runs")) {
                 searches.push(
-                    Promise.resolve().then(() => {
-                        const { items } = listOpenClawRuns({ limit: 50 });
+                    Promise.resolve().then(async () => {
+                        const { items } = await listOpenClawRuns({ limit: 50 });
                         const q = query.toLowerCase();
                         return items
                             .filter((r) => r.runId.toLowerCase().includes(q) || r.sessionId.toLowerCase().includes(q) || r.type.toLowerCase().includes(q))

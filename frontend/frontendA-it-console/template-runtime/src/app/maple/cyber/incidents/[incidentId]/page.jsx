@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { scanColor, scanLabel } from '@/lib/maple-workspace/cyber-view-model'
 
 async function loadJson(path) {
   const response = await fetch(path, {
@@ -29,14 +30,6 @@ async function sendJson(path, body = {}) {
   const payload = await response.json().catch(() => ({}))
   if (!response.ok || payload?.ok === false) throw new Error(payload?.error || `${path} -> ${response.status}`)
   return payload
-}
-
-function scanColor(scan) {
-  const verdict = String(scan?.verdict || '').toLowerCase()
-  if (scan?.quarantined) return 'amber'
-  if (scan?.blocked || verdict === 'malicious') return 'rose'
-  if (verdict === 'safe') return 'orange'
-  return 'zinc'
 }
 
 export default function CyberIncidentDetailPage() {
@@ -145,7 +138,7 @@ export default function CyberIncidentDetailPage() {
                 <div key={item.evidenceId} className="rounded-xl border border-zinc-950/10 p-4 dark:border-white/10">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-zinc-950 dark:text-white">{item.filename || item.evidenceId}</span>
-                    <Tag color={scanColor(item.scan)} variant="medium">{item.scan?.verdict || item.scan?.status || 'unknown'}</Tag>
+                    <Tag color={scanColor(item.scan)} variant="medium">{scanLabel(item.scan)}</Tag>
                     <Tag color="zinc" variant="small">{item.source}</Tag>
                   </div>
                   <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">

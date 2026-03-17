@@ -106,6 +106,15 @@ test("maple cyber suppression-create help exposes suppression workflow fields", 
   assert.match(result.stdout, /--challenge-token <token>/);
 });
 
+test("maple orchestrations review-break-glass help matches backend review contract", () => {
+  const result = runCli(["orchestrations", "review-break-glass", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--approved <true\|false>/);
+  assert.match(result.stdout, /--notes <notes>/);
+  assert.doesNotMatch(result.stdout, /--decision <decision>/);
+  assert.doesNotMatch(result.stdout, /--reason <reason>/);
+});
+
 test("maple frontend b create commands are available", () => {
   const agents = runCli(["agents", "create", "--help"]);
   assert.equal(agents.status, 0, agents.stderr);

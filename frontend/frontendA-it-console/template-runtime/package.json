@@ -9,7 +9,8 @@
     "build": "npm run check:route-conflicts && vite build",
     "start": "vite preview",
     "lint": "npm run check:route-conflicts",
-    "check:route-conflicts": "node scripts/check-route-conflicts.mjs"
+    "check:route-conflicts": "node scripts/check-route-conflicts.mjs",
+    "test:cyber-ui": "node --test tests/cyber-view-model.test.mjs"
   },
   "dependencies": {
     "@sveltejs/adapter-auto": "^4.0.0",

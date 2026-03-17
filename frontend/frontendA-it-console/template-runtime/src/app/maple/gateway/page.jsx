@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
+import { degradedSecurityMessage, scanColor, scanLabel } from '@/lib/maple-workspace/cyber-view-model'
 
 export const sections = [
   { title: 'Status', id: 'status' },
@@ -102,14 +103,6 @@ function StatusCard({ label, value, detail, color }) {
       )}
     </div>
   )
-}
-
-function scanColor(scan) {
-  const verdict = String(scan?.verdict || '').toLowerCase()
-  if (scan?.status === 'pending') return 'amber'
-  if (verdict === 'malicious') return 'rose'
-  if (verdict === 'quarantined') return 'amber'
-  return 'orange'
 }
 
 /* ------------------------------------------------------------------ */
@@ -424,7 +417,7 @@ export default function FirewallDashboardPage() {
                 <StatusCard
                   label="Recent cyber"
                   value={String(cyberStatus?.recent?.blockedCount ?? recentCyberIncidents.length)}
-                  detail={`${cyberStatus?.recent?.scannedCount ?? cyberEvents.length} scanned in the last window`}
+                  detail={degradedSecurityMessage(cyberStatus) || `${cyberStatus?.recent?.scannedCount ?? cyberEvents.length} scanned in the last window`}
                   color={(cyberStatus?.recent?.blockedCount ?? recentCyberIncidents.length) > 0 ? 'amber' : 'green'}
                 />
               </div>
@@ -556,7 +549,7 @@ export default function FirewallDashboardPage() {
                         <div className="rounded-lg border border-zinc-950/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-medium text-zinc-950 dark:text-white">Payload/download scan verdict</span>
-                            <Tag color={scanColor(previewResult.scan)} variant="medium">{String(previewResult.scan.verdict || previewResult.scan.status || 'unknown')}</Tag>
+                            <Tag color={scanColor(previewResult.scan)} variant="medium">{scanLabel(previewResult.scan)}</Tag>
                             <Tag color="zinc" variant="small">{String(previewResult.scan.provider || 'local')}</Tag>
                           </div>
                           <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -602,7 +595,7 @@ export default function FirewallDashboardPage() {
                   <div key={item.id} className="rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-zinc-950 dark:text-white">{item.summary || item.eventType}</span>
-                      <Tag color={scanColor(item.scan)} variant="medium">{String(item.scan?.verdict || item.eventType || 'unknown')}</Tag>
+                      <Tag color={scanColor(item.scan)} variant="medium">{scanLabel(item.scan || { verdict: item.eventType || 'unknown' })}</Tag>
                       <Tag color="zinc" variant="small">{String(item.sourceService || 'cyber-proxy')}</Tag>
                     </div>
                     <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">

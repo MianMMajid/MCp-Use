@@ -51,7 +51,7 @@ server.app.get("/api/openclaw/agent/sessions", async (c) => {
   }
   const limit = asBoundedInteger(c.req.query("limit"), 20, 1, 100);
   const cursor = asString(c.req.query("cursor")) ?? "";
-  const listed = listOpenClawSessions({ limit, cursor });
+  const listed = await listOpenClawSessions({ limit, cursor });
   return c.json({
     ok: true,
     items: listed.items,
@@ -68,7 +68,7 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId", async (c) => {
   if (!sessionId) {
     return c.json({ ok: false, error: "Missing sessionId." }, 400);
   }
-  const session = getOpenClawSession(sessionId);
+  const session = await getOpenClawSession(sessionId);
   if (!session) {
     return c.json({ ok: false, error: "Session not found." }, 404);
   }
@@ -87,7 +87,7 @@ server.app.post("/api/openclaw/agent/sessions/:sessionId/cancel", async (c) => {
   if (!sessionId) {
     return c.json({ ok: false, error: "Missing sessionId." }, 400);
   }
-  const canceled = cancelOpenClawSession(sessionId);
+  const canceled = await cancelOpenClawSession(sessionId);
   if (!canceled) {
     return c.json({ ok: false, error: "Session not found." }, 404);
   }
@@ -106,7 +106,7 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
   if (!sessionId) {
     return c.json({ ok: false, error: "Missing sessionId." }, 400);
   }
-  if (!getOpenClawSession(sessionId)) {
+  if (!(await getOpenClawSession(sessionId))) {
     return c.json({ ok: false, error: "Session not found." }, 404);
   }
 
@@ -118,7 +118,7 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
   let timeout;
   let unsubscribe = () => {};
   const stream = new ReadableStream({
-    start(controller) {
+    async start(controller) {
       let cursor = startedCursor;
       closed = false;
       unsubscribe = () => {};
@@ -155,8 +155,8 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
         }
       };
 
-      const flushBacklog = () => {
-        const events = listOpenClawSessionEvents(sessionId, { afterCursor: cursor });
+      const flushBacklog = async () => {
+        const events = await listOpenClawSessionEvents(sessionId, { afterCursor: cursor });
         for (const event of events.items) {
           if (!writeEvent(event.eventType, event)) {
             break;
@@ -167,9 +167,9 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
       };
 
       writeEvent("ready", { sessionId, cursor });
-      flushBacklog();
+      void flushBacklog();
 
-      const detail = getOpenClawSession(sessionId);
+      const detail = await getOpenClawSession(sessionId);
       if (!detail || isTerminalSessionStatus(detail.status)) {
         writeEvent("done", {
           sessionId,
@@ -186,15 +186,17 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
           return;
         }
         cursor = event.cursor;
-        const nextDetail = getOpenClawSession(sessionId);
-        if (!nextDetail || isTerminalSessionStatus(nextDetail.status)) {
-          writeEvent("done", {
-            sessionId,
-            status: nextDetail?.status ?? "completed",
-            cursor,
-          });
-          closeStream();
-        }
+        void (async () => {
+          const nextDetail = await getOpenClawSession(sessionId);
+          if (!nextDetail || isTerminalSessionStatus(nextDetail.status)) {
+            writeEvent("done", {
+              sessionId,
+              status: nextDetail?.status ?? "completed",
+              cursor,
+            });
+            closeStream();
+          }
+        })();
       });
 
       timeout = setTimeout(() => {

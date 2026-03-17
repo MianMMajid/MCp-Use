@@ -272,7 +272,7 @@ server.app.post("/api/cyber/incidents/:id/assign", async (c) => {
   const incident = await assignSecurityIncident(asString(c.req.param("id")), {
     ownerId: asString(body.ownerId),
     actorId: actor.userId || actor.keyFingerprint || "gateway-api",
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!incident) return c.json({ ok: false, error: "Incident not found." }, 404);
   return c.json({ ok: true, incident });
 });
@@ -291,7 +291,7 @@ server.app.post("/api/cyber/incidents/:id/state", async (c) => {
     disposition: asString(body.disposition),
     escalationState: asString(body.escalationState),
     actorId: actor.userId || actor.keyFingerprint || "gateway-api",
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!incident) return c.json({ ok: false, error: "Incident not found." }, 404);
   return c.json({ ok: true, incident });
 });
@@ -307,7 +307,7 @@ server.app.post("/api/cyber/incidents/:id/note", async (c) => {
     note: asString(body.note),
     linkedCaseId: asString(body.linkedCaseId),
     actorId: actor.userId || actor.keyFingerprint || "gateway-api",
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!incident) return c.json({ ok: false, error: "Incident not found." }, 404);
   return c.json({ ok: true, incident });
 });
@@ -349,7 +349,7 @@ server.app.post("/api/cyber/quarantine/:id/review", async (c) => {
     classification: asString(body.classification),
     notes: asString(body.notes),
     actorId: actor.userId || actor.keyFingerprint || "gateway-api",
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!item) return c.json({ ok: false, error: "Quarantine object not found." }, 404);
   return c.json({ ok: true, item });
 });
@@ -367,7 +367,7 @@ server.app.post("/api/cyber/quarantine/:id/release", async (c) => {
     releaseDisposition: asString(body.releaseDisposition),
     rationale: asString(body.rationale),
     actorId: actor.userId || actor.keyFingerprint || "gateway-api",
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!item) return c.json({ ok: false, error: "Quarantine object not found." }, 404);
   return c.json({ ok: true, item });
 });
@@ -383,7 +383,7 @@ server.app.post("/api/cyber/quarantine/:id/rescan", async (c) => {
   if (enforced) return enforced;
   const item = await rescanSecurityQuarantine(asString(c.req.param("id")), {
     actorId: actor.userId || actor.keyFingerprint || "gateway-api",
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!item) return c.json({ ok: false, error: "Quarantine object not found." }, 404);
   return c.json({ ok: true, item });
 });
@@ -424,7 +424,7 @@ server.app.post("/api/cyber/suppressions", async (c) => {
     createdBy: actor.userId || actor.keyFingerprint || "gateway-api",
     expiresAt: asString(body.expiresAt) || null,
     metadata: body.metadata,
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   return c.json({ ok: true, item });
 });
 
@@ -440,7 +440,7 @@ server.app.post("/api/cyber/suppressions/:id/revoke", async (c) => {
   const item = await revokeSecuritySuppression(asString(c.req.param("id")), {
     revokedBy: actor.userId || actor.keyFingerprint || "gateway-api",
     reason: asString(body.reason),
-  }, { database });
+  }, { database, tenantId: scope.tenantId, orgId: scope.orgId });
   if (!item) return c.json({ ok: false, error: "Suppression not found." }, 404);
   return c.json({ ok: true, item });
 });

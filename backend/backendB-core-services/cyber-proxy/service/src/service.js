@@ -25,9 +25,9 @@ function grpcUnaryPromise(client, method, request) {
         });
     });
 }
-function emitAuditEvent(opts) {
+async function emitAuditEvent(opts, { required = false } = {}) {
     try {
-        auditWriterBreaker.execute(() => grpcUnaryPromise(getAuditWriter(), "appendEvent", {
+        await auditWriterBreaker.execute(() => grpcUnaryPromise(getAuditWriter(), "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -37,10 +37,12 @@ function emitAuditEvent(opts) {
                 severity: "RISK_SEVERITY_MEDIUM",
                 summary: opts.summary,
             },
-        })).catch(() => {});
+        }));
     }
-    catch {
-        // Audit emission is fire-and-forget
+    catch (error) {
+        if (required || String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production") {
+            throw error;
+        }
     }
 }
 const PROTO_PATH = resolve(PROTO_ROOT, "maple/cyber/v1/cyber_proxy.proto");
@@ -384,11 +386,11 @@ export function createCyberProxyService() {
                     localResult: result,
                 });
                 if (result.quarantined || scan.quarantined || scan.blocked) {
-                    emitAuditEvent({
+                    await emitAuditEvent({
                         eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                         summary: `Content quarantined: ${result.quarantineReason}`,
                         payload: { sourceUrl, threats: result.threats, quarantineReason: result.quarantineReason, scan },
-                    });
+                    }, { required: true });
                 }
                 callback(null, {
                     safe: result.safe, threatsFound: result.threats,
@@ -431,7 +433,7 @@ export function createCyberProxyService() {
                 const toolName = String(call.request.toolName || "jsonrpc.forward");
                 const urlCheck = await evaluateUrlPolicy(url, toolName, scope.allowedDomains);
                 if (!urlCheck.allowed) {
-                    emitAuditEvent({
+                    await emitAuditEvent({
                         eventType: "AUDIT_EVENT_TYPE_URL_BLOCKED",
                         summary: `URL blocked: ${url} — ${urlCheck.reason}`,
                         payload: {
@@ -442,7 +444,7 @@ export function createCyberProxyService() {
                             appId: call.request.appId || "",
                             scopedAllowedDomains: scope.allowedDomains,
                         },
-                    });
+                    }, { required: true });
                     callback(null, {
                         statusCode: 403,
                         headers: {},
@@ -521,11 +523,11 @@ export function createCyberProxyService() {
                     }
                     if (sizeExceeded) {
                         const reason = `Response exceeds scoped max_bytes (${totalBytes} > ${effectiveMaxBytes})`;
-                        emitAuditEvent({
+                        await emitAuditEvent({
                             eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                             summary: reason,
                             payload: { url, appId: call.request.appId || "", toolName, scopedMaxBytes: effectiveMaxBytes },
-                        });
+                        }, { required: true });
                         callback(null, {
                             statusCode: 403,
                             headers: respHeaders,
@@ -545,11 +547,11 @@ export function createCyberProxyService() {
                     const contentType = respHeaders["content-type"] || "application/octet-stream";
                     if (!scope.allowFileDownload && isDownloadLikeResponse(contentType, respHeaders)) {
                         const reason = "File download blocked by credential scope";
-                        emitAuditEvent({
+                        await emitAuditEvent({
                             eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                             summary: reason,
                             payload: { url, appId: call.request.appId || "", toolName, contentType },
-                        });
+                        }, { required: true });
                         callback(null, {
                             statusCode: 403,
                             headers: respHeaders,
@@ -575,11 +577,11 @@ export function createCyberProxyService() {
                     const respHeadersWithScan = attachScanHeaders(respHeaders, scan);
                     if (scanResult.quarantined || scan.quarantined || scan.blocked) {
                         mapleLog("warn", "cyber_proxy_content_quarantined", { url, reason: scanResult.quarantineReason, threats: scanResult.threats });
-                        emitAuditEvent({
+                        await emitAuditEvent({
                             eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                             summary: `Download quarantined: ${scanResult.quarantineReason}`,
                             payload: { url, reason: scanResult.quarantineReason, threats: scanResult.threats, scan },
-                        });
+                        }, { required: true });
                         callback(null, {
                             statusCode: 403,
                             headers: respHeadersWithScan,
