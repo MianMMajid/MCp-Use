@@ -348,12 +348,476 @@ function handleFirewall(pathname, method, state, body) {
   }
 
   if (pathname === '/api/runtime/feature-capabilities' && method === 'GET') {
-    return asJson([
-      { name: 'streamingChat', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'policyPreview', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'hitl', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'orchestrationRuntime', enabled: true, reason: 'Enabled in fake mode' },
-    ])
+    return asJson({
+      ok: true,
+      firewall: {
+        contextWallReachable: true,
+        mcpProxyReachable: true,
+        cyberProxyReachable: true,
+        scanProvider: 'local',
+        quarantineEnabled: true,
+        degradedStates: {
+          contextPolicyUnavailable: false,
+          cyberScanUnavailable: false,
+          virustotalUnavailable: false,
+        },
+      },
+      features: {
+        streamingChat: { enabled: true, reason: 'Enabled in fake mode' },
+        policyPreview: { enabled: true, reason: 'Enabled in fake mode' },
+        hitl: { enabled: true, reason: 'Enabled in fake mode' },
+        orchestrationRuntime: { enabled: true, reason: 'Enabled in fake mode' },
+        contextFirewall: { enabled: true, reason: 'Enabled in fake mode' },
+        cyberFirewall: { enabled: true, reason: 'Enabled in fake mode' },
+        downloadScanning: { enabled: true, reason: 'Enabled in fake mode' },
+      },
+    })
+  }
+
+  if (pathname === '/api/cyber/status' && method === 'GET') {
+    return asJson({
+      ok: true,
+      providers: {
+        contextWall: { reachable: true, reason: 'ok' },
+        mcpProxy: { reachable: true, reason: 'ok' },
+        cyberProxy: { reachable: true, reason: 'ok', address: 'localhost:8080' },
+      },
+      scanning: {
+        provider: 'local',
+        quarantineEnabled: true,
+        enrichmentConfigured: true,
+        degraded: false,
+        states: {
+          contextPolicyUnavailable: false,
+          cyberScanUnavailable: false,
+          virustotalUnavailable: false,
+        },
+      },
+      security: {
+        evidenceStore: { durable: true, available: true, mode: 'postgres' },
+        quarantineStore: { durable: true, available: true, storagePath: '/tmp/maple-fake-quarantine', backlog: 1 },
+        incidents: { total: 1, open: 1, severeOpen: 1 },
+        suppressions: { active: 1 },
+      },
+      recent: {
+        blockedCount: 1,
+        scannedCount: 3,
+        incidents: [],
+      },
+    })
+  }
+
+  if (pathname === '/api/cyber/policies' && method === 'GET') {
+    return asJson({
+      ok: true,
+      scanProvider: 'local',
+      quarantineEnabled: true,
+      maxResponseBytes: 10485760,
+      allowLocalTargets: false,
+      allowedDomains: ['example.com'],
+      blockedDomains: ['evil.test'],
+      toolAllowedDomains: { web_fetch: ['example.com'] },
+      allowedLocalHosts: [],
+      fileDownloadGating: { credentialScoped: true, quarantineEnabled: true },
+    })
+  }
+
+  if (pathname === '/api/cyber/events' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          id: 'cyber-event-1',
+          summary: 'Download quarantined: executable content',
+          eventType: 'AUDIT_EVENT_TYPE_CONTENT_SCANNED',
+          sourceService: 'cyber-proxy',
+          policyReason: 'Executable content detected',
+          createdAt: nowIso(),
+          scan: { provider: 'local', status: 'completed', verdict: 'quarantined', blocked: true, quarantined: true, reasons: ['Executable content detected'] },
+          url: 'https://evil.test/sample.exe',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          runId: '',
+        },
+      ],
+      total: 1,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  if (pathname === '/api/cyber/downloads' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          id: 'evidence-fake-1',
+          incidentId: 'incident-fake-1',
+          source: 'artifact',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          runId: 'run-fake-1',
+          url: '',
+          filename: 'reply.txt',
+          contentType: 'text/plain',
+          sizeBytes: 128,
+          createdAt: nowIso(),
+          policyReason: '',
+          scan: {
+            provider: 'local',
+            status: 'completed',
+            verdict: 'safe',
+            sha256: 'fake',
+            contentType: 'text/plain',
+            sizeBytes: 128,
+            reasons: [],
+            checkedAt: nowIso(),
+            blocked: false,
+            quarantined: false,
+          },
+        },
+      ],
+      total: 1,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  if (pathname === '/api/cyber/incidents' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          incidentId: 'incident-fake-1',
+          title: 'Download review required: sample.exe',
+          summary: 'Executable content triggered quarantine and analyst review.',
+          severity: 'RISK_SEVERITY_HIGH',
+          priority: 'high',
+          state: 'new',
+          disposition: '',
+          escalationState: 'pending',
+          ownerId: 'secops',
+          linkedCaseId: 'CASE-1001',
+          evidenceIds: ['evidence-fake-1'],
+          correlation: {
+            traceId: 'trace-fake-1',
+            sessionId: 'session-fake-1',
+            runId: 'run-fake-1',
+            url: 'https://evil.test/sample.exe',
+            sha256: 'fake',
+          },
+        },
+      ],
+      total: 1,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  {
+    const incidentParams = matchPath(pathname, '/api/cyber/incidents/:id')
+    if (incidentParams && method === 'GET') {
+      return asJson({
+        ok: true,
+        incident: {
+          incidentId: incidentParams.id,
+          title: 'Download review required: sample.exe',
+          summary: 'Executable content triggered quarantine and analyst review.',
+          severity: 'RISK_SEVERITY_HIGH',
+          priority: 'high',
+          state: 'new',
+          disposition: '',
+          escalationState: 'pending',
+          ownerId: 'secops',
+          linkedCaseId: 'CASE-1001',
+          correlation: {
+            traceId: 'trace-fake-1',
+            sessionId: 'session-fake-1',
+            runId: 'run-fake-1',
+            url: 'https://evil.test/sample.exe',
+            sha256: 'fake',
+          },
+          evidence: [
+            {
+              evidenceId: 'evidence-fake-1',
+              source: 'artifact',
+              filename: 'sample.exe',
+              traceId: 'trace-fake-1',
+              sessionId: 'session-fake-1',
+              runId: 'run-fake-1',
+              contentType: 'application/octet-stream',
+              sizeBytes: 128,
+              sha256: 'fake',
+              scan: { provider: 'local', status: 'completed', verdict: 'quarantined', blocked: true, quarantined: true, reasons: ['Executable content detected'] },
+            },
+          ],
+          quarantine: [
+            {
+              quarantineId: 'quarantine-fake-1',
+              evidenceId: 'evidence-fake-1',
+              currentState: 'pending_review',
+              reviewStatus: 'pending',
+              classification: 'quarantined',
+              storagePath: '/tmp/maple-fake-quarantine/sample.exe',
+            },
+          ],
+          timeline: [
+            {
+              actionId: 'timeline-fake-1',
+              actionType: 'incident_note',
+              actorId: 'secops',
+              summary: 'Analyst acknowledged incident.',
+              createdAt: nowIso(),
+              payload: { note: 'Acknowledge and review sample.' },
+            },
+          ],
+        },
+      })
+    }
+  }
+
+  {
+    const mutationParams = matchPath(pathname, '/api/cyber/incidents/:id/assign')
+    if (mutationParams && method === 'POST') {
+      return asJson({ ok: true, incident: { incidentId: mutationParams.id, ownerId: parseBody(body).ownerId || 'secops' } })
+    }
+  }
+
+  {
+    const mutationParams = matchPath(pathname, '/api/cyber/incidents/:id/state')
+    if (mutationParams && method === 'POST') {
+      return asJson({ ok: true, incident: { incidentId: mutationParams.id, state: parseBody(body).state || 'triaged' } })
+    }
+  }
+
+  {
+    const mutationParams = matchPath(pathname, '/api/cyber/incidents/:id/note')
+    if (mutationParams && method === 'POST') {
+      return asJson({ ok: true, incident: { incidentId: mutationParams.id, notedAt: nowIso() } })
+    }
+  }
+
+  {
+    const evidenceParams = matchPath(pathname, '/api/cyber/evidence/:id')
+    if (evidenceParams && method === 'GET') {
+      return asJson({
+        ok: true,
+        item: {
+          evidenceId: evidenceParams.id,
+          incidentId: 'incident-fake-1',
+          source: 'artifact',
+          filename: 'sample.exe',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          runId: 'run-fake-1',
+          contentType: 'application/octet-stream',
+          sizeBytes: 128,
+          sha256: 'fake',
+          scan: { provider: 'local', status: 'completed', verdict: 'quarantined', blocked: true, quarantined: true, reasons: ['Executable content detected'] },
+        },
+      })
+    }
+  }
+
+  if (pathname === '/api/cyber/quarantine' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          quarantineId: 'quarantine-fake-1',
+          evidenceId: 'evidence-fake-1',
+          currentState: 'pending_review',
+          reviewStatus: 'pending',
+          classification: 'quarantined',
+          storagePath: '/tmp/maple-fake-quarantine/sample.exe',
+          contentType: 'application/octet-stream',
+          sizeBytes: 128,
+        },
+      ],
+    })
+  }
+
+  {
+    const quarantineParams = matchPath(pathname, '/api/cyber/quarantine/:id/review')
+    if (quarantineParams && method === 'POST') {
+      return asJson({ ok: true, item: { quarantineId: quarantineParams.id, reviewStatus: parseBody(body).reviewStatus || 'reviewed' } })
+    }
+  }
+
+  {
+    const quarantineParams = matchPath(pathname, '/api/cyber/quarantine/:id/release')
+    if (quarantineParams && method === 'POST') {
+      return asJson({ ok: true, item: { quarantineId: quarantineParams.id, currentState: 'released' } })
+    }
+  }
+
+  {
+    const quarantineParams = matchPath(pathname, '/api/cyber/quarantine/:id/rescan')
+    if (quarantineParams && method === 'POST') {
+      return asJson({ ok: true, item: { quarantineId: quarantineParams.id, currentState: 'pending_review' } })
+    }
+  }
+
+  if (pathname === '/api/cyber/suppressions' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          suppressionId: 'suppression-fake-1',
+          status: 'active',
+          scopeType: 'sha256',
+          scopeValue: 'fake',
+          rationale: 'Temporary allow while analyst validates sample.',
+          approver: 'secops',
+          createdBy: 'secops',
+          createdAt: nowIso(),
+        },
+      ],
+    })
+  }
+
+  if (pathname === '/api/cyber/suppressions' && method === 'POST') {
+    const payload = parseBody(body)
+    return asJson({
+      ok: true,
+      item: {
+        suppressionId: state.nextId('suppression'),
+        status: 'active',
+        ...payload,
+        createdAt: nowIso(),
+      },
+    })
+  }
+
+  {
+    const suppressionParams = matchPath(pathname, '/api/cyber/suppressions/:id/revoke')
+    if (suppressionParams && method === 'POST') {
+      return asJson({ ok: true, item: { suppressionId: suppressionParams.id, status: 'revoked', revokedAt: nowIso() } })
+    }
+  }
+
+  if (pathname === '/api/firewall/filesystem/status' && method === 'GET') {
+    return asJson({
+      ok: true,
+      guard: { available: true, mode: 'fork-capable' },
+      classifier: { available: true, model: 'gpt-4o-mini', required: false },
+      archiveStore: { available: true, mode: 'filesystem' },
+      counts: { total: 2, pending: 1, approved: 0, promoted: 1, denied: 0 },
+    })
+  }
+
+  if (pathname === '/api/firewall/filesystem/mutations' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          planId: 'fsp-fake-1',
+          tenantId: 'tenant-fake',
+          orgId: 'org-fake',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          sourceSurface: 'downstream_dispatch',
+          sourceType: 'tool_call',
+          actorUserId: 'secops',
+          workspaceRoot: '/tmp/maple-fake-workspace',
+          taskText: 'Delete generated build output',
+          lane: 'direct_allow',
+          status: 'promoted',
+          plan: {
+            candidatePathCount: 2,
+            candidatePaths: ['/tmp/maple-fake-workspace/dist/app.js', '/tmp/maple-fake-workspace/dist/app.css'],
+            operations: [{ op: 'delete', path: '/tmp/maple-fake-workspace/dist/app.js' }],
+            pathClassifications: [{ path: '/tmp/maple-fake-workspace/dist/app.js', classification: 'generated', reasons: ['Path matches generated/build-output patterns'] }],
+          },
+          modelAssessment: { available: true, confidence: 0.93, recommendedLane: 'direct_allow' },
+          validation: { valid: true, message: 'Forked mutation bundle executed without escaping approved roots.' },
+          promotion: { archivedFiles: [], restoreOps: [] },
+        },
+        {
+          planId: 'fsp-fake-2',
+          tenantId: 'tenant-fake',
+          orgId: 'org-fake',
+          traceId: 'trace-fake-2',
+          sessionId: 'session-fake-2',
+          sourceSurface: 'openclaw_modifier',
+          sourceType: 'tool_call',
+          actorUserId: 'secops',
+          workspaceRoot: '/tmp/maple-fake-workspace',
+          taskText: 'Delete source file from repo',
+          lane: 'fork_required',
+          status: 'pending_review',
+          plan: {
+            candidatePathCount: 1,
+            candidatePaths: ['/tmp/maple-fake-workspace/src/index.js'],
+            operations: [{ op: 'delete', path: '/tmp/maple-fake-workspace/src/index.js' }],
+            pathClassifications: [{ path: '/tmp/maple-fake-workspace/src/index.js', classification: 'user_authored', reasons: ['Source/config/document path treated as user-authored'] }],
+          },
+          modelAssessment: { available: true, confidence: 0.42, recommendedLane: 'fork_required' },
+          validation: {},
+          promotion: {},
+        },
+      ],
+      total: 2,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id')
+    if (params && method === 'GET') {
+      return asJson({
+        ok: true,
+        item: {
+          planId: params.id,
+          tenantId: 'tenant-fake',
+          orgId: 'org-fake',
+          traceId: 'trace-fake-2',
+          sessionId: 'session-fake-2',
+          sourceSurface: 'openclaw_modifier',
+          sourceType: 'tool_call',
+          actorUserId: 'secops',
+          workspaceRoot: '/tmp/maple-fake-workspace',
+          taskText: 'Delete source file from repo',
+          lane: 'fork_required',
+          status: 'pending_review',
+          plan: {
+            candidatePathCount: 1,
+            candidatePaths: ['/tmp/maple-fake-workspace/src/index.js'],
+            operations: [{ op: 'delete', path: '/tmp/maple-fake-workspace/src/index.js' }],
+            pathClassifications: [{ path: '/tmp/maple-fake-workspace/src/index.js', classification: 'user_authored', reasons: ['Source/config/document path treated as user-authored'] }],
+          },
+          modelAssessment: { available: true, confidence: 0.42, recommendedLane: 'fork_required' },
+          validation: {},
+          promotion: {},
+        },
+      })
+    }
+  }
+
+  if (pathname === '/api/firewall/filesystem/preflight' && method === 'POST') {
+    return asJson({ ok: true, item: { planId: state.nextId('fsp'), lane: 'fork_required', status: 'pending_review', taskText: 'Previewed mutation' } }, 201)
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id/decision')
+    if (params && method === 'POST') {
+      return asJson({ ok: true, item: { planId: params.id, status: parseBody(body).action === 'deny' ? 'denied' : 'approved' } })
+    }
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id/promote')
+    if (params && method === 'POST') {
+      return asJson({ ok: true, item: { planId: params.id, status: 'promoted', promotion: { promotedAt: nowIso() } } })
+    }
+  }
+
+  {
+    const params = matchPath(pathname, '/api/firewall/filesystem/mutations/:id/restore')
+    if (params && method === 'POST') {
+      return asJson({ ok: true, item: { planId: params.id, status: 'restored', restoredAt: nowIso() } })
+    }
   }
 
   return null

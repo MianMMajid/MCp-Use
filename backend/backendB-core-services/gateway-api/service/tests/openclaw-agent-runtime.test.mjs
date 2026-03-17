@@ -110,6 +110,7 @@ const {
   parseOpenClawAgentOutput,
   runOpenClawTurn,
 } = await import("../src/core/openclaw-agent-runtime.js");
+const { database } = await import("../src/state.js");
 
 test("buildOpenClawAgentArgs builds local mode command with expected flags", () => {
   const args = buildOpenClawAgentArgs({
@@ -224,5 +225,11 @@ printf '{"sessionId":"%s","response":{"text":"Scanned reply"},"usage":{"input_to
     assert.equal(artifact.scan.blocked, false);
   } finally {
     process.env.PATH = originalPath;
+  }
+});
+
+test.after(async () => {
+  if (database.pool && typeof database.pool.end === "function") {
+    await database.pool.end().catch(() => {});
   }
 });

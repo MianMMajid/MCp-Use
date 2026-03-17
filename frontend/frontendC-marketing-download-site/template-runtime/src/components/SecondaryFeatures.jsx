@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useId } from 'react'
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import clsx from 'clsx'
 
 import { Container } from '@/components/Container'
@@ -132,21 +133,13 @@ const riskToneClasses = {
 function Feature({ feature, isActive, className, ...props }) {
   return (
     <div
-      className={clsx(
-        'group/feature rounded-xl p-5 transition-all duration-200',
-        className,
-        isActive
-          ? 'bg-orange-50 ring-1 ring-orange-200'
-          : 'hover:bg-zinc-50',
-      )}
+      className={clsx(className, !isActive && 'opacity-75 hover:opacity-100')}
       {...props}
     >
       <div
         className={clsx(
-          'w-10 rounded-lg p-0.5 transition-colors duration-200',
-          isActive
-            ? 'bg-orange-600'
-            : 'bg-zinc-400 group-hover/feature:bg-orange-500',
+          'w-9 rounded-lg',
+          isActive ? 'bg-orange-600' : 'bg-zinc-500',
         )}
       >
         <svg aria-hidden="true" className="h-9 w-9" fill="none">
@@ -155,18 +148,16 @@ function Feature({ feature, isActive, className, ...props }) {
       </div>
       <h3
         className={clsx(
-          'mt-4 text-base font-semibold transition-colors duration-200',
-          isActive
-            ? 'text-orange-600'
-            : 'text-zinc-900 group-hover/feature:text-orange-600',
+          'mt-6 text-sm font-medium',
+          isActive ? 'text-orange-600' : 'text-zinc-600',
         )}
       >
         {feature.name}
       </h3>
-      <p className="mt-1 font-display text-lg text-zinc-900">
+      <p className="mt-2 font-display text-xl text-zinc-900">
         {feature.summary}
       </p>
-      <p className="mt-3 text-sm leading-relaxed text-zinc-500">{feature.description}</p>
+      <p className="mt-4 text-sm text-zinc-600">{feature.description}</p>
     </div>
   )
 }
@@ -419,99 +410,51 @@ function FeaturesMobile() {
   )
 }
 
-const ROTATE_INTERVAL = 5000
-
 function FeaturesDesktop() {
-  const [active, setActive] = useState(0)
-  const [paused, setPaused] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const startRef = useRef(Date.now())
-  const rafRef = useRef(null)
-
-  const advance = useCallback(() => {
-    setActive((prev) => (prev + 1) % features.length)
-    setProgress(0)
-    startRef.current = Date.now()
-  }, [])
-
-  // Progress tick — runs continuously, respects pause
-  useEffect(() => {
-    let frameId
-    function tick() {
-      if (!paused) {
-        const elapsed = Date.now() - startRef.current
-        const pct = Math.min(elapsed / ROTATE_INTERVAL, 1)
-        setProgress(pct)
-        if (pct >= 1) {
-          advance()
-        }
-      }
-      frameId = requestAnimationFrame(tick)
-    }
-    frameId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frameId)
-  }, [paused, advance])
-
-  function handleHover(i) {
-    setPaused(true)
-    setActive(i)
-    setProgress(0)
-  }
-
-  function handleLeave() {
-    setPaused(false)
-    startRef.current = Date.now()
-    setProgress(0)
-  }
-
   return (
-    <div
-      className="hidden lg:mt-16 lg:block"
-      onMouseLeave={handleLeave}
-    >
-      {/* Preview panel — top */}
-      <div className="relative overflow-hidden rounded-2xl">
-        <div className="flex">
-          {features.map((feature, i) => (
-            <div
-              key={feature.summary}
-              className={clsx(
-                'w-full shrink-0 transition duration-500 ease-in-out',
-                i !== active && 'opacity-0',
-              )}
-              style={{ transform: `translateX(-${active * 100}%)` }}
-              aria-hidden={i !== active}
-            >
-              <FeaturePreview feature={feature} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Feature tabs — bottom */}
-      <div className="mt-10 grid grid-cols-3 gap-x-6">
-        {features.map((feature, i) => (
-          <div key={feature.summary} className="relative">
-            <Feature
-              feature={feature}
-              isActive={i === active}
-              className="cursor-pointer"
-              onMouseEnter={() => handleHover(i)}
-              onClick={() => handleHover(i)}
-            />
-            {/* Progress bar */}
-            <div className="absolute right-5 bottom-0 left-5 h-0.5 overflow-hidden rounded-full bg-zinc-200">
-              <div
-                className="h-full rounded-full bg-orange-500 transition-none"
-                style={{
-                  width: i === active ? `${progress * 100}%` : '0%',
+    <TabGroup className="hidden lg:mt-20 lg:block">
+      {({ selectedIndex }) => (
+        <>
+          <TabList className="grid grid-cols-3 gap-x-8">
+            {features.map((feature, featureIndex) => (
+              <Feature
+                key={feature.summary}
+                feature={{
+                  ...feature,
+                  name: (
+                    <Tab className="data-selected:not-data-focus:outline-hidden">
+                      <span className="absolute inset-0 z-10" />
+                      {feature.name}
+                    </Tab>
+                  ),
                 }}
+                isActive={featureIndex === selectedIndex}
+                className="relative cursor-pointer"
               />
+            ))}
+          </TabList>
+          <TabPanels className="relative mt-20 overflow-hidden rounded-4xl bg-zinc-200 px-14 py-16 xl:px-16">
+            <div className="-mx-5 flex">
+              {features.map((feature, featureIndex) => (
+                <TabPanel
+                  static
+                  key={feature.summary}
+                  className={clsx(
+                    'w-full shrink-0 px-5 transition duration-500 ease-in-out data-selected:not-data-focus:outline-hidden',
+                    featureIndex !== selectedIndex && 'opacity-60',
+                  )}
+                  style={{ transform: `translateX(-${selectedIndex * 100}%)` }}
+                  aria-hidden={featureIndex !== selectedIndex}
+                >
+                  <FeaturePreview feature={feature} />
+                </TabPanel>
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
+            <div className="pointer-events-none absolute inset-0 rounded-4xl ring-1 ring-zinc-900/10 ring-inset" />
+          </TabPanels>
+        </>
+      )}
+    </TabGroup>
   )
 }
 
@@ -520,7 +463,7 @@ export function SecondaryFeatures() {
     <section
       id="secondary-features"
       aria-label="Features for running AI agents safely"
-      className="pt-20 pb-20 sm:pt-32 sm:pb-32"
+      className="pt-20 pb-14 sm:pt-32 sm:pb-20 lg:pb-32"
     >
       <Container>
         <ScrollReveal>

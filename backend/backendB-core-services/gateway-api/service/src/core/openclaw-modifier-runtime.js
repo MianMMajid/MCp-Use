@@ -29,6 +29,8 @@ import { checkRateLimit, recordExecution } from "./rate-limiter.js";
 import { resolveInheritedPolicyChain, mergePolicyChain } from "./org-hierarchy.js";
 import { dispatchAlert } from "./alert-webhook.js";
 import { emitModifierApprovalEvent } from "../modifier-approval-broker.js";
+import { preflightFilesystemMutation } from "./filesystem-intervention-service.js";
+import { database } from "../state.js";
 
 const PROFILE_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{1,63}$/;
 const DANGEROUS_ARG_PATTERNS = [
@@ -1071,6 +1073,56 @@ export async function executeOpenClawModifierRequest(requestBody, actorOverrides
   });
   const plan = buildModifierPlan(requestBody, policy);
   const planAudit = summarizePlanForAudit(plan);
+  const filesystemMutation = await preflightFilesystemMutation({
+    operations: requestBody?.operations,
+    toolName: plan.tool,
+    toolArgs: requestBody,
+    command: planAudit.command,
+    workspaceRoot: asString(requestBody?.workspaceRoot),
+    allowedRoots: requestBody?.allowedRoots,
+    protectedRoots: requestBody?.protectedRoots,
+    sourceSurface: "openclaw_modifier",
+    sourceType: "tool_call",
+    taskText: asString(requestBody?.reason) || planAudit.command,
+    traceId: actor.traceId,
+    sessionId: actor.sessionId,
+  }, {
+    database,
+    tenantId: actor.tenantId,
+    orgId: actor.orgId,
+    traceId: actor.traceId,
+    sessionId: actor.sessionId,
+    actorUserId: actor.userId,
+  });
+
+  if (filesystemMutation) {
+    if (filesystemMutation.lane === "hard_deny") {
+      return {
+        ok: false,
+        type: "filesystem_mutation_denied",
+        status: 403,
+        error: filesystemMutation.plan?.laneMessage || "Protected filesystem mutation denied.",
+        filesystemMutation: {
+          planId: filesystemMutation.planId,
+          lane: filesystemMutation.lane,
+          status: filesystemMutation.status,
+        },
+      };
+    }
+    if (filesystemMutation.lane !== "direct_allow") {
+      return {
+        ok: false,
+        type: "filesystem_intervention_required",
+        status: 409,
+        error: filesystemMutation.plan?.laneMessage || "Filesystem mutation requires forked review and promotion.",
+        filesystemMutation: {
+          planId: filesystemMutation.planId,
+          lane: filesystemMutation.lane,
+          status: filesystemMutation.status,
+        },
+      };
+    }
+  }
 
   emitAuditEvent({
     eventType: "AUDIT_EVENT_TYPE_TOOL_DISPATCHED",

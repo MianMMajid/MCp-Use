@@ -7,6 +7,11 @@ import {
   downloadScanTimeoutMs,
   downloadScanVirusTotalApiKey,
   downloadScanVirusTotalApiUrl,
+  malwareSandboxApiToken,
+  malwareSandboxApiUrl,
+  malwareSandboxProvider,
+  malwareSandboxRequired,
+  malwareSandboxTimeoutMs,
   openclawAgentAutoStartGateway,
   openclawAgentDefaultSessionId,
   openclawAgentDefaultThinking,
@@ -22,6 +27,7 @@ import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { database } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
+import { persistRunArtifactsAsEvidence } from "./cyber-security-service.js";
 import { buildAgentBaseline } from "../../../../shared/packages/maple-risk-engine/src/ml/cross-agent-detector.js";
 import { buildLocalScanResult, scanDownloadedContent } from "../../../../shared/packages/maple-security/src/download-scan.js";
 
@@ -91,10 +97,190 @@ const runtimeState = {
 
 let gatewayProcess;
 let sessionEventSequence = 0;
+let openClawPersistenceReady = false;
 
 const sessionStore = new Map();
 const runStore = new Map();
 const sessionWatchers = new Map();
+
+function hasPersistentDatabase() {
+  return Boolean(database?.pool && typeof database.pool.query === "function");
+}
+
+async function ensureOpenClawPersistence() {
+  if (openClawPersistenceReady || !hasPersistentDatabase()) {
+    return;
+  }
+  await database.pool.query(`
+    CREATE TABLE IF NOT EXISTS openclaw_agent_sessions (
+      session_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT '',
+      org_id TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'idle',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_run_id TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      cancel_requested BOOLEAN NOT NULL DEFAULT FALSE,
+      run_ids_json TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE IF NOT EXISTS openclaw_agent_runs (
+      run_id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT '',
+      org_id TEXT NOT NULL DEFAULT '',
+      session_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      input_json TEXT NOT NULL DEFAULT '{}',
+      output_json TEXT NOT NULL DEFAULT 'null',
+      error TEXT NOT NULL DEFAULT '',
+      cost_json TEXT NOT NULL DEFAULT 'null',
+      parent_run_id TEXT,
+      child_run_ids_json TEXT NOT NULL DEFAULT '[]'
+    );
+    CREATE TABLE IF NOT EXISTS openclaw_agent_run_events (
+      event_id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL DEFAULT '',
+      session_id TEXT NOT NULL,
+      sequence BIGINT NOT NULL,
+      cursor TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE INDEX IF NOT EXISTS idx_openclaw_agent_run_events_session
+      ON openclaw_agent_run_events(session_id, sequence);
+    CREATE TABLE IF NOT EXISTS openclaw_agent_run_artifacts (
+      artifact_id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      artifact_index INTEGER NOT NULL,
+      artifact_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(run_id, artifact_index)
+    );
+  `);
+  openClawPersistenceReady = true;
+}
+
+function parseJson(text, fallback) {
+  try {
+    return JSON.parse(String(text ?? ""));
+  } catch {
+    return fallback;
+  }
+}
+
+async function persistSessionRecord(session, scope = {}) {
+  if (!hasPersistentDatabase()) return;
+  await ensureOpenClawPersistence();
+  await database.pool.query(`
+    INSERT INTO openclaw_agent_sessions (
+      session_id, tenant_id, org_id, status, created_at, updated_at, last_run_id, last_error, cancel_requested, run_ids_json
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    ON CONFLICT (session_id) DO UPDATE SET
+      tenant_id = EXCLUDED.tenant_id,
+      org_id = EXCLUDED.org_id,
+      status = EXCLUDED.status,
+      updated_at = EXCLUDED.updated_at,
+      last_run_id = EXCLUDED.last_run_id,
+      last_error = EXCLUDED.last_error,
+      cancel_requested = EXCLUDED.cancel_requested,
+      run_ids_json = EXCLUDED.run_ids_json
+  `, [
+    session.sessionId,
+    String(scope.tenantId ?? ""),
+    String(scope.orgId ?? ""),
+    session.status,
+    session.createdAt,
+    session.updatedAt,
+    session.lastRunId,
+    session.lastError,
+    session.cancelRequested === true,
+    JSON.stringify(session.runIds ?? []),
+  ]);
+}
+
+async function persistRunRecord(run, scope = {}) {
+  if (!hasPersistentDatabase()) return;
+  await ensureOpenClawPersistence();
+  await database.pool.query(`
+    INSERT INTO openclaw_agent_runs (
+      run_id, tenant_id, org_id, session_id, type, status, created_at, updated_at, input_json, output_json, error, cost_json, parent_run_id, child_run_ids_json
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+    ON CONFLICT (run_id) DO UPDATE SET
+      tenant_id = EXCLUDED.tenant_id,
+      org_id = EXCLUDED.org_id,
+      status = EXCLUDED.status,
+      updated_at = EXCLUDED.updated_at,
+      input_json = EXCLUDED.input_json,
+      output_json = EXCLUDED.output_json,
+      error = EXCLUDED.error,
+      cost_json = EXCLUDED.cost_json,
+      parent_run_id = EXCLUDED.parent_run_id,
+      child_run_ids_json = EXCLUDED.child_run_ids_json
+  `, [
+    run.runId,
+    String(scope.tenantId ?? ""),
+    String(scope.orgId ?? ""),
+    run.sessionId,
+    run.type,
+    run.status,
+    run.createdAt,
+    run.updatedAt,
+    JSON.stringify(run.input ?? {}),
+    JSON.stringify(run.output ?? null),
+    run.error ?? "",
+    JSON.stringify(run.cost ?? null),
+    run.parentRunId ?? null,
+    JSON.stringify(run.childRunIds ?? []),
+  ]);
+}
+
+async function persistRunArtifacts(run, artifacts = []) {
+  if (!hasPersistentDatabase()) return;
+  await ensureOpenClawPersistence();
+  const now = nowIso();
+  for (let index = 0; index < artifacts.length; index += 1) {
+    await database.pool.query(`
+      INSERT INTO openclaw_agent_run_artifacts (
+        artifact_id, run_id, artifact_index, artifact_json, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6)
+      ON CONFLICT (run_id, artifact_index) DO UPDATE SET
+        artifact_json = EXCLUDED.artifact_json,
+        updated_at = EXCLUDED.updated_at
+    `, [
+      `artifact:${run.runId}:${index}`,
+      run.runId,
+      index,
+      JSON.stringify(artifacts[index] ?? {}),
+      now,
+      now,
+    ]);
+  }
+}
+
+async function persistSessionEvent(event) {
+  if (!hasPersistentDatabase()) return;
+  await ensureOpenClawPersistence();
+  await database.pool.query(`
+    INSERT INTO openclaw_agent_run_events (
+      event_id, run_id, session_id, sequence, cursor, event_type, timestamp, payload_json
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    ON CONFLICT (event_id) DO NOTHING
+  `, [
+    event.id,
+    String(event.payload?.runId ?? ""),
+    event.sessionId,
+    event.sequence,
+    event.cursor,
+    event.eventType,
+    event.timestamp,
+    JSON.stringify(event.payload ?? {}),
+  ]);
+}
 
 function evictOldest(store, maxSize) {
   while (store.size > maxSize) {
@@ -165,6 +351,7 @@ function ensureSessionRecord(sessionId) {
   };
   evictOldest(sessionStore, MAX_SESSIONS);
   sessionStore.set(normalizedSessionId, created);
+  persistSessionRecord(created).catch(() => {});
   return created;
 }
 
@@ -185,6 +372,8 @@ function emitSessionEvent(sessionId, eventType, payload = {}) {
     session.events.splice(0, session.events.length - 500);
   }
   session.updatedAt = event.timestamp;
+  persistSessionRecord(session).catch(() => {});
+  persistSessionEvent(event).catch(() => {});
 
   const watchers = sessionWatchers.get(session.sessionId);
   if (watchers) {
@@ -199,7 +388,7 @@ function emitSessionEvent(sessionId, eventType, payload = {}) {
   return event;
 }
 
-function createRunRecord({ type, sessionId, input, parentRunId }) {
+async function createRunRecord({ type, sessionId, input, parentRunId }) {
   const session = ensureSessionRecord(sessionId);
   const runId = randomUUID();
   const createdAt = nowIso();
@@ -224,6 +413,7 @@ function createRunRecord({ type, sessionId, input, parentRunId }) {
     const parent = runStore.get(parentRunId);
     if (parent) {
       parent.childRunIds.push(runId);
+      await persistRunRecord(parent).catch(() => {});
     }
   }
 
@@ -233,6 +423,8 @@ function createRunRecord({ type, sessionId, input, parentRunId }) {
   session.lastError = "";
   session.cancelRequested = false;
   session.runIds.push(runId);
+  await persistRunRecord(run).catch(() => {});
+  await persistSessionRecord(session).catch(() => {});
   emitSessionEvent(session.sessionId, "run_started", {
     runId,
     type: run.type,
@@ -279,6 +471,11 @@ async function withArtifactScan(artifact = {}) {
       virustotalApiKey: downloadScanVirusTotalApiKey,
       virustotalApiUrl: downloadScanVirusTotalApiUrl,
       timeoutMs: downloadScanTimeoutMs,
+      malwareSandboxProvider,
+      malwareSandboxApiUrl,
+      malwareSandboxApiToken,
+      malwareSandboxTimeoutMs,
+      malwareSandboxRequired,
       content: artifactContentToBuffer(artifact.content),
       contentType: inferArtifactContentType(artifact),
       filename: `${String(artifact.artifactType || "artifact")}.${typeof artifact.content === "string" ? "txt" : "json"}`,
@@ -299,6 +496,12 @@ async function completeRunRecord(run, output, artifacts = []) {
   run.status = session.cancelRequested ? "canceled" : "completed";
   run.output = output;
   run.artifacts = await withArtifactScans(artifacts);
+  await persistRunArtifactsAsEvidence(run, run.artifacts, { database }).catch((error) => {
+    mapleLog("warn", "openclaw_agent.evidence_persist_failed", {
+      runId: run.runId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
   run.cost = extractCostFromOutput(output);
   run.updatedAt = nowIso();
 
@@ -317,6 +520,9 @@ async function completeRunRecord(run, output, artifacts = []) {
       type: run.type,
     });
   }
+  await persistRunRecord(run).catch(() => {});
+  await persistSessionRecord(session).catch(() => {});
+  await persistRunArtifacts(run, run.artifacts).catch(() => {});
 }
 
 function failRunRecord(run, errorText) {
@@ -328,6 +534,8 @@ function failRunRecord(run, errorText) {
   session.status = "failed";
   session.lastError = run.error;
   session.updatedAt = run.updatedAt;
+  persistRunRecord(run).catch(() => {});
+  persistSessionRecord(session).catch(() => {});
   emitSessionEvent(session.sessionId, "run_failed", {
     runId: run.runId,
     type: run.type,
@@ -723,7 +931,7 @@ export async function runOpenClawTurn(options = {}) {
   }
   const requestedSessionId =
     asString(options.sessionId) ?? openclawAgentDefaultSessionId;
-  const run = createRunRecord({
+  const run = await createRunRecord({
     type: "turn",
     sessionId: requestedSessionId,
     parentRunId: asString(options.parentRunId) || null,
@@ -824,7 +1032,7 @@ export async function runOpenClawLongform(options = {}) {
   }
   const maxTurns = clampInt(options.maxTurns, 1, 8, 4);
   const sessionId = asString(options.sessionId) ?? openclawAgentDefaultSessionId;
-  const run = createRunRecord({
+  const run = await createRunRecord({
     type: "longform",
     sessionId,
     parentRunId: asString(options.parentRunId) || null,
@@ -928,6 +1136,21 @@ function toPublicSession(session) {
   };
 }
 
+function toPublicSessionFromRow(row, lastInputPreview = "") {
+  const runIds = parseJson(row.run_ids_json, []);
+  return {
+    sessionId: row.session_id,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastRunId: row.last_run_id,
+    lastError: row.last_error,
+    cancelRequested: row.cancel_requested === true || row.cancel_requested === "true",
+    runCount: Array.isArray(runIds) ? runIds.length : 0,
+    lastInputPreview,
+  };
+}
+
 function toPublicRun(run) {
   return {
     runId: run.runId,
@@ -943,7 +1166,31 @@ function toPublicRun(run) {
   };
 }
 
-export function listOpenClawSessions(options = {}) {
+export async function listOpenClawSessions(options = {}) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const limit = clampInt(options.limit, 1, 100, 20);
+      const offset = parseCursorOffset(options.cursor);
+      const result = await database.pool.query(
+        `SELECT s.*,
+                r.input_json AS last_input_json
+           FROM openclaw_agent_sessions s
+      LEFT JOIN openclaw_agent_runs r ON r.run_id = s.last_run_id
+       ORDER BY s.updated_at DESC
+          LIMIT $1 OFFSET $2`,
+        [limit, offset],
+      );
+      const items = result.rows.map((row) => {
+        const input = parseJson(row.last_input_json, {});
+        const msg = String(input?.message ?? input?.objective ?? "");
+        const preview = msg.length > 80 ? `${msg.slice(0, 80)}...` : msg;
+        return toPublicSessionFromRow(row, preview);
+      });
+      const nextCursor = result.rows.length === limit ? String(offset + result.rows.length) : "";
+      return { items, nextCursor };
+    })();
+  }
   const limit = clampInt(options.limit, 1, 100, 20);
   const offset = parseCursorOffset(options.cursor);
   const all = [...sessionStore.values()].sort((a, b) =>
@@ -954,7 +1201,38 @@ export function listOpenClawSessions(options = {}) {
   return { items, nextCursor };
 }
 
-export function getOpenClawSession(sessionId) {
+export async function getOpenClawSession(sessionId) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const sessionResult = await database.pool.query(`SELECT * FROM openclaw_agent_sessions WHERE session_id = $1 LIMIT 1`, [String(sessionId ?? "")]);
+      if (sessionResult.rows.length === 0) return null;
+      const runsResult = await database.pool.query(
+        `SELECT * FROM openclaw_agent_runs WHERE session_id = $1 ORDER BY updated_at DESC`,
+        [String(sessionId ?? "")],
+      );
+      const eventsResult = await database.pool.query(
+        `SELECT cursor FROM openclaw_agent_run_events WHERE session_id = $1 ORDER BY sequence DESC LIMIT 1`,
+        [String(sessionId ?? "")],
+      );
+      return {
+        ...toPublicSessionFromRow(sessionResult.rows[0]),
+        runs: runsResult.rows.map((row) => toPublicRun({
+          runId: row.run_id,
+          type: row.type,
+          sessionId: row.session_id,
+          status: row.status,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          error: row.error,
+          cost: parseJson(row.cost_json, null),
+          parentRunId: row.parent_run_id,
+          childRunIds: parseJson(row.child_run_ids_json, []),
+        })),
+        latestEventCursor: eventsResult.rows[0]?.cursor ?? "0",
+      };
+    })();
+  }
   const session = sessionStore.get(String(sessionId ?? ""));
   if (!session) {
     return null;
@@ -974,7 +1252,28 @@ export function getOpenClawSession(sessionId) {
   };
 }
 
-export function cancelOpenClawSession(sessionId) {
+export async function cancelOpenClawSession(sessionId) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const updatedAt = nowIso();
+      const result = await database.pool.query(`
+        UPDATE openclaw_agent_sessions
+           SET cancel_requested = TRUE,
+               status = CASE WHEN status = 'running' THEN 'cancel_requested' WHEN status != 'completed' THEN 'canceled' ELSE status END,
+               updated_at = $2
+         WHERE session_id = $1
+         RETURNING *
+      `, [String(sessionId ?? ""), updatedAt]);
+      if (result.rows.length === 0) return null;
+      const session = ensureSessionRecord(sessionId);
+      session.cancelRequested = true;
+      session.status = result.rows[0].status;
+      session.updatedAt = updatedAt;
+      emitSessionEvent(session.sessionId, "cancel_requested", { sessionId: session.sessionId });
+      return toPublicSessionFromRow(result.rows[0]);
+    })();
+  }
   const session = sessionStore.get(String(sessionId ?? ""));
   if (!session) {
     return null;
@@ -986,6 +1285,7 @@ export function cancelOpenClawSession(sessionId) {
     session.status = "canceled";
   }
   session.updatedAt = nowIso();
+  persistSessionRecord(session).catch(() => {});
   emitSessionEvent(session.sessionId, "cancel_requested", {
     sessionId: session.sessionId,
   });
@@ -993,6 +1293,33 @@ export function cancelOpenClawSession(sessionId) {
 }
 
 export async function getOpenClawRunArtifacts(runId) {
+  if (hasPersistentDatabase()) {
+    await ensureOpenClawPersistence();
+    const runResult = await database.pool.query(`SELECT * FROM openclaw_agent_runs WHERE run_id = $1 LIMIT 1`, [String(runId ?? "")]);
+    if (runResult.rows.length === 0) return null;
+    const artifactsResult = await database.pool.query(
+      `SELECT artifact_json FROM openclaw_agent_run_artifacts WHERE run_id = $1 ORDER BY artifact_index ASC`,
+      [String(runId ?? "")],
+    );
+    const artifacts = await withArtifactScans(artifactsResult.rows.map((row) => parseJson(row.artifact_json, {})));
+    const row = runResult.rows[0];
+    return {
+      ...toPublicRun({
+        runId: row.run_id,
+        type: row.type,
+        sessionId: row.session_id,
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        error: row.error,
+        cost: parseJson(row.cost_json, null),
+        parentRunId: row.parent_run_id,
+        childRunIds: parseJson(row.child_run_ids_json, []),
+      }),
+      output: parseJson(row.output_json, null),
+      artifacts,
+    };
+  }
   const run = runStore.get(String(runId ?? ""));
   if (!run) {
     return null;
@@ -1005,7 +1332,32 @@ export async function getOpenClawRunArtifacts(runId) {
   };
 }
 
-export function listOpenClawRuns(options = {}) {
+export async function listOpenClawRuns(options = {}) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const limit = clampInt(options.limit, 1, 100, 20);
+      const offset = parseCursorOffset(options.cursor);
+      const result = await database.pool.query(
+        `SELECT * FROM openclaw_agent_runs ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset],
+      );
+      const items = result.rows.map((row) => toPublicRun({
+        runId: row.run_id,
+        type: row.type,
+        sessionId: row.session_id,
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        error: row.error,
+        cost: parseJson(row.cost_json, null),
+        parentRunId: row.parent_run_id,
+        childRunIds: parseJson(row.child_run_ids_json, []),
+      }));
+      const nextCursor = result.rows.length === limit ? String(offset + result.rows.length) : "";
+      return { items, nextCursor };
+    })();
+  }
   const limit = clampInt(options.limit, 1, 100, 20);
   const offset = parseCursorOffset(options.cursor);
   const all = [...runStore.values()].sort((a, b) =>
@@ -1016,7 +1368,31 @@ export function listOpenClawRuns(options = {}) {
   return { items, nextCursor };
 }
 
-export function getOpenClawRun(runId) {
+export async function getOpenClawRun(runId) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const result = await database.pool.query(`SELECT * FROM openclaw_agent_runs WHERE run_id = $1 LIMIT 1`, [String(runId ?? "")]);
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0];
+      return {
+        ...toPublicRun({
+          runId: row.run_id,
+          type: row.type,
+          sessionId: row.session_id,
+          status: row.status,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          error: row.error,
+          cost: parseJson(row.cost_json, null),
+          parentRunId: row.parent_run_id,
+          childRunIds: parseJson(row.child_run_ids_json, []),
+        }),
+        input: parseJson(row.input_json, {}),
+        output: parseJson(row.output_json, null),
+      };
+    })();
+  }
   const run = runStore.get(String(runId ?? ""));
   if (!run) {
     return null;
@@ -1028,7 +1404,31 @@ export function getOpenClawRun(runId) {
   };
 }
 
-export function getOpenClawRunTimeline(runId) {
+export async function getOpenClawRunTimeline(runId) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const run = await getOpenClawRun(runId);
+      if (!run) return null;
+      const result = await database.pool.query(
+        `SELECT event_id, event_type, timestamp, payload_json, cursor
+           FROM openclaw_agent_run_events
+          WHERE run_id = $1
+          ORDER BY sequence ASC`,
+        [String(runId ?? "")],
+      );
+      return {
+        run,
+        timeline: result.rows.map((row) => ({
+          id: row.event_id,
+          eventType: row.event_type,
+          timestamp: row.timestamp,
+          payload: parseJson(row.payload_json, {}),
+          cursor: row.cursor,
+        })),
+      };
+    })();
+  }
   const run = runStore.get(String(runId ?? ""));
   if (!run) {
     return null;
@@ -1051,7 +1451,31 @@ export function getOpenClawRunTimeline(runId) {
   };
 }
 
-export function listOpenClawSessionEvents(sessionId, options = {}) {
+export async function listOpenClawSessionEvents(sessionId, options = {}) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const minSequence = parseEventCursor(options.afterCursor);
+      const result = await database.pool.query(
+        `SELECT event_id, sequence, cursor, session_id, event_type, timestamp, payload_json
+           FROM openclaw_agent_run_events
+          WHERE session_id = $1 AND sequence > $2
+          ORDER BY sequence ASC`,
+        [String(sessionId ?? ""), minSequence],
+      );
+      const items = result.rows.map((row) => ({
+        id: row.event_id,
+        sequence: Number(row.sequence),
+        cursor: row.cursor,
+        sessionId: row.session_id,
+        eventType: row.event_type,
+        timestamp: row.timestamp,
+        payload: parseJson(row.payload_json, {}),
+      }));
+      const latestCursor = items.length > 0 ? items[items.length - 1].cursor : String(minSequence);
+      return { items, latestCursor };
+    })();
+  }
   const session = sessionStore.get(String(sessionId ?? ""));
   if (!session) {
     return { items: [], latestCursor: "0" };
@@ -1106,7 +1530,35 @@ export function getOpenClawRuntimeStatus() {
   };
 }
 
-export function getOpenClawRunChildren(runId) {
+export async function getOpenClawRunChildren(runId) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const parent = await getOpenClawRun(runId);
+      if (!parent) return null;
+      const childIds = Array.isArray(parent.childRunIds) ? parent.childRunIds : [];
+      if (childIds.length === 0) return { parentRunId: parent.runId, children: [] };
+      const result = await database.pool.query(
+        `SELECT * FROM openclaw_agent_runs WHERE run_id = ANY($1::text[]) ORDER BY updated_at DESC`,
+        [childIds],
+      );
+      return {
+        parentRunId: parent.runId,
+        children: result.rows.map((row) => toPublicRun({
+          runId: row.run_id,
+          type: row.type,
+          sessionId: row.session_id,
+          status: row.status,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          error: row.error,
+          cost: parseJson(row.cost_json, null),
+          parentRunId: row.parent_run_id,
+          childRunIds: parseJson(row.child_run_ids_json, []),
+        })),
+      };
+    })();
+  }
   const parent = runStore.get(String(runId ?? ""));
   if (!parent) {
     return null;
@@ -1118,7 +1570,21 @@ export function getOpenClawRunChildren(runId) {
   return { parentRunId: parent.runId, children };
 }
 
-export function listSessionsForAgent(agentId) {
+export async function listSessionsForAgent(agentId) {
+  if (hasPersistentDatabase()) {
+    return (async () => {
+      await ensureOpenClawPersistence();
+      const result = await database.pool.query(
+        `SELECT DISTINCT s.*
+           FROM openclaw_agent_sessions s
+           JOIN openclaw_agent_runs r ON r.session_id = s.session_id
+          WHERE COALESCE(r.input_json, '{}')::text ILIKE $1
+          ORDER BY s.updated_at DESC`,
+        [`%\"agentId\":\"${String(agentId ?? "").trim()}\"%`],
+      );
+      return result.rows.map((row) => toPublicSessionFromRow(row));
+    })();
+  }
   const normalizedAgentId = String(agentId ?? "").trim();
   if (!normalizedAgentId) {
     return [];
@@ -1146,4 +1612,5 @@ export async function shutdownOpenClawRuntime() {
   sessionStore.clear();
   runStore.clear();
   sessionWatchers.clear();
+  openClawPersistenceReady = false;
 }

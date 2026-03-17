@@ -83,6 +83,7 @@
     "postinstall": "echo \"Skipping postinstall type generation\"",
     "check:frontend-warning-budget": "node scripts/check-frontend-warning-budget.mjs --log artifacts/matrix/frontend-flow.log",
     "check:cli-surface": "node scripts/check-cli-frontend-coverage.mjs",
+    "check:frontendA:parity": "node scripts/check-frontendA-cli-parity.mjs",
     "check:cli-routes": "node scripts/check-cli-route-contract.mjs",
     "test:cli": "node --test cli/tests/*.test.mjs backend/backendB-core-services/gateway-api/service/tests/cli-browser-flows.test.mjs"
   },
@@ -97,6 +98,7 @@
     "@maple/security": "file:backend/backendB-core-services/shared/packages/maple-security",
     "@maple/types": "file:backend/backendB-core-services/shared/packages/maple-types",
     "@openai/apps-sdk-ui": "^0.2.1",
+    "@redis/client": "^5.11.0",
     "@tanstack/react-query": "^5.90.12",
     "@testing-library/svelte": "^5.3.1",
     "@types/better-sqlite3": "^7.6.13",

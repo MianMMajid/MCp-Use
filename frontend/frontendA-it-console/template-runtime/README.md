@@ -1,51 +1,34 @@
-# Protocol
+# Frontend A Template Runtime
 
-Protocol is a [Tailwind Plus](https://tailwindcss.com/plus) site template built using [Tailwind CSS](https://tailwindcss.com) and [Next.js](https://nextjs.org).
+This package is the canonical frontend A runtime. The operator product target is the SvelteKit `/maple` workspace, not the legacy `public/judges.*` console and not the older React-like `src/app/maple/*` reference views.
 
-## Getting started
+## Canonical ownership
 
-To get started with this template, first install the npm dependencies:
+- Route entry: `src/routes/maple/+page.svelte`
+- Shell and route host: `src/lib/svelte-workspace/MapleShell.svelte`
+- Route metadata: `src/lib/maple-workspace/route-registry.js`
+- Machine-readable parity matrix: `src/lib/maple-workspace/frontendA-parity-spec.js`
+
+## Security-vision parity
+
+Frontend A parity is defined at four layers:
+- operator abilities and workflows
+- Svelte `/maple` route and GUI reachability
+- backend API coverage
+- CLI command coverage for the same operator actions
+
+Use these checks when working on the workspace:
 
 ```bash
-npm install
+npm run check:route-conflicts
+npm run check:parity
+npm run test:cyber-ui
 ```
 
-Next, run the development server:
+## Legacy reference intake
 
-```bash
-npm run dev
-```
+- `../../public/judges.html`
+- `../../public/judges.css`
+- `../../public/judges.js`
 
-Finally, open [http://localhost:3000](http://localhost:3000) in your browser to view the website.
-
-## Workspace model
-
-- `/maple` is the canonical Mayple monitoring + intervention workspace.
-- Legacy `/maple/*` links are normalized into canonical `/maple` deep-link state.
-
-## Customizing
-
-You can start editing this template by modifying the files in the `/src` folder. The site will auto-update as you edit these files.
-
-## Global search
-
-This template includes a global search that's powered by the [FlexSearch](https://github.com/nextapps-de/flexsearch) library. It's available by clicking the search input or by using the `⌘K` shortcut.
-
-This feature requires no configuration, and works out of the box by automatically scanning your documentation pages to build its index. You can adjust the search parameters by editing the `/src/mdx/search.mjs` file.
-
-## License
-
-This site template is a commercial product and is licensed under the [Tailwind Plus license](https://tailwindcss.com/plus/license).
-
-## Learn more
-
-To learn more about the technologies used in this site template, see the following resources:
-
-- [Tailwind CSS](https://tailwindcss.com/docs) - the official Tailwind CSS documentation
-- [Next.js](https://nextjs.org/docs) - the official Next.js documentation
-- [Headless UI](https://headlessui.dev) - the official Headless UI documentation
-- [Framer Motion](https://www.framer.com/docs/) - the official Framer Motion documentation
-- [MDX](https://mdxjs.com/) - the official MDX documentation
-- [Algolia Autocomplete](https://www.algolia.com/doc/ui-libraries/autocomplete/introduction/what-is-autocomplete/) - the official Algolia Autocomplete documentation
-- [FlexSearch](https://github.com/nextapps-de/flexsearch) - the official FlexSearch documentation
-- [Zustand](https://docs.pmnd.rs/zustand/getting-started/introduction) - the official Zustand documentation
+Those files are reference-only inputs for parity decisions. Every still-needed capability must be absorbed into the Svelte `/maple` workspace or explicitly marked retired in the parity matrix.

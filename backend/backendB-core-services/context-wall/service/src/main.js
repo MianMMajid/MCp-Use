@@ -34,7 +34,10 @@ async function main() {
     mapleLog("info", "context_wall_starting", { port: config.port, hasDatabaseUrl: !!config.databaseUrl });
     const healthPort = Number(process.env.CONTEXT_WALL_HEALTH_PORT || config.port + 1000);
     startHealthServer(healthPort, config.host);
-    const approvalQueue = new ApprovalQueue();
+    const approvalQueue = new ApprovalQueue({ databaseUrl: config.databaseUrl });
+    await approvalQueue.initialize().catch((err) => {
+        mapleLog("warn", "context_wall_approval_queue_init_failed", { error: err.message });
+    });
     const policyStore = new PolicyStore();
     await policyStore.initialize();
     // Load persisted policies from PostgreSQL if available

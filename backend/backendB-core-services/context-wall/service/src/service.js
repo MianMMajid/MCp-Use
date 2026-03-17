@@ -3,7 +3,7 @@ import * as protoLoader from "@grpc/proto-loader";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII } from "@maple/security";
+import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII, buildFilesystemMutationPlan } from "@maple/security";
 import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
 import { generateOpenAI } from "./providers/openai.js";
 import { generateAnthropic } from "./providers/anthropic.js";
@@ -179,9 +179,9 @@ export function closeContextWallClients() {
     mcpProxyPool?.close();
     auditWriterPool?.close();
 }
-function emitAuditEvent(opts) {
+async function emitAuditEvent(opts, { required = false } = {}) {
     try {
-        auditWriterBreaker.execute(() => grpcUnary(getAuditWriter(), "appendEvent", {
+        await auditWriterBreaker.execute(() => grpcUnary(getAuditWriter(), "appendEvent", {
             event: {
                 eventId: randomUUID(),
                 eventType: opts.eventType,
@@ -192,10 +192,12 @@ function emitAuditEvent(opts) {
                 severity: opts.severity ?? "RISK_SEVERITY_LOW",
                 summary: opts.summary,
             },
-        })).catch(() => {});
+        }));
     }
-    catch {
-        // fire-and-forget
+    catch (error) {
+        if (required || String(process.env.NODE_ENV ?? "").trim().toLowerCase() === "production") {
+            throw error;
+        }
     }
 }
 function toProtoPolicyDecision(decision) {
@@ -212,6 +214,42 @@ function toProtoPolicyDecision(decision) {
         recommendation: decision.recommendation,
         redactedPatterns: decision.redactedPatterns ?? [],
         evaluatedAt: decision.evaluatedAt,
+    };
+}
+
+function evaluateFilesystemMutationDecision(input = {}) {
+    const plan = buildFilesystemMutationPlan({
+        toolName: input.toolName,
+        toolArgs: input.toolArgs,
+        command: input.command,
+        sourceSurface: "context_wall",
+        sourceType: input.sourceType ?? "tool_call",
+        traceId: input.traceId,
+        sessionId: input.sessionId,
+        taskText: input.taskText,
+    }, {
+        workspaceRoot: process.cwd(),
+        allowedRoots: [process.cwd()],
+    });
+    if (!plan.detected || plan.lane === "direct_allow" || plan.lane === "none") {
+        return null;
+    }
+    return {
+        enabled: true,
+        action: "deny",
+        shouldBlock: true,
+        severity: plan.lane === "hard_deny" ? "critical" : "high",
+        message: plan.laneMessage || `Filesystem mutation requires ${plan.lane}.`,
+        recommendation: plan.lane === "hard_deny"
+            ? "Keep the request blocked."
+            : "Use the filesystem intervention workflow and promote the reviewed bundle from an isolated fork.",
+        rule: `filesystem-mutation-${plan.lane}`,
+        redactedPatterns: [],
+        evaluatedAt: new Date().toISOString(),
+        defaultAction: "deny",
+        step: undefined,
+        lane: plan.lane,
+        plan,
     };
 }
 function toProtoPolicyRule(rule) {
@@ -545,10 +583,49 @@ export function createContextWallService(approvalQueue, policyStore) {
             guardStatus: "pending",
         }, normalizedContext);
         const decision = evaluateFirewallStep(candidateStep, getExternalRules());
+        const mutationDecision = evaluateFilesystemMutationDecision({
+            toolName: `${appId}.${toolName}`,
+            toolArgs: parsedArgs,
+            traceId,
+            sessionId,
+            taskText: JSON.stringify(parsedArgs),
+        });
+        if (mutationDecision) {
+            await emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_POLICY_DENIED",
+                summary: `Filesystem mutation blocked for ${appId}.${toolName}`,
+                severity: `RISK_SEVERITY_${mutationDecision.severity.toUpperCase()}`,
+                traceId,
+                payload: {
+                    appId,
+                    toolName,
+                    targetUrl,
+                    sessionId,
+                    lane: mutationDecision.lane,
+                    workspaceRoot: mutationDecision.plan.workspaceRoot,
+                    candidatePaths: mutationDecision.plan.candidatePaths,
+                },
+            }, { required: true });
+            return {
+                allowed: false,
+                blockedReason: mutationDecision.message,
+                decision: toProtoPolicyDecision(mutationDecision),
+                success: false,
+                resultJson: Buffer.from(JSON.stringify({
+                    error: mutationDecision.message,
+                    lane: mutationDecision.lane,
+                    candidatePaths: mutationDecision.plan.candidatePaths,
+                })),
+                errorMessage: mutationDecision.message,
+                durationMs: 0,
+                appId,
+                toolName,
+            };
+        }
         let effectiveDecision = decision;
         if (decision.shouldBlock) {
-            approvalQueue.enqueue(traceId, approvalStepIndex, candidateStep);
-            emitAuditEvent({
+            await approvalQueue.enqueue(traceId, approvalStepIndex, candidateStep, { timeoutMs: config.hitlApprovalTimeoutMs });
+            await emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_HITL_REQUESTED",
                 summary: `HITL requested for ${appId}.${toolName}`,
                 severity: `RISK_SEVERITY_${decision.severity.toUpperCase()}`,
@@ -561,10 +638,10 @@ export function createContextWallService(approvalQueue, policyStore) {
                     sessionId,
                     stepIndex: approvalStepIndex,
                 },
-            });
+            }, { required: true });
             const approval = await approvalQueue.waitForResolution(traceId, approvalStepIndex, config.hitlApprovalTimeoutMs);
             if (!approval) {
-                emitAuditEvent({
+                await emitAuditEvent({
                     eventType: "AUDIT_EVENT_TYPE_HITL_TIMEOUT",
                     summary: `HITL timed out for ${appId}.${toolName}`,
                     severity: "RISK_SEVERITY_HIGH",
@@ -578,7 +655,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                         stepIndex: approvalStepIndex,
                         timeoutMs: config.hitlApprovalTimeoutMs,
                     },
-                });
+                }, { required: true });
                 return {
                     allowed: false,
                     blockedReason: `Approval timed out for ${appId}.${toolName}.`,
@@ -593,7 +670,7 @@ export function createContextWallService(approvalQueue, policyStore) {
             }
             if (approval.action !== "allow") {
                 const denyReason = approval.reason || decision.message || "Rejected by approver";
-                emitAuditEvent({
+                await emitAuditEvent({
                     eventType: "AUDIT_EVENT_TYPE_HITL_REJECTED",
                     summary: `HITL rejected ${appId}.${toolName}`,
                     severity: "RISK_SEVERITY_HIGH",
@@ -607,7 +684,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                         sessionId,
                         stepIndex: approvalStepIndex,
                     },
-                });
+                }, { required: true });
                 return {
                     allowed: false,
                     blockedReason: denyReason,
@@ -626,7 +703,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 shouldBlock: false,
                 message: approval.reason || `Approved by ${approval.approverId || "human reviewer"}`,
             };
-            emitAuditEvent({
+            await emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_HITL_APPROVED",
                 summary: `HITL approved ${appId}.${toolName}`,
                 traceId,
@@ -639,7 +716,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                     sessionId,
                     stepIndex: approvalStepIndex,
                 },
-            });
+            }, { required: true });
         }
         const requestedScope = request.scope;
         const derivedScope = deriveScopeFromArguments(parsedArgs);
@@ -659,7 +736,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 allowFileDownload: Boolean(mergedScope.allowFileDownload),
             } : undefined,
         }));
-        emitAuditEvent({
+        await emitAuditEvent({
             eventType: response?.success ? "AUDIT_EVENT_TYPE_TOOL_COMPLETED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",
             summary: `Tool ${appId}.${toolName} executed via context-wall`,
             traceId: request.traceId || request.context?.traceId,
@@ -684,7 +761,7 @@ export function createContextWallService(approvalQueue, policyStore) {
         };
     };
     const serviceImpl = {
-        EvaluateStep(call, callback) {
+        async EvaluateStep(call, callback) {
             if (!checkRateLimit(extractPeerId(call))) {
                 callback({ code: grpc.status.RESOURCE_EXHAUSTED, message: "Rate limit exceeded" });
                 return;
@@ -692,10 +769,20 @@ export function createContextWallService(approvalQueue, policyStore) {
             try {
                 const context = normalizeRequestContext(call.request.context);
                 const step = withContextMetadata(stepFromProto(call.request.step), context);
-                const decision = evaluateFirewallStep(step, getExternalRules());
+                const firewallDecision = evaluateFirewallStep(step, getExternalRules());
+                const mutationDecision = evaluateFilesystemMutationDecision({
+                    toolName: step.toolCall?.name,
+                    toolArgs: step.toolCall?.input,
+                    command: step.command,
+                    traceId: context.traceId,
+                    sessionId: context.sessionId,
+                    taskText: step.prompt || step.output || step.command || "",
+                    sourceType: step.type,
+                });
+                const decision = mutationDecision ?? firewallDecision;
                 mapleLog("debug", "context_wall_evaluate_step", { stepIndex: step.index, action: decision.action });
                 if (decision.action === "deny") {
-                    approvalQueue.enqueue(context.traceId || "unknown", step.index, step);
+                    await approvalQueue.enqueue(context.traceId || "unknown", step.index, step, { timeoutMs: config.hitlApprovalTimeoutMs });
                 }
                 callback(null, {
                     decision: toProtoPolicyDecision(decision),
@@ -796,13 +883,13 @@ export function createContextWallService(approvalQueue, policyStore) {
                 callback({ code: grpc.status.INTERNAL, message: err.message });
             }
         },
-        SubmitApproval(call, callback) {
+        async SubmitApproval(call, callback) {
             try {
                 const { traceId, stepIndex, action, reason, approverId } = call.request;
                 const guardAction = action === "GUARD_ACTION_ALLOW" ? "allow" : action === "GUARD_ACTION_BLOCK" ? "block" : "pending";
-                const result = approvalQueue.resolve(traceId, stepIndex, guardAction, reason || "", approverId || "");
+                const result = await approvalQueue.resolve(traceId, stepIndex, guardAction, reason || "", approverId || "");
                 if (result) {
-                    emitAuditEvent({
+                    await emitAuditEvent({
                         eventType: guardAction === "allow" ? "AUDIT_EVENT_TYPE_HITL_APPROVED" : "AUDIT_EVENT_TYPE_HITL_REJECTED",
                         summary: `HITL decision recorded for ${traceId}:${stepIndex}`,
                         traceId,
@@ -812,7 +899,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                             reason: reason || "",
                             approverId: approverId || "",
                         },
-                    });
+                    }, { required: true });
                 }
                 callback(null, {
                     accepted: result !== null,
@@ -855,10 +942,10 @@ export function createContextWallService(approvalQueue, policyStore) {
             call.on("close", safeUnwatch);
             call.on("error", safeUnwatch);
         },
-        ListPendingApprovals(call, callback) {
+        async ListPendingApprovals(call, callback) {
             try {
                 const requestedSessionId = String(call.request?.sessionId || "");
-                const pending = approvalQueue.getPending();
+                const pending = await approvalQueue.getPending();
                 callback(null, {
                     approvals: pending
                         .filter((event) => !requestedSessionId || stepSessionId(event.step) === requestedSessionId)

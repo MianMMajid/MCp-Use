@@ -28,15 +28,52 @@
   let highlightedToolIds = new Set();
   let hoveredSkillId = '';
 
-  // ── Import skill state ──
+  // ── Marketplace state ──
   let importOpen = false;
-  let importBusy = false;
-  let importError = '';
-  let importSuccess = '';
-  let importToolId = '';
-  let importName = '';
-  let importDescription = '';
-  let importSchemaText = '{}';
+  let marketplaceItems = [];
+  let marketplaceLoading = false;
+  let marketplaceSearch = '';
+  let installing = {};
+  let apiKeys = {};
+  let expandedServer = null;
+
+  async function loadMarketplace() {
+    marketplaceLoading = true;
+    try {
+      const params = new URLSearchParams();
+      if (marketplaceSearch) params.set('q', marketplaceSearch);
+      params.set('transport', 'remote');
+      const data = await loadJson(`/api/skills/marketplace?${params}`);
+      marketplaceItems = data?.items || [];
+    } catch {} finally { marketplaceLoading = false; }
+  }
+
+  function isSkillInstalled(serverName) {
+    const toolId = serverName.replace(/[^a-zA-Z0-9._:-]/g, '-');
+    return openclawTools.some((t) => t.toolId === toolId || t.toolId === serverName);
+  }
+
+  async function installFromMarketplace(server) {
+    installing = { ...installing, [server.name]: true };
+    try {
+      const body = { name: server.name };
+      if (apiKeys[server.name]) body.apiKey = apiKeys[server.name];
+      const res = await postJson('/api/skills/marketplace/install', body);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.ok === false) {
+        installing = { ...installing, [server.name]: false };
+        return;
+      }
+      installing = { ...installing, [server.name]: 'done' };
+      expandedServer = null;
+      invalidateCache('/api/skills');
+      invalidateCache(`/api/agents/${data.id}/tools`);
+      _loadedId = '';
+      await loadPage();
+    } catch {
+      installing = { ...installing, [server.name]: false };
+    }
+  }
 
   // ── Smoke test & governed proof state ──
   let smokeTests = {};
@@ -69,45 +106,6 @@
     return String(skill?.toolId || '').toLowerCase() === 'skills';
   }
 
-  async function handleImport() {
-    importBusy = true;
-    importError = '';
-    importSuccess = '';
-    let schema;
-    try {
-      schema = importSchemaText.trim() ? JSON.parse(importSchemaText) : {};
-    } catch (err) {
-      importBusy = false;
-      importError = err instanceof Error ? err.message : 'Schema must be valid JSON.';
-      return;
-    }
-    try {
-      const response = await postJson('/api/skills/import', {
-        toolId: importToolId,
-        name: importName,
-        description: importDescription,
-        schema,
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        importError = payload?.error || `Import failed (${response.status})`;
-        return;
-      }
-      importSuccess = `Imported ${payload.tool?.toolId || importToolId}`;
-      importToolId = '';
-      importName = '';
-      importDescription = '';
-      importSchemaText = '{}';
-      invalidateCache('/api/skills');
-      invalidateCache(`/api/agents/${data.id}/tools`);
-      _loadedId = '';
-      await loadPage();
-    } catch (err) {
-      importError = err instanceof Error ? err.message : String(err);
-    } finally {
-      importBusy = false;
-    }
-  }
 
   async function runSmokeTest(skillId) {
     smokeTests = { ...smokeTests, [skillId]: { loading: true, result: null, error: '' } };
@@ -445,8 +443,8 @@
             <div class="catalog-head">
               <h3>Skill Catalog</h3>
               <div class="catalog-actions">
-                <button class="pill subtle" on:click={() => (importOpen = !importOpen)}>
-                  {importOpen ? 'Close Import' : '+ Import Skill'}
+                <button class="pill subtle" on:click={() => { importOpen = !importOpen; if (importOpen && marketplaceItems.length === 0) loadMarketplace(); }}>
+                  {importOpen ? 'Close' : '+ Add from Marketplace'}
                 </button>
                 <div class="search">
                   <span class="search-icon"><Icon name="search" size={14} /></span>
@@ -457,30 +455,51 @@
 
             {#if importOpen}
               <div class="import-form">
-                <div class="import-grid">
-                  <label>
-                    <span>Tool ID</span>
-                    <input bind:value={importToolId} placeholder="e.g. skills" />
-                  </label>
-                  <label>
-                    <span>Name</span>
-                    <input bind:value={importName} placeholder="Skill name" />
-                  </label>
+                <div class="mp-search-row">
+                  <input bind:value={marketplaceSearch} placeholder="Search MCP servers..." on:keydown={(e) => e.key === 'Enter' && loadMarketplace()} />
+                  <button class="pill subtle" on:click={loadMarketplace} disabled={marketplaceLoading}>{marketplaceLoading ? '...' : 'Search'}</button>
                 </div>
-                <label class="import-stack">
-                  <span>Description</span>
-                  <textarea rows="2" bind:value={importDescription} placeholder="What does this skill do?"></textarea>
-                </label>
-                <label class="import-stack">
-                  <span>Schema JSON</span>
-                  <textarea rows="3" bind:value={importSchemaText} placeholder={'{}'}></textarea>
-                </label>
-                <div class="import-actions">
-                  <button class="pill cta" on:click={handleImport} disabled={importBusy || loading}>
-                    {importBusy ? 'Importing...' : 'Import'}
-                  </button>
-                  {#if importError}<span class="err">{importError}</span>{/if}
-                  {#if importSuccess}<span class="ok">{importSuccess}</span>{/if}
+                <div class="mp-list">
+                  {#if marketplaceLoading && marketplaceItems.length === 0}
+                    <p class="muted">Searching MCP registry...</p>
+                  {:else if marketplaceItems.length === 0}
+                    <p class="muted">No servers found.</p>
+                  {:else}
+                    {#each marketplaceItems as server}
+                      <div class="mp-item">
+                        <div class="mp-head">
+                          <div>
+                            <p class="mp-name">{server.title || server.name}</p>
+                            <small class="muted">{server.name}</small>
+                          </div>
+                          {#if isSkillInstalled(server.name)}
+                            <span class="badge ok">installed</span>
+                          {:else if expandedServer === server.name}
+                            <button class="pill subtle" on:click={() => expandedServer = null}>Cancel</button>
+                          {:else}
+                            <button class="pill cta" on:click={() => expandedServer = server.name}>Install</button>
+                          {/if}
+                        </div>
+                        <p class="mp-desc muted">{server.description}</p>
+                        {#if expandedServer === server.name}
+                          <div class="mp-auth">
+                            {#if server.authHeaders?.[0]?.description}
+                              <p class="mp-auth-desc muted">{server.authHeaders[0].description}</p>
+                            {/if}
+                            <div class="mp-auth-row">
+                              <input type="password" placeholder="API key (optional for free servers)" bind:value={apiKeys[server.name]} on:keydown={(e) => e.key === 'Enter' && installFromMarketplace(server)} />
+                              <button class="pill cta" on:click={() => installFromMarketplace(server)} disabled={!!installing[server.name] || (server.requiresAuth && !apiKeys[server.name])}>
+                                {installing[server.name] === 'done' ? '✓' : installing[server.name] ? '...' : 'Connect'}
+                              </button>
+                            </div>
+                            {#if server.repository}
+                              <a href={server.repository} target="_blank" class="muted" style="font-size:11px; text-decoration:underline;">Repo ↗</a>
+                            {/if}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  {/if}
                 </div>
               </div>
             {/if}
@@ -669,15 +688,20 @@
   .catalog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .catalog-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-  /* Import form */
-  .import-form { border: 1px solid var(--border); border-radius: 12px; background: var(--row-bg); padding: 12px; display: grid; gap: 10px; margin-top: 8px; }
-  .import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-  .import-stack { display: grid; gap: 4px; }
-  .import-form label span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
-  .import-form input, .import-form textarea { width: 100%; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--fg); padding: 7px 9px; outline: none; font: inherit; resize: vertical; }
-  .import-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .import-actions .ok { color: var(--ok); font-size: 12px; }
-  .import-actions .err { color: var(--warn); font-size: 12px; }
+  /* Marketplace in agent editor */
+  .import-form { border: 1px solid var(--border); border-radius: 12px; background: var(--row-bg); padding: 10px; display: grid; gap: 8px; margin-top: 8px; }
+  .mp-search-row { display: flex; gap: 6px; }
+  .mp-search-row input { flex: 1; border: 1px solid var(--input-border); border-radius: 999px; background: var(--input-bg); color: var(--fg); padding: 7px 12px; font-size: 12px; outline: none; }
+  .mp-list { max-height: 320px; overflow-y: auto; display: grid; gap: 6px; }
+  .mp-item { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elevated); padding: 8px 10px; display: grid; gap: 4px; }
+  .mp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .mp-name { margin: 0; font-size: 12px; font-weight: 600; }
+  .mp-desc { margin: 0; font-size: 11px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mp-auth { display: grid; gap: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+  .mp-auth-desc { margin: 0; font-size: 10px; }
+  .mp-auth-row { display: flex; gap: 6px; }
+  .mp-auth-row input { flex: 1; border: 1px solid rgba(249,115,22,.3); border-radius: 999px; background: rgba(249,115,22,.06); color: var(--fg); padding: 6px 10px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; }
+  .badge.ok { color: var(--ok); border-color: rgba(16,185,129,.3); background: rgba(16,185,129,.1); }
 
   /* Test result badges */
   .test-btn, .proof-btn { font-size: 11px; padding: 2px 6px; }

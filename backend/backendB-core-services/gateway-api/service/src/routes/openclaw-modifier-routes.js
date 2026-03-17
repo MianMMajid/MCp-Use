@@ -1,5 +1,6 @@
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
+import { allowNoAuth } from "../config.js";
 import {
   executeOpenClawModifierRequest,
   getOpenClawModifierApproval,
@@ -28,9 +29,29 @@ function endpointRemoved(c, replacement) {
 // A2: Replace raw header trust with verified tenant scope resolution
 async function actorFromRequest(c) {
   const authContext = authContextStorage.getStore();
+  const rawTenantId = asString(c.req.header("x-tenant-id")) ?? "";
+  const rawOrgId = asString(c.req.header("x-org-id")) ?? "";
+  if ((authContext?.authBypass === true || allowNoAuth) && !rawTenantId && !rawOrgId) {
+    return {
+      userId: asString(authContext?.userId) ?? asString(authContext?.keyFingerprint) ?? "gateway-api",
+      tenantId: "default",
+      orgId: "default",
+      tenantVerified: true,
+      tenantMethod: "local_no_auth",
+      deviceId: asString(c.req.header("x-device-id")) ?? asString(c.req.header("user-agent")) ?? "",
+      sessionId:
+        asString(c.req.header("x-maple-session-id")) ??
+        asString(c.req.header("mcp-session-id")) ??
+        "",
+      traceId:
+        asString(c.req.header("x-maple-trace-id")) ??
+        asString(c.req.header("x-trace-id")) ??
+        "",
+    };
+  }
   const scope = await resolveVerifiedTenantScope({
-    tenantId: asString(c.req.header("x-tenant-id")) ?? "",
-    orgId: asString(c.req.header("x-org-id")) ?? "",
+    tenantId: rawTenantId,
+    orgId: rawOrgId,
     // Finding 11: Accept both header names for backwards compat, prefer canonical name
     tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? asString(c.req.header("x-tenant-claim-signature")) ?? "",
   });
@@ -264,6 +285,7 @@ server.app.post("/api/openclaw/modifier/exec", async (c) => {
           error: response.error,
           approval: response.approval ?? null,
           policy: response.policy ?? null,
+          filesystemMutation: response.filesystemMutation ?? null,
         },
         response.status
       );

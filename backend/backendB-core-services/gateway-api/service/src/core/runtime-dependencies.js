@@ -3,15 +3,25 @@ import net from "node:net";
 import { loadGrpcTlsConfig } from "@maple/common";
 import { grpcUnary } from "../grpc-clients.js";
 import {
+  cyberObjectStoreBaseUrl,
+  cyberObjectStoreMode,
+  cyberObjectStoreStorageDir,
+  cyberQuarantineStorageDir,
   cyberQuarantineEnabled,
   cyberProxyAddress,
   downloadScanProvider,
   downloadScanVirusTotalApiKey,
+  filesystemMutationClassifierRequired,
+  filesystemMutationForksEnabled,
+  filesystemMutationModel,
   gatewayTlsCaPath,
   gatewayTlsCertPath,
   gatewayTlsKeyPath,
   googleClientId,
   mcpProxyAddress,
+  malwareSandboxApiUrl,
+  malwareSandboxProvider,
+  malwareSandboxRequired,
   openclawAgentRequired,
   stripeSecretKey,
 } from "../config.js";
@@ -177,6 +187,13 @@ function capabilityFromDependencies(name, requiredDeps, checkMap) {
   };
 }
 
+function collectHardBlockers(checkMap, ids = []) {
+  return ids
+    .map((id) => checkMap.get(id))
+    .filter((check) => check && check.ok !== true)
+    .map((check) => ({ id: check.id, reason: check.reason }));
+}
+
 function resolveGoogleAuthCapability(checkMap) {
   const googleConfigured = checkMap.get("config.google_client_id")?.ok === true;
   return {
@@ -251,11 +268,18 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       requiredDeps: [],
     },
     downloadScanning: {
-      enabled: true,
-      reason: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey
-        ? "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured."
-        : "ok",
-      requiredDeps: [],
+      enabled:
+        checkMap.get("db.postgres")?.ok === true &&
+        checkMap.get("storage.cyber_object_store")?.ok === true,
+      reason:
+        checkMap.get("db.postgres")?.ok !== true
+          ? checkMap.get("db.postgres")?.reason
+          : checkMap.get("storage.cyber_object_store")?.ok !== true
+            ? checkMap.get("storage.cyber_object_store")?.reason
+            : downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey
+              ? "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured."
+              : "ok",
+      requiredDeps: ["db.postgres", "storage.cyber_object_store"],
     },
     scanEnrichment: {
       enabled: downloadScanProvider !== "virustotal" || Boolean(downloadScanVirusTotalApiKey),
@@ -265,6 +289,25 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       requiredDeps: [],
     },
     googleAuth: resolveGoogleAuthCapability(checkMap),
+    filesystemMutationGuard: capabilityFromDependencies(
+      "filesystemMutationGuard",
+      ["db.postgres", "storage.cyber_object_store", "filesystem.mutation_guard"],
+      checkMap
+    ),
+    filesystemMutationForking: capabilityFromDependencies(
+      "filesystemMutationForking",
+      ["filesystem.fork_runtime"],
+      checkMap
+    ),
+    filesystemMutationClassifier: {
+      enabled: checkMap.get("filesystem.model_classifier")?.ok === true || !filesystemMutationClassifierRequired,
+      reason: checkMap.get("filesystem.model_classifier")?.ok === true
+        ? "ok"
+        : filesystemMutationClassifierRequired
+          ? checkMap.get("filesystem.model_classifier")?.reason ?? "Mutation classifier unavailable."
+          : "optional",
+      requiredDeps: filesystemMutationClassifierRequired ? ["filesystem.model_classifier"] : [],
+    },
   };
   return {
     generatedAt: report.generatedAt,
@@ -276,12 +319,20 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       mcpProxyReachable: checkMap.get("grpc.mcp_proxy")?.ok === true,
       cyberProxyReachable: checkMap.get("grpc.cyber_proxy")?.ok === true,
       scanProvider: downloadScanProvider,
+      mutationGuardMode: checkMap.get("filesystem.fork_runtime")?.ok === true ? "fork-capable" : "direct-only",
+      mutationGuardModel: filesystemMutationModel,
       quarantineEnabled: cyberQuarantineEnabled,
       degradedStates: {
         contextPolicyUnavailable: checkMap.get("grpc.context_wall")?.ok !== true,
         cyberScanUnavailable: checkMap.get("grpc.cyber_proxy")?.ok !== true,
         virustotalUnavailable: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey,
+        evidenceStoreUnavailable: checkMap.get("db.postgres")?.ok !== true,
+        quarantineStoreUnavailable: checkMap.get("storage.cyber_object_store")?.ok !== true,
+        sandboxUnavailable: malwareSandboxRequired && checkMap.get("analysis.malware_sandbox")?.ok !== true,
+        mutationForkUnavailable: checkMap.get("filesystem.fork_runtime")?.ok !== true,
+        mutationClassifierUnavailable: filesystemMutationClassifierRequired && checkMap.get("filesystem.model_classifier")?.ok !== true,
       },
+      hardBlockers: collectHardBlockers(checkMap, ["db.postgres", "storage.cyber_object_store", "grpc.context_wall", "grpc.cyber_proxy"]),
     },
     dependencies: report.checks.map((check) => ({
       id: check.id,
@@ -446,6 +497,56 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
     dbCheckResult = { ok: false, reason: "Database pool not initialized." };
   }
   checks.push(buildCheckRecord("db.postgres", "PostgreSQL connectivity", requireDatabase, dbCheckResult));
+  checks.push(
+    buildCheckRecord(
+      "storage.cyber_object_store",
+      cyberObjectStoreMode === "http" ? "Cyber object store endpoint" : "Cyber object store path",
+      strict || cyberQuarantineEnabled,
+      cyberObjectStoreMode === "http"
+        ? (cyberObjectStoreBaseUrl ? { ok: true } : { ok: false, reason: "MAPLE_CYBER_OBJECT_STORE_BASE_URL is missing." })
+        : await checkReadableFile(cyberObjectStoreStorageDir || cyberQuarantineStorageDir)
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "filesystem.mutation_guard",
+      "Filesystem mutation guard",
+      strict,
+      { ok: true }
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "filesystem.fork_runtime",
+      "Filesystem mutation fork runtime",
+      strict,
+      filesystemMutationForksEnabled
+        ? { ok: true }
+        : { ok: false, reason: "MAPLE_FILESYSTEM_GUARD_FORKS_ENABLED is disabled." }
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "filesystem.model_classifier",
+      "Filesystem mutation model classifier",
+      filesystemMutationClassifierRequired,
+      String(process.env.OPENAI_API_KEY ?? "").trim()
+        ? { ok: true }
+        : { ok: false, reason: "OPENAI_API_KEY is missing for filesystem mutation classification." }
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "analysis.malware_sandbox",
+      "Malware sandbox analysis provider",
+      malwareSandboxRequired,
+      malwareSandboxProvider === "none"
+        ? { ok: false, reason: "MAPLE_MALWARE_SANDBOX_PROVIDER is not configured." }
+        : malwareSandboxProvider === "http" && !malwareSandboxApiUrl
+          ? { ok: false, reason: "MAPLE_MALWARE_SANDBOX_API_URL is missing." }
+          : { ok: true }
+    )
+  );
 
   const requiredFailures = checks.filter((check) => check.required && !check.ok);
   return {

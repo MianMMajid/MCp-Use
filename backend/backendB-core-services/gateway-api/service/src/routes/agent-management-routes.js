@@ -242,7 +242,7 @@ export function registerAgentManagementRoutes(app) {
             return c.json({ error: "Agent not found" }, 404);
         }
 
-        const sessions = listSessionsForAgent(agentId);
+        const sessions = await listSessionsForAgent(agentId);
         return c.json({ ok: true, items: sessions, agentId });
     });
 }

@@ -3,6 +3,7 @@ import {
   MAPLE_WORKSPACE_CATEGORY_IDS,
   isMapleWorkspaceCategory,
 } from './registry-types.js'
+import { getFrontendAParityForRoute } from './frontendA-parity-spec.js'
 
 export const MAPLE_WORKSPACE_PATH_PREFIX = '/maple'
 export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
@@ -69,16 +70,36 @@ const MAPLE_ROUTE_DEFINITIONS = [
     preferredView: 'cybersecurity',
   },
   {
+    path: '/maple/interventions',
+    title: 'Filesystem Interventions',
+    category: 'firewalls',
+    tabLabel: 'Filesystem Interventions',
+    description: 'Review mutation plans, promote forked bundles, and restore archived content.',
+    apiEndpoints: [
+      '/api/firewall/filesystem/status',
+      '/api/firewall/filesystem/preflight',
+      '/api/firewall/filesystem/mutations',
+      '/api/firewall/filesystem/mutations/:planId',
+      '/api/firewall/filesystem/mutations/:planId/decision',
+      '/api/firewall/filesystem/mutations/:planId/promote',
+      '/api/firewall/filesystem/mutations/:planId/restore',
+    ],
+    preferredView: 'cybersecurity',
+  },
+  {
     path: '/maple/cyber',
     title: 'Cyber Operations',
     category: 'firewalls',
     tabLabel: 'Cyber Operations',
-    description: 'Inspect cyber-proxy status, download scans, and quarantine incidents.',
+    description: 'Run the cyber analyst workflow across incidents, quarantine, evidence, and suppressions.',
     apiEndpoints: [
       '/api/cyber/status',
       '/api/cyber/policies',
       '/api/cyber/events',
       '/api/cyber/downloads',
+      '/api/cyber/incidents',
+      '/api/cyber/quarantine',
+      '/api/cyber/suppressions',
     ],
     preferredView: 'cybersecurity',
   },
@@ -329,6 +350,7 @@ function normalizeRouteRecord(route) {
       ? route.apiEndpoints.filter((endpoint) => typeof endpoint === 'string' && endpoint.startsWith('/'))
       : [],
   )
+  const parity = getFrontendAParityForRoute(route.path)
 
   return {
     path: route.path,
@@ -349,6 +371,12 @@ function normalizeRouteRecord(route) {
       ? uniqueList(route.legacyAliases.filter((value) => typeof value === 'string' && value.startsWith('/maple')))
       : [],
     docsViews,
+    capabilityIds: parity?.capabilityIds ?? [],
+    securityDomains: parity?.securityDomains ?? [],
+    cliCommands: parity?.cliCommands ?? [],
+    legacySource: parity?.legacySource ?? [],
+    parityStatus: parity?.parityStatus ?? 'missing',
+    svelteSurfaces: parity?.svelteSurfaces ?? [],
   }
 }
 

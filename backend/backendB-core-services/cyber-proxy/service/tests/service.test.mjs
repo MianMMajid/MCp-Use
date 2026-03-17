@@ -198,6 +198,41 @@ test("scanDownloadedContent: virustotal provider returns pending when upload is 
   }
 });
 
+test("scanDownloadedContent: sandbox provider returns queued deeper analysis state", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url) === "https://sandbox.example/analyze") {
+      return new Response(JSON.stringify({ analysisId: "sbx-1", status: "pending" }), {
+        status: 202,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const scan = await scanDownloadedContent({
+      provider: "local",
+      malwareSandboxProvider: "http",
+      malwareSandboxApiUrl: "https://sandbox.example",
+      content: Buffer.from("sandbox bytes"),
+      contentType: "application/octet-stream",
+      filename: "sample.bin",
+      localResult: buildLocalScanResult({
+        threats: [],
+        quarantined: false,
+      }),
+    });
+
+    assert.equal(scan.status, "pending");
+    assert.equal(scan.stage, "analysis_pending");
+    assert.equal(scan.analysis?.sandbox?.status, "pending");
+    assert.equal(scan.reasons.includes("Sandbox analysis queued"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 // ── createCyberProxyService Test ─────────────────────────────────────────────
 
 test("createCyberProxyService: returns gRPC server with correct interface", () => {

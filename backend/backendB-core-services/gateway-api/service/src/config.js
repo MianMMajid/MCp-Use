@@ -64,6 +64,19 @@ function optionalEnvInt(key, fallback, { min, max } = {}) {
     }
     return parsed;
 }
+function optionalJsonArrayEnv(key, fallback = []) {
+    const raw = (process.env[key] ?? "").trim();
+    if (!raw) {
+        return [...fallback];
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [...fallback];
+    }
+    catch {
+        return [...fallback];
+    }
+}
 function requireCsvList(key) {
     const raw = requireEnv(key);
     const normalized = raw
@@ -176,6 +189,36 @@ export const downloadScanProvider = downloadScanProviderRaw;
 export const downloadScanVirusTotalApiKey = optionalEnv("MAPLE_VIRUSTOTAL_API_KEY");
 export const downloadScanVirusTotalApiUrl = optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3");
 export const downloadScanTimeoutMs = optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 });
+export const cyberEvidenceSyncTtlMs = optionalEnvInt("MAPLE_CYBER_EVIDENCE_SYNC_TTL_MS", 2500, { min: 250, max: 60000 });
+export const cyberQuarantineStorageDir = optionalEnv("MAPLE_CYBER_QUARANTINE_STORAGE_DIR", `${process.cwd()}/.maple-security/quarantine`);
+const cyberObjectStoreModeRaw = optionalEnv("MAPLE_CYBER_OBJECT_STORE_MODE", "filesystem").toLowerCase();
+if (cyberObjectStoreModeRaw !== "filesystem" && cyberObjectStoreModeRaw !== "http") {
+    throw new Error(`Invalid MAPLE_CYBER_OBJECT_STORE_MODE: "${cyberObjectStoreModeRaw}" (must be "filesystem" or "http")`);
+}
+export const cyberObjectStoreMode = cyberObjectStoreModeRaw;
+export const cyberObjectStoreStorageDir = optionalEnv("MAPLE_CYBER_OBJECT_STORE_STORAGE_DIR", cyberQuarantineStorageDir);
+export const cyberObjectStoreBaseUrl = optionalEnv("MAPLE_CYBER_OBJECT_STORE_BASE_URL");
+export const cyberObjectStoreToken = optionalEnv("MAPLE_CYBER_OBJECT_STORE_TOKEN");
+export const cyberObjectStorePrefix = optionalEnv("MAPLE_CYBER_OBJECT_STORE_PREFIX", "cyber-evidence");
+const malwareSandboxProviderRaw = optionalEnv("MAPLE_MALWARE_SANDBOX_PROVIDER", "none").toLowerCase();
+if (malwareSandboxProviderRaw !== "none" && malwareSandboxProviderRaw !== "http") {
+    throw new Error(`Invalid MAPLE_MALWARE_SANDBOX_PROVIDER: "${malwareSandboxProviderRaw}" (must be "none" or "http")`);
+}
+export const malwareSandboxProvider = malwareSandboxProviderRaw;
+export const malwareSandboxApiUrl = optionalEnv("MAPLE_MALWARE_SANDBOX_API_URL");
+export const malwareSandboxApiToken = optionalEnv("MAPLE_MALWARE_SANDBOX_API_TOKEN");
+export const malwareSandboxTimeoutMs = optionalEnvInt("MAPLE_MALWARE_SANDBOX_TIMEOUT_MS", 5000, { min: 250, max: 60000 });
+export const malwareSandboxRequired = optionalEnvBool("MAPLE_MALWARE_SANDBOX_REQUIRED", false);
+export const cyberRequireStepUpForSensitiveMutations = optionalEnvBool("MAPLE_CYBER_REQUIRE_STEP_UP", true);
+export const filesystemMutationAllowedRoots = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_ALLOWED_ROOTS", [process.cwd()]);
+export const filesystemMutationProtectedRoots = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_PROTECTED_ROOTS", []);
+export const filesystemMutationGeneratedPatterns = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_GENERATED_PATTERNS", []);
+export const filesystemMutationSensitivePatterns = optionalJsonArrayEnv("MAPLE_FILESYSTEM_GUARD_SENSITIVE_PATTERNS", []);
+export const filesystemMutationDirectMaxPaths = optionalEnvInt("MAPLE_FILESYSTEM_GUARD_DIRECT_MAX_PATHS", 4, { min: 1, max: 500 });
+export const filesystemMutationPromotionMaxPaths = optionalEnvInt("MAPLE_FILESYSTEM_GUARD_PROMOTION_MAX_PATHS", 200, { min: 1, max: 10_000 });
+export const filesystemMutationForksEnabled = optionalEnvBool("MAPLE_FILESYSTEM_GUARD_FORKS_ENABLED", true);
+export const filesystemMutationModel = optionalEnv("MAPLE_FILESYSTEM_GUARD_MODEL", "gpt-4o-mini");
+export const filesystemMutationClassifierRequired = optionalEnvBool("MAPLE_FILESYSTEM_GUARD_CLASSIFIER_REQUIRED", false);
 export const cyberAllowedDomains = optionalEnv("CYBER_ALLOWED_DOMAINS")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())

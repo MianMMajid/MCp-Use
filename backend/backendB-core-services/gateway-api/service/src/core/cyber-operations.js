@@ -152,7 +152,7 @@ async function listAllOpenClawRuns() {
   const items = [];
   let cursor = "";
   do {
-    const page = listOpenClawRuns({ cursor, limit: 100 });
+    const page = await listOpenClawRuns({ cursor, limit: 100 });
     items.push(...asArray(page.items));
     cursor = asString(page.nextCursor);
   } while (cursor);

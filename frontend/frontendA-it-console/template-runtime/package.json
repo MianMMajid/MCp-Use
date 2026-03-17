@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite dev --host 0.0.0.0",
     "dev:warm": "vite dev --host 0.0.0.0 --port 4101",
-    "build": "npm run check:route-conflicts && vite build",
+    "build": "npm run check:route-conflicts && npm run check:parity && vite build",
     "start": "vite preview",
-    "lint": "npm run check:route-conflicts",
-    "check:route-conflicts": "node scripts/check-route-conflicts.mjs"
+    "lint": "npm run check:route-conflicts && npm run check:parity",
+    "check:route-conflicts": "node scripts/check-route-conflicts.mjs",
+    "check:parity": "node ../../../scripts/check-frontendA-cli-parity.mjs",
+    "test:cyber-ui": "node --test tests/cyber-view-model.test.mjs"
   },
   "dependencies": {
     "@sveltejs/adapter-auto": "^4.0.0",
