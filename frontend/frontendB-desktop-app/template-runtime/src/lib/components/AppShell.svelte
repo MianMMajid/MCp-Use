@@ -1,5 +1,6 @@
 <script>
   import MainSidebar from '@/lib/components/MainSidebar.svelte';
+  import ToastContainer from '@/lib/components/ToastContainer.svelte';
   import { shellStore } from '@/lib/stores/shell-store';
 
   function beginResize(event) {
@@ -30,6 +31,7 @@
     {/if}
   </div>
   <main class="main"><slot /></main>
+  <ToastContainer />
 </div>
 
 <style>
@@ -57,7 +59,7 @@
     border-radius: 999px;
   }
   .resizer:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--accent-soft);
   }
   .main {
     flex: 1;

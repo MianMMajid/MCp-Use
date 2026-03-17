@@ -4,7 +4,7 @@
 @source '../lib/**/*.{js,jsx,ts,tsx,mdx}';
 
 @theme {
-  --font-sans: 'Nunito', 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'SFMono-Regular', Menlo, Consolas, monospace;
   --font-sans--font-feature-settings: 'cv11';
 }
@@ -26,26 +26,26 @@
   @media (prefers-color-scheme: dark) {
     :root {
       color-scheme: dark;
-      --mayple-bg: #0c0f14;
-      --mayple-surface: #121216;
-      --mayple-surface-muted: #18181d;
-      --mayple-border: #2a2a33;
+      --mayple-bg: #141417;
+      --mayple-surface: #1f1f23;
+      --mayple-surface-muted: #1a1a1e;
+      --mayple-border: #2c2c31;
       --mayple-accent: #fb923c;
       --mayple-accent-muted: rgba(251, 146, 60, 0.16);
-      --mayple-text: #f5f5f6;
+      --mayple-text: #e4e4e7;
     }
   }
 
   .dark,
   :root[data-theme='dark'] {
     color-scheme: dark;
-    --mayple-bg: #0c0f14;
-    --mayple-surface: #121216;
-    --mayple-surface-muted: #18181d;
-    --mayple-border: #2a2a33;
+    --mayple-bg: #141417;
+    --mayple-surface: #1f1f23;
+    --mayple-surface-muted: #1a1a1e;
+    --mayple-border: #2c2c31;
     --mayple-accent: #fb923c;
     --mayple-accent-muted: rgba(251, 146, 60, 0.16);
-    --mayple-text: #f5f5f6;
+    --mayple-text: #e4e4e7;
   }
 
   .light,

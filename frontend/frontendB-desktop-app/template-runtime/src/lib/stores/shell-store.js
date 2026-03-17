@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 
 const SIDEBAR_WIDTH_KEY = 'mayple_sidebar_width';
 const SIDEBAR_COLLAPSED_KEY = 'mayple_sidebar_collapsed';
+const THEME_KEY = 'mayple_theme';
 const MIN_WIDTH = 248;
 const MAX_WIDTH = 420;
 
@@ -14,7 +15,8 @@ function createShellStore() {
   const initial = {
     sidebarWidth: 304,
     sidebarCollapsed: false,
-    searchOpen: false
+    searchOpen: false,
+    theme: 'light',
   };
 
   const { subscribe, update, set } = writable(initial);
@@ -23,7 +25,10 @@ function createShellStore() {
     if (typeof window === 'undefined') return;
     const storedWidth = clampWidth(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
     const collapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
-    set({ ...initial, sidebarWidth: storedWidth, sidebarCollapsed: collapsed });
+    const storedTheme = window.localStorage.getItem(THEME_KEY) || 'light';
+    const theme = storedTheme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    set({ ...initial, sidebarWidth: storedWidth, sidebarCollapsed: collapsed, theme });
   }
 
   function setSidebarWidth(width) {
@@ -60,13 +65,25 @@ function createShellStore() {
     update((state) => ({ ...state, searchOpen: Boolean(searchOpen) }));
   }
 
+  function toggleTheme() {
+    update((state) => {
+      const next = state.theme === 'dark' ? 'light' : 'dark';
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(THEME_KEY, next);
+        document.documentElement.setAttribute('data-theme', next);
+      }
+      return { ...state, theme: next };
+    });
+  }
+
   return {
     subscribe,
     hydrate,
     setSidebarWidth,
     setSidebarCollapsed,
     toggleSidebar,
-    setSearchOpen
+    setSearchOpen,
+    toggleTheme
   };
 }
 

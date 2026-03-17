@@ -2,6 +2,7 @@
   import { onMount, afterUpdate } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import Icon from '@/lib/components/icons/Icon.svelte';
   import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
   import { statusColor } from '@/lib/format';
 
@@ -185,7 +186,8 @@
     const color = statusColor(value);
     if (color === 'green') return 'badge green';
     if (color === 'red') return 'badge red';
-    if (color === 'orange') return 'badge orange';
+    if (color === 'sky') return 'badge info';
+    if (color === 'caution' || color === 'orange') return 'badge caution';
     return 'badge zinc';
   }
 
@@ -358,7 +360,7 @@
       <section class="card panel identity">
         <div class="top">
           <button class="pill back-icon" aria-label="Back to agents" title="Back to agents" on:click={() => goto('/agents')}>
-            ←
+            <Icon name="arrow-left" size={16} />
           </button>
           <div class="name-wrap">
             <label>
@@ -415,7 +417,7 @@
                   {importOpen ? 'Close Import' : '+ Import Skill'}
                 </button>
                 <div class="search">
-                  <span class="search-icon">⌕</span>
+                  <span class="search-icon"><Icon name="search" size={14} /></span>
                   <input bind:value={toolSearch} placeholder="Search tools..." />
                 </div>
               </div>
@@ -480,7 +482,7 @@
                         disabled={smokeTests[id]?.loading || draggingFromCatalog}
                         on:click|stopPropagation={() => runSmokeTest(id)}
                       >
-                        {smokeTests[id]?.loading ? '...' : '⚡'}
+                        {smokeTests[id]?.loading ? '...' : 'Test'}
                       </button>
                       {#if canRunGovernedProof(tool)}
                         <button
@@ -489,7 +491,7 @@
                           disabled={governedRuns[id]?.loading || draggingFromCatalog}
                           on:click|stopPropagation={() => runGovernedExecution(id, 'list')}
                         >
-                          {governedRuns[id]?.loading ? '...' : '🔒'}
+                          {governedRuns[id]?.loading ? '...' : 'Proof'}
                         </button>
                       {/if}
                       <button class="pill mini" title="Add skill" on:click={() => equipSkill(id)}>+</button>
@@ -532,7 +534,7 @@
 
           {#if equippedSkills.length === 0}
             <div class="empty-state">
-              <div class="ghost-icon">⚡</div>
+              <div class="ghost-icon"><Icon name="spark" size={28} /></div>
               <p>Drag skills here to power up your agent.</p>
             </div>
           {:else}
@@ -637,7 +639,7 @@
   /* Test result badges */
   .test-btn, .proof-btn { font-size: 11px; padding: 2px 6px; }
   .test-result { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: center; }
-  .test-result.pass { color: #10b981; background: rgba(16, 185, 129, 0.12); }
+  .test-result.pass { color: var(--ok); background: var(--ok-soft); }
   .test-result.fail { color: var(--warn); background: rgba(207, 94, 94, 0.12); }
   .test-err { margin: 0; font-size: 11px; color: var(--warn); }
 
@@ -739,10 +741,11 @@
 
   .err { margin: 0; color: var(--warn); }
 
-  .green { color: #10b981; background: rgba(16, 185, 129, 0.14); border-color: rgba(16, 185, 129, 0.3); }
-  .red { color: #fb7185; background: rgba(251, 113, 133, 0.14); border-color: rgba(251, 113, 133, 0.3); }
-  .orange { color: #fb923c; background: rgba(251, 146, 60, 0.14); border-color: rgba(251, 146, 60, 0.3); }
-  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.1); border-color: rgba(107, 107, 107, 0.22); }
+  .green { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
+  .red { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
+  .info { color: var(--info); background: var(--info-soft); border-color: var(--info-border); }
+  .caution { color: var(--caution); background: var(--caution-soft); border-color: var(--caution-border); }
+  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.18); }
 
   @media (max-width: 1050px) {
     .toolbelt-layout { grid-template-columns: 1fr; }

@@ -1,24 +1,41 @@
 <script>
-  import { tick } from 'svelte';
+  import { tick, onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { shellStore } from '@/lib/stores/shell-store';
   import { chatStore } from '@/lib/stores/chat-store';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import CommandPalette from '@/lib/components/CommandPalette.svelte';
   import { groupByDate, statusColor } from '@/lib/format';
 
   let search = '';
-  let searchDialogOpen = false;
-  let searchDraft = '';
-  let searchInputEl;
+  let commandPaletteOpen = false;
 
   const navItems = [
     { key: 'builder', label: 'Builder', icon: 'builder', href: '/orchestrate' },
     { key: 'firewalls', label: 'Firewalls', icon: 'firewall', href: '/firewalls' },
     { key: 'tasks', label: 'Tasks', icon: 'tasks', href: '/tasks' },
-    { key: 'new-chat', label: 'New Chat', icon: 'pen', action: () => newChat() },
-    { key: 'search', label: 'Search', icon: 'search', action: () => onSearchPillClick() }
   ];
+
+  // ⌘K / Ctrl+K global shortcut
+  function onGlobalKeyDown(event) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+      event.preventDefault();
+      commandPaletteOpen = !commandPaletteOpen;
+    }
+  }
+
+  onMount(() => {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', onGlobalKeyDown);
+    }
+  });
+
+  onDestroy(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', onGlobalKeyDown);
+    }
+  });
 
   $: path = $page.url.pathname;
   $: workspaceMode = $chatStore.mode === 'orchestration' ? 'orchestration' : 'agent';
@@ -57,55 +74,16 @@
     return path.startsWith(item.href);
   }
 
-  function newChat() {
-    chatStore.newSession();
-    chatStore.setChatTarget('agent');
-    goto('/?mode=agent');
-  }
-
   function clickItem(item) {
-    if (item.action) {
-      item.action();
-      return;
-    }
     if (item.href) goto(item.href);
-  }
-
-  function onSearchPillClick() {
-    searchDraft = search;
-    searchDialogOpen = true;
-    tick().then(() => {
-      searchInputEl?.focus();
-      searchInputEl?.select?.();
-    });
-  }
-
-  function applySearchDialog() {
-    search = searchDraft.trim();
-    searchDialogOpen = false;
-  }
-
-  function cancelSearchDialog() {
-    searchDialogOpen = false;
-  }
-
-  function onSearchInputKeyDown(event) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      applySearchDialog();
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      cancelSearchDialog();
-    }
   }
 
   function statusClass(status) {
     const color = statusColor(status);
     if (color === 'green') return 'status status-green';
     if (color === 'red') return 'status status-red';
-    if (color === 'orange') return 'status status-orange';
+    if (color === 'sky') return 'status status-info';
+    if (color === 'caution' || color === 'orange') return 'status status-caution';
     return 'status status-zinc';
   }
 </script>
@@ -127,15 +105,27 @@
           class="pill item"
           class:active={active(item)}
           on:click={() => clickItem(item)}
-          title={item.key === 'search' && search ? `Search: ${search}` : item.label}
+          title={item.label}
           aria-label={item.label}
         >
           <span class="icon"><Icon name={item.icon} size={20} /></span>
           {#if !$shellStore.sidebarCollapsed}
-            <span class="label">{item.key === 'search' && search ? `Search: ${search}` : item.label}</span>
+            <span class="label">{item.label}</span>
           {/if}
         </button>
       {/each}
+      <button
+        class="pill item cmd-k"
+        on:click={() => { commandPaletteOpen = true; }}
+        title="Search & actions (⌘K)"
+        aria-label="Command palette"
+      >
+        <span class="icon"><Icon name="search" size={20} /></span>
+        {#if !$shellStore.sidebarCollapsed}
+          <span class="label">Search</span>
+          <kbd class="kbd-hint">⌘K</kbd>
+        {/if}
+      </button>
     </nav>
 
     {#if !$shellStore.sidebarCollapsed}
@@ -204,40 +194,19 @@
       <button class="account" aria-label="Profile" on:click={() => goto('/profile')}>
         <span>M</span>
       </button>
+      <button
+        class="theme-toggle"
+        aria-label={$shellStore.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={$shellStore.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        on:click={() => shellStore.toggleTheme()}
+      >
+        <Icon name={$shellStore.theme === 'dark' ? 'sun' : 'moon'} size={16} />
+      </button>
     </div>
   </div>
 </aside>
 
-{#if searchDialogOpen}
-  <div
-    class="search-overlay"
-    role="dialog"
-    tabindex="-1"
-    aria-modal="true"
-    aria-label={workspaceMode === 'agent' ? 'Search chats' : 'Search orchestrations'}
-    on:click={(event) => {
-      if (event.currentTarget === event.target) cancelSearchDialog();
-    }}
-    on:keydown={(event) => {
-      if (event.key === 'Escape') cancelSearchDialog();
-    }}
-  >
-    <div class="search-dialog card">
-      <p class="search-title">{workspaceMode === 'agent' ? 'Search chats' : 'Search orchestrations'}</p>
-      <input
-        class="search-input"
-        bind:this={searchInputEl}
-        bind:value={searchDraft}
-        placeholder={workspaceMode === 'agent' ? 'Find a chat...' : 'Find an orchestration...'}
-        on:keydown={onSearchInputKeyDown}
-      />
-      <div class="search-actions">
-        <button class="pill ghost" type="button" on:click={cancelSearchDialog}>Cancel</button>
-        <button class="pill confirm" type="button" on:click={applySearchDialog}>Apply</button>
-      </div>
-    </div>
-  </div>
-{/if}
+<CommandPalette bind:open={commandPaletteOpen} onClose={() => { commandPaletteOpen = false; }} />
 
 <style>
   .sidebar {
@@ -309,7 +278,7 @@
     align-items: center;
     gap: 14px;
     border-color: transparent;
-    background: rgba(255, 255, 255, 0.75);
+    background: var(--btn-secondary-bg);
     cursor: pointer;
     transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
   }
@@ -317,12 +286,12 @@
   .item:hover {
     transform: translateY(-1px);
     border-color: var(--border);
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--panel);
   }
 
   .item.active {
     border-color: rgba(232, 116, 12, 0.48);
-    background: linear-gradient(145deg, rgba(255, 237, 215, 0.95), rgba(255, 255, 255, 0.95));
+    background: var(--accent-soft);
     color: var(--ink);
   }
 
@@ -334,7 +303,7 @@
   }
 
   .label {
-    font-size: 1.05rem;
+    font-size: 14px;
     letter-spacing: 0.01em;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -377,7 +346,7 @@
     gap: 9px;
     border: 1px solid var(--border);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.75);
+    background: var(--btn-secondary-bg);
     color: var(--fg);
     padding: 10px 12px;
     text-align: left;
@@ -387,7 +356,7 @@
   .history-item:hover,
   .history-item.active {
     border-color: rgba(232, 116, 12, 0.42);
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--panel);
   }
 
   .history-item span {
@@ -400,7 +369,7 @@
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.75);
+    background: var(--btn-secondary-bg);
     color: var(--fg);
     padding: 10px 12px;
     text-align: left;
@@ -412,7 +381,7 @@
   .orch-item:hover,
   .orch-item.active {
     border-color: rgba(232, 116, 12, 0.45);
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--panel);
   }
 
   .orch-row {
@@ -445,29 +414,11 @@
     border: 1px solid transparent;
   }
 
-  .status-green {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.14);
-    border-color: rgba(16, 185, 129, 0.3);
-  }
-
-  .status-orange {
-    color: #fb923c;
-    background: rgba(251, 146, 60, 0.14);
-    border-color: rgba(251, 146, 60, 0.3);
-  }
-
-  .status-red {
-    color: #fb7185;
-    background: rgba(251, 113, 133, 0.14);
-    border-color: rgba(251, 113, 133, 0.3);
-  }
-
-  .status-zinc {
-    color: var(--muted);
-    background: rgba(107, 107, 107, 0.1);
-    border-color: rgba(107, 107, 107, 0.22);
-  }
+  .status-green { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
+  .status-info { color: var(--info); background: var(--info-soft); border-color: var(--info-border); }
+  .status-caution { color: var(--caution); background: var(--caution-soft); border-color: var(--caution-border); }
+  .status-red { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
+  .status-zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.18); }
 
   .empty {
     margin: 0;
@@ -481,72 +432,52 @@
   .footer {
     margin-top: auto;
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
+    align-items: center;
   }
 
-  .search-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    background: rgba(0, 0, 0, 0.18);
-    backdrop-filter: blur(4px);
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--glass);
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
     display: grid;
     place-items: center;
-    padding: 18px;
+    padding: 0;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
   }
 
-  .search-dialog {
-    width: min(520px, 100%);
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    box-shadow: var(--shadow-strong);
-    padding: 14px;
-    display: grid;
-    gap: 12px;
-  }
-
-  .search-title {
-    margin: 0;
-    font-size: 14px;
-    color: var(--ink);
-    font-weight: 600;
-  }
-
-  .search-input {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--bg-soft);
-    color: var(--ink);
-    padding: 10px 12px;
-    outline: none;
-    font-size: 15px;
-  }
-
-  .search-input:focus {
+  .theme-toggle:hover {
     border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent-soft);
-  }
-
-  .search-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-
-  .search-actions .ghost {
-    border-color: var(--border);
-    background: rgba(255, 255, 255, 0.75);
-    cursor: pointer;
-    padding: 7px 11px;
-  }
-
-  .search-actions .confirm {
-    border-color: rgba(232, 116, 12, 0.5);
+    color: var(--accent);
     background: var(--accent-soft);
-    cursor: pointer;
-    padding: 7px 11px;
+  }
+
+  .cmd-k {
+    border-style: dashed;
+    border-color: var(--border);
+    background: transparent;
+  }
+
+  .cmd-k:hover {
+    border-style: solid;
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+
+  .kbd-hint {
+    margin-left: auto;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    color: var(--muted);
+    font-size: 10px;
+    font-family: var(--font-mono, monospace);
   }
 
   .account {

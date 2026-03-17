@@ -1,6 +1,8 @@
 <script>
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { chatStore } from '@/lib/stores/chat-store';
+  import { toastStore } from '@/lib/stores/toast-store';
   import Icon from '@/lib/components/icons/Icon.svelte';
   import SelectorPill from '@/lib/components/ui/SelectorPill.svelte';
   import ModelSelectorPill from '@/lib/components/ui/ModelSelectorPill.svelte';
@@ -30,6 +32,45 @@
   $: showModelSelector = !isOrchestration && !$chatStore.selectedAgentId;
   $: currentMessages = isOrchestration ? ($chatStore.orchestrationConversation || []) : ($chatStore.messages || []);
   $: showCenteredComposer = currentMessages.length === 0 && !$chatStore.streaming;
+  $: isStreaming = $chatStore.streaming || $chatStore.busy;
+  $: hasAgents = ($chatStore.agents || []).length > 0;
+
+  const quickPrompts = [
+    'Give me a firewall status update',
+    'What should we do to reduce risk?',
+    'Show me recent agent activity',
+    'Which traces were blocked today?',
+  ];
+
+  function agentDisplayName() {
+    if ($chatStore.selectedAgent) return $chatStore.selectedAgent.name || 'Agent';
+    return 'Mayple';
+  }
+
+  function roleName(role) {
+    if (role === 'user') return 'You';
+    return agentDisplayName();
+  }
+
+  function roleInitial(role) {
+    if (role === 'user') return 'U';
+    return agentDisplayName().charAt(0).toUpperCase();
+  }
+
+  function formatTime(timestamp) {
+    if (!timestamp) return '';
+    try {
+      return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch { return ''; }
+  }
+
+  let copiedId = '';
+  function copyMessage(text, id) {
+    navigator.clipboard?.writeText(text || '');
+    copiedId = id;
+    toastStore.info('Copied to clipboard');
+    setTimeout(() => { copiedId = ''; }, 1500);
+  }
 
   $: if (scrollContainer && currentMessages.length > 0) {
     scrollContainer.scrollTop = scrollContainer.scrollHeight;
@@ -101,12 +142,29 @@
     <div class="stream">
       {#if showCenteredComposer}
         <div class="empty-state">
-          <h2>{isOrchestration ? 'Start orchestration conversation' : 'How can Mayple help today?'}</h2>
+          <div class="empty-icon"><Icon name="spark" size={36} /></div>
+          <h2>{isOrchestration ? 'Start orchestration' : 'How can Mayple help?'}</h2>
           <p>
             {isOrchestration
-              ? 'Define objective, success criteria, and reassignment instructions.'
-              : 'Start a conversation. Messages route through the selected target.'}
+              ? 'Define an objective, assign agents, and let Mayple coordinate.'
+              : 'Ask a question, run a command, or explore your agent stack.'}
           </p>
+          {#if !isOrchestration && !hasAgents}
+            <div class="first-time-cta">
+              <p class="cta-hint">Get started by creating your first agent</p>
+              <button class="pill cta-btn" on:click={() => goto('/orchestrate')}>
+                Open Builder →
+              </button>
+            </div>
+          {:else if !isOrchestration}
+            <div class="quick-prompts">
+              {#each quickPrompts as prompt}
+                <button class="quick-prompt" on:click={() => { message = prompt; submit(); }}>
+                  {prompt}
+                </button>
+              {/each}
+            </div>
+          {/if}
           <div class="floating-wrap">
             <div class="composer-shell floating">
               <textarea
@@ -115,36 +173,59 @@
                 bind:value={message}
                 on:keydown={onKeyDown}
                 placeholder={isOrchestration
-                  ? 'Describe the objective, assign timed tasks, or update constraints...'
+                  ? 'Describe the objective...'
                   : 'Send a message...'}
               ></textarea>
-              <button type="button" class="send" on:click={submit} disabled={$chatStore.streaming || $chatStore.busy} aria-label="Send"><Icon name="send" size={17} /></button>
+              <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send"><Icon name="send" size={17} /></button>
             </div>
           </div>
         </div>
       {/if}
 
-      {#if isOrchestration}
-        {#each $chatStore.orchestrationConversation as item}
-          <article class="bubble" class:user={item.role === 'user'}>
-            <strong>{item.role}</strong>
-            <p>{item.text || item.content}</p>
-          </article>
-        {/each}
-      {:else}
-        {#each $chatStore.messages as item}
-          <article class="bubble" class:user={item.role === 'user'}>
-            <strong>{item.role}</strong>
-            <p>{item.content || item.text}</p>
-          </article>
-        {/each}
+      {#each currentMessages as item, idx}
+        {@const text = item.content || item.text || ''}
+        {@const msgId = 'msg-' + idx}
+        <article class="bubble" class:user={item.role === 'user'} class:assistant={item.role !== 'user'}>
+          <div class="bubble-header">
+            <span class="avatar" class:avatar-user={item.role === 'user'} class:avatar-agent={item.role !== 'user'}>
+              {roleInitial(item.role)}
+            </span>
+            <span class="bubble-name">{roleName(item.role)}</span>
+            {#if item.timestamp || item.createdAt}
+              <span class="bubble-time">{formatTime(item.timestamp || item.createdAt)}</span>
+            {/if}
+          </div>
+          <div class="bubble-body">
+            <p>{text}</p>
+          </div>
+          <div class="bubble-actions">
+            <button class="action-btn" title="Copy" aria-label="Copy message" on:click={() => copyMessage(text, msgId)}>
+              <Icon name={copiedId === msgId ? 'check' : 'copy'} size={13} />
+            </button>
+          </div>
+        </article>
+      {/each}
+
+      {#if isStreaming}
+        <div class="typing-indicator">
+          <span class="avatar avatar-agent">{agentDisplayName().charAt(0)}</span>
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
       {/if}
 
       {#if $chatStore.runError && !isOrchestration}
-        <div class="error">{$chatStore.runError}</div>
+        <div class="error">
+          <span class="error-icon"><Icon name="alert" size={15} /></span>
+          <span>{$chatStore.runError}</span>
+        </div>
       {/if}
       {#if $chatStore.orchestrationError && isOrchestration}
-        <div class="error">{$chatStore.orchestrationError}</div>
+        <div class="error">
+          <span class="error-icon"><Icon name="alert" size={15} /></span>
+          <span>{$chatStore.orchestrationError}</span>
+        </div>
       {/if}
     </div>
   </div>
@@ -215,45 +296,223 @@
     margin: auto 0;
     text-align: center;
     color: var(--muted);
-    padding: 22px 16px;
+    padding: 32px 16px;
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+  }
+
+  .empty-icon {
+    font-size: 40px;
+    opacity: 0.7;
+    margin-bottom: 4px;
   }
 
   .empty-state h2 {
     margin: 0;
     color: var(--fg);
-    font-size: 1.65rem;
-    font-weight: 560;
+    font-size: 1.5rem;
+    font-weight: 600;
   }
 
   .empty-state p {
-    margin: 8px 0 0;
-    font-size: 1rem;
+    margin: 0;
+    font-size: 0.92rem;
+    max-width: 380px;
+  }
+
+  .quick-prompts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+    max-width: 480px;
+  }
+
+  .quick-prompt {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--btn-secondary-bg);
+    color: var(--fg);
+    padding: 10px 12px;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .quick-prompt:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .first-time-cta {
+    margin-top: 16px;
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+  }
+
+  .cta-hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .cta-btn {
+    padding: 10px 20px;
+    border-color: rgba(232, 116, 12, 0.5);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .cta-btn:hover {
+    background: rgba(232, 116, 12, 0.2);
   }
 
   .floating-wrap {
     margin-top: 16px;
+    width: 100%;
   }
 
+  /* Messages */
   .bubble {
     max-width: 760px;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.88);
-    padding: 12px 15px;
+    background: var(--bg-elevated);
+    padding: 10px 14px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    animation: msg-in 0.25s ease-out both;
+  }
+
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .bubble.user {
     align-self: flex-end;
     border-color: rgba(232, 116, 12, 0.28);
-    background: rgba(232, 116, 12, 0.14);
+    background: rgba(232, 116, 12, 0.10);
   }
 
-  .bubble p {
-    margin: 6px 0 0;
-    line-height: 1.45;
+  .bubble-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .avatar-user {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid rgba(232, 116, 12, 0.25);
+  }
+
+  .avatar-agent {
+    background: rgba(57, 163, 111, 0.12);
+    color: #39a36f;
+    border: 1px solid rgba(57, 163, 111, 0.25);
+  }
+
+  .bubble-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .bubble-time {
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  .bubble-body p {
+    margin: 0;
+    line-height: 1.5;
     white-space: pre-wrap;
+    font-size: 14px;
   }
 
+  .bubble-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .bubble:hover .bubble-actions {
+    opacity: 1;
+  }
+
+  .action-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+
+  .action-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Typing indicator */
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+
+  .typing-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .typing-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--muted);
+    animation: typing-bounce 1.2s ease-in-out infinite;
+  }
+
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* Error */
   .error {
     border: 1px solid rgba(207, 94, 94, 0.35);
     border-radius: 10px;
@@ -261,6 +520,14 @@
     padding: 10px 12px;
     color: var(--warn);
     font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .error-icon {
+    font-size: 15px;
+    flex-shrink: 0;
   }
 
   .composer-wrap {
@@ -273,7 +540,7 @@
     margin: 0 auto;
     border: 1px solid var(--border);
     border-radius: 22px;
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--bg-elevated);
     display: flex;
     gap: 8px;
     align-items: flex-end;

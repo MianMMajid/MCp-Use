@@ -1,6 +1,7 @@
 <script>
   import { goto } from '$app/navigation';
   import { postJson, invalidateCache } from '@/lib/api';
+  import Icon from '@/lib/components/icons/Icon.svelte';
 
   export let agents = [];
   export let nodes = [];
@@ -58,8 +59,8 @@
   <div class="head">
     <div class="head-row">
       <h3>Agents</h3>
-      <button class="add-btn" title="Create new agent" on:click={() => { createOpen = !createOpen; createError = ''; }}>
-        {createOpen ? '✕' : '+'}
+      <button class="add-btn" title="Create new agent" aria-label={createOpen ? 'Close form' : 'Create new agent'} on:click={() => { createOpen = !createOpen; createError = ''; }}>
+        <Icon name={createOpen ? 'close' : 'plus'} size={14} />
       </button>
     </div>
     <input bind:value={search} placeholder="Search..." />
@@ -85,14 +86,14 @@
       {@const id = agent.agentId || agent.id}
       <div class="item" draggable="true" on:dragstart={(event) => onDragStart(event, id)}>
         <div class="meta">
-          <p><span class="drag">⋮⋮</span>{agent.name || id}</p>
+          <p><span class="drag"><Icon name="grip" size={12} /></span>{agent.name || id}</p>
           <span>{agent.status || 'unknown'}</span>
         </div>
         <div class="item-actions">
           {#if onCanvasIds.has(id)}
             <small class="on-canvas">on canvas</small>
           {/if}
-          <button class="config-link" title="Configure agent" on:click|stopPropagation={() => goto('/agents/' + id)}>cfg</button>
+          <button class="config-link" title="Configure agent" aria-label="Configure agent" on:click|stopPropagation={() => goto('/agents/' + id)}><Icon name="settings" size={12} /></button>
         </div>
       </div>
     {/each}
@@ -142,9 +143,9 @@
   .meta { display: flex; justify-content: space-between; gap: 4px; align-items: center; }
   .meta p { margin: 0; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
   .drag { color: var(--muted); font-size: 10px; letter-spacing: -1px; }
-  .meta span { font-size: 9px; color: var(--muted); }
+  .meta span { font-size: 10px; color: var(--muted); }
   .item-actions { display: flex; justify-content: space-between; align-items: center; }
-  .on-canvas { color: #10b981; font-size: 9px; }
+  .on-canvas { color: var(--ok); font-size: 10px; }
   .config-link { border: 0; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
   .config-link:hover { color: var(--accent); background: var(--accent-soft); }
 

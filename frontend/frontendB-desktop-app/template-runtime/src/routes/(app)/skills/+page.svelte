@@ -351,7 +351,7 @@
     line-height: 1.5;
   }
   .mono, .muted { color: var(--muted); }
-  .ok { color: #86efac; }
+  .ok { color: var(--ok); }
   .err { color: var(--warn); }
   .result { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--row-bg); }
   .proof { border: 1px solid rgba(249,115,22,.22); }

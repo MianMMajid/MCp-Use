@@ -1,6 +1,7 @@
 <script>
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import Icon from '@/lib/components/icons/Icon.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
   import { postJson, invalidateCache } from '@/lib/api';
   import { statusColor } from '@/lib/format';
@@ -34,7 +35,8 @@
     const color = statusColor(value);
     if (color === 'green') return 'badge green';
     if (color === 'red') return 'badge red';
-    if (color === 'orange') return 'badge orange';
+    if (color === 'sky') return 'badge info';
+    if (color === 'caution' || color === 'orange') return 'badge caution';
     return 'badge zinc';
   }
 
@@ -106,7 +108,7 @@
     {#if activeTab === 'orchestrations'}
       <div class="section-header">
         <div class="search-bar card">
-          <span class="search-icon">⌕</span>
+          <span class="search-icon"><Icon name="search" size={16} /></span>
           <input bind:value={orchSearch} placeholder="Search orchestrations..." />
         </div>
         <button class="pill cta" on:click={createOrchestration} disabled={creatingOrch}>
@@ -117,7 +119,7 @@
       <div class="orch-list">
         {#if filteredOrch.length === 0}
           <div class="card empty-state">
-            <div class="empty-icon">⚡</div>
+            <div class="empty-icon"><Icon name="orchestration" size={32} /></div>
             <h3>No orchestrations yet</h3>
             <p>Create your first multi-agent workflow to get started.</p>
             <button class="pill cta" on:click={createOrchestration} disabled={creatingOrch}>
@@ -135,7 +137,7 @@
               </div>
               <div class="orch-meta">
                 <span class={badgeClass(item.status)}>{item.status || 'draft'}</span>
-                <span class="arrow">→</span>
+                <span class="arrow"><Icon name="chevron" size={14} /></span>
               </div>
             </button>
           {/each}
@@ -146,7 +148,7 @@
     {#if activeTab === 'agents'}
       <div class="section-header">
         <div class="search-bar card">
-          <span class="search-icon">⌕</span>
+          <span class="search-icon"><Icon name="search" size={16} /></span>
           <input bind:value={agentSearch} placeholder="Search agents..." />
         </div>
         <button class="pill cta" on:click={createAgent} disabled={creatingAgent}>
@@ -157,7 +159,7 @@
       <div class="agent-grid">
         {#if filteredAgents.length === 0}
           <div class="card empty-state wide">
-            <div class="empty-icon">🤖</div>
+            <div class="empty-icon"><Icon name="agent" size={32} /></div>
             <h3>No agents yet</h3>
             <p>Create your first agent to use in orchestrations.</p>
             <button class="pill cta" on:click={createAgent} disabled={creatingAgent}>
@@ -208,7 +210,7 @@
   .tab { flex: 1; padding: 10px; border: 0; background: var(--glass); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .tab:not(:last-child) { border-right: 1px solid var(--border); }
   .tab.active { background: var(--accent-soft); color: var(--accent); }
-  .tab:hover:not(.active) { background: rgba(255, 255, 255, 0.95); }
+  .tab:hover:not(.active) { background: var(--panel); }
 
   /* Section header */
   .section-header { display: flex; gap: 8px; align-items: center; }
@@ -242,10 +244,11 @@
 
   /* Status badges */
   .badge { border-radius: 999px; padding: 2px 8px; font-size: 10px; border: 1px solid transparent; text-transform: lowercase; }
-  .green { color: #10b981; background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3); }
-  .red { color: var(--warn); background: rgba(207, 94, 94, 0.12); border-color: rgba(207, 94, 94, 0.3); }
-  .orange { color: var(--accent); background: var(--accent-soft); border-color: rgba(232, 116, 12, 0.3); }
-  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.2); }
+  .green { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
+  .red { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-border); }
+  .info { color: var(--info); background: var(--info-soft); border-color: var(--info-border); }
+  .caution { color: var(--caution); background: var(--caution-soft); border-color: var(--caution-border); }
+  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.18); }
 
   /* Empty states */
   .empty-state { grid-column: 1 / -1; padding: 32px 20px; text-align: center; display: grid; gap: 8px; justify-items: center; }

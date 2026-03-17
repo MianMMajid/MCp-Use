@@ -252,7 +252,7 @@
   li { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
   .danger { border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); }
   .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid rgba(249,115,22,.5); border-radius: 12px; background: rgba(249,115,22,.12); }
-  .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #fb923c; }
+  .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--caution); }
   .secret-row { display: flex; gap: 8px; align-items: center; }
   .secret-value { flex: 1; font-size: 12px; color: #fdba74; word-break: break-all; background: rgba(0,0,0,.3); padding: 8px; border-radius: 8px; }
 </style>

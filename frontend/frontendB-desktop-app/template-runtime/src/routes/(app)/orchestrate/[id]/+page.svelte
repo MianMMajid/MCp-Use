@@ -3,7 +3,9 @@
   import { onDestroy, onMount } from 'svelte';
   import { SvelteFlow, Background, Controls, addEdge, MarkerType } from '@xyflow/svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import Icon from '@/lib/components/icons/Icon.svelte';
   import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
+  import { toastStore } from '@/lib/stores/toast-store';
   import { chatStore } from '@/lib/stores/chat-store';
   import AgentPalette from '@/lib/components/orchestration/agent-palette.svelte';
   import NodeConfigPanel from '@/lib/components/orchestration/node-config-panel.svelte';
@@ -379,8 +381,10 @@
       orchestration = await response.json().catch(() => orchestration);
       invalidateCache('/api/orchestrations');
       hasUnsavedChanges = false;
+      toastStore.success('Orchestration saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      toastStore.error('Failed to save');
     } finally {
       saving = false;
     }
@@ -583,6 +587,7 @@
   <section class="page">
     <header class="head card">
       <div class="title-wrap">
+        <button class="pill back-btn" on:click={() => goto('/orchestrate')} title="Back to Builder" aria-label="Back to Builder"><Icon name="arrow-left" size={16} /></button>
         <h1>Orchestration Builder</h1>
         <label class="name-field">
           <span>name</span>
@@ -610,7 +615,7 @@
           <button class="pill" on:click={pause} disabled={runtimeBusy || !currentExecutionId}>Pause</button>
           <button class="pill" on:click={resume} disabled={runtimeBusy || !currentExecutionId}>Resume</button>
           <button class="pill danger" on:click={cancel} disabled={runtimeBusy || !currentExecutionId}>Cancel</button>
-          <button class="pill" on:click={mutateAddNode} disabled={runtimeBusy || !currentExecutionId}>Mutate +Node</button>
+          <button class="pill" on:click={mutateAddNode} disabled={runtimeBusy || !currentExecutionId}>Add Node</button>
           <span class="status">{runtimeStatus}{#if runtimeLoop} · {runtimeLoop.phase}#{runtimeLoop.iteration}{/if}</span>
         </div>
 
@@ -701,7 +706,8 @@
   .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; align-content: start; }
   .page { grid-template-rows: auto 1fr; }
   .head { padding: 12px; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
-  .title-wrap { min-width: 0; display: grid; gap: 6px; }
+  .title-wrap { min-width: 0; display: flex; align-items: center; gap: 8px; }
+  .back-btn { padding: 4px 10px; cursor: pointer; font-size: 16px; border-color: var(--border); background: var(--btn-secondary-bg); }
   h1 { margin: 0; font-size: 1.2rem; }
   .name-field { display: grid; gap: 4px; max-width: 420px; }
   .name-field span { color: var(--muted); font-size: 11px; text-transform: lowercase; }
