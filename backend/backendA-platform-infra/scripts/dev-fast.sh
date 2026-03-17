@@ -94,10 +94,6 @@ configure_openclaw_default_model() {
 
 is_port_open() {
   local port="$1"
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
-    return
-  fi
   nc -z 127.0.0.1 "${port}" >/dev/null 2>&1
 }
 

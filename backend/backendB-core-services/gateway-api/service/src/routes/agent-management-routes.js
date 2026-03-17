@@ -3,6 +3,7 @@ import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { runOpenClawTurn, runOpenClawLongform, listSessionsForAgent } from "../core/openclaw-agent-runtime.js";
+import { runNativeAgentTurn, agentRequiresNativeRuntime } from "../core/native-agent-runtime.js";
 
 function resolveOpenClawTargetFromAgent(agent) {
     const config = agent && typeof agent.config === "object" ? agent.config : {};
@@ -191,7 +192,21 @@ export function registerAgentManagementRoutes(app) {
 
         try {
             let result;
-            if (mode === "longform" && objective) {
+
+            // Use native runtime for agents with MCP tools, OpenClaw for plain agents
+            if (agentRequiresNativeRuntime(agent)) {
+                const equippedToolIds = agent.config?.toolbelt?.equippedToolIds || agent.capabilities || [];
+                result = await runNativeAgentTurn({
+                    message: message || objective,
+                    sessionId: body.sessionId || `agent-${agentId}`,
+                    agentId,
+                    tools: equippedToolIds,
+                    agentName: agent.name,
+                    agentDescription: agent.description,
+                    parentRunId,
+                    timeoutSeconds: body.timeoutSeconds || 120,
+                });
+            } else if (mode === "longform" && objective) {
                 result = await runOpenClawLongform({
                     objective,
                     sessionId: body.sessionId,

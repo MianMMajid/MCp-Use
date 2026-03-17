@@ -519,6 +519,10 @@ export function buildOpenClawAgentArgs(options = {}) {
     args.push("--thinking", thinking);
   }
   args.push("--timeout", String(timeoutSeconds));
+  // Pass equipped tools as --allowlist so the agent only sees its assigned tools
+  if (Array.isArray(options.tools) && options.tools.length > 0) {
+    args.push("--allowlist", options.tools.join(","));
+  }
   if (asString(options.message)) {
     args.push("--message", String(options.message));
   }

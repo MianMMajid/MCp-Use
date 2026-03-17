@@ -5,6 +5,7 @@ import { createApp } from "./app.js";
 import { gatewayPort, gatewayHost, gatewayTlsCaPath, gatewayTlsCertPath, gatewayTlsKeyPath, } from "./config.js";
 import { mapleLog } from "./logging.js";
 import { buildRuntimeStatus, server } from "./state.js";
+import { bootstrapMcpDownstreamApps } from "./core/native-agent-runtime.js";
 const disableTls = (process.env.MAPLE_DISABLE_TLS || "").toLowerCase() === "true";
 const behindTrustedProxy = (process.env.MAPLE_BEHIND_TRUSTED_PROXY || "").toLowerCase() === "true";
 if (disableTls && process.env.NODE_ENV === "production" && !behindTrustedProxy) {
@@ -69,6 +70,8 @@ async function main() {
     await server.getHandler();
     appReady = true;
     mapleLog("info", "gateway_api.ready", { message: "All routes registered, accepting traffic" });
+    // Restore MCP downstream apps from database so installed skills survive restarts
+    bootstrapMcpDownstreamApps().catch(() => {});
     const runtimeStatus = buildRuntimeStatus();
     mapleLog("info", "gateway_api.runtime_status", {
         routeMode: runtimeStatus.routeMode,
