@@ -13,10 +13,8 @@
   $: activeIndex = Math.max(categories.findIndex((c) => c.id === activeCategory), 0)
   $: hasActive = categories.some((c) => c.id === activeCategory)
 
-  // Measure the active pill's position on every change
-  $: if (trackEl && hasActive) {
-    tick().then(measureActivePill)
-  }
+  // Re-measure whenever the active category changes
+  $: activeCategory, activeIndex, tick().then(() => measureActivePill())
 
   function measureActivePill() {
     if (!trackEl) return
