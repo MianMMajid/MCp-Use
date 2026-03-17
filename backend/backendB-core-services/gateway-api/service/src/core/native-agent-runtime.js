@@ -580,20 +580,17 @@ export async function runNativeAgentTurn(options = {}) {
 }
 
 /**
- * Check if an agent has MCP tools that require the native runtime.
+ * Check if an agent should use the native runtime.
+ * Default: true (native handles everything — LLM calls, MCP tools, works on Railway).
+ * Only returns false if the agent explicitly opts into OpenClaw (local dev power users).
  */
 export function agentRequiresNativeRuntime(agent) {
-  if (!agent) return false;
-  const toolIds = agent.config?.toolbelt?.equippedToolIds || agent.capabilities || [];
-  if (!Array.isArray(toolIds) || toolIds.length === 0) return false;
-
-  for (const toolId of toolIds) {
-    const appId = `mcp-registry:${toolId}`;
-    if (downstreamAppRegistry.has(appId) || downstreamAppRegistry.has(toolId)) {
-      return true;
-    }
-  }
-  return false;
+  if (!agent) return true; // No agent record → use native (safer default)
+  const config = agent.config || {};
+  // Explicit OpenClaw opt-in: agent has a configured OpenClaw agent ID
+  if (config.useOpenClaw === true) return false;
+  if (config.openclawAgentId || config.targetAgentId || config.runtimeAgentId) return false;
+  return true;
 }
 
 /**
