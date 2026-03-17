@@ -20,6 +20,8 @@
     flex: 1;
     min-height: 0;
     padding: 12px;
-    padding-bottom: 68px; /* Space for floating bottom nav */
+    /* Extra bottom padding for floating dock — safe for all positions
+       since dock at top/left/right only needs 44px + 12px margin */
+    padding-bottom: 68px;
   }
 </style>
