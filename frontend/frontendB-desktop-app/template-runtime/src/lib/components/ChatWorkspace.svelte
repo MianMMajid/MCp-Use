@@ -107,41 +107,6 @@
 </script>
 
 <section class="workspace">
-  <header class="topbar">
-    <div class="topbar-left">
-      {#if showModelSelector}
-        <ModelSelectorPill />
-      {/if}
-      <SelectorPill
-        label="Agent Selector"
-        icon="agent"
-        value={$chatStore.selectedAgentId}
-        options={agentOptionsWithNone}
-        on:change={(e) => chatStore.selectAgent(e.detail)}
-      />
-      <SelectorPill
-        label="Orchestration Selector"
-        icon="orchestration"
-        value={$chatStore.selectedOrchestrationId}
-        options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
-        on:change={(e) => chatStore.selectOrchestration(e.detail)}
-      />
-    </div>
-
-    <div class="topbar-right">
-      <SelectorPill
-        label="Route"
-        icon="chat"
-        value={$chatStore.chatTarget}
-        options={routeOptions}
-        on:change={(e) => chatStore.setChatTarget(e.detail)}
-      />
-      <button class="profile-btn" aria-label="Profile" on:click={() => goto('/profile')}>
-        <Icon name="agent" size={16} />
-      </button>
-    </div>
-  </header>
-
   <div class="messages" bind:this={scrollContainer} on:scroll={onScroll}>
     <div class="stream">
       {#if showCenteredComposer}
@@ -155,6 +120,38 @@
               ? 'Define an objective, assign agents, and let Mayple coordinate.'
               : 'Ask a question, run a command, or explore your agent stack.'}
           </p>
+
+          <!-- Selectors — centered in empty state -->
+          <div class="selector-row">
+            {#if showModelSelector}
+              <ModelSelectorPill />
+            {/if}
+            {#if isOrchestration}
+              <SelectorPill
+                label="Orchestration"
+                icon="orchestration"
+                value={$chatStore.selectedOrchestrationId}
+                options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
+                on:change={(e) => chatStore.selectOrchestration(e.detail)}
+              />
+            {:else}
+              <SelectorPill
+                label="Agent"
+                icon="agent"
+                value={$chatStore.selectedAgentId}
+                options={agentOptionsWithNone}
+                on:change={(e) => chatStore.selectAgent(e.detail)}
+              />
+            {/if}
+            <SelectorPill
+              label="Mode"
+              icon="chat"
+              value={$chatStore.chatTarget}
+              options={routeOptions}
+              on:change={(e) => chatStore.setChatTarget(e.detail)}
+            />
+          </div>
+
           {#if !isOrchestration && !hasAgents}
             <div class="first-time-cta">
               <p class="cta-hint">Get started by creating your first agent</p>
@@ -163,6 +160,37 @@
               </button>
             </div>
           {/if}
+        </div>
+      {:else}
+        <!-- Selectors — compact row at top of message stream -->
+        <div class="stream-selectors">
+          {#if showModelSelector}
+            <ModelSelectorPill />
+          {/if}
+          {#if isOrchestration}
+            <SelectorPill
+              label="Orchestration"
+              icon="orchestration"
+              value={$chatStore.selectedOrchestrationId}
+              options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
+              on:change={(e) => chatStore.selectOrchestration(e.detail)}
+            />
+          {:else}
+            <SelectorPill
+              label="Agent"
+              icon="agent"
+              value={$chatStore.selectedAgentId}
+              options={agentOptionsWithNone}
+              on:change={(e) => chatStore.selectAgent(e.detail)}
+            />
+          {/if}
+          <SelectorPill
+            label="Mode"
+            icon="chat"
+            value={$chatStore.chatTarget}
+            options={routeOptions}
+            on:change={(e) => chatStore.setChatTarget(e.detail)}
+          />
         </div>
       {/if}
 
@@ -252,49 +280,34 @@
   .workspace {
     height: calc(100svh - 92px);
     display: grid;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: 1fr auto;
     overflow: hidden;
-  }
-
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
-    min-height: 48px;
-  }
-
-  .topbar-left,
-  .topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
   }
 
   .messages {
     overflow: auto;
-    padding: 12px 16px;
+    padding: 16px 16px 8px;
   }
 
-  .profile-btn {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--btn-secondary-bg);
-    color: var(--muted);
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    transition: border-color 0.15s, color 0.15s;
+  /* ── Selector rows ── */
+  .selector-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    margin-bottom: 4px;
   }
 
-  .profile-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+  .stream-selectors {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 0 4px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
   }
 
   .stream {
@@ -458,16 +471,10 @@
     color: var(--accent);
   }
 
-  @media (max-width: 1140px) {
-    .topbar {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 8px;
-    }
-
-    .topbar-left,
-    .topbar-right {
-      flex-wrap: wrap;
+  @media (max-width: 480px) {
+    .selector-row,
+    .stream-selectors {
+      gap: 6px;
     }
   }
 
