@@ -8,6 +8,7 @@ export const MAPLE_WORKSPACE_PATH_PREFIX = '/maple'
 export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
 
 export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
+  { id: 'chat', label: 'Chat', description: 'Monitoring agent conversation and live recommendations.' },
   { id: 'observe', label: 'Monitor', description: 'Live telemetry and runtime snapshots.' },
   { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
   { id: 'admin', label: 'System', description: 'Identity, integrations, and account operations.' },
