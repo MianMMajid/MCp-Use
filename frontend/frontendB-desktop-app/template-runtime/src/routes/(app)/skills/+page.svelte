@@ -319,10 +319,10 @@
   .filters, .import-grid, .action-group, .skill-meta, .tags { display: flex; gap: 8px; flex-wrap: wrap; }
   .import-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-  .skill { border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 12px; background: rgba(17,24,39,.5); display: grid; gap: 10px; }
+  .skill { border: 1px solid var(--row-border); border-radius: 14px; padding: 12px; background: var(--row-bg); display: grid; gap: 10px; }
   .stack { display: grid; gap: 6px; margin-top: 12px; }
   label span { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-  .tag, .pill { padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(20,24,32,.72); color: var(--fg); font-size: 12px; }
+  .tag, .pill { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--fg); font-size: 12px; }
   .source.registry { border-color: rgba(34,197,94,.32); background: rgba(34,197,94,.12); }
   .source.cli { border-color: rgba(56,189,248,.32); background: rgba(56,189,248,.12); }
   .cta { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); cursor: pointer; }
@@ -330,9 +330,9 @@
   .subtle { cursor: pointer; }
   input, select, textarea {
     width: 100%;
-    border: 1px solid rgba(255,255,255,.14);
+    border: 1px solid var(--input-border);
     border-radius: 12px;
-    background: rgba(20,24,32,.72);
+    background: var(--input-bg);
     color: var(--fg);
     padding: 9px 11px;
     outline: none;
@@ -345,15 +345,15 @@
     padding: 10px;
     border-radius: 12px;
     overflow: auto;
-    background: rgba(15,23,42,.9);
-    color: #cbd5e1;
+    background: var(--pre-bg);
+    color: var(--muted);
     font-size: 12px;
     line-height: 1.5;
   }
   .mono, .muted { color: var(--muted); }
   .ok { color: #86efac; }
-  .err { color: #fecdd3; }
-  .result { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(15,23,42,.55); }
+  .err { color: var(--warn); }
+  .result { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: var(--row-bg); }
   .proof { border: 1px solid rgba(249,115,22,.22); }
   .actions { align-items: flex-start; }
 

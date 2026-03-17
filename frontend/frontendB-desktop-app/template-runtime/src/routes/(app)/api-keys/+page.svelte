@@ -120,19 +120,19 @@
   .create { display: flex; gap: 8px; }
   input {
     flex: 1;
-    border: 1px solid rgba(255,255,255,.14);
+    border: 1px solid var(--input-border);
     border-radius: 12px;
-    background: rgba(20,24,32,.72);
+    background: var(--input-bg);
     color: var(--fg);
     padding: 9px 11px;
     outline: none;
   }
   .create button { padding: 8px 12px; border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); cursor: pointer; }
   .msg { margin: 10px 0 0; color: #6ee7b7; font-size: 13px; }
-  .err { margin: 10px 0 0; color: #fecdd3; font-size: 13px; }
+  .err { margin: 10px 0 0; color: var(--warn); font-size: 13px; }
   .muted { margin: 0; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--row-border); font-size: 13px; }
   code { font-size: 12px; color: var(--muted); }
   .danger { padding: 6px 10px; border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); cursor: pointer; }
   .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid rgba(249,115,22,.5); border-radius: 12px; background: rgba(249,115,22,.12); }

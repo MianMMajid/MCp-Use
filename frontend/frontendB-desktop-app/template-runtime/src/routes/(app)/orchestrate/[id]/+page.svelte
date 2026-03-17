@@ -659,36 +659,36 @@
   .name-field span { color: var(--muted); font-size: 11px; text-transform: lowercase; }
   .name-field input {
     width: 100%;
-    border: 1px solid rgba(255,255,255,.14);
+    border: 1px solid var(--input-border);
     border-radius: 10px;
-    background: rgba(20,24,32,.72);
+    background: var(--input-bg);
     color: var(--fg);
     padding: 8px 10px;
     outline: none;
   }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .actions button { padding: 7px 10px; border-color: rgba(249,115,22,.35); background: rgba(20,24,32,.65); cursor: pointer; }
+  .actions button { padding: 7px 10px; border-color: rgba(249,115,22,.35); background: var(--btn-secondary-bg); cursor: pointer; }
 
   .canvas { min-height: 0; height: 100%; display: grid; grid-template-columns: auto 1fr; overflow: hidden; }
   .board-wrap { position: relative; min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
 
-  .runtime-strip { border-bottom: 1px solid rgba(255,255,255,.08); padding: 9px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .runtime-strip { border-bottom: 1px solid var(--row-border); padding: 9px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .runtime-strip select {
-    border: 1px solid rgba(255,255,255,.14);
+    border: 1px solid var(--input-border);
     border-radius: 10px;
-    background: rgba(20,24,32,.72);
+    background: var(--input-bg);
     color: var(--fg);
     padding: 7px 9px;
     outline: none;
     min-width: 220px;
   }
-  .runtime-strip button { padding: 7px 10px; border-color: rgba(249,115,22,.35); background: rgba(20,24,32,.65); cursor: pointer; }
+  .runtime-strip button { padding: 7px 10px; border-color: rgba(249,115,22,.35); background: var(--btn-secondary-bg); cursor: pointer; }
   .runtime-strip .danger { border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); }
   .status { font-size: 12px; color: var(--muted); }
 
   .flow-surface {
     min-height: 0;
-    background: radial-gradient(circle at top left, rgba(249,115,22,.08), transparent 40%), rgba(12,15,22,.7);
+    background: radial-gradient(circle at top left, rgba(249,115,22,.08), transparent 40%), var(--row-bg);
   }
   .flow-surface.live-traffic :global(.svelte-flow__edge-path) {
     stroke: rgba(16,185,129,.88) !important;
@@ -701,7 +701,7 @@
   }
 
   .task-box {
-    border-top: 1px solid rgba(255,255,255,.08);
+    border-top: 1px solid var(--row-border);
     padding: 10px;
     display: grid;
     justify-items: center;
@@ -711,9 +711,9 @@
   .task-box span { color: var(--muted); font-size: 11px; text-transform: lowercase; }
   .task-box textarea {
     width: 100%;
-    border: 1px solid rgba(255,255,255,.14);
+    border: 1px solid var(--input-border);
     border-radius: 12px;
-    background: rgba(20,24,32,.72);
+    background: var(--input-bg);
     color: var(--fg);
     padding: 8px 10px;
     outline: none;
@@ -723,9 +723,9 @@
   .plan { width: min(720px, 100%); display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
   .plan article {
     min-width: 120px;
-    border: 1px solid rgba(255,255,255,.1);
+    border: 1px solid var(--row-border);
     border-radius: 10px;
-    background: rgba(16,20,28,.62);
+    background: var(--row-bg);
     padding: 7px 8px;
     display: grid;
     gap: 2px;
@@ -741,9 +741,9 @@
     max-width: calc(100% - 28px);
     max-height: 70%;
     overflow: auto;
-    border: 1px solid rgba(255,255,255,.12);
+    border: 1px solid var(--border);
     border-radius: 14px;
-    background: rgba(12,16,24,.94);
+    background: var(--card-bg);
     backdrop-filter: blur(10px);
     box-shadow: 0 14px 28px rgba(0,0,0,.35);
     z-index: 8;
@@ -755,7 +755,7 @@
     background: transparent;
   }
 
-  .error { margin: 0; color: #fecdd3; }
+  .error { margin: 0; color: var(--warn); }
   .muted { margin: 0; color: var(--muted); }
 
   :global(.svelte-flow) {
@@ -765,11 +765,11 @@
   :global(.svelte-flow__controls) {
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid rgba(255,255,255,.12);
-    background: rgba(20,24,32,.72);
+    border: 1px solid var(--border);
+    background: var(--input-bg);
   }
   :global(.svelte-flow__attribution) {
-    background: rgba(14, 18, 24, 0.6);
+    background: var(--glass);
     color: var(--muted);
     border-radius: 999px;
     padding: 2px 8px;
@@ -778,6 +778,6 @@
 
   @media (max-width: 1200px) {
     .canvas { grid-template-columns: 1fr; min-height: 0; }
-    :global(.palette) { width: auto; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+    :global(.palette) { width: auto; border-right: 0; border-bottom: 1px solid var(--row-border); }
   }
 </style>

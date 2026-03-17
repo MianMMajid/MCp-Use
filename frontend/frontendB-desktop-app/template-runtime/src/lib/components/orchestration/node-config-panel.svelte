@@ -55,12 +55,12 @@
 </section>
 
 <style>
-  .panel { border-left: 1px solid rgba(255,255,255,.08); padding: 10px; width: 240px; display: grid; gap: 8px; }
+  .panel { border-left: 1px solid var(--row-border); padding: 10px; width: 240px; display: grid; gap: 8px; }
   h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--muted); }
   label span { display: block; margin-bottom: 4px; font-size: 11px; color: var(--muted); }
-  input, select { width: 100%; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(20,24,32,.72); color: var(--fg); padding: 7px 9px; outline: none; }
+  input, select { width: 100%; border: 1px solid var(--input-border); border-radius: 10px; background: var(--input-bg); color: var(--fg); padding: 7px 9px; outline: none; }
   .muted { margin: 0; color: var(--muted); font-size: 12px; }
-  .fw { border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(14,18,24,.55); padding: 8px; display: grid; gap: 4px; }
+  .fw { border: 1px solid var(--row-border); border-radius: 10px; background: var(--btn-secondary-bg); padding: 8px; display: grid; gap: 4px; }
   h4 { margin: 0; font-size: 11px; color: var(--muted); text-transform: uppercase; }
   .safe { margin: 0; color: #6ee7b7; font-size: 12px; }
   .warn { margin: 0; color: #fcd34d; font-size: 12px; }
