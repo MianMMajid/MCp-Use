@@ -1,6 +1,8 @@
 <script>
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import Icon from '@/lib/components/icons/Icon.svelte';
   import { loadJson } from '@/lib/api';
   export let data;
 
@@ -33,7 +35,12 @@
 
 <AppShell>
   <section class="page card">
-    <h1>Session {data.sessionId}</h1>
+    <div class="head">
+      <button class="pill" on:click={() => goto('/sessions')} aria-label="Back to sessions">
+        <Icon name="arrow-left" size={14} />
+      </button>
+      <h1>Session {data.sessionId}</h1>
+    </div>
 
     {#if loading}
       <p class="muted">Loading session...</p>
@@ -52,6 +59,9 @@
 
 <style>
   .page { min-height: calc(100svh - 92px); padding: 14px; }
+  .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .head .pill { padding: 4px 8px; cursor: pointer; }
+  .head h1 { margin: 0; }
   h1 { margin: 0 0 10px; }
   .muted { color: var(--muted); }
   .err { color: var(--warn); }

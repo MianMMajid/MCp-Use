@@ -150,7 +150,12 @@
 <AppShell>
   <section class="settings-page">
     <header class="settings-header">
-      <h1>Settings</h1>
+      <div class="header-left">
+        <button class="back-btn" on:click={() => goto('/')} aria-label="Back to chat" title="Back to chat">
+          <Icon name="arrow-left" size={16} />
+        </button>
+        <h1>Settings</h1>
+      </div>
       {#if profile}
         <span class="user-badge">{profile.email || profile.username || ''}</span>
       {/if}
@@ -343,6 +348,9 @@
     padding: 0 0 16px;
   }
 
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .back-btn { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; transition: color 0.15s, border-color 0.15s; }
+  .back-btn:hover { border-color: var(--accent); color: var(--accent); }
   .settings-header h1 { margin: 0; font-size: 1.3rem; }
   .user-badge { color: var(--muted); font-size: 13px; }
 

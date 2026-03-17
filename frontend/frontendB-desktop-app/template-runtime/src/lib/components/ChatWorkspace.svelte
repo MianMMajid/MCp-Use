@@ -36,12 +36,6 @@
   $: isStreaming = $chatStore.streaming || $chatStore.busy;
   $: hasAgents = ($chatStore.agents || []).length > 0;
 
-  const quickPrompts = [
-    'Give me a firewall status update',
-    'What should we do to reduce risk?',
-    'Show me recent agent activity',
-    'Which traces were blocked today?',
-  ];
 
   function agentDisplayName() {
     if ($chatStore.selectedAgent) return $chatStore.selectedAgent.name || 'Agent';
@@ -121,12 +115,56 @@
               : 'Ask a question, run a command, or explore your agent stack.'}
           </p>
 
-          <!-- Model selector — above input -->
-          {#if showModelSelector}
-            <div class="selector-row">
-              <ModelSelectorPill />
+          <!-- Composer with inline suggestions -->
+          <div class="empty-composer">
+            <div class="composer-shell">
+              <div class="composer-bottom">
+                <textarea
+                  class="composer"
+                  rows="1"
+                  bind:value={message}
+                  on:keydown={onKeyDown}
+                  placeholder={isOrchestration ? 'Describe the objective...' : 'Ask Mayple...'}
+                ></textarea>
+                {#if message.trim() || isStreaming}
+                  <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send">
+                    <Icon name="send" size={15} />
+                  </button>
+                {/if}
+              </div>
             </div>
-          {/if}
+          </div>
+
+          <!-- GPT + Agent/Mode selectors — below input -->
+          <div class="below-selectors">
+            {#if showModelSelector}
+              <ModelSelectorPill />
+            {/if}
+            {#if isOrchestration}
+              <SelectorPill
+                label="Orchestration"
+                icon="orchestration"
+                value={$chatStore.selectedOrchestrationId}
+                options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
+                on:change={(e) => chatStore.selectOrchestration(e.detail)}
+              />
+            {:else}
+              <SelectorPill
+                label="Agent"
+                icon="agent"
+                value={$chatStore.selectedAgentId}
+                options={agentOptionsWithNone}
+                on:change={(e) => chatStore.selectAgent(e.detail)}
+              />
+            {/if}
+            <SelectorPill
+              label="Mode"
+              icon="chat"
+              value={$chatStore.chatTarget}
+              options={routeOptions}
+              on:change={(e) => chatStore.setChatTarget(e.detail)}
+            />
+          </div>
 
           {#if !isOrchestration && !hasAgents}
             <div class="first-time-cta">
@@ -223,62 +261,26 @@
     </div>
   </div>
 
-  <footer class="composer-wrap">
-    <div class="composer-inner">
-      <div class="composer-shell" class:floating={showCenteredComposer}>
-        <textarea
-          class="composer"
-          rows="1"
-          bind:value={message}
-          on:keydown={onKeyDown}
-          placeholder={isOrchestration ? 'Describe the objective...' : 'Ask Mayple...'}
-        ></textarea>
-        {#if message.trim() || isStreaming}
-          <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send">
-            <Icon name="send" size={15} />
-          </button>
-        {/if}
-      </div>
-      <!-- Agent/Mode selectors — below input -->
-      {#if showCenteredComposer}
-        <div class="below-selectors">
-          {#if isOrchestration}
-            <SelectorPill
-              label="Orchestration"
-              icon="orchestration"
-              value={$chatStore.selectedOrchestrationId}
-              options={orchestrationOptions.length ? orchestrationOptions : [{ value: '', label: 'No orchestrations' }]}
-              on:change={(e) => chatStore.selectOrchestration(e.detail)}
-            />
-          {:else}
-            <SelectorPill
-              label="Agent"
-              icon="agent"
-              value={$chatStore.selectedAgentId}
-              options={agentOptionsWithNone}
-              on:change={(e) => chatStore.selectAgent(e.detail)}
-            />
-          {/if}
-          <SelectorPill
-            label="Mode"
-            icon="chat"
-            value={$chatStore.chatTarget}
-            options={routeOptions}
-            on:change={(e) => chatStore.setChatTarget(e.detail)}
-          />
-        </div>
-      {/if}
-      {#if showCenteredComposer && !isOrchestration && hasAgents}
-        <div class="suggestions">
-          {#each quickPrompts as prompt}
-            <button class="suggestion-chip" on:click={() => { message = prompt; submit(); }}>
-              {prompt}
+  {#if !showCenteredComposer}
+    <footer class="composer-wrap">
+      <div class="composer-inner">
+        <div class="composer-shell">
+          <textarea
+            class="composer"
+            rows="1"
+            bind:value={message}
+            on:keydown={onKeyDown}
+            placeholder={isOrchestration ? 'Describe the objective...' : 'Ask Mayple...'}
+          ></textarea>
+          {#if message.trim() || isStreaming}
+            <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send">
+              <Icon name="send" size={15} />
             </button>
-          {/each}
+          {/if}
         </div>
-      {/if}
-    </div>
-  </footer>
+      </div>
+    </footer>
+  {/if}
 </section>
 
 <style>
@@ -301,8 +303,12 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    margin-top: 12px;
-    margin-bottom: 4px;
+    margin-top: 8px;
+  }
+
+  .empty-composer {
+    width: min(600px, 100%);
+    margin-top: 8px;
   }
 
   .below-selectors {
@@ -335,16 +341,16 @@
   }
 
   .empty-state {
-    margin: auto 0;
+    margin: auto;
     text-align: center;
     color: var(--muted);
-    padding: 32px 16px;
+    padding: 16px;
     display: grid;
     gap: 8px;
     justify-items: center;
   }
 
-  .empty-mascot { margin-bottom: 8px; }
+  .empty-mascot { margin-bottom: 4px; }
   .empty-state h2 { margin: 0; color: var(--fg); font-size: 1.4rem; font-weight: 600; }
   .empty-sub { margin: 0; font-size: 0.88rem; max-width: 340px; line-height: 1.45; }
 
@@ -412,17 +418,26 @@
 
   .composer-shell {
     border: 1px solid var(--border);
-    border-radius: 24px;
+    border-radius: 20px;
     background: var(--bg-soft);
     display: flex;
-    gap: 6px;
-    align-items: flex-end;
-    padding: 6px 6px 6px 16px;
+    flex-direction: column;
+    padding: 10px 14px 6px;
     transition: border-color 0.2s;
   }
 
   .composer-shell:focus-within {
     border-color: var(--accent);
+  }
+
+  .composer-shell .composer {
+    width: 100%;
+  }
+
+  .composer-bottom {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
   }
 
   .composer {
@@ -455,35 +470,6 @@
   .send:active { transform: scale(0.94); }
   .send:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* ── Suggestion chips (below composer) ── */
-  .suggestions {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding: 0 2px 2px;
-    scrollbar-width: none;
-  }
-
-  .suggestions::-webkit-scrollbar { display: none; }
-
-  .suggestion-chip {
-    flex-shrink: 0;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--btn-secondary-bg);
-    color: var(--fg);
-    padding: 7px 14px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-    white-space: nowrap;
-  }
-
-  .suggestion-chip:hover {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
 
   @media (max-width: 480px) {
     .selector-row,
