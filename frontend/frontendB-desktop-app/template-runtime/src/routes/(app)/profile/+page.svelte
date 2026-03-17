@@ -132,9 +132,17 @@
     finally { savingNotifs = false; }
   }
 
-  function signOut() {
-    if (typeof window !== 'undefined') {
-      window.location.href = '/logout';
+  async function signOut() {
+    if (typeof window === 'undefined') return;
+    try {
+      await postJson('/api/auth/logout', {}).catch(() => {});
+    } finally {
+      // Clear stored session data
+      window.localStorage.removeItem('mayple_chat_mode');
+      window.localStorage.removeItem('mayple_stack_mode');
+      window.localStorage.removeItem('selectedAgentId');
+      window.localStorage.removeItem('mayple_orchestration_id');
+      window.location.href = '/login';
     }
   }
 </script>
