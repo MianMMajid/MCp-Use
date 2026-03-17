@@ -72,7 +72,6 @@
         bind:value={createName}
         placeholder="Agent name..."
         on:keydown={onCreateKeydown}
-        autofocus
       />
       <button class="create-btn" on:click={handleCreate} disabled={createBusy || !createName.trim()}>
         {createBusy ? '...' : 'Create'}
@@ -84,7 +83,7 @@
   <div class="list">
     {#each filtered as agent}
       {@const id = agent.agentId || agent.id}
-      <div class="item" draggable="true" on:dragstart={(event) => onDragStart(event, id)}>
+      <div class="item" draggable="true" role="listitem" on:dragstart={(event) => onDragStart(event, id)}>
         <div class="meta">
           <p><span class="drag"><Icon name="grip" size={12} /></span>{agent.name || id}</p>
           <span>{agent.status || 'unknown'}</span>

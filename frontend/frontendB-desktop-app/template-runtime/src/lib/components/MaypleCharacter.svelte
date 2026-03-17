@@ -65,7 +65,9 @@
   style:width="{size}px"
   style:height="{size}px"
   on:click={handleClick}
-  role="img"
+  on:keydown={(e) => e.key === 'Enter' && handleClick()}
+  role="button"
+  tabindex="0"
   aria-label="Mayple mascot"
 >
   <svg

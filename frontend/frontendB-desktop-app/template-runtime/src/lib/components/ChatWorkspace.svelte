@@ -334,16 +334,6 @@
     padding: 16px 16px 8px;
   }
 
-  /* ── Selector rows ── */
-  .selector-row {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-
   .empty-composer {
     width: min(600px, 100%);
     margin-top: 8px;
@@ -529,7 +519,6 @@
 
 
   @media (max-width: 480px) {
-    .selector-row,
     .stream-selectors {
       gap: 6px;
     }

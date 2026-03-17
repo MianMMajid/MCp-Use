@@ -197,8 +197,7 @@
 
   <!-- Marketplace Drawer -->
   {#if drawerOpen}
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="drawer-backdrop" on:click={() => drawerOpen = false}></div>
+    <div class="drawer-backdrop" on:click={() => drawerOpen = false} on:keydown={(e) => e.key === 'Escape' && (drawerOpen = false)} role="button" tabindex="-1" aria-label="Close drawer"></div>
     <aside class="drawer">
       <div class="drawer-top">
         <div>
@@ -357,7 +356,7 @@
 
   .top-row { display: flex; align-items: center; gap: 8px; }
   .name { flex: 1; margin: 0; font-size: 14px; font-weight: 600; }
-  .desc { margin: 0; color: var(--muted); font-size: 12px; min-height: 28px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .desc { margin: 0; color: var(--muted); font-size: 12px; min-height: 28px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
   .meta { margin-top: auto; padding-top: 6px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .model { color: var(--muted); font-size: 11px; }
@@ -457,7 +456,7 @@
   .mp-info { min-width: 0; }
   .mp-name { margin: 0; font-size: 13px; font-weight: 600; }
   .mp-id { font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; }
-  .mp-desc { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mp-desc { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .auth-badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(251,146,60,.15); color: #fb923c; border: 1px solid rgba(251,146,60,.3); margin-left: 6px; vertical-align: middle; text-transform: uppercase; font-weight: 600; letter-spacing: .03em; }
   .auth-section { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--border); margin-top: 2px; }
   .auth-row { display: flex; gap: 6px; }
