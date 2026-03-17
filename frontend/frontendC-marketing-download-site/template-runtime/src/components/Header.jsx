@@ -68,7 +68,7 @@ function MobileNavigation() {
         className="absolute inset-x-0 top-full mt-4 flex origin-top flex-col rounded-2xl bg-white/90 backdrop-blur-xl p-4 text-lg tracking-tight text-zinc-900 shadow-xl ring-1 ring-zinc-900/5 data-closed:scale-95 data-closed:opacity-0 data-enter:duration-150 data-enter:ease-out data-leave:duration-100 data-leave:ease-in"
       >
         <MobileNavLink href="#features">Features</MobileNavLink>
-        <MobileNavLink href="#journey">How it works</MobileNavLink>
+        <MobileNavLink href="#download">Download</MobileNavLink>
         <MobileNavLink href="#pricing">Pricing</MobileNavLink>
         <MobileNavLink href="#faq">FAQ</MobileNavLink>
         <hr className="m-2 border-zinc-300/40" />
@@ -108,7 +108,7 @@ export function Header() {
             </Link>
             <div className="hidden md:flex md:gap-x-6">
               <NavLink href="#features">Features</NavLink>
-              <NavLink href="#journey">How it works</NavLink>
+              <NavLink href="#download">Download</NavLink>
               <NavLink href="#pricing">Pricing</NavLink>
               <NavLink href="#faq">FAQ</NavLink>
             </div>
