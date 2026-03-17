@@ -21,6 +21,7 @@ const SIDE_EFFECT_ROUTE_MODULES = [
   "./auth-routes.js",
   "./billing-routes.js",
   "./firewall-routes.js",
+  "./cyber-routes.js",
   "./openclaw-agent-routes.js",
   "./openclaw-cli-routes.js",
   "./openclaw-modifier-routes.js",

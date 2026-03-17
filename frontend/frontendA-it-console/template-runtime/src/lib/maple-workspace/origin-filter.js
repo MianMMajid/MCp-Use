@@ -55,3 +55,26 @@ export function filterFrontendBOrigin(records) {
   }
   return records.filter((record) => isFrontendBOriginRecord(record))
 }
+
+export function getAuditRecordSource(record) {
+  const event = record?.event && typeof record.event === 'object' ? record.event : null
+  return String(
+    event?.sourceService ||
+    record?.sourceService ||
+    record?.source ||
+    record?.origin ||
+    record?.producer ||
+    record?.client ||
+    ''
+  ).trim()
+}
+
+export function filterRecordsBySource(records, source = 'all') {
+  if (!Array.isArray(records)) {
+    return []
+  }
+  if (!source || source === 'all') {
+    return records
+  }
+  return records.filter((record) => getAuditRecordSource(record) === source)
+}

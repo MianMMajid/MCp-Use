@@ -348,12 +348,132 @@ function handleFirewall(pathname, method, state, body) {
   }
 
   if (pathname === '/api/runtime/feature-capabilities' && method === 'GET') {
-    return asJson([
-      { name: 'streamingChat', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'policyPreview', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'hitl', enabled: true, reason: 'Enabled in fake mode' },
-      { name: 'orchestrationRuntime', enabled: true, reason: 'Enabled in fake mode' },
-    ])
+    return asJson({
+      ok: true,
+      firewall: {
+        contextWallReachable: true,
+        mcpProxyReachable: true,
+        cyberProxyReachable: true,
+        scanProvider: 'local',
+        quarantineEnabled: true,
+        degradedStates: {
+          contextPolicyUnavailable: false,
+          cyberScanUnavailable: false,
+          virustotalUnavailable: false,
+        },
+      },
+      features: {
+        streamingChat: { enabled: true, reason: 'Enabled in fake mode' },
+        policyPreview: { enabled: true, reason: 'Enabled in fake mode' },
+        hitl: { enabled: true, reason: 'Enabled in fake mode' },
+        orchestrationRuntime: { enabled: true, reason: 'Enabled in fake mode' },
+        contextFirewall: { enabled: true, reason: 'Enabled in fake mode' },
+        cyberFirewall: { enabled: true, reason: 'Enabled in fake mode' },
+        downloadScanning: { enabled: true, reason: 'Enabled in fake mode' },
+      },
+    })
+  }
+
+  if (pathname === '/api/cyber/status' && method === 'GET') {
+    return asJson({
+      ok: true,
+      providers: {
+        contextWall: { reachable: true, reason: 'ok' },
+        mcpProxy: { reachable: true, reason: 'ok' },
+        cyberProxy: { reachable: true, reason: 'ok', address: 'localhost:8080' },
+      },
+      scanning: {
+        provider: 'local',
+        quarantineEnabled: true,
+        enrichmentConfigured: true,
+        degraded: false,
+        states: {
+          contextPolicyUnavailable: false,
+          cyberScanUnavailable: false,
+          virustotalUnavailable: false,
+        },
+      },
+      recent: {
+        blockedCount: 1,
+        scannedCount: 3,
+        incidents: [],
+      },
+    })
+  }
+
+  if (pathname === '/api/cyber/policies' && method === 'GET') {
+    return asJson({
+      ok: true,
+      scanProvider: 'local',
+      quarantineEnabled: true,
+      maxResponseBytes: 10485760,
+      allowLocalTargets: false,
+      allowedDomains: ['example.com'],
+      blockedDomains: ['evil.test'],
+      toolAllowedDomains: { web_fetch: ['example.com'] },
+      allowedLocalHosts: [],
+      fileDownloadGating: { credentialScoped: true, quarantineEnabled: true },
+    })
+  }
+
+  if (pathname === '/api/cyber/events' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          id: 'cyber-event-1',
+          summary: 'Download quarantined: executable content',
+          eventType: 'AUDIT_EVENT_TYPE_CONTENT_SCANNED',
+          sourceService: 'cyber-proxy',
+          policyReason: 'Executable content detected',
+          createdAt: nowIso(),
+          scan: { provider: 'local', status: 'completed', verdict: 'quarantined', blocked: true, quarantined: true, reasons: ['Executable content detected'] },
+          url: 'https://evil.test/sample.exe',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          runId: '',
+        },
+      ],
+      total: 1,
+      offset: 0,
+      nextOffset: null,
+    })
+  }
+
+  if (pathname === '/api/cyber/downloads' && method === 'GET') {
+    return asJson({
+      ok: true,
+      items: [
+        {
+          id: 'artifact-fake-1',
+          source: 'artifact',
+          traceId: 'trace-fake-1',
+          sessionId: 'session-fake-1',
+          runId: 'run-fake-1',
+          url: '',
+          filename: 'reply.txt',
+          contentType: 'text/plain',
+          sizeBytes: 128,
+          createdAt: nowIso(),
+          policyReason: '',
+          scan: {
+            provider: 'local',
+            status: 'completed',
+            verdict: 'safe',
+            sha256: 'fake',
+            contentType: 'text/plain',
+            sizeBytes: 128,
+            reasons: [],
+            checkedAt: nowIso(),
+            blocked: false,
+            quarantined: false,
+          },
+        },
+      ],
+      total: 1,
+      offset: 0,
+      nextOffset: null,
+    })
   }
 
   return null

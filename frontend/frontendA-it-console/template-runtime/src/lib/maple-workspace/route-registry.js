@@ -69,6 +69,20 @@ const MAPLE_ROUTE_DEFINITIONS = [
     preferredView: 'cybersecurity',
   },
   {
+    path: '/maple/cyber',
+    title: 'Cyber Operations',
+    category: 'firewalls',
+    tabLabel: 'Cyber Operations',
+    description: 'Inspect cyber-proxy status, download scans, and quarantine incidents.',
+    apiEndpoints: [
+      '/api/cyber/status',
+      '/api/cyber/policies',
+      '/api/cyber/events',
+      '/api/cyber/downloads',
+    ],
+    preferredView: 'cybersecurity',
+  },
+  {
     path: '/maple/runs',
     title: 'Runs',
     category: 'observe',

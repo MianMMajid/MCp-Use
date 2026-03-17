@@ -89,6 +89,7 @@ export default function AgentManagementPage() {
   const [expanded, setExpanded] = useState(null)
   const [detail, setDetail] = useState(null)
   const [artifacts, setArtifacts] = useState(null)
+  const [artifactsRunId, setArtifactsRunId] = useState('')
 
   // Chat state
   const [mode, setMode] = useState('turn')
@@ -132,7 +133,7 @@ export default function AgentManagementPage() {
   }
 
   async function toggleExpand(sessionId) {
-    if (expanded === sessionId) { setExpanded(null); setDetail(null); setArtifacts(null); return }
+    if (expanded === sessionId) { setExpanded(null); setDetail(null); setArtifacts(null); setArtifactsRunId(''); return }
     setExpanded(sessionId)
     try {
       const d = await loadJson(`/api/openclaw/agent/sessions/${sessionId}`)
@@ -143,6 +144,7 @@ export default function AgentManagementPage() {
   async function loadArtifacts(runId) {
     try {
       const d = await loadJson(`/api/openclaw/agent/runs/${runId}/artifacts`)
+      setArtifactsRunId(d?.runId || runId || '')
       setArtifacts(Array.isArray(d?.artifacts) ? d.artifacts : Array.isArray(d) ? d : [])
     } catch { setArtifacts([]) }
   }
@@ -313,6 +315,16 @@ export default function AgentManagementPage() {
                           <p>sha256={artifact.scan.sha256} size={artifact.scan.sizeBytes} contentType={artifact.scan.contentType}</p>
                           {Array.isArray(artifact.scan.reasons) && artifact.scan.reasons.length > 0 && (
                             <p>reasons: {artifact.scan.reasons.join(' | ')}</p>
+                          )}
+                          {(artifactsRunId || detail?.session?.sessionId) && (
+                            <p>
+                              <a
+                                className="underline"
+                                href={`/maple/cyber?runId=${encodeURIComponent(artifactsRunId || '')}&sessionId=${encodeURIComponent(detail?.session?.sessionId || '')}`}
+                              >
+                                Open in Cyber Operations
+                              </a>
+                            </p>
                           )}
                         </div>
                       )}

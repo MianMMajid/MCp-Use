@@ -26,6 +26,12 @@ export const allSections = {
     { title: 'Firewall chat', id: 'firewall-chat' },
     { title: 'Capabilities', id: 'capabilities' },
   ],
+  '/maple/cyber': [
+    { title: 'Status', id: 'status' },
+    { title: 'Policies', id: 'policies' },
+    { title: 'Download scans', id: 'download-scans' },
+    { title: 'Quarantine & Blocks', id: 'quarantine-blocks' },
+  ],
   '/maple/downstream': [
     { title: 'Connected apps', id: 'connected-apps' },
     { title: 'Dispatch', id: 'dispatch' },

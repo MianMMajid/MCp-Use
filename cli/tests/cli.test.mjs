@@ -81,6 +81,14 @@ test("maple observability retention help exposes retention-days", () => {
   assert.match(result.stdout, /--retention-days <days>/);
 });
 
+test("maple cyber downloads help exposes scan filters", () => {
+  const result = runCli(["cyber", "downloads", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--verdict <verdict>/);
+  assert.match(result.stdout, /--provider <provider>/);
+  assert.match(result.stdout, /--run-id <id>/);
+});
+
 test("maple frontend b create commands are available", () => {
   const agents = runCli(["agents", "create", "--help"]);
   assert.equal(agents.status, 0, agents.stderr);
