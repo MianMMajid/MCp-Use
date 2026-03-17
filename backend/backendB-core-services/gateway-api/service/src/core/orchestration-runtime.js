@@ -377,8 +377,16 @@ function findExecution(executionId) {
 function buildExecutionInputSummary(input) {
   if (!input) return "";
   if (typeof input === "string") return input;
-  if (typeof input.message === "string") return input.message;
-  if (typeof input.objective === "string") return input.objective;
+  if (typeof input.message === "string" && input.message) return input.message;
+  if (typeof input.objective === "string" && input.objective) return input.objective;
+  if (typeof input.goal === "string" && input.goal) return input.goal;
+  // Check nested objectivePackage (from frontend execute payload)
+  if (input.objectivePackage?.goal) return input.objectivePackage.goal;
+  // Check conversationContext for user message
+  if (Array.isArray(input.conversationContext)) {
+    const userMsg = input.conversationContext.find((m) => m.role === "user");
+    if (userMsg?.content) return userMsg.content;
+  }
   try {
     return JSON.stringify(input).slice(0, 600);
   } catch {
@@ -491,7 +499,7 @@ function buildNodeMessage(execution, node) {
 
   const sections = [];
 
-  sections.push(`== FULL OBJECTIVE ==\n${fullObjective}`);
+  sections.push(`== OBJECTIVE ==\n${fullObjective}`);
 
   if (predecessors.length > 0) {
     const prevLines = predecessors.map((p) => {
@@ -501,34 +509,22 @@ function buildNodeMessage(execution, node) {
       return `- ${desc}${task}${output}`;
     });
     sections.push(`== PREVIOUS STEPS ==\n${prevLines.join("\n")}`);
-  } else {
-    sections.push("== PREVIOUS STEPS ==\nYou are the first node. No prior work.");
   }
 
-  if (nodeObjective) {
+  if (nodeObjective && nodeObjective !== fullObjective) {
     sections.push(`== YOUR TASK ==\n${nodeObjective}`);
-  } else {
-    sections.push(`== YOUR TASK ==\n${fullObjective}`);
   }
 
-  // Include agent capabilities context
   const capabilities = getAgentCapabilities(node._agentRecord);
   if (capabilities.length > 0) {
-    sections.push(`== YOUR TOOLS ==\nYou have these tools available: ${capabilities.join(", ")}.\nUse them to accomplish your task.`);
+    sections.push(`== YOUR TOOLS ==\nYou have these tools available: ${capabilities.join(", ")}.`);
   }
 
   if (successors.length > 0) {
-    const nextLines = successors.map((s) => {
-      const desc = describeNode(s);
-      const task = s.nodeObjective ? `: ${s.nodeObjective}` : "";
-      return `- ${desc}${task}`;
-    });
-    sections.push(`== NEXT STEPS ==\n${nextLines.join("\n")}\nMake sure your output is useful for the next worker.`);
-  } else {
-    sections.push("== NEXT STEPS ==\nYou are the final node. Produce the finished result.");
+    sections.push("Make sure your output is useful for the next agent in the chain.");
   }
 
-  return `[Execution ${execution.executionId}] Node ${node.id} (${node.agentId || "unassigned"})\n\n${sections.join("\n\n")}`;
+  return sections.join("\n\n");
 }
 
 function getIncomingActiveEdges(execution, nodeId) {
