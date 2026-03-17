@@ -80,5 +80,16 @@ export const config = {
     virustotalApiKey: optionalEnv("MAPLE_VIRUSTOTAL_API_KEY"),
     virustotalApiUrl: optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3"),
     downloadScanTimeoutMs: optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 }),
+    malwareSandboxProvider: (() => {
+        const raw = optionalEnv("MAPLE_MALWARE_SANDBOX_PROVIDER", "none").toLowerCase();
+        if (raw !== "none" && raw !== "http") {
+            throw new Error(`Invalid MAPLE_MALWARE_SANDBOX_PROVIDER: "${raw}" (must be "none" or "http")`);
+        }
+        return raw;
+    })(),
+    malwareSandboxApiUrl: optionalEnv("MAPLE_MALWARE_SANDBOX_API_URL"),
+    malwareSandboxApiToken: optionalEnv("MAPLE_MALWARE_SANDBOX_API_TOKEN"),
+    malwareSandboxTimeoutMs: optionalEnvInt("MAPLE_MALWARE_SANDBOX_TIMEOUT_MS", 5000, { min: 250, max: 60000 }),
+    malwareSandboxRequired: ["1", "true", "yes"].includes(optionalEnv("MAPLE_MALWARE_SANDBOX_REQUIRED", "0").toLowerCase()),
 };
 //# sourceMappingURL=config.js.map

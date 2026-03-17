@@ -280,6 +280,11 @@ async function buildDownloadScan(options = {}) {
         virustotalApiKey: config.virustotalApiKey,
         virustotalApiUrl: config.virustotalApiUrl,
         timeoutMs: config.downloadScanTimeoutMs,
+        malwareSandboxProvider: config.malwareSandboxProvider,
+        malwareSandboxApiUrl: config.malwareSandboxApiUrl,
+        malwareSandboxApiToken: config.malwareSandboxApiToken,
+        malwareSandboxTimeoutMs: config.malwareSandboxTimeoutMs,
+        malwareSandboxRequired: config.malwareSandboxRequired,
         ...options,
     });
 }

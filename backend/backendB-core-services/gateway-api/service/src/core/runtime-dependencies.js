@@ -3,6 +3,9 @@ import net from "node:net";
 import { loadGrpcTlsConfig } from "@maple/common";
 import { grpcUnary } from "../grpc-clients.js";
 import {
+  cyberObjectStoreBaseUrl,
+  cyberObjectStoreMode,
+  cyberObjectStoreStorageDir,
   cyberQuarantineStorageDir,
   cyberQuarantineEnabled,
   cyberProxyAddress,
@@ -13,6 +16,9 @@ import {
   gatewayTlsKeyPath,
   googleClientId,
   mcpProxyAddress,
+  malwareSandboxApiUrl,
+  malwareSandboxProvider,
+  malwareSandboxRequired,
   openclawAgentRequired,
   stripeSecretKey,
 } from "../config.js";
@@ -261,16 +267,16 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
     downloadScanning: {
       enabled:
         checkMap.get("db.postgres")?.ok === true &&
-        checkMap.get("storage.cyber_quarantine")?.ok === true,
+        checkMap.get("storage.cyber_object_store")?.ok === true,
       reason:
         checkMap.get("db.postgres")?.ok !== true
           ? checkMap.get("db.postgres")?.reason
-          : checkMap.get("storage.cyber_quarantine")?.ok !== true
-            ? checkMap.get("storage.cyber_quarantine")?.reason
+          : checkMap.get("storage.cyber_object_store")?.ok !== true
+            ? checkMap.get("storage.cyber_object_store")?.reason
             : downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey
               ? "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured."
               : "ok",
-      requiredDeps: ["db.postgres", "storage.cyber_quarantine"],
+      requiredDeps: ["db.postgres", "storage.cyber_object_store"],
     },
     scanEnrichment: {
       enabled: downloadScanProvider !== "virustotal" || Boolean(downloadScanVirusTotalApiKey),
@@ -297,9 +303,10 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
         cyberScanUnavailable: checkMap.get("grpc.cyber_proxy")?.ok !== true,
         virustotalUnavailable: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey,
         evidenceStoreUnavailable: checkMap.get("db.postgres")?.ok !== true,
-        quarantineStoreUnavailable: checkMap.get("storage.cyber_quarantine")?.ok !== true,
+        quarantineStoreUnavailable: checkMap.get("storage.cyber_object_store")?.ok !== true,
+        sandboxUnavailable: malwareSandboxRequired && checkMap.get("analysis.malware_sandbox")?.ok !== true,
       },
-      hardBlockers: collectHardBlockers(checkMap, ["db.postgres", "storage.cyber_quarantine", "grpc.context_wall", "grpc.cyber_proxy"]),
+      hardBlockers: collectHardBlockers(checkMap, ["db.postgres", "storage.cyber_object_store", "grpc.context_wall", "grpc.cyber_proxy"]),
     },
     dependencies: report.checks.map((check) => ({
       id: check.id,
@@ -466,10 +473,24 @@ async function evaluateGatewayRuntimeDependenciesUncached() {
   checks.push(buildCheckRecord("db.postgres", "PostgreSQL connectivity", requireDatabase, dbCheckResult));
   checks.push(
     buildCheckRecord(
-      "storage.cyber_quarantine",
-      "Cyber quarantine storage path",
+      "storage.cyber_object_store",
+      cyberObjectStoreMode === "http" ? "Cyber object store endpoint" : "Cyber object store path",
       strict || cyberQuarantineEnabled,
-      await checkReadableFile(cyberQuarantineStorageDir)
+      cyberObjectStoreMode === "http"
+        ? (cyberObjectStoreBaseUrl ? { ok: true } : { ok: false, reason: "MAPLE_CYBER_OBJECT_STORE_BASE_URL is missing." })
+        : await checkReadableFile(cyberObjectStoreStorageDir || cyberQuarantineStorageDir)
+    )
+  );
+  checks.push(
+    buildCheckRecord(
+      "analysis.malware_sandbox",
+      "Malware sandbox analysis provider",
+      malwareSandboxRequired,
+      malwareSandboxProvider === "none"
+        ? { ok: false, reason: "MAPLE_MALWARE_SANDBOX_PROVIDER is not configured." }
+        : malwareSandboxProvider === "http" && !malwareSandboxApiUrl
+          ? { ok: false, reason: "MAPLE_MALWARE_SANDBOX_API_URL is missing." }
+          : { ok: true }
     )
   );
 

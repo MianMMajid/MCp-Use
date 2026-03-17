@@ -1,16 +1,21 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import {
   cyberEvidenceSyncTtlMs,
+  cyberObjectStoreMode,
   cyberQuarantineStorageDir,
   downloadScanProvider,
   downloadScanTimeoutMs,
   downloadScanVirusTotalApiKey,
   downloadScanVirusTotalApiUrl,
+  malwareSandboxApiToken,
+  malwareSandboxApiUrl,
+  malwareSandboxProvider,
+  malwareSandboxRequired,
+  malwareSandboxTimeoutMs,
 } from "../config.js";
 import { replayAuditEvents } from "./audit-outbox.js";
 import { appendToAuditChain } from "./audit-integrity.js";
+import { getCyberObjectStore } from "./cyber-object-store.js";
 import { buildLocalScanResult, scanDownloadedContent } from "../../../../shared/packages/maple-security/src/download-scan.js";
 
 const ACTIVE_INCIDENT_STATES = new Set(["new", "triaged", "in_progress", "contained"]);
@@ -109,6 +114,10 @@ function normalizeScan(scan, fallback = {}) {
     checkedAt: asString(source.checkedAt, asString(base.checkedAt)),
     blocked: Boolean(source.blocked ?? base.blocked),
     quarantined: Boolean(source.quarantined ?? base.quarantined),
+    analysis: {
+      ...asObject(base.analysis),
+      ...asObject(source.analysis),
+    },
   };
 }
 
@@ -383,29 +392,15 @@ function toSqlAction(row) {
   };
 }
 
-async function ensureStoragePath() {
-  await mkdir(cyberQuarantineStorageDir, { recursive: true });
-}
-
 async function persistArtifactBytes(evidence, artifact) {
   const content = artifact?.content;
   if (content === undefined || content === null) return { objectRef: "", storagePath: "" };
-  const payload = Buffer.isBuffer(content)
-    ? content
-    : content instanceof Uint8Array
-      ? Buffer.from(content)
-      : typeof content === "string"
-        ? Buffer.from(content, "utf8")
-        : Buffer.from(JSON.stringify(content, null, 2));
-  await ensureStoragePath();
-  const filename = `${evidence.sha256 || evidence.evidenceId}-${asString(evidence.filename || "artifact").replace(/[^a-zA-Z0-9._-]+/g, "_")}`;
-  const storagePath = join(cyberQuarantineStorageDir, filename);
-  await mkdir(dirname(storagePath), { recursive: true });
-  await writeFile(storagePath, payload);
-  return {
-    objectRef: `file://${storagePath}`,
-    storagePath,
-  };
+  const store = getCyberObjectStore();
+  return store.putImmutableObject({
+    evidence,
+    content,
+    contentType: evidence.contentType,
+  });
 }
 
 async function appendSecurityAction(action, options = {}) {
@@ -1463,6 +1458,11 @@ export async function rescanSecurityQuarantine(quarantineId, input, options = {}
       virustotalApiKey: downloadScanVirusTotalApiKey,
       virustotalApiUrl: downloadScanVirusTotalApiUrl,
       timeoutMs: downloadScanTimeoutMs,
+      malwareSandboxProvider,
+      malwareSandboxApiUrl,
+      malwareSandboxApiToken,
+      malwareSandboxTimeoutMs,
+      malwareSandboxRequired,
       content: Buffer.from("rescanned"),
       contentType: evidence.contentType,
       filename: evidence.filename || evidence.evidenceId,
@@ -1512,6 +1512,7 @@ export async function getCyberSecurityStatus(options = {}) {
     quarantineStore: {
       durable: hasPersistentStore(options.database),
       available: true,
+      mode: cyberObjectStoreMode,
       storagePath: cyberQuarantineStorageDir,
       backlog: quarantine.filter((item) => item.currentState !== "released").length,
     },

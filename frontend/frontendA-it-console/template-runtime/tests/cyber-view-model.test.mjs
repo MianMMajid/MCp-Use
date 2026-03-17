@@ -13,6 +13,7 @@ test('scan helpers distinguish pending, malicious, and safe analysis states', ()
   assert.equal(scanLabel({ stage: 'analysis_pending', status: 'pending' }), 'analysis pending')
   assert.equal(scanColor({ verdict: 'malicious', blocked: true, stage: 'final_verdict' }), 'rose')
   assert.equal(scanLabel({ verdict: 'safe', stage: 'reputation_enriched' }), 'safe (reputation)')
+  assert.equal(scanLabel({ verdict: 'malicious', stage: 'sandbox_complete' }), 'malicious (sandbox)')
 })
 
 test('incident helper keeps open severe incidents high visibility', () => {

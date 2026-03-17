@@ -23,6 +23,7 @@ export function scanLabel(scan) {
   const verdict = String(scan?.verdict || '').toLowerCase()
   const status = String(scan?.status || '').toLowerCase()
   if (stage === 'analysis_pending' || status === 'pending') return 'analysis pending'
+  if (stage === 'sandbox_complete' && verdict) return `${verdict} (sandbox)`
   if (stage === 'reputation_enriched' && verdict) return `${verdict} (reputation)`
   if (verdict) return verdict
   if (status) return status
