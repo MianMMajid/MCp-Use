@@ -114,7 +114,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; }
   .section { padding: 14px; }
   h1 { margin: 0 0 10px; }
   .create { display: flex; gap: 8px; }

@@ -138,7 +138,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); padding: 14px; display: grid; gap: 10px; }
+  .page { min-height: calc(100svh - 92px); padding: 14px; display: grid; gap: 10px; }
   h1 { margin: 0; }
   .form { display: grid; gap: 10px; }
   .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

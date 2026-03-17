@@ -153,7 +153,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); padding: 14px; display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); padding: 14px; display: grid; gap: 12px; }
   h1 { margin: 0; }
   .msg { margin: 0; border: 1px solid var(--info-border); background: var(--info-soft); color: var(--info); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
   .block { display: grid; gap: 8px; }

@@ -558,7 +558,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 10px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; }
   .panel { padding: 12px; display: grid; gap: 10px; }
 
   .top { display: flex; align-items: center; gap: 8px; }

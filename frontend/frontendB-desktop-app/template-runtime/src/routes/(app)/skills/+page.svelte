@@ -312,7 +312,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; }
   .section { padding: 14px; }
   .hero, .skill-head, .row { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
   .hero { align-items: flex-start; }

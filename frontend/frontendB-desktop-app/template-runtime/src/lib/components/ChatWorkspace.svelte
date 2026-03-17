@@ -135,6 +135,9 @@
         options={routeOptions}
         on:change={(e) => chatStore.setChatTarget(e.detail)}
       />
+      <button class="profile-btn" aria-label="Profile" on:click={() => goto('/profile')}>
+        <Icon name="agent" size={16} />
+      </button>
     </div>
   </header>
 
@@ -250,7 +253,7 @@
 
 <style>
   .workspace {
-    height: calc(100svh - 24px);
+    height: calc(100svh - 92px); /* 12px top padding + 68px bottom nav space + 12px bottom */
     display: grid;
     grid-template-rows: auto 1fr auto;
     border-radius: 16px;
@@ -281,6 +284,25 @@
   .messages {
     overflow: auto;
     padding: 12px 16px;
+  }
+
+  .profile-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--btn-secondary-bg);
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .profile-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .stream {

@@ -210,7 +210,7 @@
 
 <style>
   .sidebar {
-    height: calc(100svh - 24px);
+    height: calc(100svh - 92px);
     border-radius: 16px;
     border: 1px solid var(--border);
     background: var(--glass);

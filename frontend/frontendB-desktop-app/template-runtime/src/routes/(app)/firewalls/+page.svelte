@@ -503,7 +503,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; }
   .section { padding: 14px; }
   .head, .sidebar-head, .detail-head, .version-head, .row-actions { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
   .builder { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }

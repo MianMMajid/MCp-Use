@@ -196,7 +196,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 10px; align-content: start; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; }
 
   .top-bar { padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   h1 { margin: 0; font-size: 1.15rem; }

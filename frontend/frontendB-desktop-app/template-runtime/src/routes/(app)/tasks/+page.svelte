@@ -367,7 +367,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
   .section { padding: 13px; display: grid; gap: 10px; }
   .header {
     padding: 8px 11px;

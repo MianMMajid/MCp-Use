@@ -52,7 +52,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); padding: 14px; }
+  .page { min-height: calc(100svh - 92px); padding: 14px; }
   h1 { margin: 0 0 10px; }
   .muted { color: var(--muted); }
   .list { display: grid; gap: 8px; }

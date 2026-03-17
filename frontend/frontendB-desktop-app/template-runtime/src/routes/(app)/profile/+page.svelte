@@ -166,7 +166,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; }
   .section { padding: 14px; }
   h1, h2 { margin: 0 0 10px; }
   h2 { font-size: 1rem; }

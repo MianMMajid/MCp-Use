@@ -703,7 +703,7 @@
 </AppShell>
 
 <style>
-  .page { min-height: calc(100svh - 24px); display: grid; gap: 12px; align-content: start; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 12px; align-content: start; }
   .page { grid-template-rows: auto 1fr; }
   .head { padding: 12px; display: flex; align-items: start; justify-content: space-between; gap: 12px; }
   .title-wrap { min-width: 0; display: flex; align-items: center; gap: 8px; }

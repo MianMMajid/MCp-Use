@@ -111,7 +111,7 @@
 
 <style>
   .page {
-    min-height: calc(100svh - 24px);
+    min-height: calc(100svh - 92px);
     display: grid;
     gap: 10px;
     align-content: start;
