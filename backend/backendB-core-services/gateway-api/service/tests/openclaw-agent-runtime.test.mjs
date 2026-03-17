@@ -98,12 +98,17 @@ process.env.MCP_URL = process.env.MCP_URL || "http://localhost:3000";
 process.env.DOWNSTREAM_APPS = process.env.DOWNSTREAM_APPS || "";
 
 import assert from "node:assert/strict";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import test from "node:test";
 
 // Use dynamic import so env vars are set before config.js is evaluated
 const {
   buildOpenClawAgentArgs,
+  getOpenClawRunArtifacts,
   parseOpenClawAgentOutput,
+  runOpenClawTurn,
 } = await import("../src/core/openclaw-agent-runtime.js");
 
 test("buildOpenClawAgentArgs builds local mode command with expected flags", () => {
@@ -177,4 +182,47 @@ test("parseOpenClawAgentOutput surfaces failover errors from text output", () =>
 
   assert.equal(parsed.ok, false);
   assert.equal(parsed.error.includes("FailoverError"), true);
+});
+
+test("runOpenClawTurn stores scan metadata on returned artifacts", async () => {
+  const binDir = mkdtempSync(join(tmpdir(), "maple-openclaw-bin-"));
+  const scriptPath = join(binDir, "openclaw");
+  writeFileSync(scriptPath, `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "openclaw 1.0.0"
+  exit 0
+fi
+session="agent-dev-main"
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--session-id" ]; then
+    session="$arg"
+  fi
+  prev="$arg"
+done
+printf '{"sessionId":"%s","response":{"text":"Scanned reply"},"usage":{"input_tokens":1,"output_tokens":1}}\\n' "$session"
+`, "utf8");
+  chmodSync(scriptPath, 0o755);
+
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${binDir}:${originalPath}`;
+
+  try {
+    const result = await runOpenClawTurn({
+      mode: "local",
+      devProfile: false,
+      sessionId: "scan-session",
+      message: "return a scanned reply",
+    });
+    const artifactsPayload = await getOpenClawRunArtifacts(result.runId);
+    assert.equal(Array.isArray(artifactsPayload?.artifacts), true);
+    assert.ok(artifactsPayload.artifacts.length >= 2);
+    const artifact = artifactsPayload.artifacts[0];
+    assert.equal(typeof artifact.scan.sha256, "string");
+    assert.equal(artifact.scan.status, "completed");
+    assert.equal(artifact.scan.provider, "local");
+    assert.equal(artifact.scan.blocked, false);
+  } finally {
+    process.env.PATH = originalPath;
+  }
 });

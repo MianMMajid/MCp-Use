@@ -26,7 +26,7 @@ export default function RootLayout({ children }) {
     <html
       lang="en"
       className={clsx(
-        'h-full scroll-smooth bg-white antialiased overscroll-none',
+        'h-full scroll-smooth bg-white antialiased overscroll-none scroll-pt-24',
         GeistSans.variable,
         GeistMono.variable,
       )}

@@ -29,9 +29,9 @@
 <style>
   .node {
     min-width: 170px;
-    border: 1px solid rgba(255,255,255,.16);
+    border: 1px solid var(--row-border);
     border-radius: 12px;
-    background: rgba(20,24,32,.85);
+    background: var(--card-bg);
     color: var(--fg);
     padding: 10px 12px;
     display: grid;
@@ -69,7 +69,7 @@
     border-radius: 999px;
     padding: 1px 5px;
     font-size: 9px;
-    color: #cbd5e1;
-    background: rgba(15,23,42,.34);
+    color: var(--muted);
+    background: var(--row-bg);
   }
 </style>

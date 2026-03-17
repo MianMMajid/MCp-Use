@@ -22,9 +22,16 @@ export const allSections = {
     { title: 'Effective rules', id: 'effective-rules' },
     { title: 'Preview tool', id: 'preview-tool' },
     { title: 'Firewall state', id: 'firewall-state' },
+    { title: 'Cyber incidents', id: 'cyber-incidents' },
     { title: 'Streaming chat', id: 'streaming-chat' },
     { title: 'Firewall chat', id: 'firewall-chat' },
     { title: 'Capabilities', id: 'capabilities' },
+  ],
+  '/maple/cyber': [
+    { title: 'Status', id: 'status' },
+    { title: 'Policies', id: 'policies' },
+    { title: 'Download scans', id: 'download-scans' },
+    { title: 'Quarantine & Blocks', id: 'quarantine-blocks' },
   ],
   '/maple/demo': [
     { title: 'Sessions', id: 'demo-sessions' },

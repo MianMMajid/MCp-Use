@@ -5,6 +5,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
 import { checkUrl, scanContent, scanContentForInjection } from "./ssrf-guard.js";
 import { config } from "./config.js";
+import { scanDownloadedContent } from "../../../shared/packages/maple-security/src/download-scan.js";
 const PROTO_ROOT = resolve(import.meta.dirname, "../../../../proto");
 const grpcTlsConfig = loadGrpcTlsConfig();
 let auditWriterPool;
@@ -271,6 +272,28 @@ function isDownloadLikeResponse(contentType, headers) {
         return false;
     return true;
 }
+async function buildDownloadScan(options = {}) {
+    return scanDownloadedContent({
+        provider: config.downloadScanProvider,
+        virustotalApiKey: config.virustotalApiKey,
+        virustotalApiUrl: config.virustotalApiUrl,
+        timeoutMs: config.downloadScanTimeoutMs,
+        ...options,
+    });
+}
+function attachScanHeaders(headers, scan) {
+    if (!scan || typeof scan !== "object") {
+        return headers;
+    }
+    return {
+        ...headers,
+        "x-maple-scan-provider": String(scan.provider || ""),
+        "x-maple-scan-status": String(scan.status || ""),
+        "x-maple-scan-verdict": String(scan.verdict || ""),
+        "x-maple-scan-sha256": String(scan.sha256 || ""),
+        "x-maple-scan-checked-at": String(scan.checkedAt || ""),
+    };
+}
 async function evaluateUrlPolicy(url, toolName, scopedAllowedDomains) {
     const urlCheck = await checkUrl(url, [], config.blockedDomains);
     if (!urlCheck.allowed) {
@@ -348,24 +371,30 @@ export function createCyberProxyService() {
                 callback({ code: grpc.status.INTERNAL, message: err.message });
             }
         },
-        ScanContent(call, callback) {
+        async ScanContent(call, callback) {
             try {
                 const content = call.request.content || Buffer.alloc(0);
                 const contentType = call.request.contentType || "text/plain";
                 const sourceUrl = call.request.sourceUrl || "";
                 const result = scanContent(Buffer.from(content), contentType, sourceUrl || undefined);
-                if (result.quarantined) {
+                const scan = await buildDownloadScan({
+                    content,
+                    contentType,
+                    sourceUrl,
+                    localResult: result,
+                });
+                if (result.quarantined || scan.quarantined || scan.blocked) {
                     emitAuditEvent({
                         eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                         summary: `Content quarantined: ${result.quarantineReason}`,
-                        payload: { sourceUrl, threats: result.threats, quarantineReason: result.quarantineReason },
+                        payload: { sourceUrl, threats: result.threats, quarantineReason: result.quarantineReason, scan },
                     });
                 }
                 callback(null, {
                     safe: result.safe, threatsFound: result.threats,
                     sanitizedContent: result.sanitized,
-                    scanSummary: result.quarantined ? `Quarantined: ${result.quarantineReason}` : result.safe ? "Content is safe" : `Found ${result.threats.length} threats`,
-                    quarantined: result.quarantined,
+                    scanSummary: JSON.stringify(scan),
+                    quarantined: result.quarantined || scan.quarantined || scan.blocked,
                 });
             }
             catch (err) {
@@ -537,24 +566,31 @@ export function createCyberProxyService() {
                         return;
                     }
                     const scanResult = scanContent(respBody, contentType, url);
-                    if (scanResult.quarantined) {
+                    const scan = await buildDownloadScan({
+                        content: respBody,
+                        contentType,
+                        sourceUrl: url,
+                        localResult: scanResult,
+                    });
+                    const respHeadersWithScan = attachScanHeaders(respHeaders, scan);
+                    if (scanResult.quarantined || scan.quarantined || scan.blocked) {
                         mapleLog("warn", "cyber_proxy_content_quarantined", { url, reason: scanResult.quarantineReason, threats: scanResult.threats });
                         emitAuditEvent({
                             eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                             summary: `Download quarantined: ${scanResult.quarantineReason}`,
-                            payload: { url, reason: scanResult.quarantineReason, threats: scanResult.threats },
+                            payload: { url, reason: scanResult.quarantineReason, threats: scanResult.threats, scan },
                         });
                         callback(null, {
                             statusCode: 403,
-                            headers: respHeaders,
-                            body: Buffer.from(JSON.stringify({ error: "Download quarantined", reason: scanResult.quarantineReason, threats: scanResult.threats })),
+                            headers: respHeadersWithScan,
+                            body: Buffer.from(JSON.stringify({ error: "Download quarantined", reason: scanResult.quarantineReason, threats: scanResult.threats, scan })),
                             durationMs: Date.now() - start,
                             resolvedIp: urlCheck.resolvedIp,
                             sanitized: false,
-                            malwareDetected: true,
+                            malwareDetected: scan.verdict === "malicious",
                             quarantined: true,
-                            threatsFound: scanResult.threats,
-                            quarantineReason: scanResult.quarantineReason || "",
+                            threatsFound: [...new Set([...(scanResult.threats ?? []), ...(scan.reasons ?? [])])],
+                            quarantineReason: scanResult.quarantineReason || scan.reasons?.[0] || "",
                             policyReason: scanResult.quarantineReason || "content_quarantined",
                         });
                         return;
@@ -563,8 +599,8 @@ export function createCyberProxyService() {
                         mapleLog("warn", "cyber_proxy_content_blocked", { url, threats: scanResult.threats });
                         callback(null, {
                             statusCode: 403,
-                            headers: respHeaders,
-                            body: Buffer.from(JSON.stringify({ error: "Response content blocked", threats: scanResult.threats })),
+                            headers: respHeadersWithScan,
+                            body: Buffer.from(JSON.stringify({ error: "Response content blocked", threats: scanResult.threats, scan })),
                             durationMs: Date.now() - start,
                             resolvedIp: urlCheck.resolvedIp,
                             sanitized: false,
@@ -591,7 +627,7 @@ export function createCyberProxyService() {
                     const finalBody = scanResult.sanitized.length > 0 ? scanResult.sanitized : respBody;
                     callback(null, {
                         statusCode: resp.status,
-                        headers: respHeaders,
+                        headers: respHeadersWithScan,
                         body: finalBody,
                         durationMs: Date.now() - start,
                         resolvedIp: urlCheck.resolvedIp,
@@ -702,22 +738,29 @@ export function createCyberProxyService() {
                     return;
                 }
                 const scanResult = scanContent(respBody, contentType, url);
-                if (scanResult.quarantined) {
+                const scan = await buildDownloadScan({
+                    content: respBody,
+                    contentType,
+                    sourceUrl: url,
+                    localResult: scanResult,
+                });
+                const respHeadersWithScan = attachScanHeaders(respHeaders, scan);
+                if (scanResult.quarantined || scan.quarantined || scan.blocked) {
                     emitAuditEvent({
                         eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
                         summary: `Stream download quarantined: ${scanResult.quarantineReason}`,
-                        payload: { url, reason: scanResult.quarantineReason, threats: scanResult.threats },
+                        payload: { url, reason: scanResult.quarantineReason, threats: scanResult.threats, scan },
                     });
                     call.write({
-                        data: Buffer.from(JSON.stringify({ error: "Download quarantined", reason: scanResult.quarantineReason, threats: scanResult.threats })),
+                        data: Buffer.from(JSON.stringify({ error: "Download quarantined", reason: scanResult.quarantineReason, threats: scanResult.threats, scan })),
                         isFinal: true,
                         statusCode: 403,
-                        headers: respHeaders,
+                        headers: respHeadersWithScan,
                         sanitized: false,
-                        malwareDetected: true,
+                        malwareDetected: scan.verdict === "malicious",
                         quarantined: true,
-                        threatsFound: scanResult.threats,
-                        quarantineReason: scanResult.quarantineReason || "",
+                        threatsFound: [...new Set([...(scanResult.threats ?? []), ...(scan.reasons ?? [])])],
+                        quarantineReason: scanResult.quarantineReason || scan.reasons?.[0] || "",
                         policyReason: scanResult.quarantineReason || "content_quarantined",
                         resolvedIp: urlCheck.resolvedIp,
                     });
@@ -726,10 +769,10 @@ export function createCyberProxyService() {
                 }
                 if (!scanResult.safe) {
                     call.write({
-                        data: Buffer.from(JSON.stringify({ error: "Response content blocked", threats: scanResult.threats })),
+                        data: Buffer.from(JSON.stringify({ error: "Response content blocked", threats: scanResult.threats, scan })),
                         isFinal: true,
                         statusCode: 403,
-                        headers: respHeaders,
+                        headers: respHeadersWithScan,
                         sanitized: false,
                         malwareDetected: true,
                         quarantined: false,
@@ -747,7 +790,7 @@ export function createCyberProxyService() {
                         data: finalBody,
                         isFinal: true,
                         statusCode: resp.status,
-                        headers: respHeaders,
+                        headers: respHeadersWithScan,
                         sanitized: finalBody !== respBody,
                         malwareDetected: false,
                         quarantined: false,

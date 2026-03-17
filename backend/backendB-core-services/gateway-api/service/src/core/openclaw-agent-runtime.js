@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import net from "node:net";
 import { promisify } from "node:util";
 import {
+  downloadScanProvider,
+  downloadScanTimeoutMs,
+  downloadScanVirusTotalApiKey,
+  downloadScanVirusTotalApiUrl,
   openclawAgentAutoStartGateway,
   openclawAgentDefaultSessionId,
   openclawAgentDefaultThinking,
@@ -19,6 +23,7 @@ import { mapleLog } from "../logging.js";
 import { database } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
 import { buildAgentBaseline } from "../../../../shared/packages/maple-risk-engine/src/ml/cross-agent-detector.js";
+import { buildLocalScanResult, scanDownloadedContent } from "../../../../shared/packages/maple-security/src/download-scan.js";
 
 let _agentBaselineStore;
 function getAgentBaselineStore() {
@@ -248,11 +253,52 @@ function extractCostFromOutput(output) {
   return { inputTokens, outputTokens, estimatedCostUsd: Math.round(estimatedCostUsd * 1000000) / 1000000 };
 }
 
-function completeRunRecord(run, output, artifacts = []) {
+function artifactContentToBuffer(content) {
+  if (content === undefined || content === null) return Buffer.alloc(0);
+  if (Buffer.isBuffer(content)) return content;
+  if (content instanceof Uint8Array) return Buffer.from(content);
+  if (typeof content === "string") return Buffer.from(content, "utf8");
+  return Buffer.from(JSON.stringify(content));
+}
+
+function inferArtifactContentType(artifact = {}) {
+  if (artifact.contentType) {
+    return String(artifact.contentType);
+  }
+  return typeof artifact.content === "string" ? "text/plain" : "application/json";
+}
+
+async function withArtifactScan(artifact = {}) {
+  if (artifact.scan && typeof artifact.scan === "object") {
+    return artifact;
+  }
+  return {
+    ...artifact,
+    scan: await scanDownloadedContent({
+      provider: downloadScanProvider,
+      virustotalApiKey: downloadScanVirusTotalApiKey,
+      virustotalApiUrl: downloadScanVirusTotalApiUrl,
+      timeoutMs: downloadScanTimeoutMs,
+      content: artifactContentToBuffer(artifact.content),
+      contentType: inferArtifactContentType(artifact),
+      filename: `${String(artifact.artifactType || "artifact")}.${typeof artifact.content === "string" ? "txt" : "json"}`,
+      localResult: buildLocalScanResult({
+        threats: [],
+        quarantined: false,
+      }),
+    }),
+  };
+}
+
+async function withArtifactScans(artifacts = []) {
+  return Promise.all((Array.isArray(artifacts) ? artifacts : []).map((artifact) => withArtifactScan(artifact)));
+}
+
+async function completeRunRecord(run, output, artifacts = []) {
   const session = ensureSessionRecord(run.sessionId);
   run.status = session.cancelRequested ? "canceled" : "completed";
   run.output = output;
-  run.artifacts = Array.isArray(artifacts) ? artifacts : [];
+  run.artifacts = await withArtifactScans(artifacts);
   run.cost = extractCostFromOutput(output);
   run.updatedAt = nowIso();
 
@@ -689,7 +735,7 @@ export async function runOpenClawTurn(options = {}) {
     },
   });
   if (isSessionCancelRequested(run.sessionId)) {
-    completeRunRecord(run, { canceled: true }, []);
+    await completeRunRecord(run, { canceled: true }, []);
     throw new Error("OpenClaw session was canceled.");
   }
   const args = buildOpenClawAgentArgs({
@@ -735,7 +781,7 @@ export async function runOpenClawTurn(options = {}) {
       reply: parsed.reply,
       raw: parsed.parsed ?? null,
     };
-    completeRunRecord(run, resultPayload, [
+    await completeRunRecord(run, resultPayload, [
       {
         artifactType: "reply",
         content: parsed.reply,
@@ -808,7 +854,7 @@ export async function runOpenClawLongform(options = {}) {
           turns,
           canceled: true,
         };
-        completeRunRecord(run, output, [
+        await completeRunRecord(run, output, [
           {
             artifactType: "turns",
             content: turns,
@@ -844,7 +890,7 @@ export async function runOpenClawLongform(options = {}) {
       completed,
       turns,
     };
-    completeRunRecord(run, output, [
+    await completeRunRecord(run, output, [
       {
         artifactType: "turns",
         content: turns,
@@ -946,11 +992,12 @@ export function cancelOpenClawSession(sessionId) {
   return toPublicSession(session);
 }
 
-export function getOpenClawRunArtifacts(runId) {
+export async function getOpenClawRunArtifacts(runId) {
   const run = runStore.get(String(runId ?? ""));
   if (!run) {
     return null;
   }
+  run.artifacts = await withArtifactScans(run.artifacts);
   return {
     ...toPublicRun(run),
     output: run.output,

@@ -247,11 +247,11 @@
 <style>
   .sidebar {
     height: calc(100svh - 24px);
-    border-radius: 26px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: linear-gradient(180deg, rgba(24, 28, 36, 0.62), rgba(12, 15, 21, 0.58));
-    backdrop-filter: blur(22px) saturate(130%);
-    box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.12), 0 16px 40px rgba(0, 0, 0, 0.35);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: var(--shadow-soft);
     overflow: hidden;
   }
 
@@ -293,7 +293,7 @@
     height: 52px;
     border: 0;
     background: transparent;
-    color: #e5e7eb;
+    color: var(--muted);
     cursor: pointer;
     padding: 0;
     display: grid;
@@ -307,34 +307,35 @@
 
   .item {
     width: 100%;
-    min-height: 58px;
-    padding: 0 18px;
+    min-height: 52px;
+    padding: 0 16px;
     text-align: left;
     display: inline-flex;
     align-items: center;
     gap: 14px;
-    border-color: rgba(249, 115, 22, 0.28);
-    background: rgba(15, 18, 25, 0.68);
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.75);
     cursor: pointer;
     transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
   }
 
   .item:hover {
     transform: translateY(-1px);
-    background: rgba(30, 34, 43, 0.74);
-    border-color: rgba(249, 115, 22, 0.45);
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.95);
   }
 
   .item.active {
-    background: linear-gradient(180deg, rgba(72, 76, 88, 0.72), rgba(56, 60, 70, 0.72));
-    border-color: rgba(249, 115, 22, 0.52);
+    border-color: rgba(232, 116, 12, 0.48);
+    background: linear-gradient(145deg, rgba(255, 237, 215, 0.95), rgba(255, 255, 255, 0.95));
+    color: var(--ink);
   }
 
   .icon {
     width: 22px;
     display: inline-grid;
     place-items: center;
-    color: #e5e7eb;
+    color: var(--muted);
   }
 
   .label {
@@ -379,9 +380,9 @@
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    border: 1px solid rgba(249, 115, 22, 0.22);
+    border: 1px solid var(--border);
     border-radius: 999px;
-    background: rgba(20, 24, 32, 0.62);
+    background: rgba(255, 255, 255, 0.75);
     color: var(--fg);
     padding: 10px 12px;
     text-align: left;
@@ -390,8 +391,8 @@
 
   .history-item:hover,
   .history-item.active {
-    border-color: rgba(249, 115, 22, 0.42);
-    background: rgba(34, 38, 47, 0.74);
+    border-color: rgba(232, 116, 12, 0.42);
+    background: rgba(255, 255, 255, 0.95);
   }
 
   .history-item span {
@@ -402,9 +403,9 @@
 
   .orch-item {
     width: 100%;
-    border: 1px solid rgba(249, 115, 22, 0.22);
-    border-radius: 18px;
-    background: rgba(20, 24, 32, 0.64);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.75);
     color: var(--fg);
     padding: 10px 12px;
     text-align: left;
@@ -415,8 +416,8 @@
 
   .orch-item:hover,
   .orch-item.active {
-    border-color: rgba(249, 115, 22, 0.45);
-    background: rgba(34, 38, 47, 0.78);
+    border-color: rgba(232, 116, 12, 0.45);
+    background: rgba(255, 255, 255, 0.95);
   }
 
   .orch-row {
@@ -468,9 +469,9 @@
   }
 
   .status-zinc {
-    color: #d4d4d8;
-    background: rgba(212, 212, 216, 0.1);
-    border-color: rgba(212, 212, 216, 0.22);
+    color: var(--muted);
+    background: rgba(107, 107, 107, 0.1);
+    border-color: rgba(107, 107, 107, 0.22);
   }
 
   .empty {
@@ -492,7 +493,7 @@
     position: fixed;
     inset: 0;
     z-index: 60;
-    background: rgba(6, 9, 14, 0.56);
+    background: rgba(0, 0, 0, 0.18);
     backdrop-filter: blur(4px);
     display: grid;
     place-items: center;
@@ -501,10 +502,10 @@
 
   .search-dialog {
     width: min(520px, 100%);
-    border-radius: 22px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(20, 24, 32, 0.95);
-    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.5);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: var(--shadow-strong);
     padding: 14px;
     display: grid;
     gap: 12px;
@@ -513,24 +514,24 @@
   .search-title {
     margin: 0;
     font-size: 14px;
-    color: #d4d4d8;
+    color: var(--ink);
     font-weight: 600;
   }
 
   .search-input {
     width: 100%;
-    border: 1px solid rgba(249, 115, 22, 0.26);
-    border-radius: 14px;
-    background: rgba(11, 14, 20, 0.86);
-    color: #f4f4f5;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-soft);
+    color: var(--ink);
     padding: 10px 12px;
     outline: none;
     font-size: 15px;
   }
 
   .search-input:focus {
-    border-color: rgba(249, 115, 22, 0.58);
-    box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.28);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-soft);
   }
 
   .search-actions {
@@ -540,15 +541,15 @@
   }
 
   .search-actions .ghost {
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(37, 41, 52, 0.76);
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.75);
     cursor: pointer;
     padding: 7px 11px;
   }
 
   .search-actions .confirm {
-    border-color: rgba(249, 115, 22, 0.5);
-    background: rgba(249, 115, 22, 0.22);
+    border-color: rgba(232, 116, 12, 0.5);
+    background: var(--accent-soft);
     cursor: pointer;
     padding: 7px 11px;
   }
@@ -557,12 +558,12 @@
     width: 44px;
     height: 44px;
     border-radius: 999px;
-    border: 1px solid rgba(249, 115, 22, 0.35);
+    border: 1px solid rgba(232, 116, 12, 0.35);
     padding: 0;
     overflow: hidden;
-    background: rgba(14, 16, 22, 0.84);
+    background: var(--bg-soft);
     cursor: pointer;
-    color: #f4f4f5;
+    color: var(--ink);
     font-weight: 700;
     display: grid;
     place-items: center;

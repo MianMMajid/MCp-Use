@@ -4,13 +4,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { loadJson, postJson } from '@/lib/api'
 import { Button } from '@/components/Button'
 import { SkeletonList } from '@/components/Skeleton'
-import { filterFrontendBOrigin } from '@/lib/maple-workspace/origin-filter'
+import { filterRecordsBySource, getAuditRecordSource } from '@/lib/maple-workspace/origin-filter'
 
 export default function ObsAuditLog() {
   const [auditLog, setAuditLog] = useState(null)
   const [auditLogLoading, setAuditLogLoading] = useState(true)
   const [auditLogNextOffset, setAuditLogNextOffset] = useState(null)
   const [siemFormat, setSiemFormat] = useState('json')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const [siemMsg, setSiemMsg] = useState(null)
   const [siemExporting, setSiemExporting] = useState(false)
   const [flushing, setFlushing] = useState(false)
@@ -20,11 +21,11 @@ export default function ObsAuditLog() {
     try {
       const data = await loadJson('/api/observability/orchestrations/audit-log?offset=0&limit=100')
       const entries = Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? []
-      setAuditLog(filterFrontendBOrigin(entries))
+      setAuditLog(filterRecordsBySource(entries, sourceFilter))
       setAuditLogNextOffset(data.nextOffset ?? null)
     } catch { /* non-critical */ }
     finally { setAuditLogLoading(false) }
-  }, [])
+  }, [sourceFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -40,7 +41,7 @@ export default function ObsAuditLog() {
     try {
       const data = await loadJson(`/api/observability/orchestrations/audit-log?offset=${auditLogNextOffset}&limit=100`)
       const entries = Array.isArray(data) ? data : data.entries ?? data.events ?? data.items ?? []
-      const filteredEntries = filterFrontendBOrigin(entries)
+      const filteredEntries = filterRecordsBySource(entries, sourceFilter)
       setAuditLog((prev) => (prev ? [...prev, ...filteredEntries] : filteredEntries))
       setAuditLogNextOffset(data.nextOffset ?? null)
     } catch { /* non-critical */ }
@@ -84,6 +85,14 @@ export default function ObsAuditLog() {
     <>
       <section id="audit-log" className="mt-10">
         <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">Audit Log</h2>
+        <div className="mt-4 flex items-center gap-3">
+          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="rounded-lg border border-zinc-950/10 bg-white px-3 py-1.5 text-sm text-zinc-950 dark:border-white/10 dark:bg-zinc-900 dark:text-white">
+            <option value="all">All sources</option>
+            <option value="context-wall">context-wall</option>
+            <option value="cyber-proxy">cyber-proxy</option>
+            <option value="gateway-api">gateway-api</option>
+          </select>
+        </div>
 
         {auditLogLoading && !auditLog ? (
           <div className="mt-4"><SkeletonList /></div>
@@ -102,7 +111,7 @@ export default function ObsAuditLog() {
                   {auditLog.map((entry, idx) => (
                     <tr key={entry.id ?? idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                       <td className="px-4 py-2 font-medium text-zinc-950 dark:text-white">{entry.event ?? entry.type ?? entry.action ?? `Entry ${idx + 1}`}</td>
-                      <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{entry.actor ?? '-'}</td>
+                      <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{getAuditRecordSource(entry) || entry.actor || '-'}</td>
                       <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '-'}</td>
                     </tr>
                   ))}

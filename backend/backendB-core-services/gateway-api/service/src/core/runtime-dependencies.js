@@ -3,7 +3,10 @@ import net from "node:net";
 import { loadGrpcTlsConfig } from "@maple/common";
 import { grpcUnary } from "../grpc-clients.js";
 import {
+  cyberQuarantineEnabled,
   cyberProxyAddress,
+  downloadScanProvider,
+  downloadScanVirusTotalApiKey,
   gatewayTlsCaPath,
   gatewayTlsCertPath,
   gatewayTlsKeyPath,
@@ -198,6 +201,16 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       ["grpc.context_wall"],
       checkMap
     ),
+    contextFirewall: capabilityFromDependencies(
+      "contextFirewall",
+      ["grpc.context_wall"],
+      checkMap
+    ),
+    cyberFirewall: capabilityFromDependencies(
+      "cyberFirewall",
+      ["grpc.cyber_proxy"],
+      checkMap
+    ),
     hitlApprovals: capabilityFromDependencies(
       "hitlApprovals",
       ["grpc.context_wall"],
@@ -237,6 +250,20 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       reason: "ok",
       requiredDeps: [],
     },
+    downloadScanning: {
+      enabled: true,
+      reason: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey
+        ? "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured."
+        : "ok",
+      requiredDeps: [],
+    },
+    scanEnrichment: {
+      enabled: downloadScanProvider !== "virustotal" || Boolean(downloadScanVirusTotalApiKey),
+      reason: downloadScanProvider !== "virustotal" || Boolean(downloadScanVirusTotalApiKey)
+        ? "ok"
+        : "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured.",
+      requiredDeps: [],
+    },
     googleAuth: resolveGoogleAuthCapability(checkMap),
   };
   return {
@@ -244,6 +271,18 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
     strict: report.strict,
     ready: report.ready,
     features,
+    firewall: {
+      contextWallReachable: checkMap.get("grpc.context_wall")?.ok === true,
+      mcpProxyReachable: checkMap.get("grpc.mcp_proxy")?.ok === true,
+      cyberProxyReachable: checkMap.get("grpc.cyber_proxy")?.ok === true,
+      scanProvider: downloadScanProvider,
+      quarantineEnabled: cyberQuarantineEnabled,
+      degradedStates: {
+        contextPolicyUnavailable: checkMap.get("grpc.context_wall")?.ok !== true,
+        cyberScanUnavailable: checkMap.get("grpc.cyber_proxy")?.ok !== true,
+        virustotalUnavailable: downloadScanProvider === "virustotal" && !downloadScanVirusTotalApiKey,
+      },
+    },
     dependencies: report.checks.map((check) => ({
       id: check.id,
       label: check.label,
