@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { chatStore } from '@/lib/stores/chat-store';
+  import { shellStore } from '@/lib/stores/shell-store';
   import { toastStore } from '@/lib/stores/toast-store';
   import { postJson, invalidateCache } from '@/lib/api';
   import Icon from '@/lib/components/icons/Icon.svelte';
@@ -15,10 +16,14 @@
   let busy = false;
   let error = '';
 
+  $: isDark = false;
+  $: if (typeof $shellStore?.theme === 'string') isDark = $shellStore.theme === 'dark';
+
   const quickActions = [
     { id: 'new-chat', label: 'New Chat', icon: 'pen', section: 'Actions' },
     { id: 'new-orchestration', label: 'New Orchestration', icon: 'orchestration', section: 'Actions' },
     { id: 'new-agent', label: 'New Agent', icon: 'agent', section: 'Actions' },
+    { id: 'toggle-theme', label: 'Toggle Dark Mode', icon: 'moon', section: 'Actions' },
   ];
 
   const navItems = [
@@ -87,6 +92,13 @@
 
   async function executeItem(item) {
     if (busy) return;
+
+    if (item.id === 'toggle-theme') {
+      shellStore.toggleTheme();
+      toastStore.info(isDark ? 'Switched to light mode' : 'Switched to dark mode');
+      close();
+      return;
+    }
 
     if (item.id === 'new-chat') {
       chatStore.newSession();

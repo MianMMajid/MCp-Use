@@ -46,33 +46,54 @@
 </script>
 
 <nav class="bottom-nav" aria-label="Main navigation">
-  <div class="nav-track" style:--pill-count={navItems.length + 1} style:--active-index={activeIndex}>
-    {#if activeIndex >= 0}
-      <div class="nav-indicator"></div>
-    {/if}
+  <div class="nav-row">
+    <div class="nav-track" style:--pill-count={navItems.length + 1} style:--active-index={activeIndex}>
+      {#if activeIndex >= 0}
+        <div class="nav-indicator"></div>
+      {/if}
 
-    {#each navItems as item, i}
+      {#each navItems as item, i}
+        <button
+          class="nav-pill"
+          class:active={i === activeIndex}
+          on:click={() => goto(item.href)}
+          aria-label={item.label}
+          aria-current={i === activeIndex ? 'page' : undefined}
+        >
+          <Icon name={item.icon} size={18} />
+          <span class="nav-label">{item.label}</span>
+        </button>
+      {/each}
+
       <button
-        class="nav-pill"
-        class:active={i === activeIndex}
-        on:click={() => goto(item.href)}
-        aria-label={item.label}
-        aria-current={i === activeIndex ? 'page' : undefined}
+        class="nav-pill search-pill"
+        on:click={() => { commandPaletteOpen = true; }}
+        aria-label="Search and actions"
       >
-        <Icon name={item.icon} size={18} />
-        <span class="nav-label">{item.label}</span>
+        <Icon name="search" size={18} />
+        <span class="nav-label">Search</span>
+        <kbd class="kbd">⌘K</kbd>
       </button>
-    {/each}
+    </div>
 
-    <button
-      class="nav-pill search-pill"
-      on:click={() => { commandPaletteOpen = true; }}
-      aria-label="Search and actions"
-    >
-      <Icon name="search" size={18} />
-      <span class="nav-label">Search</span>
-      <kbd class="kbd">⌘K</kbd>
-    </button>
+    <div class="nav-utils">
+      <button
+        class="util-btn"
+        aria-label={$shellStore.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={$shellStore.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        on:click={() => shellStore.toggleTheme()}
+      >
+        <Icon name={$shellStore.theme === 'dark' ? 'sun' : 'moon'} size={16} />
+      </button>
+      <button
+        class="util-btn"
+        aria-label="Profile"
+        title="Profile & Settings"
+        on:click={() => goto('/profile')}
+      >
+        <Icon name="agent" size={16} />
+      </button>
+    </div>
   </div>
 </nav>
 
@@ -85,10 +106,43 @@
     left: 0;
     right: 0;
     z-index: 50;
-    display: flex;
-    justify-content: center;
     padding: 0 16px 12px;
     pointer-events: none;
+  }
+
+  .nav-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav-utils {
+    display: flex;
+    gap: 6px;
+    pointer-events: auto;
+  }
+
+  .util-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .util-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
   }
 
   .nav-track {

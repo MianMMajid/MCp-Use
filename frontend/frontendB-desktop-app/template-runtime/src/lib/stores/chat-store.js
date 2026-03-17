@@ -210,7 +210,10 @@ function createChatStore() {
         panel: mode === 'orchestration' ? orchestrationPanelTab : ''
       });
 
-      window.addEventListener('popstate', () => {
+      // Guard against duplicate listeners on re-init
+      if (!window.__mayple_popstate_bound) {
+        window.__mayple_popstate_bound = true;
+        window.addEventListener('popstate', () => {
         const current = get({ subscribe });
         const query = readWorkspaceQuery();
         const nextMode = query.mode ? normalizeMode(query.mode) : current.mode;
@@ -225,7 +228,8 @@ function createChatStore() {
           selectedOrchestrationId: nextOrchestrationId,
           selectedOrchestration: (current.orchestrations || []).find((item) => String(item.id) === String(nextOrchestrationId)) || null
         });
-      });
+        });
+      }
     }
 
     await Promise.all([
