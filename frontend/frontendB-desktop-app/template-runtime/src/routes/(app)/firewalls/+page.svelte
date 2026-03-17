@@ -528,7 +528,7 @@
   pre { overflow: auto; white-space: pre-wrap; }
   .muted, small { color: var(--muted); }
   .err { margin: 8px 0 0; color: var(--warn); }
-  .warn { color: #fdba74; }
+  .warn { color: var(--caution); }
   .safe { color: var(--ok); }
   .upload { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
   .upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

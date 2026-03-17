@@ -187,6 +187,6 @@
   .actions { margin-top: 10px; display: flex; justify-content: flex-end; }
   .actions button { padding: 8px 12px; border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); cursor: pointer; }
   .msg { margin: 0 0 10px; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
-  .msg.ok { border: 1px solid rgba(16,185,129,.4); background: rgba(16,185,129,.12); color: #6ee7b7; }
+  .msg.ok { border: 1px solid var(--ok-border); background: var(--ok-soft); color: var(--ok); }
   .msg.err { border: 1px solid rgba(251,113,133,.4); background: rgba(251,113,133,.12); color: var(--warn); }
 </style>

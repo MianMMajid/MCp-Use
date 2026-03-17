@@ -155,7 +155,7 @@
 <style>
   .page { min-height: calc(100svh - 24px); padding: 14px; display: grid; gap: 12px; }
   h1 { margin: 0; }
-  .msg { margin: 0; border: 1px solid rgba(56,189,248,.35); background: rgba(56,189,248,.12); color: #bae6fd; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  .msg { margin: 0; border: 1px solid var(--info-border); background: var(--info-soft); color: var(--info); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
   .block { display: grid; gap: 8px; }
   h2 { margin: 0; font-size: 14px; }
   .rows { display: grid; gap: 8px; }

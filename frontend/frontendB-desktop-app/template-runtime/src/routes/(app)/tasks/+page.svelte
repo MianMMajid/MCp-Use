@@ -436,7 +436,7 @@
     border: 1px solid rgba(148,163,184,.3);
     background: var(--row-bg);
   }
-  .status.running { color: #6ee7b7; border-color: rgba(16,185,129,.44); background: rgba(16,185,129,.16); box-shadow: 0 0 0 6px rgba(16,185,129,.12); animation: pulse 1.6s infinite; }
+  .status.running { color: var(--ok); border-color: var(--ok-border); background: var(--ok-soft); box-shadow: 0 0 0 6px var(--ok-soft); animation: pulse 1.6s infinite; }
   .status.paused { color: #9ca3af; border-color: rgba(107,114,128,.45); background: var(--row-bg); }
   .status.blocked { color: #fca5a5; border-color: rgba(251,113,133,.44); background: rgba(251,113,133,.16); }
   .status.queued { color: #fcd34d; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.14); }
@@ -457,8 +457,8 @@
     border: 1px solid rgba(16,185,129,.35);
     border-radius: 999px;
     padding: 5px 8px;
-    background: rgba(16,185,129,.12);
-    color: #6ee7b7;
+    background: var(--ok-soft);
+    color: var(--ok);
     font-size: 11px;
     cursor: pointer;
     white-space: nowrap;
