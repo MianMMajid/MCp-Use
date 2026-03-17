@@ -24,8 +24,6 @@
   let confirmAction = () => {};
 
   async function requestDelete(type, id, name) {
-    openMenuId = '';
-
     // Guard: agent used in orchestrations
     if (type === 'agent') {
       const referencingFlows = orchestrations.filter((o) => {
