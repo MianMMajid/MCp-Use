@@ -1,0 +1,194 @@
+/**
+ * Dark mode theme — CSS custom properties under [data-theme="dark"]
+ * Overrides the light-mode variables from mayple-a1-parity.css
+ */
+
+[data-theme="dark"] {
+  --bg: #09090b;
+  --bg-soft: #18181b;
+  --panel: rgba(24, 24, 27, 0.97);
+  --panel-2: rgba(39, 39, 42, 0.97);
+  --ink: #fafafa;
+  --muted: #a1a1aa;
+  --line: #3f3f46;
+  --line-strong: #52525b;
+  --brand: #fb923c;
+  --brand-strong: #f97316;
+  --accent: #fdba74;
+  --ok: #34d399;
+  --ok-soft: rgba(52, 211, 153, 0.12);
+  --ok-border: rgba(52, 211, 153, 0.30);
+  --warn: #f87171;
+  --warn-soft: rgba(248, 113, 113, 0.12);
+  --warn-border: rgba(248, 113, 113, 0.30);
+  --critical: #fb7185;
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.12);
+  --info-border: rgba(96, 165, 250, 0.30);
+  --caution: #fbbf24;
+  --caution-soft: rgba(251, 191, 36, 0.12);
+  --caution-border: rgba(251, 191, 36, 0.30);
+  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.3);
+  --shadow-strong: 0 16px 38px rgba(0, 0, 0, 0.4);
+
+  /* Maple workspace dark overrides */
+  --mw-bg-0: #09090b;
+  --mw-bg-1: #18181b;
+  --mw-bg-2: #121215;
+  --mw-ink: #fafafa;
+  --mw-muted: #a1a1aa;
+  --mw-line: #3f3f46;
+  --mw-brand: #fb923c;
+  --mw-brand-strong: #f97316;
+  --mw-glass: rgba(24, 24, 27, 0.78);
+  --mw-surface: rgba(18, 18, 21, 0.9);
+  --mw-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(251, 146, 60, 0.04), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgba(249, 115, 22, 0.03), transparent 30%),
+    linear-gradient(165deg, #09090b 0%, #0c0c0e 46%, #121215 100%);
+  color: var(--ink);
+}
+
+/* Top bar dark mode */
+[data-theme="dark"] .top-bar {
+  background: rgba(30, 30, 30, 0.82);
+  border-color: var(--line);
+}
+
+/* Panels and cards */
+[data-theme="dark"] .panel,
+[data-theme="dark"] .login-card {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+/* Input fields */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: var(--bg-soft);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Tables */
+[data-theme="dark"] .timeline-table thead {
+  background: var(--bg-soft);
+}
+
+[data-theme="dark"] .timeline-table tbody tr:hover {
+  background: rgba(245, 158, 11, 0.06);
+}
+
+/* Buttons */
+[data-theme="dark"] .action-btn {
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .action-btn.primary {
+  background: var(--brand);
+  border-color: var(--brand-strong);
+  color: #fff;
+}
+
+/* Chips and badges */
+[data-theme="dark"] .chip {
+  background: var(--bg-soft);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+/* Scrollbar */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+/* Monitor nodes */
+[data-theme="dark"] .monitor-step-node {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .monitor-step-node.monitor-step-blocked {
+  background: rgba(251, 113, 133, 0.1);
+  border-color: var(--critical);
+}
+
+/* Notification center */
+[data-theme="dark"] .notification-dropdown {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+/* Global search */
+[data-theme="dark"] .search-palette {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .search-palette-input {
+  background: var(--bg-soft);
+  color: var(--ink);
+}
+
+/* Code/mono elements */
+[data-theme="dark"] .mono,
+[data-theme="dark"] code {
+  color: var(--accent);
+}
+
+/* QR codes must remain white-on-black regardless of theme */
+[data-theme="dark"] .mfa-qr-code {
+  filter: none !important;
+  background: white;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+/* Print mode always uses light theme */
+@media print {
+  [data-theme="dark"] {
+    --bg: #ffffff;
+    --bg-soft: #f8f5f0;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #e5ddd4;
+    --panel: rgba(255, 255, 255, 0.97);
+  }
+
+  [data-theme="dark"] body {
+    background: white;
+    color: #1a1a1a;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark"] *,
+  [data-theme="dark"] *::before,
+  [data-theme="dark"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

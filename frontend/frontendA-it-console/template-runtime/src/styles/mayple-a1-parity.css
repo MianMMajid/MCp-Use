@@ -1,20 +1,30 @@
 :root {
-  --bg: #ffffff;
-  --bg-soft: #f8f5f0;
+  --bg: #fafafa;
+  --bg-soft: #f4f4f5;
   --panel: rgba(255, 255, 255, 0.97);
   --panel-2: rgba(248, 244, 238, 0.97);
-  --ink: #1a1a1a;
-  --muted: #6b6b6b;
-  --line: #e5ddd4;
-  --line-strong: #d1c5b8;
-  --brand: #e8740c;
-  --brand-strong: #c55d00;
-  --accent: #ff8f2e;
-  --ok: #39a36f;
-  --warn: #cf5e5e;
-  --critical: #ef6b8b;
-  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.06);
-  --shadow-strong: 0 16px 38px rgba(0, 0, 0, 0.08);
+  --ink: #18181b;
+  --muted: #71717a;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --brand: #c2410c;
+  --brand-strong: #9a3412;
+  --accent: #ea580c;
+  --ok: #059669;
+  --ok-soft: rgba(5, 150, 105, 0.08);
+  --ok-border: rgba(5, 150, 105, 0.25);
+  --warn: #dc2626;
+  --warn-soft: rgba(220, 38, 38, 0.08);
+  --warn-border: rgba(220, 38, 38, 0.25);
+  --critical: #e11d48;
+  --info: #2563eb;
+  --info-soft: rgba(37, 99, 235, 0.08);
+  --info-border: rgba(37, 99, 235, 0.25);
+  --caution: #d97706;
+  --caution-soft: rgba(217, 119, 6, 0.08);
+  --caution-border: rgba(217, 119, 6, 0.25);
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 4px 12px rgba(0, 0, 0, 0.08);
   --top-bar-h: 56px;
   --ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1);
   --dur-spring: 0.4s;
@@ -22,11 +32,27 @@
 
 * { box-sizing: border-box; }
 
+/* ── Focus states (WCAG 2.2 AA) ── */
+*:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 2px rgba(232, 116, 12, 0.2);
+}
+
 html, body {
   margin: 0;
   min-height: 100%;
-  font-family: 'Nunito', 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  font-family: 'Inter', 'Nunito', 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
   color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 body {
