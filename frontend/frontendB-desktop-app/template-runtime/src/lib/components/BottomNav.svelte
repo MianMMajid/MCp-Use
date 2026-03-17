@@ -28,11 +28,12 @@
   $: isVertical = dockPosition === 'left' || dockPosition === 'right';
 
   // Measure active pill and position indicator precisely
-  $: if (activeIndex >= 0 && trackEl && pillEls[activeIndex] && indicatorEl) {
-    tick().then(updateIndicator);
+  // Include dockPosition so indicator re-measures after orientation change
+  $: if (activeIndex >= 0 && trackEl && pillEls[activeIndex] && indicatorEl && dockPosition) {
+    tick().then(() => requestAnimationFrame(measureAndApplyIndicator));
   }
 
-  function updateIndicator() {
+  function measureAndApplyIndicator() {
     if (!indicatorEl || activeIndex < 0 || !trackEl || !pillEls[activeIndex]) {
       if (indicatorEl) indicatorEl.style.opacity = '0';
       return;
@@ -40,7 +41,8 @@
     const track = trackEl.getBoundingClientRect();
     const pill = pillEls[activeIndex].getBoundingClientRect();
     const el = indicatorEl;
-    if (isVertical) {
+    const vertical = dockPosition === 'left' || dockPosition === 'right';
+    if (vertical) {
       el.style.top = `${pill.top - track.top}px`;
       el.style.left = '4px';
       el.style.width = `calc(100% - 8px)`;
@@ -218,7 +220,7 @@
     }
 
     // Re-measure indicator after orientation may have changed
-    tick().then(() => setTimeout(updateIndicator, 400));
+    tick().then(() => setTimeout(measureAndApplyIndicator, 400));
   }
 
   // ── Lifecycle ──
@@ -234,7 +236,7 @@
 
       // Initial indicator measurement after DOM settles
       tick().then(() => {
-        setTimeout(updateIndicator, 50);
+        setTimeout(measureAndApplyIndicator, 50);
       });
     }
   });

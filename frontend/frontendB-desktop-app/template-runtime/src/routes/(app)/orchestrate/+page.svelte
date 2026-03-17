@@ -226,7 +226,7 @@
           </div>
         {:else}
           {#each filteredOrch as item}
-            <div class="card orch-row">
+            <div class="card orch-row" class:menu-open={openMenuId === item.id}>
               <button class="orch-main" on:click={() => goto(`/orchestrate/${item.id}`)}>
                 <div class="orch-info">
                   <p class="orch-name">{item.name || item.id}</p>
@@ -282,7 +282,7 @@
         {:else}
           {#each filteredAgents as agent}
             {@const id = agent.agentId || agent.id}
-            <article class="card agent-card">
+            <article class="card agent-card" class:menu-open={openMenuId === id}>
               <div class="agent-top-row">
                 <button class="agent-top" type="button" on:click={() => goto(`/agents/${id}`)}>
                   <p class="agent-name">{agent.name || id}</p>
@@ -358,7 +358,8 @@
 
   /* Orchestration list */
   .orch-list { display: grid; gap: 8px; }
-  .orch-row { display: flex; align-items: center; gap: 0; padding: 0; transition: border-color 0.15s; }
+  .orch-row { display: flex; align-items: center; gap: 0; padding: 0; transition: border-color 0.15s; position: relative; }
+  .menu-open { z-index: 10; }
   .orch-row:hover { border-color: var(--accent); }
   .orch-main { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 8px 14px 16px; cursor: pointer; text-align: left; border: 0; background: transparent; color: inherit; }
   .orch-info { min-width: 0; }
@@ -369,7 +370,7 @@
 
   /* Agent grid */
   .agent-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-  .agent-card { padding: 12px; text-align: left; transition: border-color 0.15s; }
+  .agent-card { padding: 12px; text-align: left; transition: border-color 0.15s; position: relative; }
   .agent-card:hover { border-color: rgba(232, 116, 12, 0.4); }
   .agent-top-row { display: flex; align-items: center; gap: 4px; }
   .agent-top { flex: 1; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }

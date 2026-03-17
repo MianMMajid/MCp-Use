@@ -310,7 +310,7 @@
         <div class="task-grid">
           {#each tasks as task}
             {@const fw = firewallForTask(task)}
-            <article class="task-card">
+            <article class="task-card" class:menu-open={openMenuTaskId === task.id}>
               <div class="task-top">
                 <div>
                   <p class="title">{task.title}</p>
@@ -460,7 +460,9 @@
     padding: 10px;
     display: grid;
     gap: 9px;
+    position: relative;
   }
+  .task-card.menu-open { z-index: 10; }
   .task-top { display: flex; gap: 10px; justify-content: space-between; align-items: start; }
   .title { margin: 0; font-weight: 700; font-size: 14px; }
   .prompt { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
