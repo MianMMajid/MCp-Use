@@ -1,4 +1,28 @@
 import { requireEnv, requireEnvPort } from "@maple/common";
+
+function optionalEnv(key, fallback = "") {
+    const raw = (process.env[key] ?? "").trim();
+    return raw.length > 0 ? raw : fallback;
+}
+
+function optionalEnvInt(key, fallback, { min, max } = {}) {
+    const raw = (process.env[key] ?? "").trim();
+    if (!raw) {
+        return fallback;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed)) {
+        throw new Error(`Invalid integer for ${key}: "${raw}"`);
+    }
+    if (min !== undefined && parsed < min) {
+        throw new Error(`${key} value ${parsed} is below minimum ${min}`);
+    }
+    if (max !== undefined && parsed > max) {
+        throw new Error(`${key} value ${parsed} is above maximum ${max}`);
+    }
+    return parsed;
+}
+
 function parseToolAllowedDomains(raw) {
     const trimmed = raw.trim();
     if (!trimmed)
@@ -46,5 +70,15 @@ export const config = {
         return raw;
     })(),
     quarantineEnabled: ["1", "true", "yes"].includes(requireEnv("CYBER_QUARANTINE_ENABLED").toLowerCase()),
+    downloadScanProvider: (() => {
+        const raw = optionalEnv("MAPLE_DOWNLOAD_SCAN_PROVIDER", "local").toLowerCase();
+        if (raw !== "local" && raw !== "virustotal") {
+            throw new Error(`Invalid MAPLE_DOWNLOAD_SCAN_PROVIDER: "${raw}" (must be "local" or "virustotal")`);
+        }
+        return raw;
+    })(),
+    virustotalApiKey: optionalEnv("MAPLE_VIRUSTOTAL_API_KEY"),
+    virustotalApiUrl: optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3"),
+    downloadScanTimeoutMs: optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 }),
 };
 //# sourceMappingURL=config.js.map

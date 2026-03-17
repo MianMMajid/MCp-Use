@@ -239,7 +239,7 @@ server.app.get("/api/openclaw/agent/runs/:runId/artifacts", async (c) => {
   if (!runId) {
     return c.json({ ok: false, error: "Missing runId." }, 400);
   }
-  const run = getOpenClawRunArtifacts(runId);
+  const run = await getOpenClawRunArtifacts(runId);
   if (!run) {
     return c.json({ ok: false, error: "Run not found." }, 404);
   }

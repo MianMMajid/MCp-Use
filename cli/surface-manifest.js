@@ -945,6 +945,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get effective firewall rules",
     path: "/api/firewall/rules/effective",
     backendRoutes: ["GET /api/firewall/rules/effective"],
+    frontendPaths: ["/api/firewall/rules/effective"],
   }),
   spec({
     id: "agent.status",
@@ -952,6 +953,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get OpenClaw agent status",
     path: "/api/openclaw/agent/status",
     backendRoutes: ["GET /api/openclaw/agent/status"],
+    frontendPaths: ["/api/openclaw/agent/status"],
   }),
   spec({
     id: "agent.turn",
@@ -1438,8 +1440,12 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/observability/orchestrations/audit-log",
     backendRoutes: ["GET /api/observability/orchestrations/audit-log"],
     frontendPaths: ["/api/observability/orchestrations/audit-log"],
-    options: [option("--offset <n>", "Offset"), option("--limit <n>", "Limit")],
-    queryKeys: ["offset", "limit"],
+    options: [
+      option("--offset <n>", "Offset"),
+      option("--limit <n>", "Limit"),
+      option("--status <status>", "Status filter"),
+    ],
+    queryKeys: ["offset", "limit", "status"],
   }),
   spec({
     id: "observability.slo",
@@ -1457,6 +1463,8 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/api/observability/orchestrations/export",
     backendRoutes: ["POST /api/observability/orchestrations/export"],
     frontendPaths: ["/api/observability/orchestrations/export"],
+    options: [option("--format <format>", "Export format")],
+    bodyKeys: ["format"],
   }),
   spec({
     id: "observability.flush",
@@ -1474,6 +1482,16 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get audit chain state",
     path: "/api/observability/orchestrations/audit-chain",
     backendRoutes: ["GET /api/observability/orchestrations/audit-chain", "GET /api/observability/orchestrations/audit-chain/verify"],
+    frontendPaths: ["/api/observability/orchestrations/audit-chain"],
+    options: [
+      option("--offset <n>", "Offset"),
+      option("--limit <n>", "Limit"),
+      option("--event-type <type>", "Event type filter", { key: "eventType" }),
+      option("--severity <severity>", "Severity filter"),
+      option("--since <iso>", "Lower-bound timestamp"),
+      option("--until <iso>", "Upper-bound timestamp"),
+    ],
+    queryKeys: ["offset", "limit", "eventType", "severity", "since", "until"],
   }),
   spec({
     id: "observability.verify-chain",
@@ -1481,6 +1499,9 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Verify audit chain integrity",
     path: "/api/observability/orchestrations/audit-chain/verify",
     backendRoutes: ["GET /api/observability/orchestrations/audit-chain/verify"],
+    frontendPaths: ["/api/observability/orchestrations/audit-chain/verify"],
+    options: [option("--limit <n>", "Limit")],
+    queryKeys: ["limit"],
   }),
   spec({
     id: "observability.retention",
@@ -1488,6 +1509,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get retention policy state",
     path: "/api/observability/orchestrations/retention",
     backendRoutes: ["GET /api/observability/orchestrations/retention", "POST /api/observability/orchestrations/retention", "POST /api/observability/orchestrations/retention/enforce"],
+    frontendPaths: ["/api/observability/orchestrations/retention", "/api/observability/orchestrations/retention/enforce"],
   }),
   spec({
     id: "observability.set-retention",
@@ -1496,6 +1518,9 @@ export const CLI_SURFACE_MANIFEST = [
     method: "POST",
     path: "/api/observability/orchestrations/retention",
     backendRoutes: ["POST /api/observability/orchestrations/retention"],
+    frontendPaths: ["/api/observability/orchestrations/retention"],
+    options: [option("--retention-days <days>", "Retention window in days", { key: "retentionDays" })],
+    bodyKeys: ["retentionDays"],
   }),
   spec({
     id: "observability.enforce-retention",
@@ -1504,6 +1529,7 @@ export const CLI_SURFACE_MANIFEST = [
     method: "POST",
     path: "/api/observability/orchestrations/retention/enforce",
     backendRoutes: ["POST /api/observability/orchestrations/retention/enforce"],
+    frontendPaths: ["/api/observability/orchestrations/retention/enforce"],
     bodyStatic: {},
   }),
   spec({
@@ -1512,6 +1538,9 @@ export const CLI_SURFACE_MANIFEST = [
     description: "List dead-letter events",
     path: "/api/observability/orchestrations/dead-letter",
     backendRoutes: ["GET /api/observability/orchestrations/dead-letter", "POST /api/observability/orchestrations/dead-letter/:eventId/replay"],
+    frontendPaths: ["/api/observability/orchestrations/dead-letter"],
+    options: [option("--offset <n>", "Offset"), option("--limit <n>", "Limit")],
+    queryKeys: ["offset", "limit"],
   }),
   spec({
     id: "observability.replay-dead-letter",
@@ -1520,6 +1549,7 @@ export const CLI_SURFACE_MANIFEST = [
     method: "POST",
     path: "/api/observability/orchestrations/dead-letter/:eventId/replay",
     backendRoutes: ["POST /api/observability/orchestrations/dead-letter/:eventId/replay"],
+    frontendPaths: ["/api/observability/orchestrations/dead-letter/:param/replay"],
     args: [arg("eventId", "Event ID", { pathParam: true })],
     bodyStatic: {},
   }),
@@ -1598,6 +1628,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "List runs",
     path: "/api/runs",
     backendRoutes: ["GET /api/runs"],
+    frontendPaths: ["/api/runs"],
   }),
   spec({
     id: "runs.get",
@@ -1614,6 +1645,7 @@ export const CLI_SURFACE_MANIFEST = [
     description: "Get run timeline",
     path: "/api/runs/:runId/timeline",
     backendRoutes: ["GET /api/runs/:runId/timeline"],
+    frontendPaths: ["/api/runs/:param/timeline"],
     args: [arg("runId", "Run ID", { pathParam: true })],
   }),
   spec({
@@ -1944,11 +1976,17 @@ export const CLI_SURFACE_MANIFEST = [
       option("--message <text>", "User message"),
       option("--model <model>", "Model"),
       option("--reasoning-effort <level>", "Reasoning effort", { key: "reasoningEffort" }),
+      option("--trace-id <id>", "Trace ID", { key: "traceId" }),
+      option("--session-id <id>", "Session ID", { key: "sessionId" }),
+      option("--include-context", "Include firewall context in the response", { key: "includeContext" }),
     ],
     bodyBuilder: ({ options }) => ({
-      messages: options.message ? [{ role: "user", content: options.message }] : undefined,
+      message: options.message || undefined,
       model: options.model || undefined,
       reasoningEffort: options.reasoningEffort || undefined,
+      traceId: options.traceId || undefined,
+      sessionId: options.sessionId || undefined,
+      includeContext: options.includeContext || undefined,
     }),
   }),
   spec({
@@ -2055,6 +2093,8 @@ export const CLI_SURFACE_MANIFEST = [
     backendRoutes: ["POST /api/operations/orchestrations/break-glass/:id/review"],
     frontendPaths: ["/api/operations/orchestrations/break-glass/:param/review"],
     args: [arg("id", "Break-glass ID", { pathParam: true })],
+    options: [option("--decision <decision>", "Review decision"), option("--reason <reason>", "Review reason")],
+    bodyKeys: ["decision", "reason"],
   }),
   spec({
     id: "orchestrations.escalation-history",
@@ -2504,6 +2544,13 @@ export const CLI_SURFACE_MANIFEST = [
     path: "/admin/api/approvals/decision",
     backendRoutes: ["POST /admin/api/approvals/decision"],
     frontendPaths: ["/admin/api/approvals/decision"],
+    options: [
+      option("--trace-id <traceId>", "Trace ID", { key: "traceId" }),
+      option("--step-index <n>", "Step index", { key: "stepIndex" }),
+      option("--action <action>", "allow, block, pending"),
+      option("--reason <reason>", "Reason"),
+    ],
+    bodyKeys: ["traceId", "stepIndex", "action", "reason"],
   }),
   spec({
     id: "admin.audit",
@@ -2524,6 +2571,9 @@ export const CLI_SURFACE_MANIFEST = [
     method: "POST",
     path: "/admin/api/audit/export",
     backendRoutes: ["POST /admin/api/audit/export"],
+    frontendPaths: ["/admin/api/audit/export"],
+    options: [option("--format <format>", "Export format")],
+    bodyKeys: ["format"],
   }),
   spec({
     id: "admin.audit-schemas",

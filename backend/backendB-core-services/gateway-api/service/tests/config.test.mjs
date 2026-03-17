@@ -108,6 +108,9 @@ test("gateway-api config requires all env vars and loads successfully", async ()
   assert.equal(typeof module.mcpProxyAddress, "string");
   assert.equal(typeof module.cyberProxyAddress, "string");
   assert.equal(typeof module.databaseUrl, "string");
+  assert.equal(module.downloadScanProvider, "local");
+  assert.equal(typeof module.downloadScanVirusTotalApiUrl, "string");
+  assert.equal(typeof module.downloadScanTimeoutMs, "number");
 });
 
 test("gateway-api config rejects MAPLE_ALLOW_NO_AUTH in production", async () => {

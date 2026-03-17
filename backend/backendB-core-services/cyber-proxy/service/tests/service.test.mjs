@@ -20,6 +20,10 @@ import test from "node:test";
 
 const { checkUrl, scanContent } = await import(`../src/ssrf-guard.js?t=${Date.now()}`);
 const { createCyberProxyService } = await import(`../src/service.js?t=${Date.now()}`);
+const {
+  buildLocalScanResult,
+  scanDownloadedContent,
+} = await import(`../../../shared/packages/maple-security/src/download-scan.js?t=${Date.now()}`);
 
 // ── checkUrl Tests ───────────────────────────────────────────────────────────
 
@@ -121,6 +125,77 @@ test("scanContent: sanitized output replaces XSS patterns", () => {
   assert.equal(result.safe, false);
   assert.ok(result.sanitized.toString("utf8").includes("[sanitized]"));
   assert.ok(!result.sanitized.toString("utf8").includes("<script>"));
+});
+
+test("scanDownloadedContent: local provider returns persisted scan metadata", async () => {
+  const scan = await scanDownloadedContent({
+    provider: "local",
+    content: Buffer.from('{"hello":"world"}'),
+    contentType: "application/json",
+    filename: "payload.json",
+    localResult: buildLocalScanResult({
+      threats: [],
+      quarantined: false,
+    }),
+  });
+
+  assert.equal(scan.provider, "local");
+  assert.equal(scan.status, "completed");
+  assert.equal(scan.verdict, "safe");
+  assert.equal(scan.blocked, false);
+  assert.equal(scan.quarantined, false);
+  assert.equal(scan.contentType, "application/json");
+  assert.equal(scan.sizeBytes > 0, true);
+  assert.match(scan.sha256, /^[a-f0-9]{64}$/);
+});
+
+test("scanDownloadedContent: virustotal provider returns pending when upload is queued", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: String(options.method || "GET") });
+    if (String(url).includes("/files/") && String(options.method || "GET") === "GET") {
+      return new Response(JSON.stringify({ error: { code: "NotFoundError" } }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).endsWith("/files")) {
+      return new Response(JSON.stringify({ data: { id: "analysis-1" } }), {
+        status: 202,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const scan = await scanDownloadedContent({
+      provider: "virustotal",
+      virustotalApiKey: "vt-test-key",
+      virustotalApiUrl: "https://vt.example/api/v3",
+      content: Buffer.from("download bytes"),
+      contentType: "application/octet-stream",
+      filename: "download.bin",
+      localResult: buildLocalScanResult({
+        threats: [],
+        quarantined: false,
+      }),
+    });
+
+    assert.equal(scan.provider, "virustotal");
+    assert.equal(scan.status, "pending");
+    assert.equal(scan.quarantined, false);
+    assert.equal(scan.blocked, false);
+    assert.equal(scan.reasons.includes("VirusTotal analysis queued"), true);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].url, /^https:\/\/vt\.example\/api\/v3\/files\/[a-f0-9]{64}$/);
+    assert.equal(calls[0].method, "GET");
+    assert.equal(calls[1].url, "https://vt.example/api/v3/files");
+    assert.equal(calls[1].method, "POST");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 // ── createCyberProxyService Test ─────────────────────────────────────────────

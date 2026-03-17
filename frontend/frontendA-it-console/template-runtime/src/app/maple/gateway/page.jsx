@@ -103,6 +103,14 @@ function StatusCard({ label, value, detail, color }) {
   )
 }
 
+function scanColor(scan) {
+  const verdict = String(scan?.verdict || '').toLowerCase()
+  if (scan?.status === 'pending') return 'amber'
+  if (verdict === 'malicious') return 'rose'
+  if (verdict === 'quarantined') return 'amber'
+  return 'orange'
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -496,9 +504,27 @@ export default function FirewallDashboardPage() {
                       {previewResult.error}
                     </p>
                   ) : (
-                    <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
-                      {JSON.stringify(previewResult, null, 2)}
-                    </pre>
+                    <div className="space-y-3">
+                      {previewResult.scan && (
+                        <div className="rounded-lg border border-zinc-950/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-zinc-950 dark:text-white">Payload scan</span>
+                            <Tag color={scanColor(previewResult.scan)} variant="medium">{String(previewResult.scan.verdict || previewResult.scan.status || 'unknown')}</Tag>
+                            <Tag color="zinc" variant="small">{String(previewResult.scan.provider || 'local')}</Tag>
+                          </div>
+                          <div className="mt-2 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <p>status={previewResult.scan.status} blocked={String(Boolean(previewResult.scan.blocked))} quarantined={String(Boolean(previewResult.scan.quarantined))}</p>
+                            <p>sha256={previewResult.scan.sha256} size={previewResult.scan.sizeBytes} contentType={previewResult.scan.contentType}</p>
+                            {Array.isArray(previewResult.scan.reasons) && previewResult.scan.reasons.length > 0 && (
+                              <p>reasons: {previewResult.scan.reasons.join(' | ')}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <pre className="max-h-48 overflow-auto text-xs text-zinc-700 dark:text-zinc-300">
+                        {JSON.stringify(previewResult, null, 2)}
+                      </pre>
+                    </div>
                   )}
                 </div>
               )}

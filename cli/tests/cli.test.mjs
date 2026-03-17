@@ -58,6 +58,29 @@ test("maple firewalls upload-file-entry help exposes file path", () => {
   assert.match(result.stdout, /--file <path>/);
 });
 
+test("maple firewall chat help exposes frontend A context options", () => {
+  const result = runCli(["firewall", "chat", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--trace-id <id>/);
+  assert.match(result.stdout, /--session-id <id>/);
+  assert.match(result.stdout, /--include-context/);
+});
+
+test("maple admin decide-approval help exposes frontend A decision fields", () => {
+  const result = runCli(["admin", "decide-approval", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--trace-id <traceId>/);
+  assert.match(result.stdout, /--step-index <n>/);
+  assert.match(result.stdout, /--action <action>/);
+  assert.match(result.stdout, /--reason <reason>/);
+});
+
+test("maple observability retention help exposes retention-days", () => {
+  const result = runCli(["observability", "set-retention", "--help"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /--retention-days <days>/);
+});
+
 test("maple frontend b create commands are available", () => {
   const agents = runCli(["agents", "create", "--help"]);
   assert.equal(agents.status, 0, agents.stderr);
