@@ -27,5 +27,5 @@
   .page { min-height: calc(100svh - 24px); padding: 14px; }
   h1 { margin: 0 0 10px; }
   .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-  .tabs button { padding: 8px 11px; border-color: rgba(249,115,22,.35); background: var(--btn-secondary-bg); cursor: pointer; }
+  .tabs button { padding: 8px 11px; border-color: rgba(249,115,22,.35); background: rgba(20,24,32,.65); cursor: pointer; }
 </style>

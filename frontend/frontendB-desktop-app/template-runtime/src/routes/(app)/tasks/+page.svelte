@@ -381,13 +381,13 @@
   .muted { margin: 0; color: var(--muted); font-size: 12px; }
 
   .builder { display: grid; gap: 12px; grid-template-columns: 1.2fr 1fr; }
-  .column { border: 1px solid var(--row-border); border-radius: 14px; background: var(--row-bg); padding: 10px; display: grid; gap: 8px; align-content: start; }
+  .column { border: 1px solid rgba(255,255,255,.08); border-radius: 14px; background: rgba(14,18,24,.48); padding: 10px; display: grid; gap: 8px; align-content: start; }
   label span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
   input, textarea, select {
     width: 100%;
-    border: 1px solid var(--input-border);
+    border: 1px solid rgba(255,255,255,.14);
     border-radius: 11px;
-    background: var(--input-bg);
+    background: rgba(20,24,32,.72);
     color: var(--fg);
     padding: 8px 10px;
     outline: none;
@@ -402,13 +402,13 @@
     box-shadow: 0 0 0 6px rgba(249,115,22,.08);
     cursor: pointer;
   }
-  .error { margin: 0; color: var(--warn); }
+  .error { margin: 0; color: #fecdd3; }
 
   .ghost-empty {
     min-height: 130px;
-    border: 1px dashed var(--border);
+    border: 1px dashed rgba(148,163,184,.26);
     border-radius: 12px;
-    background: var(--row-bg);
+    background: rgba(15,23,42,.26);
     display: grid;
     place-items: center;
     text-align: center;
@@ -418,9 +418,9 @@
 
   .task-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
   .task-card {
-    border: 1px solid var(--row-border);
+    border: 1px solid rgba(255,255,255,.1);
     border-radius: 14px;
-    background: var(--btn-secondary-bg);
+    background: rgba(14,18,24,.55);
     padding: 10px;
     display: grid;
     gap: 9px;
@@ -434,10 +434,10 @@
     border-radius: 999px;
     font-size: 11px;
     border: 1px solid rgba(148,163,184,.3);
-    background: var(--row-bg);
+    background: rgba(15,23,42,.4);
   }
   .status.running { color: #6ee7b7; border-color: rgba(16,185,129,.44); background: rgba(16,185,129,.16); box-shadow: 0 0 0 6px rgba(16,185,129,.12); animation: pulse 1.6s infinite; }
-  .status.paused { color: #9ca3af; border-color: rgba(107,114,128,.45); background: var(--row-bg); }
+  .status.paused { color: #9ca3af; border-color: rgba(107,114,128,.45); background: rgba(55,65,81,.32); }
   .status.blocked { color: #fca5a5; border-color: rgba(251,113,133,.44); background: rgba(251,113,133,.16); }
   .status.queued { color: #fcd34d; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.14); }
   @keyframes pulse {
@@ -446,7 +446,7 @@
 
   .timeline { display: grid; gap: 6px; }
   .timeline-row { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 11px; }
-  .progress { height: 7px; border-radius: 999px; background: var(--row-bg); overflow: hidden; }
+  .progress { height: 7px; border-radius: 999px; background: rgba(30,41,59,.5); overflow: hidden; }
   .progress span { display: block; height: 100%; background: linear-gradient(90deg, rgba(249,115,22,.85), rgba(245,158,11,.82)); }
 
   .meta-grid { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(120px, 1fr)); }
@@ -463,7 +463,7 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  .muted-shield { border-color: rgba(107,114,128,.3); background: var(--row-bg); color: #9ca3af; cursor: default; }
+  .muted-shield { border-color: rgba(107,114,128,.3); background: rgba(55,65,81,.26); color: #9ca3af; cursor: default; }
 
   .assign { display: grid; gap: 4px; }
   .assign span { color: var(--muted); font-size: 10px; }
@@ -477,7 +477,7 @@
     top: 36px;
     z-index: 8;
     min-width: 124px;
-    border: 1px solid var(--border);
+    border: 1px solid rgba(255,255,255,.12);
     border-radius: 10px;
     background: rgba(13,17,24,.95);
     padding: 4px;
@@ -494,7 +494,7 @@
     cursor: pointer;
     font-size: 12px;
   }
-  .menu button:hover { background: var(--row-bg); }
+  .menu button:hover { background: rgba(30,41,59,.55); }
   .menu .danger-item { color: #fda4af; }
 
   @media (max-width: 1080px) {

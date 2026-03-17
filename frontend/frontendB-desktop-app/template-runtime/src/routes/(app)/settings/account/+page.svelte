@@ -181,9 +181,9 @@
   label span { display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
   input, textarea, select {
     width: 100%;
-    border: 1px solid var(--input-border);
+    border: 1px solid rgba(255,255,255,.14);
     border-radius: 12px;
-    background: var(--input-bg);
+    background: rgba(20,24,32,.72);
     color: var(--fg);
     padding: 9px 11px;
     outline: none;
@@ -195,5 +195,5 @@
   .actions button { padding: 8px 12px; border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); cursor: pointer; }
   .msg { margin: 0; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
   .ok { border: 1px solid rgba(16,185,129,.4); background: rgba(16,185,129,.12); color: #6ee7b7; }
-  .err { border: 1px solid rgba(251,113,133,.4); background: rgba(251,113,133,.12); color: var(--warn); }
+  .err { border: 1px solid rgba(251,113,133,.4); background: rgba(251,113,133,.12); color: #fecdd3; }
 </style>

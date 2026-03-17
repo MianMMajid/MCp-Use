@@ -512,22 +512,22 @@
   .workspace { display: grid; gap: 12px; grid-template-columns: 320px 1fr; }
   .sidebar, .detail { min-height: 520px; }
   .list { display: grid; gap: 8px; }
-  .firewall-row { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--row-border); background: var(--row-bg); color: var(--fg); }
+  .firewall-row { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.08); background: rgba(17,24,39,.58); color: var(--fg); }
   .firewall-row.selected { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.12); }
   .tabs { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
   .tabs button, .toggle button, .actions button, .row-actions button, .upload {
-    padding: 8px 12px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--fg); cursor: pointer;
+    padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(20,24,32,.72); color: var(--fg); cursor: pointer;
   }
   .tabs button.active, .toggle button.active, .cta { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); }
   .panel, .version-list, .entry-list { display: grid; gap: 10px; }
-  .version, .entry, .audit { border: 1px solid var(--row-border); border-radius: 12px; padding: 10px; background: var(--row-bg); }
+  .version, .entry, .audit { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px; background: rgba(17,24,39,.5); }
   label span { display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
   input, select, textarea, pre {
-    width: 100%; border: 1px solid var(--input-border); border-radius: 12px; background: var(--input-bg); color: var(--fg); padding: 9px 11px; outline: none;
+    width: 100%; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(20,24,32,.72); color: var(--fg); padding: 9px 11px; outline: none;
   }
   pre { overflow: auto; white-space: pre-wrap; }
   .muted, small { color: var(--muted); }
-  .err { margin: 8px 0 0; color: var(--warn); }
+  .err { margin: 8px 0 0; color: #fecdd3; }
   .warn { color: #fdba74; }
   .safe { color: #86efac; }
   .upload { position: relative; overflow: hidden; display: inline-flex; align-items: center; }

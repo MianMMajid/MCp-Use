@@ -172,10 +172,10 @@
     height: calc(100svh - 24px);
     display: grid;
     grid-template-rows: auto 1fr auto;
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--glass);
-    backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(180deg, rgba(14, 18, 24, 0.78), rgba(9, 12, 18, 0.78));
+    backdrop-filter: blur(18px);
     overflow: hidden;
   }
 
@@ -184,9 +184,9 @@
     justify-content: space-between;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px 10px;
-    border-bottom: 1px solid var(--border);
-    min-height: 56px;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    min-height: 68px;
   }
 
   .topbar-left,
@@ -236,16 +236,16 @@
 
   .bubble {
     max-width: 760px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    background: rgba(28, 33, 43, 0.8);
     padding: 12px 15px;
   }
 
   .bubble.user {
     align-self: flex-end;
-    border-color: rgba(232, 116, 12, 0.28);
-    background: rgba(232, 116, 12, 0.14);
+    border-color: rgba(249, 115, 22, 0.36);
+    background: rgba(249, 115, 22, 0.16);
   }
 
   .bubble p {
@@ -255,25 +255,25 @@
   }
 
   .error {
-    border: 1px solid rgba(207, 94, 94, 0.35);
-    border-radius: 10px;
-    background: rgba(207, 94, 94, 0.08);
+    border: 1px solid rgba(251, 113, 133, 0.35);
+    border-radius: 14px;
+    background: rgba(251, 113, 133, 0.12);
     padding: 10px 12px;
-    color: var(--warn);
+    color: #fecdd3;
     font-size: 13px;
   }
 
   .composer-wrap {
     padding: 8px 16px 16px;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .composer-shell {
     width: min(900px, 100%);
     margin: 0 auto;
-    border: 1px solid var(--border);
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 28px;
+    background: rgba(19, 23, 31, 0.9);
     display: flex;
     gap: 8px;
     align-items: flex-end;
@@ -298,9 +298,9 @@
   .send {
     width: 36px;
     height: 36px;
-    border: 1px solid var(--accent-strong);
+    border: 1px solid rgba(249, 115, 22, 0.56);
     border-radius: 999px;
-    background: linear-gradient(145deg, var(--accent-light), var(--accent));
+    background: rgba(249, 115, 22, 0.2);
     color: #fff;
     display: grid;
     place-items: center;

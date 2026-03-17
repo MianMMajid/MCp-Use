@@ -27,10 +27,10 @@
 </section>
 
 <style>
-  .panel { border-left: 1px solid var(--row-border); padding: 10px; width: 240px; display: grid; gap: 8px; }
+  .panel { border-left: 1px solid rgba(255,255,255,.08); padding: 10px; width: 240px; display: grid; gap: 8px; }
   h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--muted); }
   label span { display: block; margin-bottom: 4px; font-size: 11px; color: var(--muted); }
-  select { width: 100%; border: 1px solid var(--input-border); border-radius: 10px; background: var(--input-bg); color: var(--fg); padding: 7px 9px; outline: none; }
+  select { width: 100%; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(20,24,32,.72); color: var(--fg); padding: 7px 9px; outline: none; }
   .check { display: flex; gap: 8px; align-items: center; }
   .check span { margin: 0; }
   .muted { margin: 0; color: var(--muted); font-size: 12px; }

@@ -81,14 +81,13 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 12px;
-    background: var(--bg-soft);
+    background: rgba(12, 16, 24, 0.75);
   }
   .submit {
     padding: 12px;
     cursor: pointer;
-    border-color: var(--accent-strong);
-    background: linear-gradient(145deg, var(--accent-light), var(--accent));
-    color: #fff;
+    border-color: rgba(249, 115, 22, 0.45);
+    background: rgba(249, 115, 22, 0.2);
   }
   .msg { color: var(--muted); margin: 0; }
 </style>

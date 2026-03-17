@@ -62,5 +62,5 @@
   .row { display: flex; justify-content: space-between; padding: 12px 14px; }
   .muted { color: var(--muted); }
   .cta { padding: 8px 12px; border-color: rgba(249,115,22,.6); background: rgba(249,115,22,.2); cursor: pointer; }
-  .error { margin: 0 0 10px; color: var(--warn); font-size: 12px; }
+  .error { margin: 0 0 10px; color: #fecdd3; font-size: 12px; }
 </style>

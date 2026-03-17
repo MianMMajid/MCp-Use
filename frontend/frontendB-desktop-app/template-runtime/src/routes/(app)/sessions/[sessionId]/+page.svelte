@@ -54,7 +54,7 @@
   .page { min-height: calc(100svh - 24px); padding: 14px; }
   h1 { margin: 0 0 10px; }
   .muted { color: var(--muted); }
-  .err { color: var(--warn); }
+  .err { color: #fecdd3; }
   ul { margin: 8px 0 0; padding-left: 18px; }
   li { margin: 4px 0; font-size: 13px; }
 </style>

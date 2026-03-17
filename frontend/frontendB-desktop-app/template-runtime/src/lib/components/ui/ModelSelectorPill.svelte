@@ -88,9 +88,9 @@
     align-items: center;
     gap: 8px;
     border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--glass);
-    color: var(--ink);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(24, 27, 35, 0.94);
+    color: #f4f4f5;
     padding: 9px 12px;
     font-size: 14px;
     cursor: pointer;
@@ -102,7 +102,7 @@
   }
 
   .secondary {
-    color: var(--muted);
+    color: #a1a1aa;
   }
 
   .menu {
@@ -111,9 +111,9 @@
     left: 0;
     width: 318px;
     border-radius: 22px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    box-shadow: var(--shadow-strong);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(49, 49, 52, 0.96);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
     padding: 10px;
     z-index: 30;
     backdrop-filter: blur(16px);
@@ -122,7 +122,7 @@
   .menu-title {
     margin: 0;
     padding: 6px 10px;
-    color: var(--muted);
+    color: #a1a1aa;
     font-size: 13px;
     font-weight: 600;
   }
@@ -137,7 +137,7 @@
     border: 0;
     border-radius: 14px;
     background: transparent;
-    color: var(--ink);
+    color: #f4f4f5;
     text-align: left;
     display: flex;
     justify-content: space-between;
@@ -147,7 +147,7 @@
   }
 
   .menu-item:hover {
-    background: rgba(232, 116, 12, 0.08);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .item-title {
@@ -158,7 +158,7 @@
 
   .item-subtitle {
     margin: 2px 0 0;
-    color: var(--muted);
+    color: #a1a1aa;
     font-size: 13px;
   }
 
@@ -169,7 +169,7 @@
 
   .divider {
     height: 1px;
-    background: var(--accent-soft);
+    background: rgba(255, 255, 255, 0.16);
     margin: 8px 2px;
   }
 
