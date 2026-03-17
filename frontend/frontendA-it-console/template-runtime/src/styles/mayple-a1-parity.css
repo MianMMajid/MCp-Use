@@ -336,6 +336,8 @@ body {
   min-height: 0;
   overflow: auto;
   padding: 12px;
+  display: flex;
+  flex-direction: column;
 }
 
 .context-panel-foot {
@@ -429,8 +431,11 @@ body {
 }
 
 .view-panel {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
   animation: viewFadeIn 280ms ease-out forwards;
 }
 
@@ -441,6 +446,14 @@ body {
   background: transparent;
   box-shadow: none;
   padding: 0;
+}
+
+/* Inner panels inside view-panel should stretch to fill available space */
+.view-panel > .panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .mw-view-header h1 {
@@ -1137,6 +1150,9 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .live-view .tree-panel {
   padding: 8px;
   min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .tree-shell {
