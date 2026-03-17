@@ -608,7 +608,9 @@ function createChatStore() {
     sendMessage,
     sendAgentMessage,
     sendGlobalChatMessage,
-    sendOrchestrationMessage
+    sendOrchestrationMessage,
+    fetchAgents: loadAgents,
+    fetchOrchestrations: loadOrchestrationList,
   };
 }
 

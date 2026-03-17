@@ -13,8 +13,6 @@
   let searchInputEl;
 
   const navItems = [
-    { key: 'skills', label: 'Skills', icon: 'skills', href: '/skills' },
-    { key: 'agents', label: 'Agents', icon: 'agent', href: '/agents' },
     { key: 'builder', label: 'Builder', icon: 'builder', href: '/orchestrate' },
     { key: 'firewalls', label: 'Firewalls', icon: 'firewall', href: '/firewalls' },
     { key: 'tasks', label: 'Tasks', icon: 'tasks', href: '/tasks' },
@@ -48,11 +46,8 @@
   }
 
   function active(item) {
-    if (item.key === 'skills') {
-      return path.startsWith('/skills');
-    }
-    if (item.key === 'agents') {
-      return path.startsWith('/agents');
+    if (item.key === 'builder') {
+      return path.startsWith('/orchestrate') || path.startsWith('/agents');
     }
     if (item.key === 'firewalls') {
       return path.startsWith('/firewalls');

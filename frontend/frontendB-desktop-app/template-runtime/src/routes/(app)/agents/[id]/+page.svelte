@@ -2,7 +2,7 @@
   import { onMount, afterUpdate } from 'svelte';
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, patchJson, invalidateCache } from '@/lib/api';
+  import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
   import { statusColor } from '@/lib/format';
 
   export let data;
@@ -23,6 +23,94 @@
   let selectedProfileId = '';
   let highlightedToolIds = new Set();
   let hoveredSkillId = '';
+
+  // ── Import skill state ──
+  let importOpen = false;
+  let importBusy = false;
+  let importError = '';
+  let importSuccess = '';
+  let importToolId = '';
+  let importName = '';
+  let importDescription = '';
+  let importSchemaText = '{}';
+
+  // ── Smoke test & governed proof state ──
+  let smokeTests = {};
+  let governedRuns = {};
+
+  function canRunGovernedProof(skill) {
+    return String(skill?.toolId || '').toLowerCase() === 'skills';
+  }
+
+  async function handleImport() {
+    importBusy = true;
+    importError = '';
+    importSuccess = '';
+    let schema;
+    try {
+      schema = importSchemaText.trim() ? JSON.parse(importSchemaText) : {};
+    } catch (err) {
+      importBusy = false;
+      importError = err instanceof Error ? err.message : 'Schema must be valid JSON.';
+      return;
+    }
+    try {
+      const response = await postJson('/api/skills/import', {
+        toolId: importToolId,
+        name: importName,
+        description: importDescription,
+        schema,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        importError = payload?.error || `Import failed (${response.status})`;
+        return;
+      }
+      importSuccess = `Imported ${payload.tool?.toolId || importToolId}`;
+      importToolId = '';
+      importName = '';
+      importDescription = '';
+      importSchemaText = '{}';
+      invalidateCache('/api/skills');
+      invalidateCache(`/api/agents/${data.id}/tools`);
+      _loadedId = '';
+      await loadPage();
+    } catch (err) {
+      importError = err instanceof Error ? err.message : String(err);
+    } finally {
+      importBusy = false;
+    }
+  }
+
+  async function runSmokeTest(skillId) {
+    smokeTests = { ...smokeTests, [skillId]: { loading: true, result: null, error: '' } };
+    try {
+      const response = await postJson(`/api/skills/${skillId}/smoke-test`, {});
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        smokeTests = { ...smokeTests, [skillId]: { loading: false, result: null, error: payload?.error || 'Test failed' } };
+        return;
+      }
+      smokeTests = { ...smokeTests, [skillId]: { loading: false, result: payload.result, error: '' } };
+    } catch (err) {
+      smokeTests = { ...smokeTests, [skillId]: { loading: false, result: null, error: err instanceof Error ? err.message : String(err) } };
+    }
+  }
+
+  async function runGovernedExecution(skillId, command) {
+    governedRuns = { ...governedRuns, [skillId]: { loading: true, command, result: null, proof: null, error: '' } };
+    try {
+      const response = await postJson(`/api/skills/${skillId}/governed-execution`, { command });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: null, proof: payload?.proof || null, error: payload?.error || 'Failed' } };
+        return;
+      }
+      governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: payload.result, proof: payload.proof || null, error: '' } };
+    } catch (err) {
+      governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: null, proof: null, error: err instanceof Error ? err.message : String(err) } };
+    }
+  }
 
   const quickProfiles = [
     {
@@ -322,11 +410,46 @@
           <section class="catalog">
             <div class="catalog-head">
               <h3>Skill Catalog</h3>
-              <div class="search">
-                <span class="search-icon">⌕</span>
-                <input bind:value={toolSearch} placeholder="Search tools..." />
+              <div class="catalog-actions">
+                <button class="pill subtle" on:click={() => (importOpen = !importOpen)}>
+                  {importOpen ? 'Close Import' : '+ Import Skill'}
+                </button>
+                <div class="search">
+                  <span class="search-icon">⌕</span>
+                  <input bind:value={toolSearch} placeholder="Search tools..." />
+                </div>
               </div>
             </div>
+
+            {#if importOpen}
+              <div class="import-form">
+                <div class="import-grid">
+                  <label>
+                    <span>Tool ID</span>
+                    <input bind:value={importToolId} placeholder="e.g. skills" />
+                  </label>
+                  <label>
+                    <span>Name</span>
+                    <input bind:value={importName} placeholder="Skill name" />
+                  </label>
+                </div>
+                <label class="import-stack">
+                  <span>Description</span>
+                  <textarea rows="2" bind:value={importDescription} placeholder="What does this skill do?"></textarea>
+                </label>
+                <label class="import-stack">
+                  <span>Schema JSON</span>
+                  <textarea rows="3" bind:value={importSchemaText} placeholder={'{}'}></textarea>
+                </label>
+                <div class="import-actions">
+                  <button class="pill cta" on:click={handleImport} disabled={importBusy || loading}>
+                    {importBusy ? 'Importing...' : 'Import'}
+                  </button>
+                  {#if importError}<span class="err">{importError}</span>{/if}
+                  {#if importSuccess}<span class="ok">{importSuccess}</span>{/if}
+                </div>
+              </div>
+            {/if}
             {#if filteredAvailableSkills.length === 0}
               <p class="muted">No available skills for this filter.</p>
             {:else}
@@ -351,8 +474,40 @@
                     <p class="tool-desc">{tool.description || 'Openclaw-compatible tool'}</p>
                     <div class="tool-foot">
                       <span class="source-tag">{tool.source || 'openclaw'}</span>
+                      <button
+                        class="pill mini test-btn"
+                        title="Smoke test"
+                        disabled={smokeTests[id]?.loading || draggingFromCatalog}
+                        on:click|stopPropagation={() => runSmokeTest(id)}
+                      >
+                        {smokeTests[id]?.loading ? '...' : '⚡'}
+                      </button>
+                      {#if canRunGovernedProof(tool)}
+                        <button
+                          class="pill mini proof-btn"
+                          title="Governed proof"
+                          disabled={governedRuns[id]?.loading || draggingFromCatalog}
+                          on:click|stopPropagation={() => runGovernedExecution(id, 'list')}
+                        >
+                          {governedRuns[id]?.loading ? '...' : '🔒'}
+                        </button>
+                      {/if}
                       <button class="pill mini" title="Add skill" on:click={() => equipSkill(id)}>+</button>
                     </div>
+                    {#if smokeTests[id]?.result}
+                      <div class="test-result" class:pass={smokeTests[id].result.passed} class:fail={!smokeTests[id].result.passed}>
+                        {smokeTests[id].result.passed ? 'PASS' : 'FAIL'}
+                      </div>
+                    {/if}
+                    {#if smokeTests[id]?.error}
+                      <p class="test-err">{smokeTests[id].error}</p>
+                    {/if}
+                    {#if governedRuns[id]?.result}
+                      <div class="test-result pass">Governed proof ✓</div>
+                    {/if}
+                    {#if governedRuns[id]?.error}
+                      <p class="test-err">{governedRuns[id].error}</p>
+                    {/if}
                   </article>
                 {/each}
               </div>
@@ -466,7 +621,25 @@
   .category-pill.active { border-color: rgba(249,115,22,.6); background: rgba(249,115,22,.2); box-shadow: inset 3px 0 0 rgba(249,115,22,.92); }
   .category-pill.disabled { opacity: .45; cursor: not-allowed; border-style: dashed; }
 
-  .catalog-head { display: grid; grid-template-columns: auto minmax(260px, 420px); align-items: center; justify-content: space-between; gap: 8px; }
+  .catalog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .catalog-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Import form */
+  .import-form { border: 1px solid var(--border); border-radius: 12px; background: var(--row-bg); padding: 12px; display: grid; gap: 10px; margin-top: 8px; }
+  .import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+  .import-stack { display: grid; gap: 4px; }
+  .import-form label span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+  .import-form input, .import-form textarea { width: 100%; border: 1px solid var(--input-border); border-radius: 8px; background: var(--input-bg); color: var(--fg); padding: 7px 9px; outline: none; font: inherit; resize: vertical; }
+  .import-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .import-actions .ok { color: var(--ok); font-size: 12px; }
+  .import-actions .err { color: var(--warn); font-size: 12px; }
+
+  /* Test result badges */
+  .test-btn, .proof-btn { font-size: 11px; padding: 2px 6px; }
+  .test-result { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: center; }
+  .test-result.pass { color: #10b981; background: rgba(16, 185, 129, 0.12); }
+  .test-result.fail { color: var(--warn); background: rgba(207, 94, 94, 0.12); }
+  .test-err { margin: 0; font-size: 11px; color: var(--warn); }
 
   .equipped-zone.drag-active {
     border-color: rgba(249,115,22,.7);

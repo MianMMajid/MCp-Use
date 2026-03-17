@@ -328,8 +328,33 @@
     };
   }
 
-  onMount(loadOrchestration);
-  onDestroy(closeExecutionStream);
+  let hasUnsavedChanges = false;
+
+  // Track changes to nodes/edges/name
+  $: if (flowNodes || flowEdges || orchestrationName) {
+    if (!loading && orchestration) hasUnsavedChanges = true;
+  }
+
+  function onBeforeUnload(event) {
+    if (hasUnsavedChanges) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
+  onMount(() => {
+    loadOrchestration();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', onBeforeUnload);
+    }
+  });
+
+  onDestroy(() => {
+    closeExecutionStream();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    }
+  });
 
   // Re-fetch when route param changes (same-route navigation)
   $: data.id, loadOrchestration();
@@ -353,6 +378,7 @@
       if (!response.ok) throw new Error(`Save failed (${response.status})`);
       orchestration = await response.json().catch(() => orchestration);
       invalidateCache('/api/orchestrations');
+      hasUnsavedChanges = false;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -413,23 +439,36 @@
 
   async function pause() {
     if (!currentExecutionId) return;
-    await runAction(`/api/orchestrations/executions/${currentExecutionId}/pause`, {});
-    runtimeStatus = 'paused';
-    await loadExecutionSnapshot(currentExecutionId);
+    try {
+      await runAction(`/api/orchestrations/executions/${currentExecutionId}/pause`, {});
+      runtimeStatus = 'paused';
+      await loadExecutionSnapshot(currentExecutionId);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
   }
 
   async function resume() {
     if (!currentExecutionId) return;
-    await runAction(`/api/orchestrations/executions/${currentExecutionId}/resume`, {});
-    runtimeStatus = 'running';
-    await loadExecutionSnapshot(currentExecutionId);
+    try {
+      await runAction(`/api/orchestrations/executions/${currentExecutionId}/resume`, {});
+      runtimeStatus = 'running';
+      await loadExecutionSnapshot(currentExecutionId);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
   }
 
   async function cancel() {
     if (!currentExecutionId) return;
-    await runAction(`/api/orchestrations/executions/${currentExecutionId}/cancel`, {});
-    runtimeStatus = 'canceled';
-    await loadExecutionSnapshot(currentExecutionId);
+    try {
+      await runAction(`/api/orchestrations/executions/${currentExecutionId}/cancel`, {});
+      runtimeStatus = 'canceled';
+      closeExecutionStream();
+      await loadExecutionSnapshot(currentExecutionId);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
   }
 
   async function mutateAddNode() {
@@ -442,6 +481,11 @@
   }
 
   function onConnect(connection) {
+    if (runtimeLive) return; // Block edits during execution
+    if (connection.source === connection.target) return; // Prevent self-loops
+    // Prevent duplicate edges
+    const exists = flowEdges.some((e) => e.source === connection.source && e.target === connection.target);
+    if (exists) return;
     const id = `edge-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const delegationPolicy = { riskCeiling: 'medium', requiresApproval: true };
     flowEdges = addEdge(
@@ -458,8 +502,12 @@
 
   function onFlowDrop(event) {
     event.preventDefault();
+    if (runtimeLive) return; // Block edits during execution
     const agentId = event.dataTransfer?.getData('application/orchestration-agent');
     if (!agentId || !flowSurfaceEl) return;
+    // Prevent duplicate — same agent already on canvas
+    const alreadyOnCanvas = flowNodes.some((n) => n.data?.agentId === agentId && !n.data?.isInstruction);
+    if (alreadyOnCanvas) return;
     const bounds = flowSurfaceEl.getBoundingClientRect();
     const x = (event.clientX - bounds.left - viewport.x) / viewport.zoom;
     const y = (event.clientY - bounds.top - viewport.y) / viewport.zoom;
@@ -547,7 +595,7 @@
     </header>
 
     <div class="canvas card">
-      <AgentPalette agents={$chatStore.agents || []} nodes={flowNodes.map(mapFlowNodeToPanel)} />
+      <AgentPalette agents={$chatStore.agents || []} nodes={flowNodes.map(mapFlowNodeToPanel)} onAgentCreated={() => chatStore.fetchAgents()} />
 
       <div class="board-wrap">
         <div class="runtime-strip">
