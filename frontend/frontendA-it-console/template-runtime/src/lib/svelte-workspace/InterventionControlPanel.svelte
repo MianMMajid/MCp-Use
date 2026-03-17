@@ -41,7 +41,7 @@
     <article class="panel">
       <div class="panel-head">
         <h3 class="panel-title">Traces + Sessions</h3>
-        <span class="source-badge">{filteredExecutions.length}</span>
+        <span class="chip">{filteredExecutions.length}</span>
       </div>
       <input class="input" placeholder="Search traces..." aria-label="Search traces" value={traceQuery} on:input={(e) => setTraceQuery(e.currentTarget.value)} />
       <input class="input" placeholder="Search sessions..." aria-label="Search sessions" value={sessionQuery} on:input={(e) => setSessionQuery(e.currentTarget.value)} />
@@ -59,7 +59,7 @@
     <article class="panel">
       <div class="panel-head">
         <h3 class="panel-title">Intervention Command Bar</h3>
-        <span class="source-badge">Source: Frontend B orchestration runtime</span>
+        <span class="chip">live</span>
       </div>
       <p>{activeExecution ? `Target: ${activeExecution.executionId}` : 'No trace/session target selected'}</p>
       <label>

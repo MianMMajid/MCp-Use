@@ -1,5 +1,5 @@
 /**
- * @typedef {'observe' | 'chat' | 'admin' | 'firewalls' | 'users' | 'docs'} MapleWorkspaceCategory
+ * @typedef {'observe' | 'chat' | 'admin' | 'firewalls' | 'users' | 'compliance' | 'docs'} MapleWorkspaceCategory
  */
 
 /**
@@ -35,6 +35,7 @@ export const MAPLE_WORKSPACE_CATEGORY_IDS = Object.freeze([
   'admin',
   'firewalls',
   'users',
+  'compliance',
   'docs',
 ])
 

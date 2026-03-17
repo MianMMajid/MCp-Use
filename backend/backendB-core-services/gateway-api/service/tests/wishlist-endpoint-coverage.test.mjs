@@ -2,8 +2,12 @@ process.env.MAPLE_FIREWALL_LOG_DIR = process.env.MAPLE_FIREWALL_LOG_DIR || "/tmp
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const serviceRoot = resolve(__dirname, "..");
 
 function collectJsFiles(dir) {
   const entries = readdirSync(dir);
@@ -44,9 +48,8 @@ function assertEndpointCoverage(sources, endpoint) {
   assert.equal(matched, true, `Missing endpoint: ${endpoint}`);
 }
 
-const repoRoot = process.cwd();
 const gatewayRouteFiles = collectJsFiles(
-  resolve(repoRoot, "backend/backendB-core-services/gateway-api/service/src/routes")
+  resolve(serviceRoot, "src/routes")
 );
 
 const gatewaySources = gatewayRouteFiles.map((path) => ({

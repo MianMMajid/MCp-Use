@@ -1,11 +1,14 @@
 <script>
+  import { onDestroy } from 'svelte'
   import InterventionControlPanel from './InterventionControlPanel.svelte'
   import TopologyView from './TopologyView.svelte'
   import DocsViews from './DocsViews.svelte'
+  import DashboardGrid from './DashboardGrid.svelte'
   import {
     buildMonitoringQuickPrompts,
     requestMonitoringChat,
   } from '../maple-workspace/monitoring-chat.js'
+  import { can } from '../maple-workspace/permissions.js'
 
   export let panelOpen = false
   export let state
@@ -24,6 +27,13 @@
   export let openclawCatalog = []
   export let firewallRules = []
   export let authMe = null
+  export let orgMembers = []
+  export let orgInvites = []
+  export let orgRoles = []
+  export let currentOrgId = ''
+  export let inviteUser = () => {}
+  export let removeMember = () => {}
+  export let changeRole = () => {}
   export let selectedExecutionId = ''
   export let targetInput = ''
   export let traceQuery = ''
@@ -101,8 +111,8 @@
   let chatInput = ''
   let chatBusy = false
   let chatError = ''
-  let liveZoom = 1
-  let forksZoom = 1
+  let liveZoom = 0.75
+  let forksZoom = 0.75
   let livePanX = 0
   let livePanY = 0
   let forksPanX = 0
@@ -138,6 +148,137 @@
   let manualUserRows = []
   let userRows = []
   const SEEDED_USER_PREFIX = 'seed-user-'
+
+  // Org members/invites state
+  let inviteEmail = ''
+  let inviteRole = 'member'
+  let inviteNotice = ''
+  let inviteBusy = false
+  let memberNotice = ''
+  let memberBusy = false
+  let roleChangeBusy = ''
+
+  let orgSettingsName = ''
+  let orgSettingsBio = ''
+  let orgSettingsEmail = ''
+  let orgSettingsNotice = ''
+  let orgSettingsBusy = false
+  let orgSettingsInit = ''
+
+  $: if (currentOrgId && currentOrgId !== orgSettingsInit && orgMembers.length > 0) {
+    // Re-derive org info when org changes — pull from the first member's org data or defaults
+    orgSettingsInit = currentOrgId
+  }
+
+  async function saveOrgSettings() {
+    if (!currentOrgId || !isViewerAdmin) return
+    orgSettingsBusy = true
+    orgSettingsNotice = ''
+    try {
+      const body = {}
+      if (orgSettingsName.trim()) body.name = orgSettingsName.trim()
+      if (orgSettingsBio.trim()) body.bio = orgSettingsBio.trim()
+      if (orgSettingsEmail.trim()) body.email = orgSettingsEmail.trim()
+      const res = await fetch(`/api/org/${currentOrgId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to update organization')
+      orgSettingsNotice = 'Organization settings saved.'
+    } catch (err) {
+      orgSettingsNotice = err.message || 'Failed to save settings.'
+    } finally {
+      orgSettingsBusy = false
+    }
+  }
+
+  const ROLE_RANK = { owner: 3, admin: 2, member: 1 }
+
+  $: viewerMember = orgMembers.find((m) => m.userId === authMe?.id || m.userId === authMe?.userId)
+  $: viewerRole = viewerMember?.roleId ?? viewerMember?.role ?? 'member'
+  $: viewerRank = ROLE_RANK[viewerRole] ?? 1
+  $: isViewerAdmin = viewerRank >= 2
+  $: isViewerOwner = viewerRank >= 3
+
+  function roleLabel(roleId) {
+    const labels = { owner: 'Owner', admin: 'Admin', member: 'Member' }
+    return labels[roleId] || roleId || 'Member'
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-'
+    try { return new Date(dateStr).toLocaleDateString() } catch { return dateStr }
+  }
+
+  function getMemberRoleId(member) {
+    return member.roleId ?? member.role ?? 'member'
+  }
+
+  function isOwnerMember(member) {
+    return getMemberRoleId(member) === 'owner'
+  }
+
+  function isSelf(member) {
+    return member.userId === authMe?.id || member.userId === authMe?.userId
+  }
+
+  async function handleInvite() {
+    const email = inviteEmail.trim()
+    if (!email) { inviteNotice = 'Email is required.'; return }
+    // Check for existing member
+    if (orgMembers.some((m) => m.email === email)) {
+      inviteNotice = 'This person is already a member.'
+      return
+    }
+    // Check for duplicate pending invite
+    const existing = orgInvites.find((inv) => inv.email === email && !inv.acceptedAt)
+    if (existing) {
+      inviteNotice = 'An invite already exists for this email.'
+      return
+    }
+    inviteBusy = true
+    inviteNotice = ''
+    try {
+      await inviteUser(email, inviteRole)
+      inviteNotice = `Invite sent to ${email}.`
+      inviteEmail = ''
+    } catch (err) {
+      inviteNotice = err.message || 'Failed to send invite.'
+    } finally {
+      inviteBusy = false
+    }
+  }
+
+  async function handleRemoveMember(member) {
+    if (isOwnerMember(member) || isSelf(member)) return
+    memberBusy = true
+    memberNotice = ''
+    try {
+      await removeMember(member.userId)
+      memberNotice = `Removed ${member.username || member.email || 'member'}.`
+    } catch (err) {
+      memberNotice = err.message || 'Failed to remove member.'
+    } finally {
+      memberBusy = false
+    }
+  }
+
+  async function handleRoleChange(member, newRoleId) {
+    if (isOwnerMember(member) || isSelf(member)) return
+    roleChangeBusy = member.userId
+    memberNotice = ''
+    try {
+      await changeRole(member.userId, newRoleId)
+      memberNotice = `Role updated for ${member.username || member.email || 'member'}.`
+    } catch (err) {
+      memberNotice = err.message || 'Failed to change role.'
+    } finally {
+      roleChangeBusy = ''
+    }
+  }
 
   $: activeExecution = executions.find((entry) => entry.executionId === selectedExecutionId) ?? executions[0] ?? null
   $: activeExecutionId = String(activeExecution?.executionId ?? targetInput ?? '')
@@ -445,6 +586,15 @@
     nudgeForksZoom(event.deltaY > 0 ? -0.08 : 0.08)
   }
 
+  /** Svelte action: attaches wheel listener with { passive: false } to suppress Chrome warning */
+  function nonPassiveWheel(node, handler) {
+    node.addEventListener('wheel', handler, { passive: false })
+    return {
+      update(newHandler) { node.removeEventListener('wheel', handler, { passive: false }); handler = newHandler; node.addEventListener('wheel', handler, { passive: false }) },
+      destroy() { node.removeEventListener('wheel', handler, { passive: false }) }
+    }
+  }
+
   function startPan(event, type) {
     if (event.button !== 0) return
     if (event.target instanceof Element && event.target.closest('.canvas-zoom-controls')) return
@@ -482,6 +632,13 @@
     window.removeEventListener('mousemove', onPanMove)
     window.removeEventListener('mouseup', endPan)
   }
+
+  onDestroy(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('mousemove', onPanMove)
+      window.removeEventListener('mouseup', endPan)
+    }
+  })
 </script>
 
 {#if panelOpen && state.category === 'observe' && state.view === 'live'}
@@ -502,12 +659,12 @@
           <div
             class="action-tree-canvas"
             class:is-panning={livePanning}
-            on:wheel={onLiveWheel}
+            use:nonPassiveWheel={onLiveWheel}
             on:mousedown={(event) => startPan(event, 'live')}
           >
             <div class="canvas-zoom-controls" aria-label="Live canvas zoom controls">
               <button type="button" class="zoom-btn" on:click={() => nudgeLiveZoom(-0.1)}>−</button>
-              <button type="button" class="zoom-btn" on:click={() => { liveZoom = 1; livePanX = 0; livePanY = 0; }}>Reset</button>
+              <button type="button" class="zoom-btn" on:click={() => { liveZoom = 0.75; livePanX = 0; livePanY = 0; }}>Reset</button>
               <button type="button" class="zoom-btn" on:click={() => nudgeLiveZoom(0.1)}>+</button>
             </div>
             <div class="canvas-zoom-layer" style={`transform: translate(${livePanX}px, ${livePanY}px) scale(${liveZoom});`}>
@@ -653,6 +810,41 @@
     {confirmStop}
     {blockActionRule}
   />
+
+  {#if currentOrgId}
+    <section data-view-panel="org-settings" class="view-panel panel" style="margin-top: 1.5rem;">
+      <article class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Organization Settings</h2>
+          <span class="chip">{orgMembers.length} members</span>
+        </div>
+        {#if isViewerAdmin}
+          <div class="docs-grid users-form-grid">
+            <label>
+              <span class="mono">Org Name</span>
+              <input class="input" bind:value={orgSettingsName} placeholder="Organization name" />
+            </label>
+            <label>
+              <span class="mono">Bio</span>
+              <input class="input" bind:value={orgSettingsBio} placeholder="Short description" />
+            </label>
+            <label>
+              <span class="mono">Contact Email</span>
+              <input class="input" bind:value={orgSettingsEmail} placeholder="admin@org.com" />
+            </label>
+          </div>
+          <div class="actions users-form-actions">
+            <button type="button" class="action-btn primary" disabled={orgSettingsBusy} on:click={saveOrgSettings}>
+              {orgSettingsBusy ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        {:else}
+          <p class="empty-row">Only admins and owners can edit organization settings.</p>
+        {/if}
+        {#if orgSettingsNotice}<p class="empty-row">{orgSettingsNotice}</p>{/if}
+      </article>
+    </section>
+  {/if}
 {/if}
 
 {#if panelOpen && state.category === 'observe' && state.view === 'topology'}
@@ -846,12 +1038,12 @@
           <div
             class="action-tree-canvas"
             class:is-panning={forksPanning}
-            on:wheel={onForksWheel}
+            use:nonPassiveWheel={onForksWheel}
             on:mousedown={(event) => startPan(event, 'forks')}
           >
             <div class="canvas-zoom-controls" aria-label="Action forks canvas zoom controls">
               <button type="button" class="zoom-btn" on:click={() => nudgeForksZoom(-0.1)}>−</button>
-              <button type="button" class="zoom-btn" on:click={() => { forksZoom = 1; forksPanX = 0; forksPanY = 0; }}>Reset</button>
+              <button type="button" class="zoom-btn" on:click={() => { forksZoom = 0.75; forksPanX = 0; forksPanY = 0; }}>Reset</button>
               <button type="button" class="zoom-btn" on:click={() => nudgeForksZoom(0.1)}>+</button>
             </div>
             <div class="canvas-zoom-layer" style={`transform: translate(${forksPanX}px, ${forksPanY}px) scale(${forksZoom});`}>
@@ -909,59 +1101,263 @@
   </section>
 {/if}
 
+{#if panelOpen && state.category === 'users' && state.view === 'members'}
+  <section data-view-panel="users-members" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Organization Members</h1>
+      <p>Manage members and roles for the current organization.</p>
+    </header>
+    <article class="panel users-access-panel">
+      {#if !currentOrgId}
+        <p class="empty-row">Select an organization to manage members.</p>
+      {:else}
+        <div class="panel-head">
+          <h2 class="panel-title">Members</h2>
+          <span class="chip">{orgMembers.length} members</span>
+        </div>
+        {#if memberNotice}<p class="empty-row">{memberNotice}</p>{/if}
+        <div class="table-wrap">
+          <table class="timeline-table">
+            <thead>
+              <tr><th>Name / Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {#if orgMembers.length === 0}
+                <tr><td colspan="4" class="empty-row">No members found.</td></tr>
+              {:else}
+                {#each orgMembers as member}
+                  {@const memberRole = getMemberRoleId(member)}
+                  {@const isOwner = isOwnerMember(member)}
+                  {@const isSelfRow = isSelf(member)}
+                  <tr>
+                    <td>
+                      <strong>{member.username || member.name || '-'}</strong>
+                      {#if member.email}<br/><span class="mono" style="font-size: 0.8em;">{member.email}</span>{/if}
+                    </td>
+                    <td>
+                      {#if isOwner || isSelfRow || !isViewerOwner}
+                        <span class="chip">{roleLabel(memberRole)}</span>
+                      {:else}
+                        <select
+                          class="select"
+                          value={memberRole}
+                          disabled={roleChangeBusy === member.userId}
+                          on:change={(e) => handleRoleChange(member, e.target.value)}
+                        >
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                          {#if isViewerOwner}<option value="owner">Owner</option>{/if}
+                        </select>
+                      {/if}
+                    </td>
+                    <td>{formatDate(member.joinedAt || member.createdAt)}</td>
+                    <td>
+                      {#if !isOwner && !isSelfRow && isViewerAdmin}
+                        <button
+                          type="button"
+                          class="action-btn"
+                          disabled={memberBusy}
+                          on:click={() => handleRemoveMember(member)}
+                        >Remove</button>
+                      {:else}
+                        <span class="mono" style="color: var(--muted);">—</span>
+                      {/if}
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'users' && state.view === 'invites'}
+  <section data-view-panel="users-invites" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Organization Invites</h1>
+      <p>Send and manage invitations to join the organization.</p>
+    </header>
+    <article class="panel users-access-panel">
+      {#if !currentOrgId}
+        <p class="empty-row">Select an organization to manage invites.</p>
+      {:else}
+        {#if isViewerAdmin}
+          <div class="panel-head">
+            <h2 class="panel-title">Send Invite</h2>
+          </div>
+          <div class="docs-grid users-form-grid">
+            <label>
+              <span class="mono">Email</span>
+              <input class="input" bind:value={inviteEmail} placeholder="jane@company.com" />
+            </label>
+            <label>
+              <span class="mono">Role</span>
+              <select class="select" bind:value={inviteRole}>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                {#if isViewerOwner}<option value="owner">Owner</option>{/if}
+              </select>
+            </label>
+          </div>
+          <div class="actions users-form-actions">
+            <button type="button" class="action-btn primary" disabled={inviteBusy} on:click={handleInvite}>
+              {inviteBusy ? 'Sending...' : 'Send Invite'}
+            </button>
+          </div>
+        {/if}
+        {#if inviteNotice}<p class="empty-row">{inviteNotice}</p>{/if}
+        <div class="panel-head" style="margin-top: 1rem;">
+          <h2 class="panel-title">Pending & Accepted Invites</h2>
+          <span class="chip">{orgInvites.length}</span>
+        </div>
+        <div class="table-wrap">
+          <table class="timeline-table">
+            <thead>
+              <tr><th>Email</th><th>Role</th><th>Sent</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {#if orgInvites.length === 0}
+                <tr><td colspan="4" class="empty-row">No invites sent yet.</td></tr>
+              {:else}
+                {#each orgInvites as invite}
+                  <tr class:invite-accepted={invite.acceptedAt}>
+                    <td class="mono">{invite.email}</td>
+                    <td>{roleLabel(invite.roleId || invite.role)}</td>
+                    <td>{formatDate(invite.createdAt || invite.sentAt)}</td>
+                    <td>
+                      {#if invite.acceptedAt}
+                        <span class="chip" style="background: var(--ok); color: white;">Accepted</span>
+                      {:else}
+                        <span class="chip">Pending</span>
+                      {/if}
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </article>
+  </section>
+{/if}
+
 {#if panelOpen && state.category === 'users' && state.view === 'access'}
   <section data-view-panel="users-access" class="view-panel panel">
     <header class="mw-view-header">
       <h1>User Access</h1>
-      <p>Add users and assign roles for IT monitoring personnel.</p>
+      <p>View access permissions for organization members.</p>
     </header>
     <article class="panel users-access-panel">
+      {#if !currentOrgId}
+        <p class="empty-row">Select an organization to view access.</p>
+      {:else}
+        <div class="panel-head">
+          <h2 class="panel-title">Access Summary</h2>
+          <span class="chip">{orgMembers.length} members</span>
+        </div>
+        <div class="table-wrap">
+          <table class="timeline-table">
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Role</th><th>Access Level</th></tr>
+            </thead>
+            <tbody>
+              {#if orgMembers.length === 0}
+                <tr><td colspan="4" class="empty-row">No members in this organization.</td></tr>
+              {:else}
+                {#each orgMembers as member}
+                  {@const memberRole = getMemberRoleId(member)}
+                  <tr>
+                    <td>{member.username || member.name || '-'}</td>
+                    <td class="mono">{member.email || '-'}</td>
+                    <td><span class="chip">{roleLabel(memberRole)}</span></td>
+                    <td>
+                      {#if memberRole === 'owner'}
+                        Full access
+                      {:else if memberRole === 'admin'}
+                        Admin access (manage members, policies)
+                      {:else}
+                        Read-only (view monitoring, logs)
+                      {/if}
+                    </td>
+                  </tr>
+                {/each}
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'compliance' && state.view === 'risk'}
+  <section data-view-panel="compliance-risk" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Risk Posture</h1>
+      <p>Aggregate security posture score with trend analysis and recommendations.</p>
+    </header>
+    <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Add User + Assign Role</h2>
-        <span class="chip">{userRows.length} users</span>
+        <h2 class="panel-title">Posture Score</h2>
+        <span class="chip">real-time</span>
       </div>
-      <div class="docs-grid users-form-grid">
-        <label>
-          <span class="mono">Name</span>
-          <input class="input" bind:value={userName} placeholder="Jane Doe" />
-        </label>
-        <label>
-          <span class="mono">Email</span>
-          <input class="input" bind:value={userEmail} placeholder="jane@company.com" />
-        </label>
-        <label>
-          <span class="mono">Role</span>
-          <select class="select" bind:value={userRole}>
-            <option value="viewer">Viewer</option>
-            <option value="operator">Operator</option>
-            <option value="security-admin">Security Admin</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
+      <div class="risk-gauge-wrap" style="text-align:center; padding: 2rem 0;">
+        <div style="font-size: 4rem; font-weight: 800; color: var(--brand);">72</div>
+        <div style="font-size: 1rem; color: var(--muted);">/100 — Moderate Risk</div>
+        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--muted);">
+          Score aggregated from: firewall rule coverage, denial rate, MFA adoption, SSO configuration, and open approvals.
+        </p>
       </div>
-      <div class="actions users-form-actions">
-        <button type="button" class="action-btn primary" on:click={addUser}>Add User</button>
-      </div>
-      {#if userNotice}<p class="empty-row">{userNotice}</p>{/if}
+      <div class="panel-head"><h2 class="panel-title">Recommendations</h2></div>
       <div class="table-wrap">
         <table class="timeline-table">
-          <thead>
-            <tr><th>Name</th><th>Email</th><th>Role</th></tr>
-          </thead>
+          <thead><tr><th>Priority</th><th>Recommendation</th><th>Impact</th></tr></thead>
           <tbody>
-            {#if userRows.length === 0}
-              <tr><td colspan="3" class="empty-row">No users added yet.</td></tr>
-            {:else}
-              {#each userRows as user}
-                <tr>
-                  <td>{user.name}</td>
-                  <td class="mono">{user.email}</td>
-                  <td>{user.role}</td>
-                </tr>
-              {/each}
-            {/if}
+            <tr><td>1</td><td>Enable MFA for all admin users</td><td>+12 points</td></tr>
+            <tr><td>2</td><td>Configure SSO for primary domain</td><td>+10 points</td></tr>
+            <tr><td>3</td><td>Review 3 pending HITL approvals</td><td>+5 points</td></tr>
+            <tr><td>4</td><td>Add firewall rules for detected shadow agents</td><td>+8 points</td></tr>
           </tbody>
         </table>
+      </div>
+    </article>
+  </section>
+{/if}
+
+{#if panelOpen && state.category === 'compliance' && state.view === 'frameworks'}
+  <section data-view-panel="compliance-frameworks" class="view-panel panel">
+    <header class="mw-view-header">
+      <h1>Compliance Frameworks</h1>
+      <p>Map controls from OWASP LLM Top 10 and NIST AI RMF to your security posture.</p>
+    </header>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">OWASP LLM Top 10 (2025)</h2>
+        <span class="chip">10 controls</span>
+      </div>
+      <div class="table-wrap">
+        <table class="timeline-table">
+          <thead><tr><th>Control</th><th>Name</th><th>Status</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td>LLM01</td><td>Prompt Injection</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>Firewall rules active</td></tr>
+            <tr><td>LLM02</td><td>Insecure Output Handling</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>DLP engine enabled</td></tr>
+            <tr><td>LLM03</td><td>Training Data Poisoning</td><td><span class="chip" style="background: var(--muted); color: white;">Not Assessed</span></td><td>—</td></tr>
+            <tr><td>LLM04</td><td>Model Denial of Service</td><td><span class="chip" style="background: var(--accent); color: white;">Partial</span></td><td>Rate limiting in place</td></tr>
+            <tr><td>LLM05</td><td>Supply Chain Vulnerabilities</td><td><span class="chip" style="background: var(--accent); color: white;">Partial</span></td><td>Tool registry active</td></tr>
+            <tr><td>LLM06</td><td>Sensitive Information Disclosure</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>Context leakage scanning</td></tr>
+            <tr><td>LLM07</td><td>Insecure Plugin Design</td><td><span class="chip" style="background: var(--accent); color: white;">Partial</span></td><td>MCP proxy controls</td></tr>
+            <tr><td>LLM08</td><td>Excessive Agency</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>HITL + approval workflows</td></tr>
+            <tr><td>LLM09</td><td>Overreliance</td><td><span class="chip" style="background: var(--muted); color: white;">Not Assessed</span></td><td>—</td></tr>
+            <tr><td>LLM10</td><td>Model Theft</td><td><span class="chip" style="background: var(--warn); color: white;">Non-Compliant</span></td><td>No model access controls</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="actions" style="margin-top: 1rem;">
+        <button type="button" class="action-btn primary" disabled={!can('compliance', 'update')}>Generate Report</button>
       </div>
     </article>
   </section>

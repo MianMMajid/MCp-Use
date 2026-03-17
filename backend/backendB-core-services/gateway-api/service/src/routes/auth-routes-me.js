@@ -8,6 +8,7 @@ import {
     configuredApiKeys,
 } from "../config.js";
 import { ownerScopesForSessionUser } from "./auth-routes-common.js";
+import { getRbacStore } from "../middleware/rbac-middleware.js";
 
 async function resolveSessionUser(session) {
     if (!session) {
@@ -30,12 +31,32 @@ export function registerAuthMeRoute(app) {
         const session = await findRequestSession(database, c.req.header("cookie"));
         const sessionUser = await resolveSessionUser(session);
         if (session && sessionUser) {
+            // Resolve RBAC permissions if store is available
+            let permissions = [];
+            let roleLabel = "member";
+            let rbacVersion = 0;
+            const rbacStore = getRbacStore();
+            if (rbacStore) {
+                try {
+                    const perms = await rbacStore.resolveEffectivePermissions(sessionUser.id);
+                    permissions = [...perms].sort();
+                    roleLabel = await rbacStore.getUserRoleLabel(sessionUser.id);
+                    rbacVersion = rbacStore.version;
+                } catch {
+                    // RBAC resolution failure is non-fatal
+                }
+            }
+
             return c.json({
                 ok: true,
                 authenticated: true,
                 method: "session",
                 user: toPublicUser(sessionUser),
                 ownerScopes: ownerScopesForSessionUser(sessionUser.id),
+                permissions,
+                roleLabel,
+                rbacVersion,
+                mfaVerified: session.mfaVerified ?? false,
             });
         }
 

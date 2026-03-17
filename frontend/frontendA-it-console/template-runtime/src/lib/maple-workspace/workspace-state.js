@@ -13,6 +13,7 @@ export const MAPLE_WORKSPACE_CATEGORY_VIEWS = Object.freeze({
   admin: Object.freeze(['control', 'marketplace']),
   firewalls: Object.freeze(['cybersecurity', 'rules', 'context-leakage']),
   users: Object.freeze(['access']),
+  compliance: Object.freeze(['risk', 'frameworks']),
   docs: Object.freeze(['overview', 'api', 'runbooks', 'route-help']),
 })
 
@@ -28,6 +29,8 @@ const CATEGORY_ALIASES = Object.freeze({
   firewalls: 'firewalls',
   user: 'users',
   users: 'users',
+  compliance: 'compliance',
+  risk: 'compliance',
 })
 
 const VIEW_ALIASES = Object.freeze({

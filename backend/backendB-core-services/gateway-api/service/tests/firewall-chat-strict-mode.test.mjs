@@ -101,15 +101,15 @@ process.env.DOWNSTREAM_APPS = process.env.DOWNSTREAM_APPS || "";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
-import { resolve } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
+import { resolve, dirname } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const serviceRoot = resolve(__dirname, "..");
 
 function runScenario(env) {
   const moduleUrl = pathToFileURL(
-    resolve(
-      process.cwd(),
-      "backend/backendB-core-services/gateway-api/service/src/core/firewall-chat-ai.js"
-    )
+    resolve(serviceRoot, "src/core/firewall-chat-ai.js")
   ).href;
   const script = `
     const mod = await import(${JSON.stringify(moduleUrl)});
@@ -135,7 +135,7 @@ function runScenario(env) {
     process.stdout.write(JSON.stringify({ mode: response.mode }));
   `;
   const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
-    cwd: process.cwd(),
+    cwd: serviceRoot,
     env: {
       ...process.env,
       DATABASE_URL: process.env.DATABASE_URL,

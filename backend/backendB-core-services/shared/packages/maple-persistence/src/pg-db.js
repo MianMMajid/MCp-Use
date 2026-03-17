@@ -597,14 +597,27 @@ export class MaplePostgresDatabase {
         return { id: sessionId, userId, createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(), revokedAt: null };
     }
     async findActiveSession(sessionId, nowIso = new Date().toISOString()) {
-        const result = await this.pool.query(`SELECT s.id, s.user_id, s.created_at, s.expires_at, s.revoked_at, u.username, u.email, u.role
-       FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.id = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 LIMIT 1`, [sessionId, nowIso]);
+        // Try with mfa_verified column first; fall back if column doesn't exist yet
+        let result;
+        try {
+            result = await this.pool.query(`SELECT s.id, s.user_id, s.created_at, s.expires_at, s.revoked_at, s.mfa_verified, u.username, u.email, u.role
+           FROM sessions s JOIN users u ON u.id = s.user_id
+           WHERE s.id = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 LIMIT 1`, [sessionId, nowIso]);
+        } catch (err) {
+            if (err?.message?.includes("mfa_verified")) {
+                result = await this.pool.query(`SELECT s.id, s.user_id, s.created_at, s.expires_at, s.revoked_at, u.username, u.email, u.role
+               FROM sessions s JOIN users u ON u.id = s.user_id
+               WHERE s.id = $1 AND s.revoked_at IS NULL AND s.expires_at > $2 LIMIT 1`, [sessionId, nowIso]);
+            } else {
+                throw err;
+            }
+        }
         if (result.rows.length === 0)
             return undefined;
         const row = result.rows[0];
         return {
             id: row.id, userId: row.user_id, createdAt: row.created_at, expiresAt: row.expires_at, revokedAt: row.revoked_at,
+            mfaVerified: row.mfa_verified ?? false,
             user: { id: row.user_id, username: row.username, email: row.email, role: row.role ?? "user" },
         };
     }

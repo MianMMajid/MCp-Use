@@ -1,7 +1,8 @@
 <script>
+  import { onDestroy } from 'svelte'
   export let endpoints = []
   export let queueInterventionHandoff = () => {}
-  let topologyZoom = 1
+  let topologyZoom = 0.75
   let topologyPanX = 0
   let topologyPanY = 0
   let topologyPanning = false
@@ -40,6 +41,14 @@
     nudgeTopologyZoom(event.deltaY > 0 ? -0.08 : 0.08)
   }
 
+  function nonPassiveWheel(node, handler) {
+    node.addEventListener('wheel', handler, { passive: false })
+    return {
+      update(h) { node.removeEventListener('wheel', handler, { passive: false }); handler = h; node.addEventListener('wheel', handler, { passive: false }) },
+      destroy() { node.removeEventListener('wheel', handler, { passive: false }) }
+    }
+  }
+
   function startPan(event) {
     if (event.button !== 0) return
     if (event.target instanceof Element && event.target.closest('.canvas-zoom-controls')) return
@@ -67,6 +76,13 @@
     window.removeEventListener('mousemove', onPanMove)
     window.removeEventListener('mouseup', endPan)
   }
+
+  onDestroy(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('mousemove', onPanMove)
+      window.removeEventListener('mouseup', endPan)
+    }
+  })
 </script>
 
 <section data-view-panel="topology" class="view-panel topology-view">
@@ -76,12 +92,12 @@
       <div
         class="topology-map"
         class:is-panning={topologyPanning}
-        on:wheel={onTopologyWheel}
+        use:nonPassiveWheel={onTopologyWheel}
         on:mousedown={startPan}
       >
         <div class="canvas-zoom-controls" aria-label="Topology canvas zoom controls">
           <button type="button" class="zoom-btn" on:click={() => nudgeTopologyZoom(-0.1)}>−</button>
-          <button type="button" class="zoom-btn" on:click={() => { topologyZoom = 1; topologyPanX = 0; topologyPanY = 0; }}>Reset</button>
+          <button type="button" class="zoom-btn" on:click={() => { topologyZoom = 0.75; topologyPanX = 0; topologyPanY = 0; }}>Reset</button>
           <button type="button" class="zoom-btn" on:click={() => nudgeTopologyZoom(0.1)}>+</button>
         </div>
         <div class="canvas-zoom-layer" style={`transform: translate(${topologyPanX}px, ${topologyPanY}px) scale(${topologyZoom});`}>

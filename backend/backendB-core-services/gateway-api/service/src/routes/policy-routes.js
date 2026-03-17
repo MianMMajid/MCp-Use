@@ -4,12 +4,16 @@ import { readJsonBody, asString } from "../helpers.js";
 import { grpcUnary } from "../grpc-clients.js";
 import { buildCandidateStep, evaluateFirewallStepViaGrpc } from "../trace-helpers.js";
 import { mapleLog } from "../logging.js";
+import { checkPermission } from "../middleware/rbac-middleware.js";
 
 export function registerPolicyRoutes() {
     // GET /api/policies/effective — resolved effective policy for a specific agent/env context
     server.app.get("/api/policies/effective", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
+
+        const denied = await checkPermission(c, "policy", "read");
+        if (denied) return denied;
 
         const agentId = c.req.query("agentId") ?? "";
         const env = c.req.query("env") ?? "";
@@ -77,6 +81,9 @@ export function registerPolicyRoutes() {
     server.app.post("/api/policies/simulate", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);
         if (unauthorized) return unauthorized;
+
+        const denied = await checkPermission(c, "policy", "simulate");
+        if (denied) return denied;
 
         const body = await readJsonBody(c);
         const toolName = asString(body.tool) ?? asString(body.toolName) ?? "";

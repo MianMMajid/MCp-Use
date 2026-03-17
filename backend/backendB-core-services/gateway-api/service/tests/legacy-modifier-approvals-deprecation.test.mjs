@@ -1,17 +1,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const repoRoot = process.cwd();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const serviceRoot = resolve(__dirname, "..");
 
 const modifierRoutesPath = resolve(
-  repoRoot,
-  "backend/backendB-core-services/gateway-api/service/src/routes/openclaw-modifier-routes.js",
+  serviceRoot,
+  "src/routes/openclaw-modifier-routes.js",
 );
 const approvalWatchPath = resolve(
-  repoRoot,
-  "backend/backendB-core-services/gateway-api/service/src/routes/modifier-approval-watch.js",
+  serviceRoot,
+  "src/routes/modifier-approval-watch.js",
 );
 
 test("legacy modifier approval endpoints are explicitly marked Endpoint removed (410)", () => {

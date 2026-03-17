@@ -4,6 +4,7 @@ import { buildSessionCookie, } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { hashPassword, verifyPassword } from "@maple/security";
 import { buildSessionAuthResponse } from "./auth-routes-common.js";
+import { userHasMfa, createMfaSessionToken, isDeviceTrusted } from "./auth-routes-mfa.js";
 
 // In-memory rate limiter for auth endpoints
 const loginAttempts = new Map(); // key: IP, value: { count, resetAt }
@@ -77,9 +78,43 @@ export function registerAuthLoginRegisterRoutes(app) {
             user = await database.findUserByEmail(username);
         }
         if (!user || !verifyPassword(password, user.passwordHash)) {
-            return c.json({ error: "Invalid username or password." }, 401);
+            return c.json({ error: "Invalid credentials." }, 401);
         }
         resetRateLimit(ip);
+
+        // Check if user has MFA enabled
+        try {
+            const hasMfa = await userHasMfa(user.id);
+            if (hasMfa) {
+                // Check if device is trusted (skip MFA)
+                const cookieHeader = c.req.header("cookie");
+                if (isDeviceTrusted(cookieHeader, user.id)) {
+                    // Trusted device — proceed with normal login
+                    const session = await database.createSession(user.id, sessionTtlSeconds);
+                    try {
+                        await database.pool.query(
+                            `UPDATE sessions SET mfa_verified = TRUE WHERE id = $1`,
+                            [session.id]
+                        );
+                    } catch { /* column may not exist */ }
+                    c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
+                    return c.json(buildSessionAuthResponse(user, session));
+                }
+
+                // MFA required — return challenge token
+                const mfaSessionToken = createMfaSessionToken(user.id);
+                return c.json({
+                    ok: true,
+                    authenticated: false,
+                    mfaRequired: true,
+                    mfaSessionToken,
+                    message: "MFA verification required. Submit your TOTP code to /api/auth/mfa/challenge.",
+                });
+            }
+        } catch {
+            // MFA check failed — proceed without MFA requirement
+        }
+
         const session = await database.createSession(user.id, sessionTtlSeconds);
         c.header("set-cookie", buildSessionCookie(session.id, sessionTtlSeconds));
         return c.json(buildSessionAuthResponse(user, session));

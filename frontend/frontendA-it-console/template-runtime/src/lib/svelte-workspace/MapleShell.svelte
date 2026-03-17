@@ -8,11 +8,13 @@
   import MapleCategoryPills from './MapleCategoryPills.svelte'
   import MapleViewTabs from './MapleViewTabs.svelte'
   import WorkspaceViewHost from './WorkspaceViewHost.svelte'
+  import ChatView from './ChatView.svelte'
 
   import { MAPLE_WORKSPACE_CATEGORIES, MAPLE_ROUTE_REGISTRY } from '../maple-workspace/route-registry.js'
   import { buildWorkspaceHref, resolveWorkspaceState } from '../maple-workspace/workspace-state.js'
   import { filterFrontendBOrigin } from '../maple-workspace/origin-filter.js'
   import { interventionActionCatalog } from '../maple-workspace/intervention-api.js'
+  import { loadPermissions, canAccessCategory, can, onPermissionChange } from '../maple-workspace/permissions.js'
 
   const actions = interventionActionCatalog()
   const asArray = (value) => (Array.isArray(value) ? value : [])
@@ -44,6 +46,10 @@
   let openclawCatalog = []
   let firewallRules = []
   let authMe = null
+  let currentOrgId = ''
+  let orgMembers = []
+  let orgInvites = []
+  let orgRoles = []
   let selectedExecutionId = ''
   let reason = ''
   let showConfirmStop = false
@@ -89,11 +95,12 @@
   ]
 
   const tabsByCategory = {
-    observe: ['topology', 'live', 'timeline', 'forks'],
+    observe: ['topology', 'live', 'forks', 'timeline'],
     chat: ['chat'],
     admin: ['control', 'marketplace'],
     firewalls: ['cybersecurity', 'rules', 'context-leakage'],
-    users: ['access'],
+    users: ['members', 'invites', 'access'],
+    compliance: ['risk', 'frameworks'],
     docs: ['overview', 'api', 'runbooks', 'route-help'],
   }
 
@@ -101,7 +108,9 @@
     live: 'Live', chat: 'Chat', timeline: 'Timeline', control: 'Control', topology: 'Topology',
     forks: 'Forks',
     marketplace: 'Marketplace',
-    cybersecurity: 'Cybersecurity', rules: 'Rules', 'context-leakage': 'Context Leakage', 'action-forks': 'Action Forks', access: 'Access',
+    cybersecurity: 'Cybersecurity', rules: 'Rules', 'context-leakage': 'Context Leakage', 'action-forks': 'Action Forks',
+    members: 'Members', invites: 'Invites', access: 'Access',
+    risk: 'Risk Posture', frameworks: 'Frameworks',
     overview: 'Overview', api: 'API', runbooks: 'Runbooks', 'route-help': 'Route Help',
   }
 
@@ -246,8 +255,10 @@
                     : category.id === 'firewalls'
                       ? 'cybersecurity'
                       : category.id === 'users'
-                        ? 'access'
-                        : 'overview',
+                        ? 'members'
+                        : category.id === 'compliance'
+                          ? 'risk'
+                          : 'overview',
             routePath: state.routePath,
             executionId: targetInput || (activeExecution?.executionId ?? ''),
             sessionId: activeExecution?.sessionId ?? '',
@@ -270,6 +281,18 @@
 
   async function loadData() {
     try {
+      const orgFetches = currentOrgId
+        ? [
+            fetch(`/api/org/${currentOrgId}/members`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
+            fetch(`/api/org/${currentOrgId}/invites`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
+            fetch(`/api/org/${currentOrgId}/roles`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
+          ]
+        : [
+            Promise.resolve({ items: [] }),
+            Promise.resolve({ items: [] }),
+            Promise.resolve({ items: [] }),
+          ]
+
       const [
         summaryRes,
         sloRes,
@@ -284,6 +307,9 @@
         openclawCatalogRes,
         authMeRes,
         firewallRulesRes,
+        orgMembersRes,
+        orgInvitesRes,
+        orgRolesRes,
       ] = await Promise.allSettled([
         fetch('/api/observability/orchestrations/summary').then((r) => r.json()),
         fetch('/api/observability/orchestrations/slo').then((r) => r.json()),
@@ -309,6 +335,7 @@
         fetch('/api/openclaw/cli/catalog').then((r) => r.json()),
         fetch('/api/auth/me').then((r) => r.json()),
         fetch('/api/firewall/rules/effective').then((r) => r.json()),
+        ...orgFetches,
       ])
 
       if (summaryRes.status === 'fulfilled') summary = summaryRes.value
@@ -369,6 +396,16 @@
         }
       }
 
+      if (orgMembersRes.status === 'fulfilled') {
+        orgMembers = asArray(orgMembersRes.value?.members ?? orgMembersRes.value?.items ?? orgMembersRes.value)
+      }
+      if (orgInvitesRes.status === 'fulfilled') {
+        orgInvites = asArray(orgInvitesRes.value?.invites ?? orgInvitesRes.value?.items ?? orgInvitesRes.value)
+      }
+      if (orgRolesRes.status === 'fulfilled') {
+        orgRoles = asArray(orgRolesRes.value?.roles ?? orgRolesRes.value?.items ?? orgRolesRes.value)
+      }
+
       if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId
       if (firewallRules.length === 0) firewallRules = defaultFirewallRules
     } catch (loadError) {
@@ -377,11 +414,80 @@
     }
   }
 
+  function handleOrgChange(event) {
+    const orgId = event.detail?.orgId ?? ''
+    if (orgId !== currentOrgId) {
+      currentOrgId = orgId
+      orgMembers = []
+      orgInvites = []
+      orgRoles = []
+      loadData()
+    }
+  }
+
+  async function inviteUser(email, roleId) {
+    if (!currentOrgId) return
+    const res = await fetch(`/api/org/${currentOrgId}/invites`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ email, roleId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Failed to send invite')
+    await loadData()
+    return data
+  }
+
+  async function removeMember(userId) {
+    if (!currentOrgId) return
+    const res = await fetch(`/api/org/${currentOrgId}/members/${userId}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Failed to remove member')
+    await loadData()
+    return data
+  }
+
+  async function changeRole(userId, roleId) {
+    if (!currentOrgId) return
+    const res = await fetch(`/api/org/${currentOrgId}/roles/${roleId}/assign`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ userId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || 'Failed to change role')
+    await loadData()
+    return data
+  }
+
+  // Reactive trigger for permission changes — increments when permissions load/change
+  let permissionVersion = 0
+
+  // Filter categories by user permissions (re-runs when permissionVersion changes)
+  $: visibleCategories = (permissionVersion, MAPLE_WORKSPACE_CATEGORIES.filter((cat) => canAccessCategory(cat.id)))
+
   onMount(() => {
+    // Initialize currentOrgId from localStorage before first loadData
+    if (browser) {
+      try { currentOrgId = localStorage.getItem('maple-current-org') || '' } catch {}
+    }
+    const unsubPermissions = onPermissionChange(() => {
+      permissionVersion += 1
+    })
+    loadPermissions()
     loadData()
-    const id = window.setInterval(loadData, 15000)
+    // Poll every 15s but skip when tab is hidden to save API calls
+    const id = window.setInterval(() => {
+      if (!document.hidden) loadData()
+    }, 15000)
     return () => {
       window.clearInterval(id)
+      unsubPermissions()
     }
   })
 
@@ -530,21 +636,27 @@
       connected={panelOpen}
       {analystOptions}
       {selectedAnalysts}
+      {authMe}
+      activeCategory={state.category}
+      activeView={state.view}
       on:toggleAnalyst={(event) => toggleAnalyst(event.detail.name)}
       on:clearAnalysts={clearAnalysts}
+      on:refresh={loadData}
+      on:orgChange={handleOrgChange}
     />
 
     <div class="main-area">
       <div class="chat-home" class:panel-active={panelOpen}>
-        <div class="welcome-state" class:is-hidden={state.category !== 'chat' || hasPrompted}>
-          <h2 class="welcome-heading">What can I help with?</h2>
-          <p class="welcome-sub">{statusText}</p>
-          <div class="welcome-pills">
-            {#each quickPrompts as prompt}
-              <button type="button" class="welcome-pill" on:click={() => applyPrompt(prompt)}>{prompt}</button>
-            {/each}
+        {#if state.category === 'chat'}
+          <div class="chat-full-panel">
+            <ChatView
+              {authMe}
+              executionId={targetInput || selectedExecutionId}
+              sessionId={activeExecution?.sessionId ?? ''}
+              routeTitle={state.routeRecord?.title ?? ''}
+            />
           </div>
-        </div>
+        {/if}
 
         <div class="context-panel" class:is-open={panelOpen} aria-hidden={!panelOpen}>
           <div class="context-panel-body">
@@ -566,6 +678,13 @@
               {openclawCatalog}
               {firewallRules}
               {authMe}
+              {orgMembers}
+              {orgInvites}
+              {orgRoles}
+              {currentOrgId}
+              {inviteUser}
+              {removeMember}
+              {changeRole}
               {selectedExecutionId}
               {targetInput}
               {traceQuery}
@@ -590,34 +709,24 @@
               confirmStop={(target) => runAction('cancelExecution', target)}
             />
           </div>
-          <div class="context-panel-foot">
+        </div>
+
+        <div class="bottom-nav-stack">
+          {#if panelOpen && (tabsByCategory[state.category] ?? []).length > 1}
             <MapleViewTabs
               views={tabsByCategory[state.category] ?? []}
               activeView={state.view}
               labels={tabLabels}
               hrefByView={viewHrefById}
             />
-          </div>
+          {/if}
+          <MapleCategoryPills
+            categories={visibleCategories}
+            activeCategory={state.category}
+            hrefByCategory={categoryHrefById}
+          />
         </div>
 
-        <MapleCategoryPills
-          categories={MAPLE_WORKSPACE_CATEGORIES}
-          activeCategory={state.category}
-          hrefByCategory={categoryHrefById}
-        />
-
-        {#if state.category !== 'chat'}
-          <div class="chat-composer-placeholder" aria-hidden="true"></div>
-        {/if}
-
-        {#if state.category === 'chat'}
-          <div class="chat-composer chat-composer-home">
-            <div class="chat-input-wrap">
-              <input bind:value={chatInput} placeholder="Ask Mayple to summarize runtime context..." aria-label="Mayple chat input" />
-              <button type="button" class="chat-send-btn" aria-label="Send">↑</button>
-            </div>
-          </div>
-        {/if}
       </div>
     </div>
   </div>
