@@ -23,15 +23,6 @@
   let confirmMessage = '';
   let confirmAction = () => {};
 
-  // Context menu state
-  let openMenuId = '';
-
-  function closeMenu() { openMenuId = ''; }
-
-  function onMenuKeyDown(event) {
-    if (event.key === 'Escape') closeMenu();
-  }
-
   async function requestDelete(type, id, name) {
     openMenuId = '';
 
@@ -226,27 +217,19 @@
           </div>
         {:else}
           {#each filteredOrch as item}
-            <div class="card orch-row" class:menu-open={openMenuId === item.id}>
-              <button class="orch-main" on:click={() => goto(`/orchestrate/${item.id}`)}>
-                <div class="orch-info">
-                  <p class="orch-name">{item.name || item.id}</p>
-                  {#if item.description}
-                    <p class="orch-desc">{item.description}</p>
-                  {/if}
-                </div>
-                <div class="orch-meta">
-                  <span class={badgeClass(item.status)}>{item.status || 'draft'}</span>
-                  <span class="arrow"><Icon name="chevron" size={14} /></span>
-                </div>
-              </button>
-              <div class="ctx-menu-wrap">
-                <button class="ctx-trigger pill" on:click|stopPropagation={() => (openMenuId = openMenuId === item.id ? '' : item.id)}>⋯</button>
-                {#if openMenuId === item.id}
-                  <div class="ctx-menu">
-                    <button on:click={() => { openMenuId = ''; goto(`/orchestrate/${item.id}`); }}>Edit</button>
-                    <button class="danger-item" on:click={() => requestDelete('orchestration', item.id, item.name)}>Delete</button>
-                  </div>
+            <div class="card orch-row">
+              <div class="orch-info" on:click={() => goto(`/orchestrate/${item.id}`)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto(`/orchestrate/${item.id}`)}>
+                <p class="orch-name">{item.name || item.id}</p>
+                {#if item.description}
+                  <p class="orch-desc">{item.description}</p>
                 {/if}
+              </div>
+              <div class="orch-actions">
+                <span class={badgeClass(item.status)}>{item.status || 'draft'}</span>
+                <button class="pill action-btn" on:click={() => goto(`/orchestrate/${item.id}`)}>Open</button>
+                <button class="pill action-btn danger-btn" on:click={() => requestDelete('orchestration', item.id, item.name)} title="Delete">
+                  <Icon name="close" size={12} />
+                </button>
               </div>
             </div>
           {/each}
@@ -282,22 +265,10 @@
         {:else}
           {#each filteredAgents as agent}
             {@const id = agent.agentId || agent.id}
-            <article class="card agent-card" class:menu-open={openMenuId === id}>
-              <div class="agent-top-row">
-                <button class="agent-top" type="button" on:click={() => goto(`/agents/${id}`)}>
-                  <p class="agent-name">{agent.name || id}</p>
-                  <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
-                </button>
-                <div class="ctx-menu-wrap">
-                  <button class="ctx-trigger pill" on:click|stopPropagation={() => (openMenuId = openMenuId === id ? '' : id)}>⋯</button>
-                  {#if openMenuId === id}
-                    <div class="ctx-menu">
-                      <button on:click={() => { openMenuId = ''; goto(`/agents/${id}`); }}>Configure</button>
-                      <button on:click={async () => { openMenuId = ''; await chatStore.selectAgent(id); goto('/?mode=agent'); }}>Chat</button>
-                      <button class="danger-item" on:click={() => requestDelete('agent', id, agent.name)}>Delete</button>
-                    </div>
-                  {/if}
-                </div>
+            <article class="card agent-card">
+              <div class="agent-header">
+                <p class="agent-name">{agent.name || id}</p>
+                <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
               </div>
               {#if agent.description}
                 <p class="agent-desc">{agent.description}</p>
@@ -309,8 +280,15 @@
                 {/if}
               </div>
               <div class="agent-actions">
-                <button class="pill tiny" on:click={() => goto(`/agents/${id}`)}>Configure</button>
-                <button class="pill tiny" on:click={async () => { await chatStore.selectAgent(id); goto('/?mode=agent'); }}>Chat</button>
+                <button class="pill action-btn accent-btn" on:click={() => goto(`/agents/${id}`)}>
+                  <Icon name="settings" size={12} /> Configure
+                </button>
+                <button class="pill action-btn" on:click={async () => { await chatStore.selectAgent(id); goto('/?mode=agent'); }}>
+                  <Icon name="chat" size={12} /> Chat
+                </button>
+                <button class="pill action-btn danger-btn" on:click={() => requestDelete('agent', id, agent.name)} title="Delete agent">
+                  <Icon name="close" size={12} />
+                </button>
               </div>
             </article>
           {/each}
@@ -328,8 +306,6 @@
   danger
   onConfirm={confirmAction}
 />
-
-<svelte:window on:click={closeMenu} on:keydown={onMenuKeyDown} />
 
 <style>
   .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; }
@@ -358,28 +334,43 @@
 
   /* Orchestration list */
   .orch-list { display: grid; gap: 8px; }
-  .orch-row { display: flex; align-items: center; gap: 0; padding: 0; transition: border-color 0.15s; position: relative; }
-  .menu-open { z-index: 10; }
+  .orch-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; transition: border-color 0.15s; }
   .orch-row:hover { border-color: var(--accent); }
-  .orch-main { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 8px 14px 16px; cursor: pointer; text-align: left; border: 0; background: transparent; color: inherit; }
-  .orch-info { min-width: 0; }
+  .orch-info { flex: 1; min-width: 0; cursor: pointer; }
   .orch-name { margin: 0; font-size: 14px; font-weight: 600; }
   .orch-desc { margin: 4px 0 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .orch-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .arrow { color: var(--muted); font-size: 16px; }
+  .orch-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
   /* Agent grid */
-  .agent-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-  .agent-card { padding: 12px; text-align: left; transition: border-color 0.15s; position: relative; }
+  .agent-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .agent-card { padding: 14px; text-align: left; transition: border-color 0.15s; display: grid; gap: 8px; }
   .agent-card:hover { border-color: rgba(232, 116, 12, 0.4); }
-  .agent-top-row { display: flex; align-items: center; gap: 4px; }
-  .agent-top { flex: 1; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; display: flex; align-items: center; gap: 8px; cursor: pointer; }
-  .agent-name { flex: 1; margin: 0; font-size: 13px; font-weight: 600; }
-  .agent-desc { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
-  .agent-meta { margin-top: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .tool-count, .model { color: var(--muted); font-size: 10px; }
-  .agent-actions { margin-top: 8px; display: flex; gap: 6px; }
-  .tiny { padding: 4px 8px; font-size: 11px; cursor: pointer; }
+  .agent-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .agent-name { flex: 1; margin: 0; font-size: 14px; font-weight: 600; }
+  .agent-desc { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .agent-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tool-count, .model { color: var(--muted); font-size: 11px; }
+  .agent-actions { display: flex; gap: 6px; margin-top: 2px; }
+
+  /* Shared action buttons */
+  .action-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-color: var(--border);
+    background: var(--glass);
+    color: var(--fg);
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .action-btn:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .accent-btn { border-color: rgba(232, 116, 12, 0.4); background: rgba(232, 116, 12, 0.1); color: var(--accent); }
+  .accent-btn:hover { background: rgba(232, 116, 12, 0.2); }
+  .danger-btn { padding: 6px 8px; border-color: transparent; background: transparent; color: var(--muted); }
+  .danger-btn:hover { border-color: var(--danger-border); background: var(--danger-soft); color: var(--danger); }
 
   /* Status badges */
   .badge { border-radius: 999px; padding: 2px 8px; font-size: 10px; border: 1px solid transparent; text-transform: lowercase; }
@@ -395,38 +386,6 @@
   .empty-icon { font-size: 28px; opacity: 0.6; }
   .empty-state h3 { margin: 0; font-size: 15px; }
   .empty-state p { margin: 0; color: var(--muted); font-size: 12px; max-width: 280px; }
-
-  /* Context menu */
-  .ctx-menu-wrap { position: relative; flex-shrink: 0; }
-  .ctx-trigger { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; border-color: transparent; background: transparent; color: var(--muted); }
-  .ctx-trigger:hover { color: var(--fg); background: var(--glass); }
-  .ctx-menu {
-    position: absolute;
-    right: 0;
-    top: 34px;
-    z-index: 12;
-    min-width: 130px;
-    border: 1px solid var(--border-strong);
-    border-radius: 10px;
-    background: var(--panel);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-    padding: 4px;
-    display: grid;
-    gap: 2px;
-  }
-  .ctx-menu button {
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--fg);
-    text-align: left;
-    padding: 7px 10px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  .ctx-menu button:hover { background: var(--accent-soft); }
-  .ctx-menu .danger-item { color: var(--danger); }
-  .ctx-menu .danger-item:hover { background: var(--danger-soft); }
 
   @media (max-width: 720px) {
     .top-bar { flex-direction: column; align-items: flex-start; }

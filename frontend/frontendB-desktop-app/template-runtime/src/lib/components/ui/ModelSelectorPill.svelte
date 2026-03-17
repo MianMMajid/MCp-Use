@@ -10,6 +10,7 @@
   } from '@/lib/config/openai-chat-models.js';
 
   let open = false;
+  let openAbove = false;
   let selection = readStoredChatModelSelection(null);
   let root;
 
@@ -47,14 +48,20 @@
 </script>
 
 <div class="model-selector" bind:this={root}>
-  <button class="trigger" on:click={() => (open = !open)} aria-haspopup="listbox" aria-expanded={open}>
+  <button class="trigger" on:click={() => {
+    if (!open && root) {
+      const rect = root.getBoundingClientRect();
+      openAbove = rect.bottom + 300 > window.innerHeight;
+    }
+    open = !open;
+  }} aria-haspopup="listbox" aria-expanded={open}>
     <span class="primary">{selected.modelTitle}</span>
     <span class="secondary">{selected.reasoningTitle}</span>
     <Icon name="chevron" size={14} />
   </button>
 
   {#if open}
-    <div class="menu" role="listbox">
+    <div class="menu" class:above={openAbove} role="listbox">
       {#each OPENAI_CHAT_MODEL_FAMILIES as family, familyIndex}
         <p class="menu-title">{family.title}</p>
         <div class="menu-items">
@@ -110,6 +117,8 @@
     top: calc(100% + 8px);
     left: 0;
     width: 318px;
+    max-height: min(400px, 60vh);
+    overflow-y: auto;
     border-radius: 16px;
     border: 1px solid var(--border-strong);
     background: var(--panel);
@@ -117,6 +126,11 @@
     padding: 8px;
     z-index: 40;
     backdrop-filter: blur(20px);
+  }
+
+  .menu.above {
+    top: auto;
+    bottom: calc(100% + 8px);
   }
 
   .menu-title {

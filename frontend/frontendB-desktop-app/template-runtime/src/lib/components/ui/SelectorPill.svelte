@@ -12,6 +12,7 @@
   export let disabled = false;
 
   let open = false;
+  let openAbove = false;
   let root;
 
   $: selected = options.find((option) => String(option.value) === String(value)) || options[0] || null;
@@ -48,6 +49,10 @@
     disabled={disabled}
     on:click={() => {
       if (disabled) return;
+      if (!open && root) {
+        const rect = root.getBoundingClientRect();
+        openAbove = rect.bottom + 300 > window.innerHeight;
+      }
       open = !open;
     }}
     aria-haspopup="listbox"
@@ -64,7 +69,7 @@
   </button>
 
   {#if open && !disabled}
-    <div class="menu" role="listbox">
+    <div class="menu" class:above={openAbove} role="listbox">
       <p class="menu-title">{label}</p>
       <div class="menu-items">
         {#each options as option}
@@ -155,6 +160,11 @@
     padding: 10px;
     z-index: 35;
     backdrop-filter: blur(16px);
+  }
+
+  .menu.above {
+    top: auto;
+    bottom: calc(100% + 8px);
   }
 
   .menu-title {

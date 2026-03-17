@@ -34,7 +34,21 @@
   $: currentMessages = isOrchestration ? ($chatStore.orchestrationConversation || []) : ($chatStore.messages || []);
   $: showCenteredComposer = currentMessages.length === 0 && !$chatStore.streaming;
   $: isStreaming = $chatStore.streaming || $chatStore.busy;
+  $: busyStatus = $chatStore.busyStatus || '';
   $: hasAgents = ($chatStore.agents || []).length > 0;
+
+  function formatCost(cost) {
+    if (!cost) return null;
+    if (typeof cost === 'number') return `$${cost.toFixed(4)}`;
+    if (cost.totalUsd) return `$${Number(cost.totalUsd).toFixed(4)}`;
+    if (cost.inputTokens || cost.outputTokens) {
+      const parts = [];
+      if (cost.inputTokens) parts.push(`${cost.inputTokens} in`);
+      if (cost.outputTokens) parts.push(`${cost.outputTokens} out`);
+      return parts.join(' · ');
+    }
+    return null;
+  }
 
 
   function agentDisplayName() {
@@ -212,35 +226,59 @@
         {@const text = item.content || item.text || ''}
         {@const msgId = 'msg-' + idx}
         {@const isUser = item.role === 'user'}
+        {@const isTrace = item.role === 'trace' || item.role === 'system' || item.type === 'trace'}
         {@const prevSameRole = idx > 0 && currentMessages[idx - 1]?.role === item.role}
-        <div class="msg-row" class:msg-user={isUser} class:msg-agent={!isUser} class:msg-grouped={prevSameRole}>
-          {#if !prevSameRole}
-            <span class="msg-avatar">
-              {roleInitial(item.role)}
-            </span>
-          {:else}
-            <span class="msg-avatar-spacer"></span>
-          {/if}
-          <div class="msg-bubble" class:msg-bubble-user={isUser} class:msg-bubble-agent={!isUser}>
-            <p>{text}</p>
-            <div class="msg-meta">
-              {#if item.timestamp || item.createdAt}
-                <span class="msg-time">{formatTime(item.timestamp || item.createdAt)}</span>
+
+        {#if isTrace}
+          <!-- Orchestration execution trace step -->
+          <div class="trace-step">
+            <div class="trace-dot"></div>
+            <div class="trace-body">
+              <span class="trace-label">{item.agentName || item.nodeId || 'System'}</span>
+              <span class="trace-text">{text}</span>
+              {#if item.status}
+                <span class="trace-badge" class:trace-ok={item.status === 'completed'} class:trace-running={item.status === 'running'} class:trace-err={item.status === 'failed'}>{item.status}</span>
               {/if}
-              <button class="msg-copy" title="Copy" aria-label="Copy message" on:click={() => copyMessage(text, msgId)}>
-                <Icon name={copiedId === msgId ? 'check' : 'copy'} size={11} />
-              </button>
             </div>
           </div>
-        </div>
+        {:else}
+          <div class="msg-row" class:msg-user={isUser} class:msg-agent={!isUser} class:msg-grouped={prevSameRole}>
+            {#if !prevSameRole}
+              <span class="msg-avatar">
+                {roleInitial(item.role)}
+              </span>
+            {:else}
+              <span class="msg-avatar-spacer"></span>
+            {/if}
+            <div class="msg-bubble" class:msg-bubble-user={isUser} class:msg-bubble-agent={!isUser}>
+              <p>{text}</p>
+              <div class="msg-meta">
+                {#if item.timestamp || item.createdAt}
+                  <span class="msg-time">{formatTime(item.timestamp || item.createdAt)}</span>
+                {/if}
+                {#if !isUser && formatCost(item.cost)}
+                  <span class="msg-cost">{formatCost(item.cost)}</span>
+                {/if}
+                <button class="msg-copy" title="Copy" aria-label="Copy message" on:click={() => copyMessage(text, msgId)}>
+                  <Icon name={copiedId === msgId ? 'check' : 'copy'} size={11} />
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
       {/each}
 
       {#if isStreaming}
         <div class="msg-row msg-agent">
           <span class="msg-avatar">{agentDisplayName().charAt(0)}</span>
           <div class="msg-bubble msg-bubble-agent msg-tail">
-            <div class="typing-dots">
-              <span></span><span></span><span></span>
+            <div class="thinking-status">
+              <div class="typing-dots">
+                <span></span><span></span><span></span>
+              </div>
+              {#if busyStatus}
+                <span class="status-text">{busyStatus}</span>
+              {/if}
             </div>
           </div>
         </div>
@@ -370,11 +408,30 @@
   .msg-time { font-size: 10px; color: var(--muted); }
   .msg-copy { width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
   .msg-copy:hover { color: var(--accent); }
-  .typing-dots { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+  /* ── Thinking status ── */
+  .thinking-status { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .typing-dots { display: flex; gap: 4px; align-items: center; }
   .typing-dots span { width: 6px; height: 6px; border-radius: 999px; background: var(--muted); animation: typing-bounce 1.2s ease-in-out infinite; }
   .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
   .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes typing-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+  .status-text { font-size: 12px; color: var(--muted); font-style: italic; animation: status-fade 0.3s ease-out; }
+  @keyframes status-fade { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* ── Cost display ── */
+  .msg-cost { font-size: 10px; color: var(--muted); background: var(--glass); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
+
+  /* ── Orchestration trace steps ── */
+  .trace-step { display: flex; align-items: flex-start; gap: 10px; padding: 0 4px; animation: msg-in 0.2s ease-out both; }
+  .trace-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--info); border: 2px solid var(--info-soft); margin-top: 5px; flex-shrink: 0; }
+  .trace-body { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 4px 0; border-bottom: 1px solid var(--border); flex: 1; }
+  .trace-label { font-weight: 600; color: var(--fg); }
+  .trace-text { flex: 1; min-width: 0; }
+  .trace-badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); }
+  .trace-ok { color: var(--ok); border-color: var(--ok-border); background: var(--ok-soft); }
+  .trace-running { color: var(--info); border-color: var(--info-border); background: var(--info-soft); }
+  .trace-err { color: var(--danger); border-color: var(--danger-border); background: var(--danger-soft); }
+
   .error { border: 1px solid var(--danger-border); border-radius: 12px; background: var(--danger-soft); padding: 10px 14px; color: var(--danger); font-size: 13px; display: flex; align-items: center; gap: 8px; align-self: center; }
 
   .first-time-cta {

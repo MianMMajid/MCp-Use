@@ -90,7 +90,8 @@ function createChatStore() {
     selectedOrchestration: null,
     orchestrationConversation: [],
     orchestrationError: '',
-    busy: false
+    busy: false,
+    busyStatus: '' // e.g. 'Sending to agent...', 'Streaming response...', 'Delegating to orchestration...'
   };
 
   const { subscribe, update, set } = writable(initial);
@@ -392,14 +393,17 @@ function createChatStore() {
     patch({
       runError: '',
       busy: true,
+      busyStatus: 'Sending to agent...',
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
     try {
+      patch({ busyStatus: 'Agent is thinking...' });
       const response = await postJson(`/api/agents/${fallbackAgentId}/run`, {
         message: content,
         sessionId: state.sessionId || undefined
       });
+      patch({ busyStatus: 'Processing response...' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || payload?.details || `Run failed (${response.status})`);
@@ -429,7 +433,7 @@ function createChatStore() {
         messages: [...next.messages, { id: `err-${Date.now()}`, role: 'agent', content: message, error: true, timestamp: new Date().toISOString() }]
       });
     } finally {
-      patch({ busy: false });
+      patch({ busy: false, busyStatus: '' });
     }
   }
 
@@ -441,6 +445,7 @@ function createChatStore() {
     patch({
       runError: '',
       busy: true,
+      busyStatus: 'Connecting...',
       messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
     });
 
@@ -466,7 +471,7 @@ function createChatStore() {
       let reply = '';
       const replyId = `reply-${Date.now()}`;
       const replyTs = new Date().toISOString();
-      patch({ streaming: true });
+      patch({ streaming: true, busyStatus: 'Streaming response...' });
 
       // Add placeholder message that will be updated as chunks arrive
       const beforeStream = get({ subscribe });
@@ -525,7 +530,7 @@ function createChatStore() {
         messages: [...next.messages, { id: `err-${Date.now()}`, role: 'assistant', content: message, error: true, timestamp: new Date().toISOString() }]
       });
     } finally {
-      patch({ busy: false });
+      patch({ busy: false, busyStatus: '' });
     }
   }
 
@@ -546,7 +551,7 @@ function createChatStore() {
       createdAt: new Date().toISOString()
     };
 
-    patch({ orchestrationError: '', busy: true, orchestrationConversation: [...state.orchestrationConversation, local] });
+    patch({ orchestrationError: '', busy: true, busyStatus: 'Delegating to orchestration...', orchestrationConversation: [...state.orchestrationConversation, local] });
 
     try {
       const payload = await postOrchestrationConversation(orchestrationId, { message: content });
@@ -565,7 +570,7 @@ function createChatStore() {
     } catch (error) {
       patch({ orchestrationError: error instanceof Error ? error.message : String(error) });
     } finally {
-      patch({ busy: false });
+      patch({ busy: false, busyStatus: '' });
     }
   }
 
