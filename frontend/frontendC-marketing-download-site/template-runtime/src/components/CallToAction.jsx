@@ -9,7 +9,7 @@ export function CallToAction() {
   return (
     <section
       id="get-started-today"
-      className="grain grain-dark relative overflow-hidden bg-orange-600 py-16 sm:py-24 lg:py-32"
+      className="grain grain-dark relative overflow-hidden bg-orange-600 py-24 sm:py-32"
     >
       <Image
         className="absolute top-1/2 left-1/2 max-w-none -translate-x-1/2 -translate-y-1/2"
@@ -31,10 +31,10 @@ export function CallToAction() {
             </p>
             <div className="mt-10 flex justify-center gap-3">
               <Button href="/register" color="white">
-                Start free trial
+                Get started free
               </Button>
               <Button href="#download" color="white">
-                Download app
+                Download desktop app
               </Button>
             </div>
           </div>

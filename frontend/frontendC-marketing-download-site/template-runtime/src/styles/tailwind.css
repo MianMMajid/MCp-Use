@@ -33,8 +33,9 @@
 
   --radius-4xl: 2rem;
 
-  --font-sans: var(--font-josefin), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-quicksand), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --container-2xl: 40rem;
 }
@@ -100,6 +101,36 @@
 
   .animate-draw-in {
     animation: draw-in 1s ease-out 0.3s both;
+  }
+
+  /* ── Sketch reveal (clip-path with hand-drawn easing, triggered by ScrollReveal) ── */
+  @keyframes sketch-reveal {
+    0% {
+      clip-path: inset(0 100% 0 0);
+    }
+    /* Pen touches — slow start */
+    15% {
+      clip-path: inset(0 92% 0 0);
+    }
+    /* Confident stroke — accelerates */
+    50% {
+      clip-path: inset(0 40% 0 0);
+    }
+    /* Follow-through — eases out */
+    85% {
+      clip-path: inset(0 5% 0 0);
+    }
+    100% {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  .sketch-reveal {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  .revealed .sketch-reveal {
+    animation: sketch-reveal 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
   }
 
   /* ── Fade-in-up ── */
@@ -259,5 +290,81 @@
   .typing-cursor {
     border-right: 2px solid transparent;
     animation: typing-cursor 1s step-end infinite;
+  }
+
+  /* ── Mayple character animations ── */
+  @keyframes mayple-breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+
+  @keyframes mayple-bounce {
+    0%   { transform: translateY(0) rotate(0deg); }
+    25%  { transform: translateY(-14px) rotate(-4deg); }
+    50%  { transform: translateY(-2px) rotate(2deg); }
+    75%  { transform: translateY(-6px) rotate(-1deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+
+  @keyframes mayple-foot-left {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-1px) translateX(-0.5px); }
+  }
+
+  @keyframes mayple-foot-right {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(1px) translateX(0.5px); }
+  }
+
+  /* ── Mayple roll across screen (right → left → back) ── */
+  @keyframes mayple-roll {
+    0%   { transform: translateX(0)      rotate(0deg); }
+    10%  { transform: translateX(20px)    rotate(15deg); }
+    30%  { transform: translateX(-120px)  rotate(-360deg); }
+    50%  { transform: translateX(-200px)  rotate(-720deg); }
+    55%  { transform: translateX(-200px)  rotate(-720deg) scaleY(0.8); }
+    60%  { transform: translateX(-200px)  rotate(-720deg) scaleY(1.05); }
+    65%  { transform: translateX(-180px)  rotate(-680deg); }
+    85%  { transform: translateX(-20px)   rotate(-380deg); }
+    95%  { transform: translateX(8px)     rotate(-355deg); }
+    100% { transform: translateX(0)       rotate(-360deg); }
+  }
+
+  .mayple-roll {
+    animation: mayple-roll 2.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .mayple-breathe {
+    animation: mayple-breathe 3.5s ease-in-out infinite;
+  }
+
+  .mayple-bounce {
+    animation: mayple-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  .mayple-foot-left {
+    animation: mayple-foot-left 2s ease-in-out infinite;
+  }
+
+  .mayple-foot-right {
+    animation: mayple-foot-right 2s ease-in-out 1s infinite;
+  }
+
+  /* ── Reduced motion (accessibility) ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .reveal {
+      opacity: 1;
+    }
+
+    .sketch-reveal {
+      clip-path: none;
+    }
   }
 }

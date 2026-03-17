@@ -1,21 +1,40 @@
 import { Button } from '@/components/Button'
 import { Container } from '@/components/Container'
+import { TypedFirewall } from '@/components/TypedFirewall'
 
 function AmbientGlow() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      {/* Top-right warm glow */}
       <div
-        className="absolute -top-32 -right-32 h-[600px] w-[600px] rounded-full opacity-[0.08]"
+        className="absolute -top-24 -right-24 h-[700px] w-[700px] rounded-full opacity-[0.18]"
         style={{
           background:
-            'radial-gradient(circle, var(--color-orange-300) 0%, transparent 70%)',
+            'radial-gradient(circle, var(--color-orange-200) 0%, transparent 70%)',
         }}
       />
+      {/* Bottom-left amber glow */}
       <div
-        className="absolute -bottom-40 -left-40 h-[500px] w-[500px] rounded-full opacity-[0.04]"
+        className="absolute -bottom-32 -left-32 h-[600px] w-[600px] rounded-full opacity-[0.12]"
         style={{
           background:
             'radial-gradient(circle, var(--color-amber-200) 0%, transparent 70%)',
+        }}
+      />
+      {/* Center subtle wash */}
+      <div
+        className="absolute top-1/2 left-1/2 h-[800px] w-[1200px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-[0.05]"
+        style={{
+          background:
+            'radial-gradient(ellipse, var(--color-orange-100) 0%, transparent 60%)',
+        }}
+      />
+      {/* Bottom fade into next section */}
+      <div
+        className="absolute right-0 bottom-0 left-0 h-32"
+        style={{
+          background:
+            'linear-gradient(to bottom, transparent, var(--color-orange-50))',
         }}
       />
     </div>
@@ -24,50 +43,33 @@ function AmbientGlow() {
 
 export function Hero() {
   return (
-    <div className="grain relative overflow-hidden">
+    <div className="grain relative flex min-h-[calc(100dvh-7.5rem)] items-center overflow-hidden bg-gradient-to-b from-white to-orange-50/40">
       <AmbientGlow />
-      <Container className="relative z-10 pt-20 pb-16 text-center lg:pt-32">
+      <Container className="relative z-10 py-16 text-center sm:py-20">
         <h1
           className="animate-fade-in-up mx-auto max-w-4xl font-display text-4xl font-normal tracking-tight text-zinc-900 sm:text-5xl lg:text-7xl"
           style={{ animationDelay: '0.1s' }}
         >
           The{' '}
-          <span className="relative whitespace-nowrap text-orange-600">
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 418 42"
-              className="absolute top-2/3 left-0 h-[0.58em] w-full fill-orange-300/70 animate-draw-in"
-              preserveAspectRatio="none"
-            >
-              <path d="M203.371.916c-26.013-2.078-76.686 1.963-124.73 9.946L67.3 12.749C35.421 18.062 18.2 21.766 6.004 25.934 1.244 27.561.828 27.778.874 28.61c.07 1.214.828 1.121 9.595-1.176 9.072-2.377 17.15-3.92 39.246-7.496C123.565 7.986 157.869 4.492 195.942 5.046c7.461.108 19.25 1.696 19.17 2.582-.107 1.183-7.874 4.31-25.75 10.366-21.992 7.45-35.43 12.534-36.701 13.884-2.173 2.308-.202 4.407 4.442 4.734 2.654.187 3.263.157 15.593-.78 35.401-2.686 57.944-3.488 88.365-3.143 46.327.526 75.721 2.23 130.788 7.584 19.787 1.924 20.814 1.98 24.557 1.332l.066-.011c1.201-.203 1.53-1.825.399-2.335-2.911-1.31-4.893-1.604-22.048-3.261-57.509-5.556-87.871-7.36-132.059-7.842-23.239-.254-33.617-.116-50.627.674-11.629.54-42.371 2.494-46.696 2.967-2.359.259 8.133-3.625 26.504-9.81 23.239-7.825 27.934-10.149 28.304-14.005.417-4.348-3.529-6-16.878-7.066Z" />
-            </svg>
-            <span className="relative">firewall</span>
-          </span>{' '}
+          <TypedFirewall />{' '}
           for AI agent tool calls.
         </h1>
         <p
-          className="animate-fade-in-up mx-auto mt-6 max-w-2xl text-lg tracking-tight text-zinc-600"
+          className="animate-fade-in-up mx-auto mt-6 max-w-2xl text-lg tracking-tight text-zinc-500 sm:text-xl"
           style={{ animationDelay: '0.25s' }}
         >
           One security layer across every agent and provider. No-code rules your
           ops team can manage — no engineering tickets required.
         </p>
         <div
-          className="animate-fade-in-up mt-10 flex flex-wrap justify-center gap-x-4 gap-y-3"
+          className="animate-fade-in-up mt-12 flex flex-wrap justify-center gap-x-5 gap-y-4"
           style={{ animationDelay: '0.4s' }}
         >
-          <Button href="/register">Start trial</Button>
-          <Button href="#download" variant="outline">
-            <svg
-              aria-hidden="true"
-              className="h-3 w-3 flex-none fill-orange-600 group-active:fill-current"
-            >
-              <path d="m9.997 6.91-7.583 3.447A1 1 0 0 1 1 9.447V2.553a1 1 0 0 1 1.414-.91L9.997 5.09c.782.355.782 1.465 0 1.82Z" />
-            </svg>
-            <span className="ml-3">Download app</span>
+          <Button href="/register" color="orange" className="!px-7 !py-3 !text-base shadow-lg shadow-orange-600/20">
+            Get started free
           </Button>
-          <Button href="/login" variant="outline">
-            Open dashboard
+          <Button href="#journey" variant="outline" className="!px-7 !py-3 !text-base">
+            See how it works
           </Button>
         </div>
       </Container>

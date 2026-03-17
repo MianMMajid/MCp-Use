@@ -1,4 +1,5 @@
-import { Josefin_Sans, Quicksand } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import clsx from 'clsx'
 
 import '@/styles/tailwind.css'
@@ -20,27 +21,14 @@ export const metadata = {
   },
 }
 
-const josefinSans = Josefin_Sans({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-josefin',
-})
-
-const quicksand = Quicksand({
-  subsets: ['latin'],
-  weight: '700',
-  display: 'swap',
-  variable: '--font-quicksand',
-})
-
 export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
       className={clsx(
-        'h-full scroll-smooth bg-white antialiased',
-        josefinSans.variable,
-        quicksand.variable,
+        'h-full scroll-smooth bg-white antialiased overscroll-none',
+        GeistSans.variable,
+        GeistMono.variable,
       )}
     >
       <body className="flex h-full flex-col">{children}</body>

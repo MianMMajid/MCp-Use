@@ -35,13 +35,13 @@ export function DownloadSection() {
   const versionLabel = version ? ` ${version}` : ''
 
   return (
-    <section id="download" className="py-20 sm:py-24">
+    <section id="download" className="py-20 sm:py-32">
       <ScrollReveal>
       <Container className="rounded-3xl bg-zinc-50 p-8 ring-1 ring-zinc-900/5 sm:p-12">
-        <h3 className="font-display text-2xl tracking-tight text-zinc-900">
+        <h3 className="font-display text-3xl tracking-tight text-zinc-900">
           Download Mayple Desktop
         </h3>
-        <p className="mt-3 max-w-2xl text-sm text-zinc-700">
+        <p className="mt-4 max-w-2xl text-sm text-zinc-700">
           Run and monitor agent workflows with built-in policy checks and audit
           history.
         </p>
@@ -65,9 +65,6 @@ export function DownloadSection() {
               </Button>
             </>
           )}
-          <Button href="/login" variant="outline">
-            Open dashboard
-          </Button>
         </div>
         <p className="mt-3 text-xs text-zinc-500">
           Requires macOS 12+ or Windows 10+ &middot;{' '}

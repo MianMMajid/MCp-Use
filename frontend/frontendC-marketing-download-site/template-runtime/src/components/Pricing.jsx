@@ -48,7 +48,7 @@ function CheckIcon({ className, ...props }) {
   )
 }
 
-function Plan({ name, price, description, href, features, featured = false }) {
+function Plan({ name, price, description, href, features, buttonLabel = 'Get started', featured = false }) {
   return (
     <section
       className={clsx(
@@ -87,9 +87,9 @@ function Plan({ name, price, description, href, features, featured = false }) {
         variant={featured ? 'solid' : 'outline'}
         color="white"
         className="mt-8"
-        aria-label={`Get started with the ${name} plan for ${price}`}
+        aria-label={`${buttonLabel} with the ${name} plan for ${price}`}
       >
-        Get started
+        {buttonLabel}
       </Button>
     </section>
   )
@@ -107,7 +107,7 @@ export function Pricing() {
           <div className="md:text-center">
             <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl">
               <span className="relative whitespace-nowrap">
-                <SwirlyDoodle className="absolute top-1/2 left-0 h-[1em] w-full fill-orange-400" />
+                <SwirlyDoodle className="absolute top-1/2 left-0 h-[1em] w-full fill-orange-400 sketch-reveal" />
                 <span className="relative">Simple pricing,</span>
               </span>{' '}
               for every stage.
@@ -120,9 +120,10 @@ export function Pricing() {
         <div className="-mx-4 mt-16 grid max-w-2xl grid-cols-1 gap-y-10 sm:mx-auto lg:-mx-8 lg:max-w-none lg:grid-cols-3 xl:mx-0 xl:gap-x-8">
           <Plan
             name="Pro"
-            price="$9"
+            price="$9/mo"
             description="For individuals getting started with agent security."
             href="/register"
+            buttonLabel="Start free"
             features={[
               'MCP firewall for tool calls',
               'Allow and block policies',
@@ -134,9 +135,10 @@ export function Pricing() {
           <Plan
             featured
             name="Team"
-            price="$15"
+            price="$15/mo"
             description="For teams that need cross-agent governance and approvals."
             href="/register"
+            buttonLabel="Start free trial"
             features={[
               'Everything in Pro',
               'Human approval queue',
@@ -148,9 +150,10 @@ export function Pricing() {
           />
           <Plan
             name="Enterprise"
-            price="$39"
+            price="$39/mo"
             description="For organizations embedding security across their agent stack."
-            href="/register"
+            href="mailto:sales@mayple.cloud"
+            buttonLabel="Contact sales"
             features={[
               'Everything in Team',
               'Embeddable SDK for platforms',

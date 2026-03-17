@@ -1,81 +1,104 @@
-import Image from 'next/image'
+'use client'
+
+import { useState } from 'react'
+import clsx from 'clsx'
 
 import { Container } from '@/components/Container'
 import { ScrollReveal } from '@/components/ScrollReveal'
-import backgroundImage from '@/images/background-faqs.jpg'
 
 const faqs = [
-  [
-    {
-      question: 'What is Mayple?',
-      answer:
-        'Mayple is a firewall for AI agent tool calls. It sits between your agents and the tools they use, intercepting every action in real time so you can allow, block, or require approval — all through a no-code interface.',
-    },
-    {
-      question: 'How is Mayple different from Datadog or LangSmith?',
-      answer:
-        'Those are observability tools — they show you what happened after the fact. Mayple is a runtime firewall that blocks risky actions before they execute. We prevent damage, not just report it.',
-    },
-    {
-      question: 'Does Mayple work with OpenAI, Anthropic, and Google agents?',
-      answer:
-        'Yes. Mayple is provider-agnostic and MCP-native. It works across agents from any provider or custom framework — one security layer for your entire agent stack.',
-    },
-  ],
-  [
-    {
-      question: 'Why not use Bedrock AgentCore or Copilot Studio?',
-      answer:
-        'Bedrock has strong security but is developer-only and locked to AWS. Copilot Studio policies are per-environment, not per-user, and Microsoft-only. Mayple gives you granular per-user rules with a no-code UI, across any provider.',
-    },
-    {
-      question: 'Do I need to modify my agents?',
-      answer:
-        'No. Mayple runs as a proxy layer in front of your tools. Connect your existing agents and configure rules separately — no rewriting required.',
-    },
-    {
-      question: 'How do approvals work?',
-      answer:
-        'When a tool call matches an approval rule, Mayple pauses it and sends it to a human reviewer. The reviewer can approve or block with full context — the agent waits until a decision is made.',
-    },
-  ],
-  [
-    {
-      question: 'Can platforms embed Mayple?',
-      answer:
-        'Yes. Platforms building their own agent products can embed Mayple\'s security layer via SDK rather than building a policy engine from scratch. This is the same model that led to $260M+ acquisitions in this space.',
-    },
-    {
-      question: 'Can I self-host Mayple?',
-      answer:
-        'Yes. You can self-host Mayple or run it as a managed deployment depending on your compliance and infrastructure needs.',
-    },
-    {
-      question: 'How do I get started?',
-      answer:
-        'Download Mayple, point it at your agents, and set your first allow, block, and approval rules. No code required — most teams are protected in under ten minutes.',
-    },
-  ],
+  {
+    question: 'What does Mayple do?',
+    answer:
+      'Mayple is a runtime firewall for AI agent tool calls. It intercepts every action your agents take — emails, API calls, database queries — and checks it against your policies before execution. Unlike observability tools that report damage after the fact, Mayple prevents it.',
+  },
+  {
+    question: 'Does it work with my existing agents?',
+    answer:
+      'Yes. Mayple is provider-agnostic and MCP-native. It works with OpenAI, Anthropic, Google, or any custom framework as a proxy layer — zero code changes required to your agents.',
+  },
+  {
+    question: 'Do I need to write code to set up policies?',
+    answer:
+      'No. Policies are written in plain language through a no-code interface. For example: "Block outbound data transfers" or "Require approval before posting to Slack." You can scope rules per user, per agent, or organization-wide.',
+  },
+  {
+    question: 'How do blocks and approvals work?',
+    answer:
+      'Blocked actions are stopped immediately — they never execute. Approval rules pause the action and notify a human reviewer with full context. The agent waits until the reviewer approves or rejects. Every decision is logged for audit.',
+  },
+  {
+    question: 'How quickly can I get started?',
+    answer:
+      'Under ten minutes. Download the desktop app, connect your agents, and set your first rules. No infrastructure to provision. Available on macOS and Windows with cloud-hosted or self-hosted options.',
+  },
 ]
 
+function PlusMinusIcon({ open }) {
+  return (
+    <div className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+      {/* Horizontal bar (always visible) */}
+      <span className="absolute h-0.5 w-4 rounded-full bg-zinc-500 transition-colors duration-200 group-hover:bg-orange-500" />
+      {/* Vertical bar (rotates to 0 when open) */}
+      <span
+        className={clsx(
+          'absolute h-4 w-0.5 rounded-full bg-zinc-500 transition-all duration-300 group-hover:bg-orange-500',
+          open ? 'rotate-90 opacity-0' : 'rotate-0 opacity-100',
+        )}
+      />
+    </div>
+  )
+}
+
+function FaqItem({ faq, isOpen, onToggle }) {
+  return (
+    <div className="py-6">
+      <dt>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="group flex w-full items-center justify-between text-left"
+        >
+          <span className="font-display text-base font-semibold text-zinc-900 transition-colors duration-200 group-hover:text-orange-600">
+            {faq.question}
+          </span>
+          <span className="ml-6">
+            <PlusMinusIcon open={isOpen} />
+          </span>
+        </button>
+      </dt>
+      <dd
+        className={clsx(
+          'grid transition-all duration-300 ease-out',
+          isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+        )}
+      >
+        <div className="overflow-hidden">
+          <p className="pt-4 pr-12 text-sm leading-relaxed text-zinc-600">
+            {faq.answer}
+          </p>
+        </div>
+      </dd>
+    </div>
+  )
+}
+
 export function Faqs() {
+  const [openIndex, setOpenIndex] = useState(null)
+
+  function toggle(i) {
+    setOpenIndex(openIndex === i ? null : i)
+  }
+
   return (
     <section
       id="faq"
       aria-labelledby="faq-title"
-      className="relative overflow-hidden bg-zinc-50 py-20 sm:py-32"
+      className="relative overflow-hidden bg-white py-20 sm:py-32"
     >
-      <Image
-        className="absolute top-0 left-1/2 max-w-none -translate-x-[30%] -translate-y-1/4"
-        src={backgroundImage}
-        alt=""
-        width={1558}
-        height={946}
-        unoptimized
-      />
       <Container className="relative">
         <ScrollReveal>
-          <div className="mx-auto max-w-2xl lg:mx-0">
+          <div className="mx-auto max-w-3xl text-center">
             <h2
               id="faq-title"
               className="font-display text-3xl tracking-tight text-zinc-900 sm:text-4xl"
@@ -84,29 +107,25 @@ export function Faqs() {
             </h2>
             <p className="mt-4 text-lg tracking-tight text-zinc-700">
               If you can&apos;t find what you&apos;re looking for, email our
-              support team at support@mayple.cloud.
+              support team at{' '}
+              <a href="mailto:support@mayple.cloud" className="text-orange-600 hover:text-orange-500 transition-colors duration-200">
+                support@mayple.cloud
+              </a>.
             </p>
           </div>
         </ScrollReveal>
-        <ul
-          role="list"
-          className="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 lg:max-w-none lg:grid-cols-3"
-        >
-          {faqs.map((column, columnIndex) => (
-            <li key={columnIndex}>
-              <ul role="list" className="flex flex-col gap-y-8">
-                {column.map((faq, faqIndex) => (
-                  <li key={faqIndex}>
-                    <h3 className="font-display text-lg/7 text-zinc-900">
-                      {faq.question}
-                    </h3>
-                    <p className="mt-4 text-sm text-zinc-700">{faq.answer}</p>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
+        <ScrollReveal>
+          <dl className="mx-auto mt-12 max-w-3xl divide-y divide-zinc-200">
+            {faqs.map((faq, i) => (
+              <FaqItem
+                key={i}
+                faq={faq}
+                isOpen={openIndex === i}
+                onToggle={() => toggle(i)}
+              />
+            ))}
+          </dl>
+        </ScrollReveal>
       </Container>
     </section>
   )

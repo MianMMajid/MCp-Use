@@ -1306,7 +1306,7 @@ function MobileFeatures() {
               'shrink-0 rounded-full px-4 py-1.5 text-sm whitespace-nowrap transition-colors',
               active === i
                 ? 'bg-white font-semibold text-orange-600'
-                : 'text-orange-100 hover:bg-white/10',
+                : 'text-zinc-400 hover:bg-white/10',
             )}
           >
             {f.title}
@@ -1350,12 +1350,11 @@ function DesktopFeatures() {
   return (
     <div ref={wrapperRef} className="hidden lg:block" style={{ height: `${features.length * 100}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden">
-        <section aria-label="Features for safer AI operations" className="relative flex h-full flex-col overflow-hidden bg-orange-600">
-          <Image className="absolute top-1/2 left-1/2 max-w-none -translate-x-[44%] -translate-y-[42%]" src={backgroundImage} alt="" width={2245} height={1636} unoptimized />
+        <section aria-label="Features for safer AI operations" className="relative flex h-full flex-col overflow-hidden bg-zinc-900">
           <Container className="relative flex flex-1 flex-col py-12">
             <div className="max-w-2xl md:mx-auto md:text-center xl:max-w-none">
               <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">One layer. Every agent. Full control.</h2>
-              <p className="mt-4 text-lg tracking-tight text-orange-100">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules — all in one place.</p>
+              <p className="mt-4 text-lg tracking-tight text-zinc-400">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules — all in one place.</p>
             </div>
             <div className="mt-8 grid flex-1 grid-cols-12 items-stretch gap-8">
               <div className="col-span-5 flex flex-col justify-center">
@@ -1363,7 +1362,7 @@ function DesktopFeatures() {
                   {features.map((feature, i) => (
                     <div key={feature.title} className={clsx('rounded-l-xl p-5 transition-all duration-300', activeIndex === i ? 'bg-white/10 ring-1 ring-white/10 ring-inset' : 'opacity-50 hover:opacity-75')}>
                       <h3 className="font-display text-lg text-white">{feature.title}</h3>
-                      <p className={clsx('mt-2 overflow-hidden text-sm transition-all duration-300', activeIndex === i ? 'max-h-40 text-white opacity-100' : 'max-h-0 text-orange-100 opacity-0')}>{feature.description}</p>
+                      <p className={clsx('mt-2 overflow-hidden text-sm transition-all duration-300', activeIndex === i ? 'max-h-40 text-white opacity-100' : 'max-h-0 text-zinc-400 opacity-0')}>{feature.description}</p>
                     </div>
                   ))}
                 </nav>
@@ -1390,18 +1389,17 @@ function DesktopFeatures() {
 
 export function PrimaryFeatures() {
   return (
-    <>
-      <section className="relative overflow-hidden bg-orange-600 pt-20 pb-28 sm:py-32 lg:hidden" aria-label="Features for safer AI operations">
-        <Image className="absolute top-1/2 left-1/2 max-w-none -translate-x-[44%] -translate-y-[42%]" src={backgroundImage} alt="" width={2245} height={1636} unoptimized />
+    <div id="features">
+      <section className="relative overflow-hidden bg-zinc-900 py-20 sm:py-32 lg:hidden" aria-label="Features for safer AI operations">
         <Container className="relative">
           <div className="max-w-2xl md:mx-auto md:text-center xl:max-w-none">
             <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">One layer. Every agent. Full control.</h2>
-            <p className="mt-6 text-lg tracking-tight text-orange-100">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules — all in one place.</p>
+            <p className="mt-6 text-lg tracking-tight text-zinc-400">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules — all in one place.</p>
           </div>
           <div className="mt-12"><MobileFeatures /></div>
         </Container>
       </section>
       <DesktopFeatures />
-    </>
+    </div>
   )
 }
