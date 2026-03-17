@@ -56,5 +56,5 @@
   h1 { margin: 0 0 10px; }
   .muted { color: var(--muted); }
   .list { display: grid; gap: 8px; }
-  .row { display: flex; justify-content: space-between; padding: 10px 12px; border-color: rgba(249,115,22,.34); background: rgba(20,24,32,.65); cursor: pointer; text-align: left; }
+  .row { display: flex; justify-content: space-between; padding: 10px 12px; border-color: rgba(249,115,22,.34); background: var(--btn-secondary-bg); cursor: pointer; text-align: left; }
 </style>

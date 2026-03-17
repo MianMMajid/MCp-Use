@@ -102,7 +102,7 @@ function createMainWindow() {
   const window = new BrowserWindow({
     width: 1260,
     height: 860,
-    minWidth: 1000,
+    minWidth: 1200,
     minHeight: 700,
     title: "Mayple Desktop",
     icon: desktopIconPath,

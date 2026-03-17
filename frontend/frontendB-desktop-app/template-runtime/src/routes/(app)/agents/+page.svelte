@@ -156,7 +156,7 @@
 
   .stat {
     border-color: rgba(249, 115, 22, 0.28);
-    background: rgba(24, 29, 38, 0.7);
+    background: var(--glass);
   }
 
   .cta {
@@ -203,7 +203,7 @@
 
   .agent:hover {
     border-color: rgba(249, 115, 22, 0.42);
-    background: rgba(29, 34, 45, 0.85);
+    background: rgba(255, 255, 255, 0.95);
   }
 
   .top-btn {
@@ -264,7 +264,7 @@
   .red { color: #fb7185; background: rgba(251, 113, 133, 0.14); border-color: rgba(251, 113, 133, 0.3); }
   .orange { color: #fb923c; background: rgba(251, 146, 60, 0.14); border-color: rgba(251, 146, 60, 0.3); }
   .sky { color: #38bdf8; background: rgba(56, 189, 248, 0.14); border-color: rgba(56, 189, 248, 0.3); }
-  .zinc { color: #d4d4d8; background: rgba(212, 212, 216, 0.1); border-color: rgba(212, 212, 216, 0.22); }
+  .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.1); border-color: rgba(107, 107, 107, 0.22); }
 
   .empty {
     padding: 20px;

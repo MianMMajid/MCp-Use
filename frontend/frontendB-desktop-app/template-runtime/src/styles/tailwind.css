@@ -4,27 +4,29 @@
 @source '../lib/**/*.{js,jsx,ts,tsx,mdx}';
 
 @theme {
-  --font-sans: 'Avenir Next', 'Inter', 'SF Pro Text', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  --font-sans: 'Nunito', 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-mono: 'SFMono-Regular', Menlo, Consolas, monospace;
   --font-sans--font-feature-settings: 'cv11';
 }
 
 @layer base {
   :root {
     color-scheme: light;
-    --mayple-bg: #fafafa;
+
+    /* Warm cream palette — matches Frontend A IT Console */
+    --mayple-bg: #fffaf4;
     --mayple-surface: #ffffff;
-    --mayple-surface-muted: #f4f6f8;
-    --mayple-border: #e4e7ec;
-    --mayple-accent: #f97316;
-    --mayple-accent-muted: #fff1e8;
-    --mayple-text: #101217;
+    --mayple-surface-muted: #f8f5f0;
+    --mayple-border: #e5ddd4;
+    --mayple-accent: #e8740c;
+    --mayple-accent-muted: #fff4e8;
+    --mayple-text: #1a1a1a;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
       color-scheme: dark;
-      --mayple-bg: #0b0b0d;
+      --mayple-bg: #0c0f14;
       --mayple-surface: #121216;
       --mayple-surface-muted: #18181d;
       --mayple-border: #2a2a33;
@@ -37,25 +39,25 @@
   .dark,
   :root[data-theme='dark'] {
     color-scheme: dark;
-    --mayple-bg: #09090b;
-    --mayple-surface: #0f0f11;
-    --mayple-surface-muted: #151519;
-    --mayple-border: #1f1f24;
+    --mayple-bg: #0c0f14;
+    --mayple-surface: #121216;
+    --mayple-surface-muted: #18181d;
+    --mayple-border: #2a2a33;
     --mayple-accent: #fb923c;
     --mayple-accent-muted: rgba(251, 146, 60, 0.16);
-    --mayple-text: #f4f4f5;
+    --mayple-text: #f5f5f6;
   }
 
   .light,
   :root[data-theme='light'] {
     color-scheme: light;
-    --mayple-bg: #fafafa;
+    --mayple-bg: #fffaf4;
     --mayple-surface: #ffffff;
-    --mayple-surface-muted: #f4f6f8;
-    --mayple-border: #e4e7ec;
-    --mayple-accent: #f97316;
-    --mayple-accent-muted: #fff1e8;
-    --mayple-text: #101217;
+    --mayple-surface-muted: #f8f5f0;
+    --mayple-border: #e5ddd4;
+    --mayple-accent: #e8740c;
+    --mayple-accent-muted: #fff4e8;
+    --mayple-text: #1a1a1a;
   }
 
   html,
@@ -65,13 +67,13 @@
   }
 
   ::selection {
-    background-color: var(--color-orange-200);
-    color: var(--color-zinc-900);
+    background-color: rgba(232, 116, 12, 0.2);
+    color: var(--mayple-text);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #a1a1aa transparent;
+    scrollbar-color: rgba(181, 166, 150, 0.45) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -85,11 +87,11 @@
 
   *::-webkit-scrollbar-thumb {
     border-radius: 9999px;
-    background: rgba(113, 113, 122, 0.45);
+    background: rgba(181, 166, 150, 0.45);
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(82, 82, 91, 0.7);
+    background: rgba(161, 146, 130, 0.65);
   }
 }
 

@@ -159,14 +159,14 @@
   .block { display: grid; gap: 8px; }
   h2 { margin: 0; font-size: 14px; }
   .rows { display: grid; gap: 8px; }
-  .row { border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .row { border: 1px solid var(--row-border); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .title { margin: 0; font-size: 13px; font-weight: 600; }
   .desc { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
   .switch input { width: 18px; height: 18px; }
   .actions { display: flex; justify-content: flex-start; }
-  .actions button, .header-row button { padding: 8px 11px; border-color: rgba(249,115,22,.35); background: rgba(20,24,32,.65); cursor: pointer; }
+  .actions button, .header-row button { padding: 8px 11px; border-color: rgba(249,115,22,.35); background: var(--btn-secondary-bg); cursor: pointer; }
   .header-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .muted { margin: 0; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 13px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--row-border); font-size: 13px; }
 </style>
