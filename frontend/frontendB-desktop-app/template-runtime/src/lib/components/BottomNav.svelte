@@ -15,8 +15,32 @@
   let dragX = 0;
   let dragY = 0;
   let dockEl;
+  let trackEl;
+  let pillEls = [];
+  let indicatorStyle = '';
 
   $: isVertical = dockPosition === 'left' || dockPosition === 'right';
+
+  // Measure active pill and position indicator precisely
+  $: if (activeIndex >= 0 && trackEl && pillEls[activeIndex]) {
+    tick().then(updateIndicator);
+  }
+
+  function updateIndicator() {
+    if (activeIndex < 0 || !trackEl || !pillEls[activeIndex]) {
+      indicatorStyle = 'opacity: 0';
+      return;
+    }
+    const track = trackEl.getBoundingClientRect();
+    const pill = pillEls[activeIndex].getBoundingClientRect();
+    if (isVertical) {
+      const top = pill.top - track.top;
+      indicatorStyle = `top: ${top}px; left: 4px; width: calc(100% - 8px); height: ${pill.height}px; opacity: 1`;
+    } else {
+      const left = pill.left - track.left;
+      indicatorStyle = `left: ${left}px; top: 3px; width: ${pill.width}px; height: calc(100% - 6px); opacity: 1`;
+    }
+  }
 
   const navItems = [
     { key: 'chat', label: 'Chat', icon: 'chat', href: '/' },
@@ -130,6 +154,11 @@
       if (saved && VALID_POSITIONS.includes(saved)) {
         dockPosition = saved;
       }
+
+      // Initial indicator measurement after DOM settles
+      tick().then(() => {
+        setTimeout(updateIndicator, 50);
+      });
     }
   });
 
@@ -152,8 +181,8 @@
   bind:this={dockEl}
 >
   <div class="dock-inner">
-    <div class="nav-track" style:--pill-count={navItems.length + 1} style:--active-index={activeIndex}>
-      <!-- Grip handle — inside the track as first element -->
+    <div class="nav-track" bind:this={trackEl}>
+      <!-- Grip handle -->
       <span
         class="grip"
         role="button"
@@ -163,18 +192,17 @@
         on:mousedown={onGripDown}
         on:touchstart={onGripDown}
       >
-        <Icon name="grip" size={12} />
+        <Icon name="grip" size={16} />
       </span>
 
-      {#if activeIndex >= 0}
-        <div class="nav-indicator"></div>
-      {/if}
+      <div class="nav-indicator" style={indicatorStyle}></div>
 
       {#each navItems as item, i}
         <button
           class="nav-pill"
           class:active={i === activeIndex}
-          on:click={() => goto(item.href)}
+          bind:this={pillEls[i]}
+          on:click={() => { goto(item.href); tick().then(updateIndicator); }}
           aria-label={item.label}
           aria-current={i === activeIndex ? 'page' : undefined}
         >
@@ -193,7 +221,6 @@
         <Icon name="search" size={16} />
         {#if !isVertical}
           <span class="nav-label">Search</span>
-          <kbd class="kbd">⌘K</kbd>
         {/if}
       </button>
     </div>
@@ -253,38 +280,38 @@
     flex-direction: column;
   }
 
-  /* ── Grip handle — inside the track, subtle separator ── */
+  /* ── Grip handle — clearly visible drag target ── */
   .grip {
     position: relative;
     z-index: 1;
-    width: 16px;
-    height: 28px;
+    width: 24px;
+    height: 38px;
     border: 0;
-    border-radius: 6px;
-    background: transparent;
+    border-radius: 8px;
+    background: var(--accent-soft);
     color: var(--accent);
     cursor: grab;
     display: grid;
     place-items: center;
     padding: 0;
     flex-shrink: 0;
-    opacity: 0.7;
-    transition: opacity 0.15s, color 0.15s;
+    transition: background 0.15s, color 0.15s;
   }
 
   .grip:hover {
-    opacity: 1;
+    background: rgba(232, 116, 12, 0.2);
     color: var(--accent-strong);
   }
 
   .grip:active, .dock.dragging .grip {
     cursor: grabbing;
-    opacity: 1;
+    background: var(--accent);
+    color: #fff;
   }
 
   .dock.vertical .grip {
-    width: 28px;
-    height: 16px;
+    width: 38px;
+    height: 24px;
   }
 
   /* ── Nav track ── */
@@ -304,29 +331,23 @@
   .dock.vertical .nav-track {
     flex-direction: column;
     height: auto;
-    width: 44px;
-    border-radius: 22px;
+    width: 52px;
+    border-radius: 26px;
+    padding: 4px;
   }
 
-  /* ── Indicator ── */
+  /* ── Indicator — solid orange pill, JS-measured to fit active pill exactly ── */
   .nav-indicator {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: calc((100% - 6px) / var(--pill-count));
-    height: calc(100% - 6px);
     border-radius: 19px;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10), 0 0 0 1px rgba(232, 116, 12, 0.12);
-    transform: translateX(calc(var(--active-index) * 100%));
-    transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+    background: var(--accent);
+    box-shadow: 0 2px 8px rgba(232, 116, 12, 0.3);
+    transition: left 0.35s cubic-bezier(0.2, 0.9, 0.3, 1),
+                top 0.35s cubic-bezier(0.2, 0.9, 0.3, 1),
+                width 0.35s cubic-bezier(0.2, 0.9, 0.3, 1),
+                height 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
     pointer-events: none;
-  }
-
-  .dock.vertical .nav-indicator {
-    width: calc(100% - 6px);
-    height: calc((100% - 6px) / var(--pill-count));
-    transform: translateY(calc(var(--active-index) * 100%));
+    opacity: 0;
   }
 
   /* ── Pills ── */
@@ -352,14 +373,14 @@
   }
 
   .dock.vertical .nav-pill {
-    min-width: 38px;
-    width: 38px;
-    height: 38px;
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
     padding: 0;
   }
 
   .nav-pill:hover { color: var(--fg); }
-  .nav-pill.active { color: var(--ink); }
+  .nav-pill.active { color: #fff; }
 
   .nav-label { display: inline; }
 

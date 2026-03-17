@@ -106,7 +106,7 @@
   }
 </script>
 
-<section class="workspace card">
+<section class="workspace">
   <header class="topbar">
     <div class="topbar-left">
       {#if showModelSelector}
@@ -227,7 +227,7 @@
           rows="1"
           bind:value={message}
           on:keydown={onKeyDown}
-          placeholder={isOrchestration ? 'Describe the objective...' : 'Message Mayple...'}
+          placeholder={isOrchestration ? 'Describe the objective...' : 'Ask Mayple...'}
         ></textarea>
         {#if message.trim() || isStreaming}
           <button type="button" class="send" on:click={submit} disabled={isStreaming} aria-label="Send">
@@ -250,13 +250,9 @@
 
 <style>
   .workspace {
-    height: calc(100svh - 92px); /* 12px top padding + 68px bottom nav space + 12px bottom */
+    height: calc(100svh - 92px);
     display: grid;
     grid-template-rows: auto 1fr auto;
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--glass);
-    backdrop-filter: blur(20px) saturate(180%);
     overflow: hidden;
   }
 
@@ -265,9 +261,8 @@
     justify-content: space-between;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px 10px;
-    border-bottom: 1px solid var(--border);
-    min-height: 56px;
+    padding: 8px 16px;
+    min-height: 48px;
   }
 
   .topbar-left,
@@ -303,12 +298,13 @@
   }
 
   .stream {
-    width: min(900px, 100%);
+    width: min(48rem, 100%);
     min-height: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 20px;
+    padding-bottom: 16px;
   }
 
   .empty-state {
@@ -326,8 +322,8 @@
   .empty-sub { margin: 0; font-size: 0.88rem; max-width: 340px; line-height: 1.45; }
 
   /* ── ChatGPT-style centered messages ── */
-  .msg-row { display: flex; align-items: flex-start; gap: 10px; animation: msg-in 0.2s ease-out both; }
-  .msg-row.msg-grouped { margin-top: -6px; }
+  .msg-row { display: flex; align-items: flex-start; gap: 12px; animation: msg-in 0.2s ease-out both; padding: 0 4px; }
+  .msg-row.msg-grouped { margin-top: -14px; }
   @keyframes msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   .msg-avatar { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
   .msg-row.msg-agent .msg-avatar { background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok-border); }
@@ -348,37 +344,6 @@
   @keyframes typing-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
   .error { border: 1px solid var(--danger-border); border-radius: 12px; background: var(--danger-soft); padding: 10px 14px; color: var(--danger); font-size: 13px; display: flex; align-items: center; gap: 8px; align-self: center; }
 
-  .empty-state p {
-    margin: 0;
-    font-size: 0.92rem;
-    max-width: 380px;
-  }
-
-  .quick-prompts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 12px;
-    max-width: 480px;
-  }
-
-  .quick-prompt {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--btn-secondary-bg);
-    color: var(--fg);
-    padding: 10px 12px;
-    font-size: 12px;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-
-  .quick-prompt:hover {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-
   .first-time-cta {
     margin-top: 16px;
     display: grid;
@@ -394,9 +359,9 @@
 
   .cta-btn {
     padding: 10px 20px;
-    border-color: rgba(232, 116, 12, 0.5);
-    background: var(--accent-soft);
-    color: var(--accent);
+    border-color: transparent;
+    background: var(--accent);
+    color: #fff;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
@@ -404,163 +369,7 @@
   }
 
   .cta-btn:hover {
-    background: rgba(232, 116, 12, 0.2);
-  }
-
-  .floating-wrap {
-    margin-top: 16px;
-    width: 100%;
-  }
-
-  /* Messages */
-  .bubble {
-    max-width: 760px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--bg-elevated);
-    padding: 10px 14px;
-    position: relative;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    animation: msg-in 0.25s ease-out both;
-  }
-
-  @keyframes msg-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .bubble.user {
-    align-self: flex-end;
-    border-color: rgba(232, 116, 12, 0.28);
-    background: rgba(232, 116, 12, 0.10);
-  }
-
-  .bubble-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
-  }
-
-  .avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 999px;
-    display: grid;
-    place-items: center;
-    font-size: 11px;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-
-  .avatar-user {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border: 1px solid rgba(232, 116, 12, 0.25);
-  }
-
-  .avatar-agent {
-    background: rgba(57, 163, 111, 0.12);
-    color: #39a36f;
-    border: 1px solid rgba(57, 163, 111, 0.25);
-  }
-
-  .bubble-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--fg);
-  }
-
-  .bubble-time {
-    font-size: 10px;
-    color: var(--muted);
-    margin-left: auto;
-  }
-
-  .bubble-body p {
-    margin: 0;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    font-size: 14px;
-  }
-
-  .bubble-actions {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  .bubble:hover .bubble-actions {
-    opacity: 1;
-  }
-
-  .action-btn {
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-elevated);
-    color: var(--muted);
-    font-size: 13px;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    padding: 0;
-  }
-
-  .action-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-
-  /* Typing indicator */
-  .typing-indicator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-  }
-
-  .typing-dots {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-  }
-
-  .typing-dots span {
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-    background: var(--muted);
-    animation: typing-bounce 1.2s ease-in-out infinite;
-  }
-
-  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
-  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-
-  @keyframes typing-bounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-4px); opacity: 1; }
-  }
-
-  /* Error */
-  .error {
-    border: 1px solid rgba(207, 94, 94, 0.35);
-    border-radius: 10px;
-    background: rgba(207, 94, 94, 0.08);
-    padding: 10px 12px;
-    color: var(--warn);
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .error-icon {
-    font-size: 15px;
-    flex-shrink: 0;
+    background: var(--accent-strong);
   }
 
   .composer-wrap {
@@ -577,11 +386,16 @@
   .composer-shell {
     border: 1px solid var(--border);
     border-radius: 24px;
-    background: var(--bg-elevated);
+    background: var(--bg-soft);
     display: flex;
     gap: 6px;
     align-items: flex-end;
     padding: 6px 6px 6px 16px;
+    transition: border-color 0.2s;
+  }
+
+  .composer-shell:focus-within {
+    border-color: var(--accent);
   }
 
   .composer {
