@@ -7,9 +7,9 @@
   --muted: #71717a;
   --line: #e4e4e7;
   --line-strong: #d4d4d8;
-  --brand: #c2410c;
-  --brand-strong: #9a3412;
-  --accent: #ea580c;
+  --brand: #f59e0b;
+  --brand-strong: #d97706;
+  --accent: #fbbf24;
   --ok: #059669;
   --ok-soft: rgba(5, 150, 105, 0.08);
   --ok-border: rgba(5, 150, 105, 0.25);
@@ -36,6 +36,7 @@
 *:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 input:focus-visible,
@@ -43,7 +44,7 @@ textarea:focus-visible,
 select:focus-visible {
   outline: none;
   border-color: var(--brand) !important;
-  box-shadow: 0 0 0 2px rgba(232, 116, 12, 0.2);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
 
 html, body {

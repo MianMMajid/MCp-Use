@@ -371,23 +371,23 @@
   input[type="email"], input[type="password"], input[type="text"] { border: 1px solid var(--line-strong, #d4d4d8); border-radius: 8px; padding: 0.625rem 0.75rem; font-size: 0.875rem; background: var(--bg, #fff); color: var(--ink, #18181b); transition: border-color 150ms, box-shadow 150ms; }
   input[type="email"]::placeholder, input[type="password"]::placeholder, input[type="text"]::placeholder { color: var(--muted, #a1a1aa); }
   input[type="text"][inputmode="numeric"] { text-align: center; font-size: 1.5rem; letter-spacing: 0.3em; font-family: monospace; }
-  button[type="submit"], .sso-btn { border-radius: 8px; padding: 0.625rem; border: none; background: #c2410c; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.875rem; transition: background 150ms; min-height: 40px; }
-  button[type="submit"]:hover, .sso-btn:hover { background: #9a3412; }
-  button[type="submit"]:active { background: #7c2d12; }
+  button[type="submit"], .sso-btn { border-radius: 999px; padding: 0.625rem 1.25rem; border: none; background: #f59e0b; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.875rem; transition: background 150ms; min-height: 40px; }
+  button[type="submit"]:hover, .sso-btn:hover { background: #d97706; }
+  button[type="submit"]:active { background: #b45309; }
   button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
-  .sso-btn { background: #c2410c; }
-  .google-btn { border-radius: 8px; padding: 0.625rem; border: 1px solid var(--line, #e4e4e7); background: var(--panel, #fff); color: var(--ink, #18181b); font-weight: 500; cursor: pointer; min-height: 40px; transition: background 150ms; }
+  .sso-btn { background: #f59e0b; }
+  .google-btn { border-radius: 999px; padding: 0.625rem 1.25rem; border: 1px solid var(--line, #e4e4e7); background: var(--panel, #fff); color: var(--ink, #18181b); font-weight: 500; cursor: pointer; min-height: 40px; transition: background 150ms; }
   .google-btn:hover { background: var(--bg-soft, #f4f4f5); }
   .error { color: var(--warn, #dc2626); font-size: 0.8125rem; font-weight: 500; }
   .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; cursor: pointer; color: var(--muted, #71717a); }
-  .checkbox-label input[type="checkbox"] { width: auto; accent-color: #c2410c; }
+  .checkbox-label input[type="checkbox"] { width: auto; accent-color: #f59e0b; }
   .mfa-links { display: flex; flex-direction: column; gap: 0.3rem; }
-  .link-btn { background: none; border: none; color: var(--brand, #c2410c); font-size: 0.8125rem; cursor: pointer; text-align: left; padding: 0.2rem 0; }
+  .link-btn { background: none; border: none; color: var(--brand, #f59e0b); font-size: 0.8125rem; cursor: pointer; text-align: left; padding: 0.2rem 0; }
   .link-btn:hover { text-decoration: underline; }
   .divider { display: flex; align-items: center; gap: 0.5rem; color: var(--muted, #a1a1aa); font-size: 0.75rem; }
   .divider::before, .divider::after { content: ''; flex: 1; border-top: 1px solid var(--line, #e4e4e7); }
   .sso-checking { display: flex; align-items: center; gap: 0.5rem; color: var(--muted, #71717a); font-size: 0.8125rem; padding: 0.3rem 0; }
-  .spinner { width: 14px; height: 14px; border: 2px solid var(--line, #e4e4e7); border-top-color: var(--brand, #c2410c); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--line, #e4e4e7); border-top-color: var(--brand, #f59e0b); border-radius: 50%; animation: spin 0.6s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 </style>
