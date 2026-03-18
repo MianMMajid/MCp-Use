@@ -1733,6 +1733,78 @@ export function registerFrontendBRoutes(app) {
     return c.json({ ok: true, tool, server, downstream }, 201);
   });
 
+  // Update API key for an installed skill
+  app.patch("/api/skills/:toolId/apikey", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    if (!hasPersistentStorage()) {
+      return c.json({ ok: false, error: "Persistent storage required." }, 503);
+    }
+
+    const toolId = asString(c.req.param("toolId"));
+    const body = await readJsonBody(c);
+    const apiKey = asString(body.apiKey);
+
+    // Load existing tool from registry
+    const existing = await getStoredSkillRecord(toolId);
+    if (!existing) {
+      return c.json({ ok: false, error: `Skill "${toolId}" not found.` }, 404);
+    }
+
+    // Update the API key in the schema metadata
+    let schema = {};
+    try {
+      schema = typeof existing.schema_json === "string" ? JSON.parse(existing.schema_json) : existing.schema_json || {};
+    } catch { schema = {}; }
+
+    if (!schema._mcp) schema._mcp = {};
+    schema._mcp.apiKey = apiKey || undefined;
+
+    // Update in Postgres
+    await governanceStore.upsertTool({
+      toolId,
+      name: existing.name,
+      description: existing.description,
+      schema,
+      source: existing.source,
+    });
+
+    // Update the in-memory downstream app
+    const appId = `mcp-registry:${toolId}`;
+    const app = downstreamAppRegistry.get(appId);
+    if (app) {
+      const authHeaderName = schema._mcp.authHeaderName || "Authorization";
+      const headers = { ...(app.headers || {}) };
+      if (apiKey) {
+        headers[authHeaderName] = authHeaderName.toLowerCase() === "authorization" ? `Bearer ${apiKey}` : apiKey;
+      } else {
+        delete headers[authHeaderName];
+      }
+      app.headers = Object.keys(headers).length > 0 ? headers : undefined;
+      downstreamAppRegistry.set(appId, app);
+    } else if (schema._mcp?.remotes?.[0]?.url) {
+      // Re-register downstream app if it wasn't in memory
+      const remoteUrl = schema._mcp.remotes[0].url;
+      const authHeaderName = schema._mcp.authHeaderName || "Authorization";
+      const appHeaders = {};
+      if (apiKey) {
+        appHeaders[authHeaderName] = authHeaderName.toLowerCase() === "authorization" ? `Bearer ${apiKey}` : apiKey;
+      }
+      downstreamAppRegistry.set(appId, {
+        id: appId,
+        name: existing.name || toolId,
+        description: `[mcp-registry] ${toolId}`,
+        mcpUrl: remoteUrl,
+        enabled: true,
+        timeoutMs: 15_000,
+        authScheme: "raw",
+        headers: Object.keys(appHeaders).length > 0 ? appHeaders : undefined,
+      });
+    }
+
+    return c.json({ ok: true, toolId, apiKeySet: !!apiKey });
+  });
+
   app.post("/api/skills/import", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) return auth.error;

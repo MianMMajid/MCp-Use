@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
-  import { loadJson, postJson, invalidateCache } from '@/lib/api';
+  import { loadJson, postJson, patchJson, invalidateCache } from '@/lib/api';
   import { humanizeError } from '@/lib/utils/error-display';
 
   let loading = true;
@@ -28,6 +28,24 @@
   let installing = {};
   let apiKeys = {};
   let expandedServer = null;
+
+  // API key update for installed skills
+  let configSkillId = '';
+  let configApiKey = '';
+  let configBusy = false;
+
+  async function updateSkillApiKey(toolId) {
+    configBusy = true;
+    try {
+      const res = await patchJson(`/api/skills/${toolId}/apikey`, { apiKey: configApiKey });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.ok === false) return;
+      configSkillId = '';
+      configApiKey = '';
+      invalidateCache('/api/skills');
+      await refresh();
+    } catch {} finally { configBusy = false; }
+  }
 
   $: installedCount = items.filter((i) => i.source !== 'openclaw-cli').length;
   $: cliCount = items.filter((i) => i.source === 'openclaw-cli').length;
@@ -265,7 +283,20 @@
               <button class="pill tiny" on:click={() => runSmokeTest(skill.toolId)} disabled={smokeTests[skill.toolId]?.loading}>
                 {smokeTests[skill.toolId]?.loading ? 'Testing…' : 'Test'}
               </button>
+              {#if skill.source === 'mcp-registry' || skill.source === 'registry'}
+                <button class="pill tiny" on:click={() => { configSkillId = configSkillId === skill.toolId ? '' : skill.toolId; configApiKey = ''; }}>
+                  {configSkillId === skill.toolId ? 'Cancel' : 'Configure'}
+                </button>
+              {/if}
             </div>
+            {#if configSkillId === skill.toolId}
+              <div class="config-row">
+                <input type="password" placeholder="API key" bind:value={configApiKey} on:keydown={(e) => e.key === 'Enter' && updateSkillApiKey(skill.toolId)} />
+                <button class="pill tiny cta" on:click={() => updateSkillApiKey(skill.toolId)} disabled={configBusy || !configApiKey}>
+                  {configBusy ? '…' : 'Save Key'}
+                </button>
+              </div>
+            {/if}
             {#if governedProofs[skill.toolId]?.error}
               <p class="test-msg fail">{governedProofs[skill.toolId].error}</p>
             {/if}
@@ -487,6 +518,9 @@
   .test-msg { font-size: 11px; margin: 0; }
   .pass { color: #10b981; }
   .fail { color: #fb7185; }
+  .config-row { display: flex; gap: 6px; margin-top: 4px; }
+  .config-row input { flex: 1; border: 1px solid rgba(249,115,22,.3); border-radius: 999px; background: rgba(249,115,22,.06); color: var(--fg); padding: 6px 12px; font-size: 12px; outline: none; font-family: ui-monospace, monospace; }
+  .config-row input:focus { border-color: rgba(249,115,22,.5); }
   .proof-block { display: grid; gap: 8px; }
   .proof-block pre {
     margin: 0;
