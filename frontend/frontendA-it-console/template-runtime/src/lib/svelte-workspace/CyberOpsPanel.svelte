@@ -245,7 +245,7 @@
         <div class="cyber-item-card">
           <div class="cyber-item-header">
             <strong>{incident.title || id}</strong>
-            <span class="chip" style="background: var(--color-{incidentColor(incident)})">{incident.severity || 'RISK_SEVERITY_LOW'}</span>
+            <span class="chip chip-{incidentColor(incident)}">{incident.severity || 'RISK_SEVERITY_LOW'}</span>
             <span class="chip">{incident.state || 'new'}</span>
             <span class="chip">{incident.priority || 'medium'}</span>
           </div>
@@ -282,7 +282,7 @@
         <div class="cyber-item-card">
           <div class="cyber-item-header">
             <strong>{item.filename || item.id}</strong>
-            <span class="chip" style="background: var(--color-{scanColor(item.scan)})">{scanLabel(item.scan)}</span>
+            <span class="chip chip-{scanColor(item.scan)}">{scanLabel(item.scan)}</span>
             <span class="chip">{item.scan?.provider || 'unknown'}</span>
             <span class="chip">{item.source}</span>
           </div>
@@ -430,12 +430,12 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--muted, #6b7280);
+    color: var(--muted, #a1a1aa);
     margin-bottom: 0.5rem;
   }
   .cyber-status-detail {
     font-size: 0.75rem;
-    color: var(--muted, #6b7280);
+    color: var(--muted, #a1a1aa);
     margin-top: 0.5rem;
   }
   .cyber-metric {
@@ -457,7 +457,7 @@
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    color: var(--muted, #6b7280);
+    color: var(--muted, #a1a1aa);
   }
   .cyber-filters-row {
     display: grid;
@@ -466,7 +466,7 @@
     margin-bottom: 1rem;
   }
   .cyber-item-card {
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--line, #3f3f46);
     border-radius: 0.75rem;
     padding: 1rem;
     margin-bottom: 0.75rem;
@@ -479,7 +479,7 @@
   }
   .cyber-item-meta {
     font-size: 0.75rem;
-    color: var(--muted, #6b7280);
+    color: var(--muted, #a1a1aa);
     margin-top: 0.5rem;
     line-height: 1.6;
   }
@@ -504,10 +504,35 @@
     margin-top: 0.75rem;
   }
   .chip-ok {
-    background: var(--color-orange, #fed7aa);
+    background: var(--ok-soft, rgba(52, 211, 153, 0.12));
+    color: var(--ok, #34d399);
+    border: 1px solid var(--ok-border, rgba(52, 211, 153, 0.30));
   }
   .chip-degraded {
-    background: var(--color-rose, #fecdd3);
+    background: var(--warn-soft, rgba(248, 113, 113, 0.12));
+    color: var(--warn, #f87171);
+    border: 1px solid var(--warn-border, rgba(248, 113, 113, 0.30));
+  }
+  /* Semantic color chips for incidents and scans */
+  .chip-rose {
+    background: var(--warn-soft, rgba(248, 113, 113, 0.12));
+    color: var(--warn, #f87171);
+    border: 1px solid var(--warn-border, rgba(248, 113, 113, 0.30));
+  }
+  .chip-amber {
+    background: var(--caution-soft, rgba(251, 191, 36, 0.12));
+    color: var(--caution, #fbbf24);
+    border: 1px solid var(--caution-border, rgba(251, 191, 36, 0.30));
+  }
+  .chip-orange {
+    background: var(--brand-tint, rgba(251, 146, 60, 0.12));
+    color: var(--brand, #fb923c);
+    border: 1px solid var(--brand-tint-border, rgba(251, 146, 60, 0.40));
+  }
+  .chip-zinc {
+    background: var(--bg-soft, #18181b);
+    color: var(--muted, #a1a1aa);
+    border: 1px solid var(--line, #3f3f46);
   }
   @media (max-width: 768px) {
     .cyber-policies-grid,
