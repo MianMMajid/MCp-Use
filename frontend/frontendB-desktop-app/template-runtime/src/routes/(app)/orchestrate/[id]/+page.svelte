@@ -36,6 +36,7 @@
   let currentExecutionId = '';
   let runtimeStatus = 'idle';
   let runtimeLoop = null;
+  let runtimePollToken = 0;
   let executionStream = null;
   let streamBoundExecutionId = '';
   let controlPlaneNote = '';
@@ -153,6 +154,7 @@
   async function loadOrchestration() {
     if (_loadedOrchId === data.id && orchestration) return;
     _loadedOrchId = data.id;
+    stopRuntimePolling();
     currentExecutionId = ''; closeExecutionStream();
     loading = true; error = '';
     try {
@@ -320,7 +322,7 @@
       if (currentExecutionId) {
         await loadExecutionSnapshot(currentExecutionId);
         // Poll for completion since execution may finish before SSE connects
-        pollForResult(currentExecutionId);
+        startRuntimePolling(currentExecutionId);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -333,6 +335,7 @@
   async function pauseExecution() {
     if (!currentExecutionId) return;
     const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/pause`, {});
+    stopRuntimePolling();
     runtimeStatus = p?.execution?.status || 'paused';
     controlPlaneNote = 'Execution paused.';
   }
@@ -341,14 +344,26 @@
     if (!currentExecutionId) return;
     const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/resume`, {});
     runtimeStatus = p?.execution?.status || 'running';
+    startRuntimePolling(currentExecutionId);
     controlPlaneNote = 'Execution resumed.';
   }
 
-  async function pollForResult(executionId) {
+  function stopRuntimePolling() {
+    runtimePollToken += 1;
+  }
+
+  function startRuntimePolling(executionId) {
+    if (!executionId) return;
+    const pollToken = ++runtimePollToken;
+    void pollForResult(executionId, pollToken);
+  }
+
+  async function pollForResult(executionId, pollToken) {
     const seenOutputs = new Set();
 
     for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 2000));
+      if (pollToken !== runtimePollToken) break;
       try {
         // Bust cache with timestamp to get fresh data each poll
         const cacheBust = `_t=${Date.now()}`;
@@ -406,6 +421,7 @@
   async function cancelExecution() {
     if (!currentExecutionId) return;
     const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/cancel`, {});
+    stopRuntimePolling();
     runtimeStatus = p?.execution?.status || 'canceled';
     controlPlaneNote = 'Execution canceled.';
   }
@@ -498,8 +514,8 @@
       <div class="control-actions">
         <button class="pill tiny" on:click={validateDefinition} disabled={!mounted || runtimeBusy}>Validate</button>
         <button class="pill tiny" on:click={publishVersion} disabled={!mounted || runtimeBusy}>Publish Version</button>
-        <button class="pill tiny" on:click={() => execute('dry-run')} disabled={!mounted || runtimeBusy || runtimeLive}>Dry Run</button>
-        <button class="pill tiny cta" on:click={() => execute('live')} disabled={!mounted || runtimeBusy || runtimeLive}>Execute Live</button>
+        <button class="pill tiny" on:click={() => execute('dry-run')} disabled={!mounted || runtimeBusy}>Dry Run</button>
+        <button class="pill tiny cta" on:click={() => execute('live')} disabled={!mounted || runtimeBusy}>Execute Live</button>
         {#if currentExecutionId}
           {#if runtimeStatus === 'paused'}
             <button class="pill tiny" on:click={resumeExecution} disabled={!mounted || runtimeBusy}>Resume</button>
@@ -557,7 +573,7 @@
             disabled={!mounted}
             on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && execute()}
           />
-          <button class="run-btn" on:click={execute} disabled={!mounted || runtimeBusy || runtimeLive}>
+          <button class="run-btn" on:click={execute} disabled={!mounted || runtimeBusy}>
             {#if runtimeBusy}
               <span class="spinner"></span>
             {:else}

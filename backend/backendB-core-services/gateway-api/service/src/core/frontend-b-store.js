@@ -155,11 +155,15 @@ export class FrontendBStore {
         folder TEXT NOT NULL DEFAULT 'root',
         scope TEXT NOT NULL DEFAULT 'global',
         assigned_agent_id TEXT,
+        description TEXT NOT NULL DEFAULT '',
+        enforcement_level TEXT NOT NULL DEFAULT 'hard-mandatory',
         archived BOOLEAN NOT NULL DEFAULT FALSE,
         active_version_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+      ALTER TABLE frontend_b_firewalls ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+      ALTER TABLE frontend_b_firewalls ADD COLUMN IF NOT EXISTS enforcement_level TEXT NOT NULL DEFAULT 'hard-mandatory';
       CREATE INDEX IF NOT EXISTS idx_frontend_b_firewalls_owner_updated
         ON frontend_b_firewalls(owner_user_id, updated_at DESC);
 
@@ -429,9 +433,9 @@ export class FrontendBStore {
       await client.query(
         `
           INSERT INTO frontend_b_firewalls (
-            id, owner_user_id, name, folder, scope, assigned_agent_id, archived,
-            active_version_id, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, FALSE, $7, $8, $8)
+            id, owner_user_id, name, folder, scope, assigned_agent_id, description,
+            enforcement_level, archived, active_version_id, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, $9, $10, $10)
         `,
         [
           firewallId,
@@ -440,6 +444,8 @@ export class FrontendBStore {
           input.folder ?? "root",
           input.scope ?? "global",
           input.assignedAgentId ?? null,
+          input.description ?? "",
+          input.enforcementLevel ?? "hard-mandatory",
           input.activeVersionId ?? null,
           timestamp,
         ]
@@ -501,6 +507,14 @@ export class FrontendBStore {
     if (updates.assignedAgentId !== undefined) {
       sets.push(`assigned_agent_id = $${index++}`);
       params.push(updates.assignedAgentId);
+    }
+    if (updates.description !== undefined) {
+      sets.push(`description = $${index++}`);
+      params.push(updates.description);
+    }
+    if (updates.enforcementLevel !== undefined) {
+      sets.push(`enforcement_level = $${index++}`);
+      params.push(updates.enforcementLevel);
     }
     if (updates.archived !== undefined) {
       sets.push(`archived = $${index++}`);

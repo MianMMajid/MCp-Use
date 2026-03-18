@@ -495,7 +495,7 @@ body {
 
 .trace-item {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--panel);
   padding: 10px 12px;
   text-align: left;
@@ -508,10 +508,10 @@ body {
 .select {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   background: var(--bg-soft);
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--ink);
 }
 
@@ -519,11 +519,11 @@ body {
 
 .action-btn {
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 8px 16px;
   background: var(--panel);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 500;
   min-height: 36px;
   transition: border-color 150ms, background 150ms;
@@ -544,8 +544,8 @@ body {
 .table-wrap { overflow: auto; }
 
 table { width: 100%; border-collapse: collapse; }
-th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px 12px; font-size: 13px; }
-pre { overflow: auto; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem; }
+th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px 12px; font-size: var(--text-base); }
+pre { overflow: auto; background: var(--bg-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 0.6rem; }
 code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .mono {
@@ -565,7 +565,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .mw-simple-list li {
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--ink);
 }
 
@@ -591,12 +591,12 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .docs-link-card {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 0.52rem 0.62rem;
   text-decoration: none;
   background: var(--panel);
   color: var(--ink);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
@@ -616,10 +616,10 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   justify-content: space-between;
   gap: 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 0.38rem 0.55rem;
   background: var(--panel);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 
 .ok-chip {
@@ -649,7 +649,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   border-bottom: 1px solid #eee2d5;
   padding: 0.5rem;
   text-align: left;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
 }
 
 .ok { color: #0a6b2f; }
@@ -664,10 +664,10 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .mw-chat-prompt {
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--panel);
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   padding: 0.28rem 0.62rem;
   cursor: pointer;
 }
@@ -686,9 +686,9 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .mw-chat-bubble {
-  border-radius: 0.8rem;
+  border-radius: var(--radius-lg);
   padding: 0.52rem 0.66rem;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   line-height: 1.35;
 }
 
@@ -717,9 +717,9 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .mw-chat-form input {
   border: 1px solid var(--line);
-  border-radius: 0.76rem;
+  border-radius: var(--radius-lg);
   padding: 0.5rem 0.62rem;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   color: var(--ink);
   background: var(--panel);
 }
@@ -728,7 +728,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   border: 1px solid rgba(215, 104, 25, 0.45);
   background: linear-gradient(160deg, #ef8f37, var(--brand));
   color: #fff;
-  border-radius: 0.76rem;
+  border-radius: var(--radius-lg);
   font-weight: 700;
   padding: 0.5rem 0.82rem;
   cursor: pointer;
@@ -742,7 +742,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .mw-chat-error {
   margin: 0.48rem 0 0;
   color: #a53f2d;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 
 .users-access-panel {
@@ -767,7 +767,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .firewall-json-editor {
   min-height: 320px;
   font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   line-height: 1.42;
   margin-top: 0.5rem;
 }
@@ -796,7 +796,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .topology-map {
   min-height: 430px;
   border: 1px solid #e5ddd4;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #1a1613;
   padding: 0.62rem;
   position: relative;
@@ -834,7 +834,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-section-title {
   margin: 0;
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
@@ -844,7 +844,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .topology-agent-card {
   text-align: left;
   border: 1px solid rgba(196, 184, 168, 0.75);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   padding: 0.42rem 0.5rem;
   display: grid;
@@ -852,13 +852,13 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .topology-agent-card strong {
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   color: #1a1a1a;
 }
 
 .topology-agent-card span {
   color: #75695c;
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
 }
 
 .topology-agent-card.active {
@@ -869,7 +869,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-flow-row {
   border: 1px solid rgba(196, 184, 168, 0.7);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   padding: 0.33rem 0.46rem;
   display: grid;
@@ -880,22 +880,22 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .topology-flow-row .mono {
-  font-size: 0.64rem;
+  font-size: var(--text-2xs);
   color: #4f463d;
 }
 
 .topology-arrow {
   color: #8a7a6a;
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
 }
 
 .topology-state-chip {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid #d1c5b8;
   padding: 0.12rem 0.4rem;
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: lowercase;
   background: rgba(245, 241, 236, 0.95);
@@ -922,22 +922,22 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-node {
   border: 1px solid rgba(196, 184, 168, 0.75);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   padding: 0.36rem 0.48rem;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   text-align: left;
   display: grid;
   gap: 0.08rem;
 }
 
 .topology-node strong {
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .topology-node span {
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
 }
 
 .topology-node.surface { cursor: pointer; }
@@ -951,7 +951,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   bottom: 12px;
   width: min(300px, calc(100% - 24px));
   border: 1px solid #e0d7cc;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(6px);
@@ -969,24 +969,24 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-endpoint-head h3 {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
 }
 
 .topology-endpoint-close {
   border: 1px solid #e0d7cc;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-soft);
   color: #333;
   height: 1.8rem;
   padding: 0 0.56rem;
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
 }
 
 .topology-endpoint-sub {
   margin: 0.48rem 0 0;
   color: #8a7a6a;
-  font-size: 0.63rem;
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 700;
@@ -995,10 +995,10 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .topology-endpoint-host {
   margin-top: 0.28rem;
   border: 1px solid #e5ddd4;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(248, 244, 238, 0.9);
   color: #1a1a1a;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   padding: 0.42rem 0.7rem;
   overflow-wrap: anywhere;
 }
@@ -1013,7 +1013,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-endpoint-label {
   color: #8a7a6a;
-  font-size: 0.64rem;
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 700;
@@ -1023,9 +1023,9 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   display: inline-flex;
   align-items: center;
   border: 1px solid #d1c5b8;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.14rem 0.46rem;
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: lowercase;
   background: var(--bg-soft);
@@ -1057,11 +1057,11 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .topology-endpoint-approve {
   width: 100%;
   border: 1px solid #3f8f68;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(57, 163, 111, 0.10);
   color: #1d6b45;
   height: 2rem;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
 }
 
@@ -1088,7 +1088,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   max-height: 86vh;
   overflow: auto;
   border: 1px solid rgba(232, 116, 12, 0.3);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: var(--panel);
   padding: 0.74rem;
   box-shadow: 0 16px 46px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
