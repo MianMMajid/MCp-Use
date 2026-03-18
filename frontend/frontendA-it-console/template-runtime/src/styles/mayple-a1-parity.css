@@ -185,10 +185,10 @@ body {
   height: 36px;
   padding: 0 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background: var(--bg);
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 500;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s, color 0.15s;
@@ -224,7 +224,7 @@ body {
   padding: 3px;
   background: var(--panel, rgba(255, 255, 255, 0.97));
   border: 1px solid var(--line-strong, #d4d4d8);
-  border-radius: 22px;
+  border-radius: var(--radius-xl);
   backdrop-filter: blur(16px) saturate(160%);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
@@ -234,7 +234,7 @@ body {
   top: 3px;
   bottom: 3px;
   /* left and width set by JS via inline style */
-  border-radius: 19px;
+  border-radius: var(--radius-xl);
   background: var(--brand);
   box-shadow: 0 1px 4px rgba(245, 158, 11, 0.25);
   opacity: 0;

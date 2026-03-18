@@ -611,47 +611,141 @@
       </section>
     </div>
 
-    <section class="card section">
+    <section class="card section activate-section">
       <div class="head">
         <div>
-          <h1>Activate Firewall</h1>
+          <h2>Activate Firewall</h2>
           <p class="muted">Create a new gateway-backed firewall policy.</p>
         </div>
-      </div>
-
-      <div class="builder">
-        <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" /></label>
-        <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
-        <label>
-          <span>Scope</span>
-          <select bind:value={scope}>
-            <option value="global">Global</option>
-            <option value="agent" disabled={agentScopeDisabled}>Agent{agentScopeDisabled ? ' (no agents)' : ''}</option>
-          </select>
-        </label>
-        {#if scope === 'agent'}
-          <label>
-            <span>Agent</span>
-            {#if agentOptions.length === 0}
-              <p class="muted">No agents available. Create an agent first.</p>
-            {:else}
-              <select bind:value={selectedAgentId}>
-                {#each agentOptions as option}
-                  <option value={option.id}>{option.name}</option>
-                {/each}
-              </select>
-            {/if}
-          </label>
+        {#if activateStep > 1}
+          <button class="pill" on:click={resetActivateForm}>Start Over</button>
         {/if}
-        <label class="full">
-          <span>Policy</span>
-          <textarea rows="6" bind:value={policyText} placeholder={`version: 1\nrules:\n  allowedTools:\n    - status\n    - skills\n  blockedTargetProfiles:\n    - root\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30`}></textarea>
-        </label>
       </div>
 
-      <div class="actions">
-        <button class="pill cta" on:click={activateFirewall} disabled={!entityName.trim() || !policyText.trim() || (scope === 'agent' && !selectedAgentId)}>Activate Firewall</button>
+      <div class="wizard-steps">
+        <button class="step" class:active={activateStep === 1} class:done={activateStep > 1} on:click={() => { if (activateStep > 1) activateStep = 1; }}>
+          <span class="step-num">{activateStep > 1 ? '&#10003;' : '1'}</span> Identity
+        </button>
+        <span class="step-line"></span>
+        <button class="step" class:active={activateStep === 2} class:done={activateStep > 2} on:click={() => { if (activateStep > 2) activateStep = 2; }} disabled={activateStep < 2}>
+          <span class="step-num">{activateStep > 2 ? '&#10003;' : '2'}</span> Policy
+        </button>
+        <span class="step-line"></span>
+        <button class="step" class:active={activateStep === 3} class:done={activateStep > 3} disabled={activateStep < 3}>
+          <span class="step-num">{activateStep > 3 ? '&#10003;' : '3'}</span> Review & Deploy
+        </button>
       </div>
+
+      {#if activateStep === 1}
+        <div class="builder">
+          <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" /></label>
+          <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
+          <label><span>Description</span><input bind:value={description} placeholder="Restricts payroll tools to approved agents" /></label>
+          <label>
+            <span>Scope</span>
+            <select bind:value={scope}>
+              <option value="global">Global — applies to all agents</option>
+              <option value="agent" disabled={agentScopeDisabled}>Agent — scoped to one agent{agentScopeDisabled ? ' (none available)' : ''}</option>
+            </select>
+          </label>
+          {#if scope === 'agent'}
+            <label>
+              <span>Agent</span>
+              {#if agentOptions.length === 0}
+                <p class="muted">No agents available. Create an agent first.</p>
+              {:else}
+                <select bind:value={selectedAgentId}>
+                  {#each agentOptions as option}
+                    <option value={option.id}>{option.name}</option>
+                  {/each}
+                </select>
+              {/if}
+            </label>
+          {/if}
+          <label>
+            <span>Enforcement Level</span>
+            <select bind:value={enforcementLevel}>
+              {#each ENFORCEMENT_LEVELS as level}
+                <option value={level.id}>{level.label} — {level.desc}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="pill cta" on:click={() => (activateStep = 2)} disabled={!activateStepValid[1]}>Next: Define Policy</button>
+        </div>
+
+      {:else if activateStep === 2}
+        <div class="builder">
+          <label>
+            <span>Start from template</span>
+            <select bind:value={templateId} on:change={applyTemplate}>
+              {#each POLICY_TEMPLATES as tpl}
+                <option value={tpl.id}>{tpl.label} — {tpl.desc}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="full">
+            <span>Policy YAML</span>
+            <textarea rows="12" bind:value={policyText} placeholder={`version: 1\nrules:\n  defaultAction: block\n  allowedTools:\n    - status\n    - skills\n  blockedTargetProfiles:\n    - root\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30`}></textarea>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="pill" on:click={() => (activateStep = 1)}>Back</button>
+          <button class="pill cta" on:click={async () => { await previewBeforeActivate(); activateStep = 3; }} disabled={!activateStepValid[2] || activateBusy}>
+            {activateBusy ? 'Validating...' : 'Next: Review'}
+          </button>
+        </div>
+
+      {:else}
+        <div class="review-grid">
+          <article class="review-card">
+            <h3>Identity</h3>
+            <dl>
+              <dt>Name</dt><dd>{entityName}</dd>
+              <dt>Folder</dt><dd>{folderName || 'root'}</dd>
+              {#if description}<dt>Description</dt><dd>{description}</dd>{/if}
+              <dt>Scope</dt><dd>{scope === 'agent' ? `Agent: ${selectedAgentId}` : 'Global'}</dd>
+              <dt>Enforcement</dt><dd>{ENFORCEMENT_LEVELS.find((l) => l.id === enforcementLevel)?.label ?? enforcementLevel}</dd>
+            </dl>
+          </article>
+          <article class="review-card">
+            <h3>Policy Preview</h3>
+            {#if activatePreviewResult}
+              {#if activatePreviewResult.valid}
+                <p class="safe">Valid — {activatePreviewResult.ruleCount} rule{activatePreviewResult.ruleCount === 1 ? '' : 's'} detected.</p>
+              {:else}
+                <p class="warn">Validation issues detected.</p>
+              {/if}
+              {#if activatePreviewResult.errors.length > 0}
+                <div class="preview-issues">
+                  {#each activatePreviewResult.errors as err}<p class="err">{err}</p>{/each}
+                </div>
+              {/if}
+              {#if activatePreviewResult.warnings.length > 0}
+                <div class="preview-issues">
+                  {#each activatePreviewResult.warnings as warn}<p class="warn">{warn}</p>{/each}
+                </div>
+              {/if}
+            {:else}
+              <p class="muted">Preview unavailable — policy will be validated on activation.</p>
+            {/if}
+            <pre class="policy-preview">{policyText}</pre>
+          </article>
+        </div>
+        {#if enforcementLevel === 'hard-mandatory'}
+          <p class="enforcement-notice">This policy will <strong>block</strong> matching requests immediately with no operator override.</p>
+        {/if}
+        <div class="actions">
+          <button class="pill" on:click={() => (activateStep = 2)}>Back</button>
+          <button class="pill cta" on:click={async () => { await activateFirewall(); resetActivateForm(); }} disabled={!activateStepValid[3] || (activatePreviewResult && !activatePreviewResult.valid)}>
+            Deploy Firewall
+          </button>
+          <button class="pill" on:click={async () => { await activateFirewall(); resetActivateForm(); }} disabled={!activateStepValid[3]}>
+            Deploy Anyway (skip validation)
+          </button>
+        </div>
+      {/if}
       {#if error}<p class="err">{error}</p>{/if}
     </section>
   </section>

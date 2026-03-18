@@ -20,6 +20,7 @@
   let saving = false;
   let runtimeBusy = false;
   let error = '';
+  let mounted = false;
 
   let orchestration = null;
   let orchestrationName = '';
@@ -233,9 +234,11 @@
     };
   }
 
-  onMount(loadOrchestration);
+  onMount(() => {
+    mounted = true;
+  });
   onDestroy(closeExecutionStream);
-  $: data.id, loadOrchestration();
+  $: if (mounted) loadOrchestration();
   $: openExecutionStream(currentExecutionId);
   $: if ($chatStore.agents && !loading) applyNodeVisualContext();
 
@@ -464,7 +467,7 @@
     <!-- Header bar -->
     <header class="card topbar">
       <div class="topbar-left">
-        <input class="name-input" bind:value={orchestrationName} placeholder="Orchestration name..." />
+        <input class="name-input" bind:value={orchestrationName} placeholder="Orchestration name..." disabled={!mounted} />
         <div class="topbar-meta">
           <span class="meta-pill">{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
           <span class="meta-pill status-pill" class:running={runtimeLive} class:idle={runtimeStatus === 'idle'} class:failed={runtimeStatus === 'failed'} class:completed={runtimeStatus === 'completed'}>
@@ -473,9 +476,9 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="pill tiny" on:click={saveDefinition} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+        <button class="pill tiny" on:click={saveDefinition} disabled={!mounted || saving}>{saving ? 'Saving...' : 'Save'}</button>
         {#if runtimeLive}
-          <button class="pill tiny danger" on:click={cancelExecution} disabled={runtimeBusy}>Stop</button>
+          <button class="pill tiny danger" on:click={cancelExecution} disabled={!mounted || runtimeBusy}>Stop</button>
         {/if}
       </div>
     </header>
@@ -493,18 +496,18 @@
       </div>
 
       <div class="control-actions">
-        <button class="pill tiny" on:click={validateDefinition} disabled={runtimeBusy}>Validate</button>
-        <button class="pill tiny" on:click={publishVersion} disabled={runtimeBusy}>Publish Version</button>
-        <button class="pill tiny" on:click={() => execute('dry-run')} disabled={runtimeBusy || runtimeLive}>Dry Run</button>
-        <button class="pill tiny cta" on:click={() => execute('live')} disabled={runtimeBusy || runtimeLive}>Execute Live</button>
+        <button class="pill tiny" on:click={validateDefinition} disabled={!mounted || runtimeBusy}>Validate</button>
+        <button class="pill tiny" on:click={publishVersion} disabled={!mounted || runtimeBusy}>Publish Version</button>
+        <button class="pill tiny" on:click={() => execute('dry-run')} disabled={!mounted || runtimeBusy || runtimeLive}>Dry Run</button>
+        <button class="pill tiny cta" on:click={() => execute('live')} disabled={!mounted || runtimeBusy || runtimeLive}>Execute Live</button>
         {#if currentExecutionId}
           {#if runtimeStatus === 'paused'}
-            <button class="pill tiny" on:click={resumeExecution} disabled={runtimeBusy}>Resume</button>
+            <button class="pill tiny" on:click={resumeExecution} disabled={!mounted || runtimeBusy}>Resume</button>
           {:else}
-            <button class="pill tiny" on:click={pauseExecution} disabled={runtimeBusy || !runtimeLive}>Pause</button>
+            <button class="pill tiny" on:click={pauseExecution} disabled={!mounted || runtimeBusy || !runtimeLive}>Pause</button>
           {/if}
-          <button class="pill tiny danger" on:click={cancelExecution} disabled={runtimeBusy}>Cancel</button>
-          <button class="pill tiny" on:click={addDynamicNode} disabled={runtimeBusy}>Add Dynamic Node</button>
+          <button class="pill tiny danger" on:click={cancelExecution} disabled={!mounted || runtimeBusy}>Cancel</button>
+          <button class="pill tiny" on:click={addDynamicNode} disabled={!mounted || runtimeBusy}>Add Dynamic Node</button>
         {/if}
       </div>
 
@@ -551,9 +554,10 @@
             class="prompt-input"
             bind:value={taskInput}
             placeholder="Describe the task to split across your agents..."
+            disabled={!mounted}
             on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && execute()}
           />
-          <button class="run-btn" on:click={execute} disabled={runtimeBusy || runtimeLive}>
+          <button class="run-btn" on:click={execute} disabled={!mounted || runtimeBusy || runtimeLive}>
             {#if runtimeBusy}
               <span class="spinner"></span>
             {:else}

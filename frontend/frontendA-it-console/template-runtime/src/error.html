@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>%sveltekit.status% — Maple IT Console</title>
+    <style>
+      body { font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; margin: 0; background: #0a0a1a; color: #e0e0e0; }
+      .container { text-align: center; padding: 2rem; max-width: 480px; }
+      h1 { font-size: 1.5rem; color: #fff; margin-bottom: 0.5rem; }
+      p { opacity: 0.8; line-height: 1.5; }
+      a { color: #60a5fa; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; background: #1a1a2e; display: inline-block; margin-top: 1.5rem; }
+      a:hover { background: #252547; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>%sveltekit.status%</h1>
+      <p>%sveltekit.error.message%</p>
+      <a href="/">Return home</a>
+    </div>
+  </body>
+</html>

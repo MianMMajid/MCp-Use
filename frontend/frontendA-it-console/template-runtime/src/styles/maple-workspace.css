@@ -43,14 +43,14 @@
 .mw-brand-orb {
   width: 0.85rem;
   height: 0.85rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: linear-gradient(135deg, #ffd8a3, var(--mw-brand));
   box-shadow: 0 0 0 6px rgba(215, 104, 25, 0.18);
 }
 
 .mw-brand-label {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--mw-muted);
@@ -58,7 +58,7 @@
 
 .mw-brand-route {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--mw-ink);
 }
@@ -69,13 +69,13 @@
   align-items: center;
   gap: 0.55rem;
   color: var(--mw-muted);
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
 }
 
 .mw-status-dot {
   width: 0.5rem;
   height: 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ok, #059669);
 }
 
@@ -91,9 +91,9 @@
   align-items: center;
   border: 1px solid rgba(215, 104, 25, 0.35);
   background: rgba(255, 245, 232, 0.9);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.2rem 0.55rem;
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   color: var(--mw-muted);
   white-space: nowrap;
 }

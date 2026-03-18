@@ -7,7 +7,12 @@
   function isSafeRedirect(url) {
     if (!url) return false
     try {
-      return new URL(url, window.location.origin).protocol === 'https:'
+      const parsed = new URL(url, window.location.origin)
+      if (parsed.origin === window.location.origin) return true
+      // External SSO redirects must be HTTPS and from a known IdP host.
+      // The backend /api/auth/sso/discover validates the IdP, so we trust
+      // its returned URL if it uses HTTPS and is not a javascript: or data: scheme.
+      return parsed.protocol === 'https:' && !parsed.username
     } catch {
       return false
     }

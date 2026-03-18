@@ -1,6 +1,15 @@
 import { redirect } from '@sveltejs/kit'
 import { getGatewayOrigin } from '$lib/server/origins.js'
 
+/** @type {import('@sveltejs/kit').HandleServerError} */
+export function handleError({ error, event, status, message }) {
+  const id = crypto.randomUUID()
+  if (status !== 404) {
+    console.error(`[error:${id}] ${event.request.method} ${event.url.pathname} -> ${status}`, error)
+  }
+  return { message, id }
+}
+
 // SvelteKit's built-in checkOrigin (enabled by default) + backend SameSite=Lax
 // cookies provide adequate CSRF protection. No additional CSRF handling needed.
 
