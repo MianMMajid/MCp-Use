@@ -8,6 +8,7 @@
   let query = ''
   let results = []
   let loading = false
+  let searchError = ''
   let selectedIndex = 0
   let recentSearches = []
   let debounceTimer = null
@@ -65,6 +66,7 @@
     if (debounceTimer) clearTimeout(debounceTimer)
     if (!query.trim()) {
       results = []
+      searchError = ''
       loading = false
       return
     }
@@ -75,6 +77,7 @@
   async function doSearch() {
     const q = query.trim()
     if (!q) { results = []; loading = false; return }
+    searchError = ''
 
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&types=agents,runs,traces,approvals`, {
@@ -85,9 +88,11 @@
         results = Array.isArray(data.results) ? data.results : []
       } else {
         results = []
+        searchError = 'Search unavailable'
       }
     } catch {
       results = []
+      searchError = 'Search unavailable — check connection'
     } finally {
       loading = false
       selectedIndex = 0
@@ -225,6 +230,10 @@
           </div>
         {/if}
 
+        {#if searchError}
+          <div class="search-error"><p>{searchError}</p></div>
+        {/if}
+
         {#each Object.entries(groupedResults) as [type, items]}
           <div class="search-group">
             <h3 class="search-group-title">{type} <span class="search-group-count">{items.length}</span></h3>
@@ -301,6 +310,8 @@
   .search-empty { padding: 24px 16px; text-align: center; color: var(--muted, #999); }
   .search-empty p { margin: 0 0 4px; }
   .search-empty-hint { font-size: 0.8rem; }
+  .search-error { padding: 12px 16px; color: var(--warn, #dc2626); font-size: 0.8rem; text-align: center; }
+  .search-error p { margin: 0; }
   .search-footer {
     display: flex; gap: 12px; padding: 8px 16px;
     border-top: 1px solid var(--line, #e0e0e0);

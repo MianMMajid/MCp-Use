@@ -14,7 +14,7 @@
   import { buildWorkspaceHref, resolveWorkspaceState } from '../maple-workspace/workspace-state.js'
   import { filterFrontendBOrigin } from '../maple-workspace/origin-filter.js'
   import { interventionActionCatalog } from '../maple-workspace/intervention-api.js'
-  import { loadPermissions, canAccessCategory, can, onPermissionChange, permissionsReady } from '../maple-workspace/permissions.js'
+  import { loadPermissions, canAccessCategory, can, onPermissionChange, permissionsReady, markPermissionLoadFailed } from '../maple-workspace/permissions.js'
 
   const actions = interventionActionCatalog()
   const asArray = (value) => (Array.isArray(value) ? value : [])
@@ -515,11 +515,14 @@
     loadData()
     // Fail-open after 10s if permissions never load (network partition)
     const permTimeout = setTimeout(() => {
-      if (!permReady) permReady = true
+      if (!permReady) {
+        markPermissionLoadFailed()
+        permReady = true
+      }
     }, 10_000)
     // Poll every 15s but skip when tab is hidden to save API calls
     const id = window.setInterval(() => {
-      if (!document.hidden && !mutating) loadData()
+      if (!document.hidden && !mutating) loadData().catch(() => {})
     }, 15000)
     return () => {
       window.clearInterval(id)

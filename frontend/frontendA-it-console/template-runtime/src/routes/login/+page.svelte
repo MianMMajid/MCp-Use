@@ -14,6 +14,13 @@
     }
   }
 
+  function isSameOriginRedirect(url) {
+    if (!url) return false
+    try {
+      return new URL(url, window.location.origin).origin === window.location.origin
+    } catch { return false }
+  }
+
   let email = ''
   let password = ''
   let error = ''
@@ -244,7 +251,7 @@
       })
       if (!response.ok) throw new Error('Google sign-in failed')
       const payload = await response.json()
-      if (payload?.redirectUrl && isSafeRedirect(payload.redirectUrl)) {
+      if (payload?.redirectUrl && isSameOriginRedirect(payload.redirectUrl)) {
         window.location.assign(payload.redirectUrl)
         return
       }

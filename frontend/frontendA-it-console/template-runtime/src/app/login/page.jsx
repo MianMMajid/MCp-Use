@@ -3,6 +3,13 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
+function isSameOriginUrl(url) {
+  if (!url) return false
+  try {
+    return new URL(url, window.location.origin).origin === window.location.origin
+  } catch { return false }
+}
+
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -69,6 +76,7 @@ function LoginForm() {
       setError('Unable to connect. Please check your network and try again.')
     } finally {
       setLoading(false)
+      setPassword('')
     }
   }
 
@@ -115,7 +123,7 @@ function LoginForm() {
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.redirectUrl) {
+        if (data.redirectUrl && isSameOriginUrl(data.redirectUrl)) {
           window.location.href = data.redirectUrl
           return
         }

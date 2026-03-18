@@ -10,6 +10,7 @@
   let currentOrg = null
   let open = false
   let loading = true
+  let loadError = false
 
   const STORAGE_KEY = 'maple-current-org'
 
@@ -19,6 +20,7 @@
 
   async function loadOrgs() {
     loading = true
+    loadError = false
     try {
       const res = await fetch('/api/org', { credentials: 'same-origin' })
       if (res.ok) {
@@ -27,6 +29,7 @@
       }
     } catch {
       orgs = []
+      loadError = true
     } finally {
       loading = false
     }
@@ -117,7 +120,7 @@
           </button>
         {/each}
         {#if orgs.length === 0}
-          <div class="org-empty">No organizations</div>
+          <div class="org-empty">{loadError ? 'Failed to load organizations' : 'No organizations'}</div>
         {/if}
       </div>
     </div>
