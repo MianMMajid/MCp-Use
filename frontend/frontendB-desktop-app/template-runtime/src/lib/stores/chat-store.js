@@ -133,11 +133,7 @@ function createChatStore() {
 
   async function loadSessions(agentId) {
     patch({ sessionsLoading: true });
-    if (!agentId) {
-      patch({ sessions: [], sessionsLoading: false });
-      return [];
-    }
-    const payload = await loadJson(`/api/agents/${agentId}/sessions`).catch(() => ({ items: [] }));
+    const payload = await loadJson('/api/openclaw/agent/sessions').catch(() => ({ items: [] }));
     const items = payload?.items ?? payload ?? [];
     patch({ sessions: items, sessionsLoading: false });
     return items;
@@ -362,10 +358,14 @@ function createChatStore() {
     patch({ sessionId: '', messages: [], runError: '' });
   }
 
-  async function selectSession(sessionId) {
+  async function hydrateSessionMessages(sessionId, { clear = true } = {}) {
     const sid = String(sessionId || '');
     if (!sid) return;
-    patch({ sessionId: sid, messages: [], runError: '' });
+    if (clear) {
+      patch({ sessionId: sid, messages: [], runError: '' });
+    } else {
+      patch({ sessionId: sid, runError: '' });
+    }
     try {
       const payload = await loadJson(`/api/openclaw/agent/sessions/${sid}`);
       const session = payload?.session ?? payload ?? {};
@@ -383,10 +383,20 @@ function createChatStore() {
           reconstructed.push({ id: `out-${runId}`, role: 'agent', content: runData.output.reply, timestamp: runData.updatedAt, cost: runData.cost ?? null });
         }
       }
-      patch({ messages: capArray(reconstructed, MAX_MESSAGES) });
+      if (reconstructed.length > 0) {
+        patch({ messages: capArray(reconstructed, MAX_MESSAGES) });
+      } else if (clear) {
+        patch({ messages: [] });
+      }
     } catch {
-      patch({ messages: [] });
+      if (clear) {
+        patch({ messages: [] });
+      }
     }
+  }
+
+  async function selectSession(sessionId) {
+    return hydrateSessionMessages(sessionId, { clear: true });
   }
 
   async function sendAgentMessage(text) {
@@ -394,25 +404,21 @@ function createChatStore() {
     if (!content) return;
 
     const state = get({ subscribe });
-    const fallbackAgentId = String(state.selectedAgentId || '');
-    if (!fallbackAgentId) {
-      return sendGlobalChatMessage(content);
-    }
 
     patch({
       runError: '',
       busy: true,
-      busyStatus: 'Sending to agent...',
+      busyStatus: 'Sending through governed path...',
       messages: capArray([...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }], MAX_MESSAGES)
     });
 
     try {
-      patch({ busyStatus: 'Agent is thinking...' });
-      const response = await postJson(`/api/agents/${fallbackAgentId}/run`, {
+      patch({ busyStatus: 'Agent is executing...' });
+      const response = await postJson('/api/openclaw/agent/turn', {
         message: content,
         sessionId: state.sessionId || undefined
       });
-      patch({ busyStatus: 'Processing response...' });
+      patch({ busyStatus: 'Processing governed response...' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || payload?.details || `Run failed (${response.status})`);
@@ -420,7 +426,7 @@ function createChatStore() {
 
       const next = get({ subscribe });
       patch({
-        sessionId: state.sessionId || payload.sessionId || '',
+        sessionId: payload.sessionId || state.sessionId || '',
         messages: capArray([
           ...next.messages,
           {
@@ -433,8 +439,13 @@ function createChatStore() {
           }
         ], MAX_MESSAGES)
       });
-      invalidateCache(`/api/agents/${fallbackAgentId}/sessions`);
-      await loadSessions(fallbackAgentId);
+      invalidateCache('/api/openclaw/agent/sessions');
+      if (payload?.sessionId) {
+        await loadSessions('');
+        void hydrateSessionMessages(payload.sessionId, { clear: false });
+      } else {
+        await loadSessions('');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const next = get({ subscribe });
@@ -597,8 +608,7 @@ function createChatStore() {
     if (state.chatTarget === 'orchestration') {
       return sendOrchestrationMessage(text);
     }
-    if (state.selectedAgentId) return sendAgentMessage(text);
-    return sendGlobalChatMessage(text);
+    return sendAgentMessage(text);
   }
 
   function setOrchestrationPanelTab(panel) {

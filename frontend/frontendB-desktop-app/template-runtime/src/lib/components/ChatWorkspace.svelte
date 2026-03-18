@@ -17,7 +17,7 @@
     value: String(agent.agentId || agent.id),
     label: agent.name || agent.displayName || agent.id
   }));
-  $: agentOptionsWithNone = [{ value: '', label: 'No agent (global chat)' }, ...agentOptions];
+  $: agentOptionsWithNone = [{ value: '', label: 'Governed Path' }, ...agentOptions];
 
   $: orchestrationOptions = ($chatStore.orchestrations || []).map((item) => ({
     value: String(item.id),
@@ -30,7 +30,7 @@
   ];
 
   $: isOrchestration = $chatStore.chatTarget === 'orchestration';
-  $: showModelSelector = !isOrchestration && !$chatStore.selectedAgentId;
+  $: showModelSelector = false;
   $: currentMessages = isOrchestration ? ($chatStore.orchestrationConversation || []) : ($chatStore.messages || []);
   $: showCenteredComposer = currentMessages.length === 0 && !$chatStore.streaming;
   $: isStreaming = $chatStore.streaming || $chatStore.busy;
