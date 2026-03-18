@@ -1116,7 +1116,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   .topology-agent-grid { grid-template-columns: 1fr; }
   .topology-endpoint-popup { width: calc(100% - 24px); }
   .timeline-table { min-width: 540px; }
-  .mw-chat-prompt { font-size: 0.72rem; }
+  .mw-chat-prompt { font-size: var(--text-xs); }
   .mw-chat-bubble-user { margin-left: 10%; }
   .mw-chat-bubble-assistant { margin-right: 10%; }
 }
