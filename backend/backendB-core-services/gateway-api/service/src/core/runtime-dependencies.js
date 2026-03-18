@@ -11,6 +11,7 @@ import {
   cyberProxyAddress,
   downloadScanProvider,
   downloadScanVirusTotalApiKey,
+  downloadScanVirusTotalUploadFallback,
   filesystemMutationClassifierRequired,
   filesystemMutationForksEnabled,
   filesystemMutationModel,
@@ -288,6 +289,15 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
         : "VirusTotal enrichment unavailable: MAPLE_VIRUSTOTAL_API_KEY is not configured.",
       requiredDeps: [],
     },
+    scanUploadFallback: {
+      enabled: downloadScanProvider !== "virustotal" || downloadScanVirusTotalUploadFallback,
+      reason: downloadScanProvider !== "virustotal"
+        ? "not_applicable"
+        : downloadScanVirusTotalUploadFallback
+          ? "enabled"
+          : "disabled_by_policy",
+      requiredDeps: [],
+    },
     googleAuth: resolveGoogleAuthCapability(checkMap),
     filesystemMutationGuard: capabilityFromDependencies(
       "filesystemMutationGuard",
@@ -319,6 +329,8 @@ export function buildFeatureCapabilitiesFromDependencyReport(report) {
       mcpProxyReachable: checkMap.get("grpc.mcp_proxy")?.ok === true,
       cyberProxyReachable: checkMap.get("grpc.cyber_proxy")?.ok === true,
       scanProvider: downloadScanProvider,
+      scanHashLookupFirst: downloadScanProvider === "virustotal",
+      scanUploadFallbackEnabled: downloadScanProvider === "virustotal" && downloadScanVirusTotalUploadFallback,
       mutationGuardMode: checkMap.get("filesystem.fork_runtime")?.ok === true ? "fork-capable" : "direct-only",
       mutationGuardModel: filesystemMutationModel,
       quarantineEnabled: cyberQuarantineEnabled,

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { asObject, asString } from "./downstream-proxy-utils.js";
 import { buildGatewayRequestContext, getContextWallClient, grpcUnary, } from "./downstream-proxy-contextwall-grpc.js";
-import { normalizeToolsListFromPayload, parseForwardPayload, parseJsonFromUnknown, } from "./downstream-proxy-contextwall-parsers.js";
+import { normalizeToolsListFromPayload, parseForwardPayload, parseMediatedToolResult, } from "./downstream-proxy-contextwall-parsers.js";
 import { recordServiceCall } from "../core/service-utilization.js";
 import { currentRequestContext } from "../logging.js";
 // Deadline tiers — must exceed downstream timeouts to avoid premature gateway cancellation.
@@ -96,11 +96,13 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
             }, { deadlineMs: DEADLINE_TOOL_EXEC_MS });
             assertForwardAllowed(response, `${app.id}.${toolName}`);
             recordMediatedToolCall("ok");
+            const parsedToolResult = parseMediatedToolResult(response?.resultJson);
             return {
                 requestId,
                 durationMs: Date.now() - startedAt,
                 responseStatus: 200,
-                result: parseJsonFromUnknown(response?.resultJson) ?? {},
+                result: parsedToolResult.result ?? {},
+                cyberReport: parsedToolResult.cyberReport ?? null,
             };
         }
         catch (error) {

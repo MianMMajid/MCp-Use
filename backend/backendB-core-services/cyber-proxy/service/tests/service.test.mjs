@@ -149,7 +149,7 @@ test("scanDownloadedContent: local provider returns persisted scan metadata", as
   assert.match(scan.sha256, /^[a-f0-9]{64}$/);
 });
 
-test("scanDownloadedContent: virustotal provider returns pending when upload is queued", async () => {
+test("scanDownloadedContent: virustotal provider stays hash-only by default on lookup miss", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, options = {}) => {
@@ -184,23 +184,28 @@ test("scanDownloadedContent: virustotal provider returns pending when upload is 
     });
 
     assert.equal(scan.provider, "virustotal");
-    assert.equal(scan.status, "pending");
+    assert.equal(scan.status, "completed");
+    assert.equal(scan.stage, "final_verdict");
     assert.equal(scan.quarantined, false);
     assert.equal(scan.blocked, false);
-    assert.equal(scan.reasons.includes("VirusTotal analysis queued"), true);
-    assert.equal(calls.length, 2);
+    assert.equal(scan.reasons.includes("VirusTotal hash lookup miss; sample upload disabled"), true);
+    assert.deepEqual(scan.analysis?.reputation, {
+      lookupMiss: true,
+      uploaded: false,
+    });
+    assert.equal(calls.length, 1);
     assert.match(calls[0].url, /^https:\/\/vt\.example\/api\/v3\/files\/[a-f0-9]{64}$/);
     assert.equal(calls[0].method, "GET");
-    assert.equal(calls[1].url, "https://vt.example/api/v3/files");
-    assert.equal(calls[1].method, "POST");
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("scanDownloadedContent: virustotal queue preserves local quarantine as final enforcement", async () => {
+test("scanDownloadedContent: virustotal upload fallback can be explicitly enabled", async () => {
   const originalFetch = globalThis.fetch;
+  const calls = [];
   globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: String(options.method || "GET") });
     if (String(url).includes("/files/") && String(options.method || "GET") === "GET") {
       return new Response(JSON.stringify({ error: { code: "NotFoundError" } }), {
         status: 404,
@@ -221,6 +226,7 @@ test("scanDownloadedContent: virustotal queue preserves local quarantine as fina
       provider: "virustotal",
       virustotalApiKey: "vt-test-key",
       virustotalApiUrl: "https://vt.example/api/v3",
+      virustotalUploadFallback: true,
       content: Buffer.from("eicar-like"),
       contentType: "application/octet-stream",
       filename: "eicar.com.txt",
@@ -239,6 +245,9 @@ test("scanDownloadedContent: virustotal queue preserves local quarantine as fina
     assert.equal(scan.blocked, true);
     assert.equal(scan.reasons.includes("VirusTotal analysis queued"), true);
     assert.equal(scan.reasons.includes("EICAR test signature detected"), true);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].url, "https://vt.example/api/v3/files");
+    assert.equal(calls[1].method, "POST");
   } finally {
     globalThis.fetch = originalFetch;
   }

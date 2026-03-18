@@ -10,6 +10,7 @@ import {
   cyberToolAllowedDomains,
   downloadScanProvider,
   downloadScanVirusTotalApiKey,
+  downloadScanVirusTotalUploadFallback,
 } from "../config.js";
 import { replayAuditEvents } from "./audit-outbox.js";
 import { listOpenClawRuns, getOpenClawRunArtifacts } from "./openclaw-agent-runtime.js";
@@ -255,6 +256,8 @@ export async function getCyberStatus(options = {}) {
     },
     scanning: {
       provider: downloadScanProvider,
+      hashLookupFirst: downloadScanProvider === "virustotal",
+      uploadFallbackEnabled: downloadScanProvider === "virustotal" && downloadScanVirusTotalUploadFallback,
       quarantineEnabled: cyberQuarantineEnabled,
       enrichmentConfigured: downloadScanProvider !== "virustotal" || vtConfigured,
       degraded:
@@ -279,6 +282,8 @@ export function getCyberPolicies() {
     ok: true,
     generatedAt: new Date().toISOString(),
     scanProvider: downloadScanProvider,
+    hashLookupFirst: downloadScanProvider === "virustotal",
+    uploadFallbackEnabled: downloadScanProvider === "virustotal" && downloadScanVirusTotalUploadFallback,
     quarantineEnabled: cyberQuarantineEnabled,
     maxResponseBytes: cyberMaxResponseBytes,
     allowLocalTargets: cyberAllowLocalTargets,

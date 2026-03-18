@@ -121,6 +121,7 @@ async function enrichWithVirusTotal(baseScan, options) {
   const sha256 = baseScan.sha256;
   const headers = { "x-apikey": apiKey, accept: "application/json" };
   const keepLocalEnforcement = shouldKeepLocalEnforcement(baseScan);
+  const uploadFallbackEnabled = toBoolean(options.virustotalUploadFallback, false);
 
   try {
     const lookup = await fetchJsonWithTimeout(`${baseUrl}/files/${encodeURIComponent(sha256)}`, { headers }, timeoutMs);
@@ -149,6 +150,22 @@ async function enrichWithVirusTotal(baseScan, options) {
       });
     }
 
+    if (lookup.response.status === 404 && (!uploadFallbackEnabled || !options.content || Buffer.from(options.content).length === 0)) {
+      return mergeScan(baseScan, {
+        provider: "virustotal",
+        stage: "reputation_enriched",
+        status: "completed",
+        analysis: {
+          reputation: {
+            lookupMiss: true,
+            uploaded: false,
+          },
+        },
+        reasons: ["VirusTotal hash lookup miss; sample upload disabled"],
+        checkedAt: new Date().toISOString(),
+      });
+    }
+
     if (lookup.response.status === 404 && options.content && Buffer.from(options.content).length > 0) {
       const form = new FormData();
       const filename = String(options.filename ?? `scan-${sha256}`);
@@ -164,6 +181,7 @@ async function enrichWithVirusTotal(baseScan, options) {
           analysis: {
             reputation: {
               queued: true,
+              uploaded: true,
             },
           },
           reasons: ["VirusTotal analysis queued"],

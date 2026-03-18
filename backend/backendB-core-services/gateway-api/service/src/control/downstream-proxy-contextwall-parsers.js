@@ -18,6 +18,27 @@ export function parseForwardPayload(raw) {
     }
     return asObject(parsed);
 }
+
+export function parseMediatedToolResult(raw) {
+    const parsed = parseJsonFromUnknown(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return { result: parsed, cyberReport: null };
+    }
+    const envelope = asObject(parsed.__mapleMediatedToolResult);
+    if (Object.keys(envelope).length === 0) {
+        return {
+            result: parsed,
+            cyberReport: null,
+        };
+    }
+    return {
+        result: envelope.result ?? {},
+        cyberReport:
+            envelope.cyberReport && typeof envelope.cyberReport === "object" && !Array.isArray(envelope.cyberReport)
+                ? envelope.cyberReport
+                : null,
+    };
+}
 function parseToolInputSchema(rawSchema) {
     if (!rawSchema) {
         return undefined;

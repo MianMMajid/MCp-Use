@@ -1,5 +1,5 @@
 import { server, database } from "../state.js";
-import { bridgeOverrideLockEnabled, downloadScanProvider, downloadScanTimeoutMs, downloadScanVirusTotalApiKey, downloadScanVirusTotalApiUrl, malwareSandboxApiToken, malwareSandboxApiUrl, malwareSandboxProvider, malwareSandboxRequired, malwareSandboxTimeoutMs } from "../config.js";
+import { bridgeOverrideLockEnabled, downloadScanProvider, downloadScanTimeoutMs, downloadScanVirusTotalApiKey, downloadScanVirusTotalApiUrl, downloadScanVirusTotalUploadFallback, malwareSandboxApiToken, malwareSandboxApiUrl, malwareSandboxProvider, malwareSandboxRequired, malwareSandboxTimeoutMs } from "../config.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { requireApiKeyResponse } from "../auth.js";
 import { asString, asBoolean, readJsonBody } from "../helpers.js";
@@ -11,6 +11,7 @@ async function buildFirewallPayloadScan(body) {
         provider: downloadScanProvider,
         virustotalApiKey: downloadScanVirusTotalApiKey,
         virustotalApiUrl: downloadScanVirusTotalApiUrl,
+        virustotalUploadFallback: downloadScanVirusTotalUploadFallback,
         timeoutMs: downloadScanTimeoutMs,
         malwareSandboxProvider,
         malwareSandboxApiUrl,

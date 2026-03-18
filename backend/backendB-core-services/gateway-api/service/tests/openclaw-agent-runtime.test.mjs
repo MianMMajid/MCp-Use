@@ -252,6 +252,7 @@ test("runOpenClawTurn mediates risky network prompts through downstream dispatch
         assert.equal(options.toolName, "web_fetch");
         assert.equal(options.toolArgs.url, "https://secure.eicar.org/eicar.com.txt");
         assert.equal(options.sessionId, "mediated-network-session");
+        assert.equal(options.userId, "frontend-b-demo-user");
         return {
           ok: false,
           blockedByPolicy: true,
@@ -262,6 +263,12 @@ test("runOpenClawTurn mediates risky network prompts through downstream dispatch
             dispatch: {
               textPreview: "Blocked by cyber-proxy after VT analysis.",
               result: { blocked: true },
+              cyberReport: {
+                urlReputation: "blocked",
+                malware: true,
+                quarantined: true,
+                quarantineReason: "EICAR sample detected",
+              },
             },
           },
         };
@@ -276,6 +283,7 @@ test("runOpenClawTurn mediates risky network prompts through downstream dispatch
     assert.equal(execCalled, false);
     assert.equal(result.mode, "mediated");
     assert.match(result.reply, /mediated firewall path/i);
+    assert.equal(result.raw.mediation.cyberReport?.quarantined, true);
     const artifactsPayload = await getOpenClawRunArtifacts(result.runId);
     assert.ok(artifactsPayload.artifacts.some((artifact) => artifact.artifactType === "network_mediation"));
   });

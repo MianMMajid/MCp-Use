@@ -5,6 +5,16 @@ function optionalEnv(key, fallback = "") {
     return raw.length > 0 ? raw : fallback;
 }
 
+function optionalEnvBool(key, fallback) {
+    const raw = (process.env[key] ?? "").trim().toLowerCase();
+    if (!raw) {
+        return fallback;
+    }
+    if (raw === "1" || raw === "true" || raw === "yes") return true;
+    if (raw === "0" || raw === "false" || raw === "no") return false;
+    throw new Error(`Invalid boolean for ${key}: "${raw}" (must be 0/1/true/false/yes/no)`);
+}
+
 function optionalEnvInt(key, fallback, { min, max } = {}) {
     const raw = (process.env[key] ?? "").trim();
     if (!raw) {
@@ -79,6 +89,7 @@ export const config = {
     })(),
     virustotalApiKey: optionalEnv("MAPLE_VIRUSTOTAL_API_KEY"),
     virustotalApiUrl: optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3"),
+    virustotalUploadFallback: optionalEnvBool("MAPLE_VIRUSTOTAL_UPLOAD_FALLBACK", false),
     downloadScanTimeoutMs: optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 }),
     malwareSandboxProvider: (() => {
         const raw = optionalEnv("MAPLE_MALWARE_SANDBOX_PROVIDER", "none").toLowerCase();

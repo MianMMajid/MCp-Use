@@ -83,6 +83,7 @@ export async function dispatchToolToDownstream(app, toolName, toolArgs, requestC
         responseStatus: response.responseStatus,
         result: response.result,
         textPreview: extractTextFromMcpResult(response.result),
+        cyberReport: response.cyberReport ?? null,
     };
 }
 //# sourceMappingURL=downstream-proxy-client.js.map

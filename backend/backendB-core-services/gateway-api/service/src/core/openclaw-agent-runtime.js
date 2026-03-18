@@ -7,6 +7,7 @@ import {
   downloadScanTimeoutMs,
   downloadScanVirusTotalApiKey,
   downloadScanVirusTotalApiUrl,
+  downloadScanVirusTotalUploadFallback,
   malwareSandboxApiToken,
   malwareSandboxApiUrl,
   malwareSandboxProvider,
@@ -475,6 +476,7 @@ async function withArtifactScan(artifact = {}) {
       provider: downloadScanProvider,
       virustotalApiKey: downloadScanVirusTotalApiKey,
       virustotalApiUrl: downloadScanVirusTotalApiUrl,
+      virustotalUploadFallback: downloadScanVirusTotalUploadFallback,
       timeoutMs: downloadScanTimeoutMs,
       malwareSandboxProvider,
       malwareSandboxApiUrl,
@@ -861,10 +863,35 @@ function buildMediationReply(payload = {}) {
         `${payload.error || "Review Frontend A /maple/cyber for the incident/evidence."}`,
       ].join(" ");
     }
+    const cyberReport = payload.cyberReport && typeof payload.cyberReport === "object"
+      ? payload.cyberReport
+      : null;
+    const cyberSummary = cyberReport
+      ? cyberReport.quarantined
+        ? `Cyber verdict: quarantined (${cyberReport.quarantineReason || "policy review required"}).`
+        : cyberReport.malware
+          ? `Cyber verdict: malicious content detected.`
+          : cyberReport.urlReputation === "pending"
+            ? `Cyber verdict: VirusTotal analysis pending.`
+            : cyberReport.urlReputation === "blocked"
+              ? `Cyber verdict: blocked by cyber policy.`
+              : ""
+      : "";
+    const rawPreview = String(payload.resultPreview || payload.resultText || "").trim();
+    const hasMeaningfulPreview =
+      rawPreview.length > 0 &&
+      rawPreview !== "{}" &&
+      rawPreview !== "[]";
+    const preview =
+      hasMeaningfulPreview
+        ? rawPreview
+        : payload.toolName === "web_fetch" && cyberSummary
+          ? cyberSummary
+          : "Review Frontend A /maple/cyber for evidence and scan state.";
     return [
       `Maple executed the network action through the mediated firewall path.`,
       `tool=${payload.toolName || "--"} traceId=${payload.traceId || "--"} sessionId=${payload.sessionId || "--"}.`,
-      `${payload.resultPreview || payload.resultText || "Review Frontend A /maple/cyber for evidence and scan state."}`,
+      preview,
     ].join(" ");
   }
 
@@ -883,8 +910,9 @@ async function maybeRunMediatedTurn(run, options = {}, dependencies = {}) {
   const requestContext = currentRequestContext() ?? {};
   const tenantId = asString(options.tenantId || requestContext.tenantId || "default");
   const orgId = asString(options.orgId || requestContext.orgId || "default");
-  const userId = asString(options.userId || requestContext.userId || "");
+  const userId = asString(options.userId || requestContext.userId || "frontend-b-demo-user");
   const deviceId = asString(options.deviceId || requestContext.deviceId || "cli");
+  const mediationTraceId = asString(requestContext.traceId || `openclaw-mediated-${run.runId}`);
 
   if (intent.kind === "mediated_filesystem") {
     const item = await (dependencies.preflightFilesystemMutationImpl ?? preflightFilesystemMutation)({
@@ -895,14 +923,14 @@ async function maybeRunMediatedTurn(run, options = {}, dependencies = {}) {
       taskText: asString(options.message),
       command: intent.command,
       operations: intent.operations,
-      traceId: "",
+      traceId: mediationTraceId,
       sessionId: run.sessionId,
       runId: run.runId,
     }, {
       database,
       tenantId,
       orgId,
-      traceId: "",
+      traceId: mediationTraceId,
       sessionId: run.sessionId,
       runId: run.runId,
       actorUserId: userId,

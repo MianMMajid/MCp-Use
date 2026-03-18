@@ -320,6 +320,7 @@ async function buildDownloadScan(options = {}) {
         provider: config.downloadScanProvider,
         virustotalApiKey: config.virustotalApiKey,
         virustotalApiUrl: config.virustotalApiUrl,
+        virustotalUploadFallback: config.virustotalUploadFallback,
         timeoutMs: config.downloadScanTimeoutMs,
         malwareSandboxProvider: config.malwareSandboxProvider,
         malwareSandboxApiUrl: config.malwareSandboxApiUrl,

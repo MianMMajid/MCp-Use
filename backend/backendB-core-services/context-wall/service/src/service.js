@@ -546,6 +546,30 @@ function extractPeerId(call) {
     return peer;
 }
 
+function embedToolExecutionMetadata(resultJson, cyberReport) {
+    if (!cyberReport) {
+        return resultJson ?? Buffer.from("{}");
+    }
+    let parsedResult = {};
+    try {
+        const raw = typeof resultJson === "string"
+            ? resultJson
+            : Buffer.isBuffer(resultJson)
+                ? resultJson.toString("utf8")
+                : String(resultJson ?? "{}");
+        parsedResult = JSON.parse(raw);
+    }
+    catch {
+        parsedResult = {};
+    }
+    return Buffer.from(JSON.stringify({
+        __mapleMediatedToolResult: {
+            result: parsedResult,
+            cyberReport,
+        },
+    }));
+}
+
 export function createContextWallService(approvalQueue, policyStore) {
     const getExternalRules = () => policyStore?.getExternalRules();
     const server = createGrpcServer();
@@ -753,7 +777,7 @@ export function createContextWallService(approvalQueue, policyStore) {
             blockedReason: "",
             decision: toProtoPolicyDecision(effectiveDecision),
             success: Boolean(response?.success),
-            resultJson: response?.resultJson ?? Buffer.from("{}"),
+            resultJson: embedToolExecutionMetadata(response?.resultJson, response?.cyberReport),
             errorMessage: response?.errorMessage ?? "",
             durationMs: response?.durationMs ?? 0,
             appId: response?.appId ?? appId,
