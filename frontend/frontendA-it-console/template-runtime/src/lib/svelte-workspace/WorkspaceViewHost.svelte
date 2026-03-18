@@ -964,6 +964,9 @@
       <div class="panel-head">
         <h2 class="panel-title">Rule Library</h2>
         <span class="chip">{firewallRules.length} active</span>
+        {#if firewallRulesSource === 'defaults'}
+          <span class="chip" style="background: var(--warn, #e8a735); color: white;" title="Backend unreachable — showing built-in system defaults">defaults</span>
+        {/if}
       </div>
       <div class="table-wrap">
         <table class="timeline-table">
