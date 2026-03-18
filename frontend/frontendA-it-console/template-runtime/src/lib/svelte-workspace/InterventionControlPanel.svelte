@@ -21,6 +21,11 @@
   export let cancelStopConfirm = () => {}
   export let confirmStop = () => {}
   export let blockActionRule = () => {}
+  export let routePath = ''
+  export let routeRecord = null
+
+  $: panelTitle = routeRecord?.title ?? 'Audit & Compliance Operations'
+  $: panelDescription = routeRecord?.description ?? 'Intervene directly on Frontend B executions with stop, replay, and escalation controls.'
 
   $: filteredExecutions = executions.filter((execution) => {
     const traceMatch = !traceQuery || String(execution.executionId ?? '').toLowerCase().includes(traceQuery.toLowerCase())
@@ -35,8 +40,8 @@
 </script>
 
 <section>
-  <h2>Audit & Compliance Operations</h2>
-  <p>Intervene directly on Frontend B executions with stop, replay, and escalation controls.</p>
+  <h2>{panelTitle}</h2>
+  <p>{panelDescription}</p>
   <div class="control-grid">
     <article class="panel">
       <div class="panel-head">

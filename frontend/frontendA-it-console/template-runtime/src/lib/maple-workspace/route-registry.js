@@ -54,7 +54,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
       '/api/observability/orchestrations/dead-letter',
     ],
     preferredView: 'control',
-    legacyAliases: ['/maple/policies', '/maple/tenants'],
+    legacyAliases: ['/maple/tenants'],
   },
   {
     path: '/maple/gateway',
@@ -179,7 +179,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Policy Center',
     description: 'Policy operations surface (currently redirects to audit workflows).',
-    apiEndpoints: ['/api/policies', '/admin/api/policies'],
+    apiEndpoints: ['/api/policies/effective', '/api/policies/simulate', '/admin/api/policies'],
     preferredView: 'policy',
   },
   {
@@ -188,7 +188,7 @@ const MAPLE_ROUTE_DEFINITIONS = [
     category: 'admin',
     tabLabel: 'Runtime',
     description: 'Runtime dependency and capability controls (redirects to observability).',
-    apiEndpoints: ['/api/runtime/feature-capabilities', '/api/runtime/status'],
+    apiEndpoints: ['/api/runtime/feature-capabilities', '/api/runtime/status', '/api/runtime/dependencies'],
     preferredView: 'settings',
     legacyAliases: ['/maple/runtime'],
   },

@@ -97,9 +97,13 @@
     message = '';
     try {
       const response = await postJson(`/api/org/${orgId}/service-accounts/${accountId}/keys`, {});
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        message = payload?.error || `Failed to create key (${response.status})`;
+      const payload = typeof response?.json === 'function'
+        ? await response.json().catch(() => ({}))
+        : (response ?? {});
+      const responseOk = typeof response?.ok === 'boolean' ? response.ok : payload?.ok !== false;
+      const responseStatus = typeof response?.status === 'number' ? response.status : 200;
+      if (!responseOk || payload?.ok === false) {
+        message = payload?.error || `Failed to create key (${responseStatus})`;
         return;
       }
       const createdKey = payload?.key || payload?.item || null;

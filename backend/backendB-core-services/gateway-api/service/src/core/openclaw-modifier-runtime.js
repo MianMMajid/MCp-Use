@@ -317,10 +317,71 @@ function defaultPolicy() {
       maxBufferMb: openclawModifierMaxBufferMb,
       approvalTtlSeconds: openclawModifierApprovalTtlSeconds,
     },
+    inputRails: null,
+    contentSafety: null,
+    rateLimits: null,
+    outputRails: null,
     metadata: {
       source: "env-default",
     },
   };
+}
+
+function safeRegexTest(pattern, input, maxLen = 50_000) {
+  try {
+    const re = new RegExp(pattern, "i");
+    return re.test(input.slice(0, maxLen));
+  } catch {
+    return false;
+  }
+}
+
+function enforceInputRails(requestBody, policy) {
+  const rails = policy.inputRails;
+  if (!rails) return [];
+  const issues = [];
+  const inputText = JSON.stringify(requestBody ?? {});
+
+  if (rails.maxInputLength != null && inputText.length > rails.maxInputLength) {
+    issues.push(`Input length ${inputText.length} exceeds policy max ${rails.maxInputLength}`);
+  }
+
+  if (Array.isArray(rails.blockedPatterns)) {
+    for (const pattern of rails.blockedPatterns) {
+      if (safeRegexTest(pattern, inputText)) {
+        issues.push(`Input matches blocked pattern: ${pattern.slice(0, 80)}`);
+      }
+    }
+  }
+
+  return issues;
+}
+
+function enforceOutputRails(result, policy) {
+  const rails = policy.outputRails;
+  if (!rails || !result.ok) return;
+
+  const stdout = String(result.stdout ?? "");
+
+  if (rails.maxResponseTokens != null) {
+    const approxTokens = Math.ceil(stdout.length / 4);
+    if (approxTokens > rails.maxResponseTokens) {
+      result.stdout = stdout.slice(0, rails.maxResponseTokens * 4);
+      result.truncated = true;
+      result.truncationReason = `Output truncated: ~${approxTokens} tokens exceeds max ${rails.maxResponseTokens}`;
+    }
+  }
+
+  if (Array.isArray(rails.blockedOutputPatterns)) {
+    for (const pattern of rails.blockedOutputPatterns) {
+      if (safeRegexTest(pattern, String(result.stdout ?? ""))) {
+        result.stdout = "[REDACTED: output matched blocked pattern]";
+        result.redacted = true;
+        result.redactionReason = `Output matched blocked pattern: ${pattern.slice(0, 80)}`;
+        break;
+      }
+    }
+  }
 }
 
 export function getDefaultOpenClawModifierPolicy() {
@@ -371,6 +432,10 @@ function mergeResolvedPolicy(policy, base) {
           ? Number(policy.constraints.approvalTtlSeconds)
           : base.constraints.approvalTtlSeconds,
     },
+    inputRails: policy.inputRails ?? base.inputRails ?? null,
+    contentSafety: policy.contentSafety ?? base.contentSafety ?? null,
+    rateLimits: policy.rateLimits ?? base.rateLimits ?? null,
+    outputRails: policy.outputRails ?? base.outputRails ?? null,
     metadata: policy.metadata ?? {},
   };
 }
@@ -577,6 +642,12 @@ function buildModifierPlan(requestBody, policy) {
   // Merge skill manifest issues into dangerous reasons
   if (Array.isArray(requestBody?._skillManifestIssues)) {
     dangerousReasons.push(...requestBody._skillManifestIssues);
+  }
+
+  // Phase 2: Input rails enforcement
+  const inputRailIssues = enforceInputRails(requestBody, policy);
+  if (inputRailIssues.length > 0) {
+    throw new Error(`Input policy violation: ${inputRailIssues[0]}`);
   }
 
   const plan = {
@@ -1234,6 +1305,9 @@ export async function executeOpenClawModifierRequest(requestBody, actorOverrides
   const startedAt = Date.now();
   const result = await runCli(execOptions);
   const durationMs = Date.now() - startedAt;
+
+  // Phase 2: Output rails enforcement (truncation, redaction)
+  enforceOutputRails(result, policy);
 
   emitAuditEvent({
     eventType: result.ok ? "AUDIT_EVENT_TYPE_TOOL_COMPLETED" : "AUDIT_EVENT_TYPE_TOOL_FAILED",

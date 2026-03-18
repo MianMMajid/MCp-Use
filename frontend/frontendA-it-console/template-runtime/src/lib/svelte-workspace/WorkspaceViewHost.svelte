@@ -301,6 +301,8 @@
     return {
       source: 'Integrations',
       app: String(item.name ?? item.provider ?? item.id ?? 'Unknown'),
+      toolName: String(item.toolName ?? item.name ?? item.provider ?? item.id ?? ''),
+      appId: String(item.appId ?? item.id ?? ''),
       kind: String(item.category ?? 'integration'),
       status: connected ? 'connected' : String(item.status ?? 'available'),
       detail: String(item.description ?? ''),
@@ -309,6 +311,8 @@
   $: appRows = downstreamApps.map((item) => ({
     source: 'Downstream App',
     app: String(item.name ?? item.appId ?? item.id ?? 'Unknown'),
+    toolName: String(item.toolName ?? item.name ?? item.appId ?? item.id ?? ''),
+    appId: String(item.appId ?? item.id ?? ''),
     kind: 'app',
     status: String(item.status ?? 'connected'),
     detail: String(item.id ?? item.appId ?? ''),
@@ -316,6 +320,8 @@
   $: toolRows = downstreamTools.map((item) => ({
     source: 'Downstream Tool',
     app: String(item.name ?? item.toolId ?? item.id ?? 'Unknown'),
+    toolName: String(item.toolName ?? item.name ?? item.toolId ?? item.id ?? ''),
+    appId: String(item.appId ?? item.app ?? ''),
     kind: 'tool',
     status: 'enabled',
     detail: String(item.app ?? ''),
@@ -323,6 +329,8 @@
   $: openclawRows = openclawCatalog.map((item) => ({
     source: 'OpenClaw',
     app: String(item.name ?? item.tool ?? item.id ?? 'Unknown'),
+    toolName: String(item.toolName ?? item.tool ?? item.name ?? item.id ?? ''),
+    appId: String(item.appId ?? ''),
     kind: 'agent-tool',
     status: 'enabled',
     detail: String(item.description ?? ''),
@@ -524,18 +532,21 @@
   }
 
   async function dispatchDownstreamTool(row) {
-    const toolId = row.toolId || row.app || ''
+    const toolName = row.toolName || row.app || ''
     const appId = row.appId || ''
-    if (!toolId) return
+    if (!toolName) return
     try {
       const res = await fetch('/api/downstream/dispatch', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ toolId, appId }),
+        body: JSON.stringify({ toolName, appId }),
       })
-      if (!res.ok) throw new Error(`Dispatch failed (${res.status})`)
-      notice = `Dispatched ${toolId} successfully.`
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Dispatch failed (${res.status})`)
+      }
+      notice = `Dispatched ${toolName} successfully.`
     } catch (err) {
       error = err instanceof Error ? err.message : 'Dispatch failed.'
     }
@@ -837,6 +848,8 @@
     {cancelStopConfirm}
     {confirmStop}
     {blockActionRule}
+    routePath={state.routePath}
+    {routeRecord}
   />
 
   {#if currentOrgId}

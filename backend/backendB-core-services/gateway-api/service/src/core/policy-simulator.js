@@ -118,6 +118,97 @@ export function simulateModifierPolicy(requestBody, policy) {
     results.evaluation.push({ check: "unsafe_args", result: "pass" });
   }
 
+  // ── Phase 2: Input Rails ──
+  if (policy.inputRails) {
+    const inputText = JSON.stringify(requestBody);
+    if (policy.inputRails.maxInputLength != null) {
+      if (inputText.length > policy.inputRails.maxInputLength) {
+        results.blocked = true;
+        results.reasons.push(`Input length ${inputText.length} exceeds policy max ${policy.inputRails.maxInputLength}`);
+        results.evaluation.push({ check: "input_max_length", result: "blocked", length: inputText.length, max: policy.inputRails.maxInputLength });
+      } else {
+        results.evaluation.push({ check: "input_max_length", result: "pass" });
+      }
+    }
+    if (policy.inputRails.promptInjection) {
+      results.evaluation.push({ check: "prompt_injection_detection", result: "active" });
+    }
+    if (Array.isArray(policy.inputRails.blockedPatterns) && policy.inputRails.blockedPatterns.length > 0) {
+      let matched = false;
+      for (const pattern of policy.inputRails.blockedPatterns) {
+        try {
+          const re = new RegExp(pattern, "i");
+          if (re.test(inputText.slice(0, 50_000))) {
+            results.blocked = true;
+            results.reasons.push(`Input matches blocked pattern: ${pattern.slice(0, 80)}`);
+            results.evaluation.push({ check: "input_blocked_pattern", result: "blocked", pattern });
+            matched = true;
+            break;
+          }
+        } catch { /* invalid regex — skip */ }
+      }
+      if (!matched) {
+        results.evaluation.push({ check: "input_blocked_pattern", result: "pass", patternCount: policy.inputRails.blockedPatterns.length });
+      }
+    }
+  }
+
+  // ── Phase 2: Content Safety ──
+  if (policy.contentSafety?.enabled) {
+    const categories = policy.contentSafety.categories?.length > 0
+      ? policy.contentSafety.categories
+      : ["hate", "violence", "sexual", "self-harm", "criminal", "harassment"];
+    const action = policy.contentSafety.action ?? "log";
+    results.evaluation.push({
+      check: "content_safety",
+      result: "active",
+      categories,
+      action,
+      note: action === "block" ? "Matching content will be blocked at runtime" : `Matching content will be ${action}ed at runtime`,
+    });
+  }
+
+  // ── Phase 2: Rate Limits ──
+  if (policy.rateLimits) {
+    const parts = [];
+    if (policy.rateLimits.maxRequestsPerMinute != null) {
+      parts.push(`${policy.rateLimits.maxRequestsPerMinute} req/min`);
+    }
+    if (policy.rateLimits.maxTokensPerHour != null) {
+      parts.push(`${policy.rateLimits.maxTokensPerHour} tokens/hr`);
+    }
+    results.warnings.push(`Rate limits active: ${parts.join(", ")} (${policy.rateLimits.windowType ?? "sliding"} window)`);
+    results.evaluation.push({
+      check: "rate_limits",
+      result: "active",
+      maxRequestsPerMinute: policy.rateLimits.maxRequestsPerMinute,
+      maxTokensPerHour: policy.rateLimits.maxTokensPerHour,
+      windowType: policy.rateLimits.windowType,
+    });
+  }
+
+  // ── Phase 2: Output Rails ──
+  if (policy.outputRails) {
+    const parts = [];
+    if (policy.outputRails.maxResponseTokens != null) {
+      parts.push(`max ${policy.outputRails.maxResponseTokens} tokens`);
+    }
+    if (policy.outputRails.blockedOutputPatterns?.length > 0) {
+      parts.push(`${policy.outputRails.blockedOutputPatterns.length} redaction pattern(s)`);
+    }
+    if (policy.outputRails.requireJsonSchema) {
+      parts.push("JSON schema required");
+    }
+    results.warnings.push(`Output rails active: ${parts.join(", ")} — enforced post-execution`);
+    results.evaluation.push({
+      check: "output_rails",
+      result: "active",
+      maxResponseTokens: policy.outputRails.maxResponseTokens,
+      patternCount: policy.outputRails.blockedOutputPatterns?.length ?? 0,
+      requireJsonSchema: policy.outputRails.requireJsonSchema,
+    });
+  }
+
   results.allowed = !results.blocked;
   return results;
 }

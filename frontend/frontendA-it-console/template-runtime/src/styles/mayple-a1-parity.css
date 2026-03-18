@@ -23,8 +23,8 @@
   --caution: #d97706;
   --caution-soft: rgba(217, 119, 6, 0.08);
   --caution-border: rgba(217, 119, 6, 0.25);
-  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-strong: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 2px 4px rgba(0, 0, 0, 0.04), 0 8px 16px rgba(0, 0, 0, 0.06);
   --top-bar-h: 56px;
   --ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1);
   --dur-spring: 0.4s;
@@ -83,17 +83,19 @@ select:focus-visible {
 html, body {
   margin: 0;
   min-height: 100%;
-  font-family: 'Inter', 'Nunito', 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   color: var(--ink);
   font-size: var(--text-base);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 body {
   background:
-    radial-gradient(circle at 12% 8%, rgba(232, 116, 12, 0.06), transparent 34%),
-    radial-gradient(circle at 92% 88%, rgba(255, 143, 46, 0.04), transparent 30%),
-    linear-gradient(165deg, #fffcf8 0%, #faf7f2 46%, #ffffff 100%);
+    radial-gradient(circle at 12% 8%, rgba(245, 158, 11, 0.03), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgba(245, 158, 11, 0.02), transparent 30%),
+    linear-gradient(165deg, #fafafa 0%, #f8f8f8 46%, #ffffff 100%);
 }
 
 .workspace.product-body {
@@ -398,7 +400,7 @@ body {
   border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: var(--shadow-soft);
-  padding: 12px;
+  padding: 10px 12px;
   transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-spring), border-color 0.2s;
 }
 
@@ -472,7 +474,7 @@ body {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--panel);
-  padding: 12px;
+  padding: 10px 12px;
   transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-spring), border-color 0.2s;
 }
 
@@ -1127,6 +1129,12 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .modal-tab { border: none; background: transparent; border-radius: var(--radius-pill); padding: 0.32rem 0.75rem; }
 .modal-tab.is-active { background: #fff; border: 1px solid var(--line-strong); }
 .modal-panel { display: grid; gap: 0.65rem; }
+
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 250ms ease, border-color 250ms ease, color 250ms ease, box-shadow 250ms ease, fill 250ms ease !important;
+}
 
 @keyframes shellFadeIn {
   from { opacity: 0; transform: translateY(16px); }

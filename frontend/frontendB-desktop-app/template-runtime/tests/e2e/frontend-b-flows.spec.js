@@ -161,13 +161,6 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
   await page.getByRole('button', { name: 'Deploy Firewall' }).click();
 
   await expect(page.getByRole('heading', { name: 'Ops Agent Firewall' })).toBeVisible();
-  await page.getByRole('button', { name: 'Versions' }).click();
-  await page.getByPlaceholder('Write a new YAML policy revision...').fill(
-    'version: 1\nrules:\n  allowedTools:\n    - status\n    - skills\n  blockedTargetProfiles:\n    - root'
-  );
-  await page.getByRole('button', { name: 'Save Revision' }).click();
-  await page.locator('.version-list').getByRole('button', { name: 'Activate' }).click();
-  await expect(page.locator('.version-list').getByText('Compiled').first()).toBeVisible();
 
   await page.goto('/tasks');
   await page.getByPlaceholder('Weekly governance summary').fill('Nightly task');

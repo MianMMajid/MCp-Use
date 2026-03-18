@@ -134,7 +134,10 @@ function resolveTheme(preference) {
 
 function applyTheme(theme) {
   if (typeof document === "undefined") return;
-  document.documentElement.setAttribute("data-theme", theme);
+  const el = document.documentElement;
+  el.classList.add("theme-transitioning");
+  el.setAttribute("data-theme", theme);
+  setTimeout(() => el.classList.remove("theme-transitioning"), 300);
 }
 
 function notify() {

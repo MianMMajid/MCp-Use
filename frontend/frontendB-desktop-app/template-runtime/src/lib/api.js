@@ -30,6 +30,23 @@ function safeJson(res, path) {
   }
 }
 
+function attachResponseMeta(data, res) {
+  if (data && typeof data === 'object') {
+    if (!Object.prototype.hasOwnProperty.call(data, 'ok')) {
+      Object.defineProperty(data, 'ok', { value: res.ok, enumerable: false, configurable: true })
+    }
+    Object.defineProperty(data, 'status', { value: res.status, enumerable: false, configurable: true })
+    Object.defineProperty(data, 'json', { value: async () => data, enumerable: false, configurable: true })
+    return data
+  }
+  return {
+    value: data,
+    ok: res.ok,
+    status: res.status,
+    json: async () => data,
+  }
+}
+
 async function _fetchAndCache(path) {
   const res = await fetchWithTimeout(path, {
     credentials: 'same-origin',
@@ -90,7 +107,7 @@ export async function postJson(path, body) {
     body: JSON.stringify(body),
   }, timeoutForPath(path))
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return safeJson(res, path)
+  return attachResponseMeta(await safeJson(res, path), res)
 }
 
 export async function patchJson(path, body) {
@@ -101,7 +118,7 @@ export async function patchJson(path, body) {
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return safeJson(res, path)
+  return attachResponseMeta(await safeJson(res, path), res)
 }
 
 export async function postForm(path, formData) {
@@ -110,7 +127,8 @@ export async function postForm(path, formData) {
     credentials: 'same-origin',
     body: formData,
   })
-  return res
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+  return attachResponseMeta(await safeJson(res, path), res)
 }
 
 export async function deleteJson(path) {
