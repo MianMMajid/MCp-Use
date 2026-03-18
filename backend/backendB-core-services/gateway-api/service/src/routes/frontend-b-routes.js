@@ -920,6 +920,8 @@ export function registerFrontendBRoutes(app) {
       folder: asString(body.folder) ?? "root",
       scope,
       assignedAgentId,
+      description: asString(body.description) ?? "",
+      enforcementLevel: asString(body.enforcementLevel) ?? "hard-mandatory",
       policyText,
       activeVersionId: null,
       createdBy: auth.session.user.username || auth.session.user.id,
