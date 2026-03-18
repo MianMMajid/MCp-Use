@@ -89,13 +89,15 @@ html, body {
   color: var(--ink);
   font-size: var(--text-base);
   line-height: 1.45;
+  background-color: var(--bg, #fafafa);
 }
 
 body {
   background:
     radial-gradient(circle at 12% 8%, rgba(245, 158, 11, 0.03), transparent 34%),
     radial-gradient(circle at 92% 88%, rgba(245, 158, 11, 0.02), transparent 30%),
-    linear-gradient(165deg, #fafafa 0%, #f8f8f8 46%, #ffffff 100%);
+    linear-gradient(165deg, var(--bg, #fafafa) 0%, var(--bg, #f8f8f8) 46%, var(--bg, #ffffff) 100%);
+  color: var(--ink, #1a1a1a);
 }
 
 .workspace.product-body {
@@ -823,7 +825,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-map {
   min-height: 430px;
-  border: 1px solid #e5ddd4;
+  border: 1px solid var(--line, #e5ddd4);
   border-radius: var(--radius-lg);
   background: #1a1613;
   padding: 0.62rem;
@@ -1022,7 +1024,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-endpoint-host {
   margin-top: 0.28rem;
-  border: 1px solid #e5ddd4;
+  border: 1px solid var(--line, #e5ddd4);
   border-radius: var(--radius-pill);
   background: rgba(248, 244, 238, 0.9);
   color: var(--ink);
@@ -1126,7 +1128,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; }
 .modal-tabs { display: inline-flex; gap: 0.35rem; background: var(--bg-soft); padding: 2px; border-radius: var(--radius-pill); }
 .modal-tab { border: none; background: transparent; border-radius: var(--radius-pill); padding: 0.32rem 0.75rem; }
-.modal-tab.is-active { background: #fff; border: 1px solid var(--line-strong); }
+.modal-tab.is-active { background: var(--panel, #fff); border: 1px solid var(--line-strong); }
 .modal-panel { display: grid; gap: 0.65rem; }
 
 .theme-transitioning *,
