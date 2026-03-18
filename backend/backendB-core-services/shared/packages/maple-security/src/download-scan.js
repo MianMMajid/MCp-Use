@@ -57,6 +57,15 @@ function stageFromVerdict(status, verdict) {
   return "local_heuristic";
 }
 
+function shouldKeepLocalEnforcement(baseScan = {}) {
+  return Boolean(
+    baseScan.blocked ||
+    baseScan.quarantined ||
+    baseScan.verdict === "malicious" ||
+    baseScan.verdict === "quarantined"
+  );
+}
+
 async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 4000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -111,6 +120,7 @@ async function enrichWithVirusTotal(baseScan, options) {
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 4000;
   const sha256 = baseScan.sha256;
   const headers = { "x-apikey": apiKey, accept: "application/json" };
+  const keepLocalEnforcement = shouldKeepLocalEnforcement(baseScan);
 
   try {
     const lookup = await fetchJsonWithTimeout(`${baseUrl}/files/${encodeURIComponent(sha256)}`, { headers }, timeoutMs);
@@ -149,7 +159,7 @@ async function enrichWithVirusTotal(baseScan, options) {
         return mergeScan(baseScan, {
           provider: "virustotal",
           stage: "analysis_pending",
-          status: "pending",
+          status: keepLocalEnforcement ? "completed" : "pending",
           verdict: baseScan.verdict === "safe" ? "pending" : baseScan.verdict,
           analysis: {
             reputation: {
@@ -165,7 +175,7 @@ async function enrichWithVirusTotal(baseScan, options) {
     return mergeScan(baseScan, {
       provider: "virustotal",
       stage: "analysis_pending",
-      status: "pending",
+      status: keepLocalEnforcement ? "completed" : "pending",
       reasons: [`VirusTotal unavailable (${lookup.response.status})`],
       checkedAt: new Date().toISOString(),
     });
@@ -173,7 +183,7 @@ async function enrichWithVirusTotal(baseScan, options) {
     return mergeScan(baseScan, {
       provider: "virustotal",
       stage: "analysis_pending",
-      status: "pending",
+      status: keepLocalEnforcement ? "completed" : "pending",
       reasons: [`VirusTotal error: ${error instanceof Error ? error.message : String(error)}`],
       checkedAt: new Date().toISOString(),
     });

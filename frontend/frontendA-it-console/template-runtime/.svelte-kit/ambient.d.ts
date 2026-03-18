@@ -85,10 +85,10 @@ declare module '$env/static/private' {
 	export const MAPLE_SESSION_POLL_MS: string;
 	export const NO_COLOR: string;
 	export const npm_config_noproxy: string;
-	export const MAPLE_DOWNLOAD_SCAN_PROVIDER: string;
 	export const MAPLE_OTLP_TIMEOUT_MS: string;
 	export const MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID: string;
 	export const MAPLE_SESSION_COOKIE_DOMAIN: string;
+	export const MAPLE_DOWNLOAD_SCAN_PROVIDER: string;
 	export const npm_config_local_prefix: string;
 	export const MAPLE_OTLP_SERVICE_NAME: string;
 	export const GATEWAY_HOST: string;
@@ -256,6 +256,7 @@ declare module '$env/static/private' {
 	export const MAPLE_ADMIN_TLS_CA: string;
 	export const MAPLE_MCP_EXECUTION_ORDER: string;
 	export const MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS: string;
+	export const MAPLE_VIRUSTOTAL_API_KEY: string;
 	export const GIT_PAGER: string;
 	export const CONTEXT_WALL_HITL_TIMEOUT_MS: string;
 	export const DATABASE_URL: string;
@@ -265,9 +266,9 @@ declare module '$env/static/private' {
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const TWILIO_AUTH_TOKEN: string;
-	export const MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL: string;
 	export const MAPLE_OPENCLAW_MODIFIER_MAX_BUFFER_MB: string;
 	export const GOOGLE_CLIENT_ID: string;
+	export const MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL: string;
 	export const COLORTERM: string;
 	export const CODEX_INTERNAL_ORIGINATOR_OVERRIDE: string;
 }
@@ -403,10 +404,10 @@ declare module '$env/dynamic/private' {
 		MAPLE_SESSION_POLL_MS: string;
 		NO_COLOR: string;
 		npm_config_noproxy: string;
-		MAPLE_DOWNLOAD_SCAN_PROVIDER: string;
 		MAPLE_OTLP_TIMEOUT_MS: string;
 		MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID: string;
 		MAPLE_SESSION_COOKIE_DOMAIN: string;
+		MAPLE_DOWNLOAD_SCAN_PROVIDER: string;
 		npm_config_local_prefix: string;
 		MAPLE_OTLP_SERVICE_NAME: string;
 		GATEWAY_HOST: string;
@@ -574,6 +575,7 @@ declare module '$env/dynamic/private' {
 		MAPLE_ADMIN_TLS_CA: string;
 		MAPLE_MCP_EXECUTION_ORDER: string;
 		MAPLE_MCP_PROXY_ALLOW_DYNAMIC_TARGETS: string;
+		MAPLE_VIRUSTOTAL_API_KEY: string;
 		GIT_PAGER: string;
 		CONTEXT_WALL_HITL_TIMEOUT_MS: string;
 		DATABASE_URL: string;
@@ -583,9 +585,9 @@ declare module '$env/dynamic/private' {
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		TWILIO_AUTH_TOKEN: string;
-		MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL: string;
 		MAPLE_OPENCLAW_MODIFIER_MAX_BUFFER_MB: string;
 		GOOGLE_CLIENT_ID: string;
+		MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL: string;
 		COLORTERM: string;
 		CODEX_INTERNAL_ORIGINATOR_OVERRIDE: string;
 		[key: `PUBLIC_${string}`]: undefined;

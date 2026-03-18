@@ -198,6 +198,52 @@ test("scanDownloadedContent: virustotal provider returns pending when upload is 
   }
 });
 
+test("scanDownloadedContent: virustotal queue preserves local quarantine as final enforcement", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).includes("/files/") && String(options.method || "GET") === "GET") {
+      return new Response(JSON.stringify({ error: { code: "NotFoundError" } }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).endsWith("/files")) {
+      return new Response(JSON.stringify({ data: { id: "analysis-2" } }), {
+        status: 202,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const scan = await scanDownloadedContent({
+      provider: "virustotal",
+      virustotalApiKey: "vt-test-key",
+      virustotalApiUrl: "https://vt.example/api/v3",
+      content: Buffer.from("eicar-like"),
+      contentType: "application/octet-stream",
+      filename: "eicar.com.txt",
+      localResult: buildLocalScanResult({
+        threats: ["eicar_test_file"],
+        quarantined: true,
+        quarantineReason: "EICAR test signature detected",
+      }),
+    });
+
+    assert.equal(scan.provider, "virustotal");
+    assert.equal(scan.status, "completed");
+    assert.equal(scan.stage, "analysis_pending");
+    assert.equal(scan.verdict, "quarantined");
+    assert.equal(scan.quarantined, true);
+    assert.equal(scan.blocked, true);
+    assert.equal(scan.reasons.includes("VirusTotal analysis queued"), true);
+    assert.equal(scan.reasons.includes("EICAR test signature detected"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("scanDownloadedContent: sandbox provider returns queued deeper analysis state", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {

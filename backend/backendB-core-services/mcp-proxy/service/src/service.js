@@ -224,7 +224,7 @@ function toCyberReport(response, statusCode) {
     // Derive malware strictly from the explicit malwareDetected field set by cyber-proxy.
     // Do NOT promote non-malware content threats (e.g., indirect injection tags) to malware.
     return {
-        urlReputation: statusCode >= 400 ? "blocked" : "ok",
+        urlReputation: statusCode >= 400 || Boolean(response?.quarantined) ? "blocked" : statusCode === 202 ? "pending" : "ok",
         sanitized: Boolean(response?.sanitized),
         malware: Boolean(response?.malwareDetected),
         quarantined: Boolean(response?.quarantined),
@@ -335,8 +335,15 @@ async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, crede
             payload = {};
         }
         const cyberReport = toCyberReport(response, statusCode);
+        const pendingAnalysis = statusCode === 202 && payload?.status === "analysis_pending";
         if (statusCode >= 400) {
-            const errorMessage = `cyber-proxy returned HTTP ${statusCode}`;
+            const reasonDetail = typeof payload?.reason === "string" && payload.reason.trim().length > 0
+                ? `: ${payload.reason.trim()}`
+                : "";
+            const errorDetail = typeof payload?.error === "string" && payload.error.trim().length > 0
+                ? ` (${payload.error.trim()})`
+                : "";
+            const errorMessage = `cyber-proxy returned HTTP ${statusCode}${errorDetail}${reasonDetail}`;
             emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_TOOL_FAILED",
                 summary: errorMessage,
@@ -348,6 +355,21 @@ async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, crede
                 payload,
                 statusCode,
                 errorMessage,
+                cyberReport,
+            };
+        }
+        if (pendingAnalysis) {
+            emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_TOOL_COMPLETED",
+                summary: `mcp-proxy accepted JSON-RPC for ${appId || "dynamic-target"} pending malware analysis`,
+                traceId,
+                payload: { appId, targetUrl: url, statusCode, toolName, pendingAnalysis: true },
+            });
+            return {
+                success: true,
+                payload,
+                statusCode,
+                errorMessage: "",
                 cyberReport,
             };
         }
