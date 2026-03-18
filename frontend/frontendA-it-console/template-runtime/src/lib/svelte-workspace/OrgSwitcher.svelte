@@ -1,6 +1,7 @@
 <script>
   import { onMount, createEventDispatcher } from 'svelte'
   import { browser } from '$app/environment'
+  import { humanizeError } from '../utils/error-display.js'
 
   export let authMe = null
 
@@ -120,7 +121,14 @@
           </button>
         {/each}
         {#if orgs.length === 0}
-          <div class="org-empty">{loadError ? 'Failed to load organizations' : 'No organizations'}</div>
+          <div class="org-empty">
+            {#if loadError}
+              <p>Unable to load organizations. Check your connection.</p>
+              <button type="button" class="action-btn" on:click={loadOrgs}>Retry</button>
+            {:else}
+              <p>No organizations available.</p>
+            {/if}
+          </div>
         {/if}
       </div>
     </div>

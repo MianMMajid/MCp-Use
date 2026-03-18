@@ -1,4 +1,9 @@
 <script>
   import AuthForm from '@/lib/components/AuthForm.svelte';
 </script>
-<AuthForm mode="verify" />
+<div class="auth-page">
+  <AuthForm mode="verify" />
+</div>
+<style>
+  .auth-page { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
+</style>

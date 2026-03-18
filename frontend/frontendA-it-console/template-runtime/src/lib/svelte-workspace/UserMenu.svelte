@@ -88,7 +88,7 @@
         </button>
 
         <button type="button" class="user-item" role="menuitem"
-          on:click={() => navigateTo('/api/auth/mfa/status')}>
+          on:click={() => navigateTo(buildWorkspaceHref({ category: 'admin', view: 'control', routePath: '/maple/auth-admin' }))}>
           <span class="user-item-icon">🔒</span> MFA Setup
         </button>
 

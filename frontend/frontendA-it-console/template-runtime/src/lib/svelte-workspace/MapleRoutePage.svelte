@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte'
 
+  import { humanizeError } from '../utils/error-display.js'
   import { loadJson, loadMany, pickItems, sendJson } from '../api/maple-api.js'
   import { scanColor, scanLabel, incidentColor, degradedSecurityMessage, mutationLaneColor, mutationLaneLabel, mutationStatusLabel } from '../maple-workspace/cyber-view-model.js'
   import { getSourceFilterIds, filterRecordsBySource, getAuditRecordSource } from '../maple-workspace/origin-filter.js'
@@ -94,7 +95,7 @@
   let state = {}
 
   let sourceFilter = 'all'
-  let previewInput = '{"command":"rm -rf frontend/frontendA-it-console/template-runtime/src"}'
+  let previewInput = '{"command":"status","target":"agent-01","timeout":10}'
   let previewResult = null
   let selectedPlanId = ''
   let selectedPlan = null
@@ -449,7 +450,7 @@
 </div>
 
 {#if error}
-  <p class="mw-chat-error">{error}</p>
+  <p class="mw-chat-error">{humanizeError(error)}</p>
 {/if}
 {#if notice}
   <p class="empty-row">{notice}</p>
@@ -506,7 +507,7 @@
           </thead>
           <tbody>
             {#if observabilityAudit.length === 0}
-              <tr><td colspan="4" class="empty-row">No events for this source filter.</td></tr>
+              <tr><td colspan="4" class="empty-row">No events for this source filter. Try changing the filter or refreshing.</td></tr>
             {:else}
               {#each observabilityAudit.slice(0, 20) as item}
                 <tr>
@@ -536,7 +537,7 @@
           </thead>
           <tbody>
             {#if auditLog.length === 0}
-              <tr><td colspan="4" class="empty-row">No audit events for this source filter.</td></tr>
+              <tr><td colspan="4" class="empty-row">No audit events for this source filter. Try adjusting the filter above.</td></tr>
             {:else}
               {#each auditLog as item}
                 <tr>
@@ -638,7 +639,7 @@
       </div>
       <div class="stack-list">
         {#if interventionPlans.length === 0}
-          <p class="empty-row">No filesystem mutation plans queued.</p>
+          <p class="empty-row">No filesystem mutation plans queued. Plans appear when agents propose file changes.</p>
         {:else}
           {#each interventionPlans as item}
             <button type="button" class="list-card" on:click={() => { selectedPlanId = item.planId; loadInterventionDetail(item.planId) }}>
@@ -701,7 +702,7 @@
           </div>
         {/each}
         {#if cyberIncidents.length === 0}
-          <p class="empty-row">No incidents in current scope.</p>
+          <p class="empty-row">No incidents in current scope. Security incidents appear when threats are detected.</p>
         {/if}
       </div>
     </article>

@@ -29,6 +29,7 @@
   let error = ''
   let loading = false
   let googleConfigured = false
+  let showPassword = false
 
   // MFA challenge state
   let mfaRequired = false
@@ -278,7 +279,27 @@
 
 <div class="login-wrap">
   <div class="login-card">
-    <h1>Mayple IT Console</h1>
+    <div class="brand-mark">
+      <svg viewBox="0 0 32 32" width="48" height="48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="mayple-brand" cx="45%" cy="38%" r="55%">
+            <stop offset="0%" stop-color="#ffb366" />
+            <stop offset="100%" stop-color="#e8740c" />
+          </radialGradient>
+        </defs>
+        <circle cx="16" cy="14" r="12" fill="url(#mayple-brand)" />
+        <ellipse cx="12" cy="12" rx="1.8" ry="2.2" fill="#111" />
+        <ellipse cx="20" cy="12" rx="1.8" ry="2.2" fill="#111" />
+        <circle cx="12.6" cy="11.2" r="0.7" fill="#fff" />
+        <circle cx="20.6" cy="11.2" r="0.7" fill="#fff" />
+        <ellipse cx="9" cy="16" rx="2.4" ry="1.6" fill="#ff9966" opacity="0.5" />
+        <ellipse cx="23" cy="16" rx="2.4" ry="1.6" fill="#ff9966" opacity="0.5" />
+        <path d="M13 17.5 Q16 20 19 17.5" stroke="#111" stroke-width="0.8" fill="none" stroke-linecap="round" />
+        <ellipse cx="11" cy="27" rx="3.5" ry="2.2" fill="#d06800" />
+        <ellipse cx="21" cy="27" rx="3.5" ry="2.2" fill="#d06800" />
+      </svg>
+      <h1>Mayple IT Console</h1>
+    </div>
 
     {#if mfaRequired}
       <p>Two-factor authentication required</p>
@@ -372,8 +393,18 @@
         {#if !ssoConfigured}
           <label>
             Password
-            <input type="password" bind:value={password} autocomplete="current-password" required />
+            <div class="password-wrap">
+              <input type={showPassword ? 'text' : 'password'} bind:value={password} autocomplete="current-password" required />
+              <button type="button" class="toggle-pw" aria-label={showPassword ? 'Hide password' : 'Show password'} on:click={() => (showPassword = !showPassword)}>
+                {#if showPassword}
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22M14.12 14.12a3 3 0 1 1-4.24-4.24"></path></svg>
+                {:else}
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"></path></svg>
+                {/if}
+              </button>
+            </div>
           </label>
+          <a href="/forgot-password" class="forgot-link">Forgot password?</a>
           <button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
         {:else}
           <button type="button" class="sso-btn" on:click={handleSsoLogin}>
@@ -396,6 +427,7 @@
 <style>
   .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 1rem; background: var(--bg, #fafafa); }
   .login-card { width: min(420px, 100%); background: var(--panel, #fff); border: 1px solid var(--line, #e4e4e7); border-radius: 12px; padding: 1.5rem; display: grid; gap: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .brand-mark { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
   .login-card h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--ink, #18181b); }
   .login-card p { margin: 0; color: var(--muted, #71717a); font-size: 0.875rem; }
   form { display: grid; gap: 0.75rem; }
@@ -421,5 +453,11 @@
   .sso-checking { display: flex; align-items: center; gap: 0.5rem; color: var(--muted, #71717a); font-size: 0.8125rem; padding: 0.3rem 0; }
   .spinner { width: 14px; height: 14px; border: 2px solid var(--line, #e4e4e7); border-top-color: var(--brand, #f59e0b); border-radius: 50%; animation: spin 0.6s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .password-wrap { position: relative; display: flex; }
+  .password-wrap input { flex: 1; padding-right: 2.75rem; }
+  .toggle-pw { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted, #a1a1aa); padding: 0.4rem; display: grid; place-items: center; border-radius: 6px; }
+  .toggle-pw:hover { color: var(--ink, #18181b); }
+  .forgot-link { font-size: 0.8125rem; color: var(--brand, #f59e0b); text-align: right; text-decoration: none; }
+  .forgot-link:hover { text-decoration: underline; }
   @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 </style>

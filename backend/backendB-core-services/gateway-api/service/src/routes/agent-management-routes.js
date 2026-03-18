@@ -244,13 +244,24 @@ export function registerAgentManagementRoutes(app) {
         try {
             let result;
 
+            // Build request context for policy evaluation (mirrors firewall-chat-routes)
+            const authContext = authContextStorage.getStore?.() ?? c.get?.("mapleAuthContext") ?? {};
+            const requestContext = {
+                tenantId: authContext.tenantId ?? authContext.orgId ?? "default",
+                userId: authContext.userId ?? "anonymous",
+                sessionId: body.sessionId || `agent-${agentId}`,
+                traceId: c.req.header("x-request-id") ?? c.req.header("x-trace-id") ?? "",
+                agentId,
+            };
+
             // Use secure chat runtime (policy + native execution) or OpenClaw
             if (agentRequiresNativeRuntime(agent)) {
                 result = await runSecureChatTurn({
                     message: message || objective,
-                    sessionId: body.sessionId || `agent-${agentId}`,
+                    sessionId: requestContext.sessionId,
                     agentId,
                     agent,
+                    requestContext,
                 });
             } else if (mode === "longform" && objective) {
                 result = await runOpenClawLongform({
