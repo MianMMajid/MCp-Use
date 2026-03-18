@@ -226,9 +226,8 @@
     border-radius: 12px;
     box-shadow: var(--shadow-strong, 0 16px 38px rgba(0,0,0,0.08));
     z-index: 9999; overflow: hidden;
-    animation: dropIn 0.15s ease-out;
+    animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
-  @keyframes dropIn { from { opacity: 0; transform: translateY(-4px); } }
   .notification-header {
     display: flex; justify-content: space-between; align-items: center;
     padding: 12px 16px; border-bottom: 1px solid var(--line, #e0e0e0);

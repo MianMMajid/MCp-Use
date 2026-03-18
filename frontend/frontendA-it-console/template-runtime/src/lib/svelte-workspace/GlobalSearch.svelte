@@ -275,9 +275,8 @@
     width: min(600px, 90vw); background: var(--panel, #fff);
     border: 1px solid var(--line, #e0e0e0); border-radius: 14px;
     box-shadow: var(--shadow-strong, 0 16px 38px rgba(0,0,0,0.08));
-    overflow: hidden; animation: searchIn 0.15s ease-out;
+    overflow: hidden; animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
-  @keyframes searchIn { from { opacity: 0; transform: translateY(-8px) scale(0.98); } }
   .search-input-wrap {
     display: flex; align-items: center; gap: 8px;
     padding: 12px 16px; border-bottom: 1px solid var(--line, #e0e0e0);

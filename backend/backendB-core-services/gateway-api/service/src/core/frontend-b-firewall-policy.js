@@ -18,6 +18,26 @@ function clonePolicy(policy = {}) {
       approvalTtlSeconds: Number(policy.constraints?.approvalTtlSeconds ?? 900),
     },
     metadata: policy.metadata && typeof policy.metadata === "object" ? { ...policy.metadata } : {},
+    inputRails: policy.inputRails ? {
+      promptInjection: Boolean(policy.inputRails.promptInjection),
+      maxInputLength: policy.inputRails.maxInputLength != null ? Number(policy.inputRails.maxInputLength) : null,
+      blockedPatterns: normalizeList(policy.inputRails.blockedPatterns),
+    } : null,
+    contentSafety: policy.contentSafety ? {
+      enabled: Boolean(policy.contentSafety.enabled),
+      categories: normalizeList(policy.contentSafety.categories),
+      action: String(policy.contentSafety.action ?? "log"),
+    } : null,
+    rateLimits: policy.rateLimits ? {
+      maxRequestsPerMinute: Number(policy.rateLimits.maxRequestsPerMinute ?? 0) || null,
+      maxTokensPerHour: Number(policy.rateLimits.maxTokensPerHour ?? 0) || null,
+      windowType: String(policy.rateLimits.windowType ?? "sliding"),
+    } : null,
+    outputRails: policy.outputRails ? {
+      maxResponseTokens: Number(policy.outputRails.maxResponseTokens ?? 0) || null,
+      requireJsonSchema: Boolean(policy.outputRails.requireJsonSchema),
+      blockedOutputPatterns: normalizeList(policy.outputRails.blockedOutputPatterns),
+    } : null,
   };
 }
 
@@ -56,6 +76,55 @@ function composeConstraints(defaults, policies) {
     maxTimeoutSeconds,
     maxBufferMb,
     approvalTtlSeconds,
+  };
+}
+
+const CONTENT_ACTION_PRIORITY = { block: 3, warn: 2, log: 1 };
+
+function composeInputRails(policies) {
+  const withRails = policies.filter((p) => p.inputRails != null);
+  if (withRails.length === 0) return null;
+  const promptInjection = withRails.some((p) => p.inputRails.promptInjection);
+  const lengths = withRails.map((p) => p.inputRails.maxInputLength).filter((v) => v != null);
+  const maxInputLength = lengths.length > 0 ? Math.min(...lengths) : null;
+  const blockedPatterns = normalizeList(withRails.flatMap((p) => p.inputRails.blockedPatterns ?? []));
+  return { promptInjection, maxInputLength, blockedPatterns };
+}
+
+function composeContentSafety(policies) {
+  const withSafety = policies.filter((p) => p.contentSafety?.enabled);
+  if (withSafety.length === 0) return null;
+  const categories = normalizeList(withSafety.flatMap((p) => p.contentSafety.categories ?? []));
+  const action = withSafety.reduce((strongest, p) => {
+    const prio = CONTENT_ACTION_PRIORITY[p.contentSafety.action] ?? 0;
+    return prio > (CONTENT_ACTION_PRIORITY[strongest] ?? 0) ? p.contentSafety.action : strongest;
+  }, "log");
+  return { enabled: true, categories: categories.length > 0 ? categories : ["hate", "violence", "sexual", "self-harm", "criminal", "harassment"], action };
+}
+
+function composeRateLimits(policies) {
+  const withLimits = policies.filter((p) => p.rateLimits != null);
+  if (withLimits.length === 0) return null;
+  const rpm = withLimits.map((p) => p.rateLimits.maxRequestsPerMinute).filter((v) => v != null);
+  const tph = withLimits.map((p) => p.rateLimits.maxTokensPerHour).filter((v) => v != null);
+  const useSliding = withLimits.some((p) => p.rateLimits.windowType === "sliding");
+  return {
+    maxRequestsPerMinute: rpm.length > 0 ? Math.min(...rpm) : null,
+    maxTokensPerHour: tph.length > 0 ? Math.min(...tph) : null,
+    windowType: useSliding ? "sliding" : "fixed",
+  };
+}
+
+function composeOutputRails(policies) {
+  const withRails = policies.filter((p) => p.outputRails != null);
+  if (withRails.length === 0) return null;
+  const tokens = withRails.map((p) => p.outputRails.maxResponseTokens).filter((v) => v != null);
+  const requireJson = withRails.some((p) => p.outputRails.requireJsonSchema);
+  const patterns = normalizeList(withRails.flatMap((p) => p.outputRails.blockedOutputPatterns ?? []));
+  return {
+    maxResponseTokens: tokens.length > 0 ? Math.min(...tokens) : null,
+    requireJsonSchema: requireJson,
+    blockedOutputPatterns: patterns,
   };
 }
 
@@ -140,6 +209,10 @@ export function composeModifierPolicies(policies = [], options = {}) {
       ...inputPolicies.flatMap((policy) => policy.blockedTargetProfiles ?? []),
     ]),
     constraints: composeConstraints(defaults.constraints ?? {}, inputPolicies),
+    inputRails: composeInputRails(inputPolicies),
+    contentSafety: composeContentSafety(inputPolicies),
+    rateLimits: composeRateLimits(inputPolicies),
+    outputRails: composeOutputRails(inputPolicies),
     metadata: {
       ...(defaults.metadata ?? {}),
       source: "frontend-b-firewalls",

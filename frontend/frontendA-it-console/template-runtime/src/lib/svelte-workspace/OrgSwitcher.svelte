@@ -154,9 +154,8 @@
     width: 260px; background: var(--panel, #fff);
     border: 1px solid var(--line, #e0e0e0); border-radius: 10px;
     box-shadow: var(--shadow-strong, 0 8px 24px rgba(0,0,0,0.1));
-    z-index: 9999; overflow: hidden; animation: orgDropIn 0.12s ease-out;
+    z-index: 9999; overflow: hidden; animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
-  @keyframes orgDropIn { from { opacity: 0; transform: translateY(-4px); } }
   .org-dropdown-header {
     padding: 8px 12px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--muted, #999); border-bottom: 1px solid var(--line, #f0f0f0);

@@ -91,6 +91,41 @@ export function parsePolicyDocument(input) {
     policy.metadata.requireApprovalForDangerous = approval.requireForDangerous;
   }
 
+  // ── Phase 2: Extended policy sections ──
+  if (rules.inputRails && typeof rules.inputRails === "object") {
+    policy.inputRails = {
+      promptInjection: rules.inputRails.promptInjection === true,
+      maxInputLength: typeof rules.inputRails.maxInputLength === "number"
+        ? Math.max(1, Math.min(1_000_000, rules.inputRails.maxInputLength))
+        : null,
+      blockedPatterns: toStringArray(rules.inputRails.blockedPatterns),
+    };
+  }
+  if (rules.contentSafety && typeof rules.contentSafety === "object") {
+    policy.contentSafety = {
+      enabled: rules.contentSafety.enabled === true,
+      categories: toStringArray(rules.contentSafety.categories),
+      action: String(rules.contentSafety.action ?? "log"),
+    };
+  }
+  if (rules.rateLimits && typeof rules.rateLimits === "object") {
+    policy.rateLimits = {
+      maxRequestsPerMinute: typeof rules.rateLimits.maxRequestsPerMinute === "number"
+        ? Math.max(1, rules.rateLimits.maxRequestsPerMinute) : null,
+      maxTokensPerHour: typeof rules.rateLimits.maxTokensPerHour === "number"
+        ? Math.max(1, rules.rateLimits.maxTokensPerHour) : null,
+      windowType: String(rules.rateLimits.windowType ?? "sliding"),
+    };
+  }
+  if (rules.outputRails && typeof rules.outputRails === "object") {
+    policy.outputRails = {
+      maxResponseTokens: typeof rules.outputRails.maxResponseTokens === "number"
+        ? Math.max(1, rules.outputRails.maxResponseTokens) : null,
+      requireJsonSchema: rules.outputRails.requireJsonSchema === true,
+      blockedOutputPatterns: toStringArray(rules.outputRails.blockedOutputPatterns),
+    };
+  }
+
   return policy;
 }
 

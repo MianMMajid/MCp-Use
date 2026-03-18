@@ -126,9 +126,8 @@
     border: 1px solid var(--line, #e0e0e0); border-radius: 12px;
     box-shadow: var(--shadow-strong, 0 8px 24px rgba(0,0,0,0.1));
     z-index: 9999; overflow: hidden; padding: 4px 0;
-    animation: userDropIn 0.12s ease-out;
+    animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
-  @keyframes userDropIn { from { opacity: 0; transform: translateY(-4px); } }
   .user-info {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 14px;

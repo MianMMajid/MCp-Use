@@ -668,6 +668,7 @@
   })
 </script>
 
+{#key state.category + '-' + state.view}
 {#if panelOpen && state.category === 'observe' && state.view === 'live'}
   <section class="view-panel live-view panel">
     <header class="mw-view-header">
@@ -1413,3 +1414,4 @@
     runtimeCapabilities={runtimeCapabilities}
   />
 {/if}
+{/key}
