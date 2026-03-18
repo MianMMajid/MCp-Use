@@ -244,3 +244,45 @@ select:focus-visible {
   --table-border: rgba(255, 255, 255, 0.08);
   --pre-bg: #1a1a1e;
 }
+
+/* ── Shared error banner ── */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  background: rgba(251, 113, 133, 0.1);
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.error-banner p {
+  margin: 0;
+  flex: 1;
+}
+
+.error-banner .pill {
+  flex-shrink: 0;
+}
+
+/* ── Shared empty state ── */
+.empty-state {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 2rem 1rem;
+  color: var(--muted);
+}
+
+.empty-state strong {
+  color: var(--fg);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 36ch;
+}

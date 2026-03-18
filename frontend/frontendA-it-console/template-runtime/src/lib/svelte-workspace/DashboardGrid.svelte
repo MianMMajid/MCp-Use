@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte'
+  import { humanizeError } from '../utils/error-display.js'
 
   let layout = null
   let widgetData = {}
@@ -111,7 +112,7 @@
   </header>
 
   {#if error}
-    <p class="dashboard-error">{error}</p>
+    <p class="dashboard-error">{humanizeError(error)}</p>
   {/if}
 
   {#if loading}

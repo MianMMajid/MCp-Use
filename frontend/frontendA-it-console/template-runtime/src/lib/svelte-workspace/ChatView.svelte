@@ -1,6 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte'
   import { browser } from '$app/environment'
+  import { humanizeError } from '../utils/error-display.js'
   import { requestMonitoringChat } from '../maple-workspace/monitoring-chat.js'
   import MaypleCharacter from './MaypleCharacter.svelte'
 
@@ -216,7 +217,7 @@
       {#if runError}
         <div class="error">
           <span>⚠</span>
-          <span>{runError}</span>
+          <span>{humanizeError(runError)}</span>
         </div>
       {/if}
     </div>

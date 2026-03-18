@@ -14,6 +14,7 @@
   export let authMe = null
   export let activeCategory = ''
   export let activeView = ''
+  export let dataStale = false
 
   const dispatch = createEventDispatcher()
 
@@ -64,6 +65,14 @@
       {/each}
     {/if}
   </div>
+
+  <!-- Stale data indicator -->
+  {#if dataStale}
+    <div class="stale-banner" role="status">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 5v3.5l2.5 1.5"/></svg>
+      <span>Data may be outdated</span>
+    </div>
+  {/if}
 
   <!-- Right: Icon actions -->
   <div class="top-bar-end">
@@ -205,4 +214,23 @@
   }
   .analyst-row:hover { background: var(--bg-soft); }
   .analyst-row input { accent-color: var(--brand); }
+
+  /* ── Stale data indicator ── */
+  .stale-banner {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.1);
+    color: rgb(180, 120, 20);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  :global(.dark) .stale-banner {
+    color: rgb(250, 204, 21);
+    background: rgba(245, 158, 11, 0.15);
+  }
 </style>

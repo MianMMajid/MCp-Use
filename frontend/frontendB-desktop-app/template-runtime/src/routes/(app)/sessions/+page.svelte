@@ -8,6 +8,7 @@
   import { chatStore } from '@/lib/stores/chat-store';
   import { deleteJson, invalidateCache } from '@/lib/api';
   import { toastStore } from '@/lib/stores/toast-store';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   const AGENT_ID_KEY = 'selectedAgentId';
 
@@ -39,7 +40,7 @@
       // Reload sessions
       if (agentId) await chatStore.restoreSelectedAgent(agentId);
     } catch (err) {
-      toastStore.error(err instanceof Error ? err.message : String(err));
+      toastStore.error(humanizeError(err instanceof Error ? err.message : String(err)));
     } finally {
       deletingSession = false;
     }

@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from 'svelte'
+  import { humanizeError } from '../utils/error-display.js'
   import InterventionControlPanel from './InterventionControlPanel.svelte'
   import TopologyView from './TopologyView.svelte'
   import DocsViews from './DocsViews.svelte'
@@ -1037,7 +1038,7 @@
         spellcheck="false"
         aria-label="Firewall rules JSON editor"
       ></textarea>
-      {#if firewallRulesError}<p class="mw-chat-error">{firewallRulesError}</p>{/if}
+      {#if firewallRulesError}<p class="mw-chat-error">{humanizeError(firewallRulesError)}</p>{/if}
       {#if firewallRulesNotice}<p class="empty-row">{firewallRulesNotice}</p>{/if}
       <div class="actions">
         <button type="button" class="action-btn primary" disabled={firewallRulesBusy} on:click={applyFirewallRules}>
@@ -1427,7 +1428,7 @@
         <p style="text-align:center; padding: 2rem 0; color: var(--muted);">Loading risk posture...</p>
       {:else if riskPostureError}
         <div style="text-align:center; padding: 2rem 0;">
-          <p style="color: var(--warn);">{riskPostureError}</p>
+          <p style="color: var(--warn);">{humanizeError(riskPostureError)}</p>
           <button type="button" class="action-btn" on:click={loadRiskPosture}>Retry</button>
         </div>
       {:else if riskPosture}
@@ -1475,7 +1476,7 @@
       <p style="padding: 1rem 0; color: var(--muted);">Loading frameworks...</p>
     {:else if complianceError}
       <div style="padding: 1rem 0;">
-        <p style="color: var(--warn);">{complianceError}</p>
+        <p style="color: var(--warn);">{humanizeError(complianceError)}</p>
         <button type="button" class="action-btn" on:click={loadComplianceFrameworks}>Retry</button>
       </div>
     {:else if complianceFrameworks.length === 0}

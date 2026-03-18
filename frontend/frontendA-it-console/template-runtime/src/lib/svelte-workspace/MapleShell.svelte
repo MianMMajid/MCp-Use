@@ -4,6 +4,7 @@
   import { onMount } from 'svelte'
   import { page } from '$app/stores'
 
+  import { humanizeError } from '../utils/error-display.js'
   import MapleTopBar from './MapleTopBar.svelte'
   import MapleCategoryPills from './MapleCategoryPills.svelte'
   import MapleViewTabs from './MapleViewTabs.svelte'
@@ -73,6 +74,8 @@
   let permReady = false
   let pollController = null
   let mutating = false
+  let lastSuccessLoadTs = 0
+  let dataStale = false
 
   const quickPrompts = [
     'Give me a firewall status update.',
@@ -451,9 +454,12 @@
       }
 
       error = '' // Clear stale error from prior failed poll
+      lastSuccessLoadTs = Date.now()
+      dataStale = false
     } catch (loadError) {
       if (loadError?.name === 'AbortError') return // poll was superseded
       error = loadError instanceof Error ? loadError.message : 'Failed loading runtime data.'
+      dataStale = lastSuccessLoadTs > 0 // Only stale if we had previous data
       if (firewallRules.length === 0) {
         firewallRules = defaultFirewallRules
         firewallRulesSource = 'defaults'
@@ -556,6 +562,10 @@
     // Poll every 15s but skip when tab is hidden to save API calls
     const id = window.setInterval(() => {
       if (!document.hidden && !mutating) loadData().catch(() => {})
+      // Mark data as stale if last success was >30s ago
+      if (lastSuccessLoadTs > 0 && Date.now() - lastSuccessLoadTs > 30_000) {
+        dataStale = true
+      }
     }, 15000)
     return () => {
       window.clearInterval(id)
@@ -719,6 +729,7 @@
       {analystOptions}
       {selectedAnalysts}
       {authMe}
+      {dataStale}
       activeCategory={state.category}
       activeView={state.view}
       on:toggleAnalyst={(event) => toggleAnalyst(event.detail.name)}

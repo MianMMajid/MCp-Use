@@ -20,6 +20,8 @@
   export let openStopConfirm = () => {}
   export let cancelStopConfirm = () => {}
   export let confirmStop = () => {}
+  import { humanizeError } from '../utils/error-display.js'
+
   export let blockActionRule = () => {}
   export let routePath = ''
   export let routeRecord = null
@@ -91,7 +93,7 @@
         </div>
       {/if}
       {#if notice}<p class="ok">{notice}</p>{/if}
-      {#if error}<p class="err">{error}</p>{/if}
+      {#if error}<p class="err">{humanizeError(error)}</p>{/if}
     </article>
   </div>
 </section>

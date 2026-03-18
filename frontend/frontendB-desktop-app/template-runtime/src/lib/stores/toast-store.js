@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 
 const DISMISS_MS = 4000;
+const ERROR_DISMISS_MS = 8000;
 const MAX_TOASTS = 5;
 let idCounter = 0;
 
@@ -17,7 +18,8 @@ function createToastStore() {
       return next;
     });
 
-    setTimeout(() => dismiss(id), DISMISS_MS);
+    const timeout = type === 'error' ? ERROR_DISMISS_MS : DISMISS_MS;
+    setTimeout(() => dismiss(id), timeout);
     return id;
   }
 

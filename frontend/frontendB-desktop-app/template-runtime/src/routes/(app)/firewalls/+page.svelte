@@ -4,6 +4,7 @@
   import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, postJson, patchJson, deleteJson, postForm, invalidateCache } from '@/lib/api';
   import { toastStore } from '@/lib/stores/toast-store';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   let loading = true;
   let error = '';
@@ -438,7 +439,16 @@
         {#if loading}
           <p class="muted">Loading firewalls...</p>
         {:else if visibleObjects.length === 0}
-          <p class="muted">{libraryView === 'archived' ? 'No archived firewalls.' : 'No firewalls yet.'}</p>
+          <div class="empty-state">
+            {#if libraryView === 'archived'}
+              <p>No archived firewalls.</p>
+            {:else}
+              <div class="empty-icon">&#128737;</div>
+              <p><strong>No firewall policies yet</strong></p>
+              <p>Create your first policy to protect agent traffic and enforce tool-level access controls.</p>
+              <button class="pill cta" on:click={() => document.querySelector('.activate-section')?.scrollIntoView({ behavior: 'smooth' })}>Create Policy</button>
+            {/if}
+          </div>
         {:else}
           <div class="list">
             {#each visibleObjects as item}
@@ -464,7 +474,9 @@
 
       <section class="card section detail">
         {#if !selectedObject}
-          <p class="muted">Select a firewall to inspect it.</p>
+          <div class="empty-detail">
+            <p class="muted">Select a firewall from the library to inspect, edit, or simulate policies.</p>
+          </div>
         {:else}
           <div class="detail-head">
             <div>
@@ -686,19 +698,21 @@
       </div>
 
       {#if activateStep === 1}
-        <div class="builder">
-          <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" maxlength="255" /></label>
-          <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
-          <label><span>Description</span><input bind:value={description} placeholder="Restricts payroll tools to approved agents" /></label>
-          <label>
-            <span>Scope</span>
-            <select bind:value={scope}>
-              <option value="global">Global — applies to all agents</option>
-              <option value="agent" disabled={agentScopeDisabled}>Agent — scoped to one agent{agentScopeDisabled ? ' (none available)' : ''}</option>
-            </select>
-          </label>
-          {#if scope === 'agent'}
+        <div class="identity-form">
+          <label class="full"><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" maxlength="255" /></label>
+          <label class="full"><span>Description</span><input bind:value={description} placeholder="Restricts payroll tools to approved agents" /></label>
+          <div class="form-row-2">
+            <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
             <label>
+              <span>Scope</span>
+              <select bind:value={scope}>
+                <option value="global">Global — applies to all agents</option>
+                <option value="agent" disabled={agentScopeDisabled}>Agent — scoped to one agent{agentScopeDisabled ? ' (none available)' : ''}</option>
+              </select>
+            </label>
+          </div>
+          {#if scope === 'agent'}
+            <label class="full">
               <span>Agent</span>
               {#if agentOptions.length === 0}
                 <p class="muted">No agents available. Create an agent first.</p>
@@ -711,7 +725,7 @@
               {/if}
             </label>
           {/if}
-          <label>
+          <label class="full">
             <span>Enforcement Level</span>
             <select bind:value={enforcementLevel}>
               {#each ENFORCEMENT_LEVELS as level}
@@ -795,7 +809,12 @@
           </button>
         </div>
       {/if}
-      {#if error}<p class="err">{error}</p>{/if}
+      {#if error}
+        <div class="error-banner">
+          <p>{humanizeError(error)}</p>
+          <button type="button" class="pill" on:click={refresh}>Retry</button>
+        </div>
+      {/if}
     </section>
   </section>
 </AppShell>
@@ -810,62 +829,334 @@
 />
 
 <style>
-  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; }
-  .section { padding: 14px; }
-  .head, .sidebar-head, .detail-head, .version-head, .row-actions { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-  .builder { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .builder.compact { margin-top: 12px; }
+  /* ── Page layout ── */
+  .page {
+    min-height: calc(100svh - 92px);
+    display: grid;
+    gap: 16px;
+    align-content: start;
+  }
+  .section { padding: 18px 20px; }
+
+  /* ── Shared row layouts ── */
+  .head, .sidebar-head, .detail-head, .version-head, .row-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* ── Form builder grid ── */
+  .builder {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+  .builder.compact { margin-top: 16px; }
   .builder .full { grid-column: 1 / -1; }
-  .workspace { display: grid; gap: 12px; grid-template-columns: 320px 1fr; align-items: start; }
-  .sidebar { max-height: calc(100svh - 160px); overflow-y: auto; }
-  .detail { max-height: calc(100svh - 160px); overflow-y: auto; }
-  .list { display: grid; gap: 8px; }
-  .firewall-row { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--row-border); background: var(--row-bg); color: var(--fg); }
-  .firewall-row.selected { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.12); }
-  .dead-badge, .enforcement-badge { display: inline-block; padding: 1px 5px; border-radius: 999px; font-size: 10px; margin-left: 4px; vertical-align: middle; }
-  .dead-badge { background: rgba(251,113,133,.18); color: #fca5a5; border: 1px solid rgba(251,113,133,.35); }
-  .enforcement-badge.advisory { background: rgba(250,204,21,.15); color: #fde047; border: 1px solid rgba(250,204,21,.3); }
-  .enforcement-badge.soft { background: rgba(96,165,250,.15); color: #93c5fd; border: 1px solid rgba(96,165,250,.3); }
-  .tabs { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+
+  /* ── Identity form (stacked single-column) ── */
+  .identity-form {
+    display: grid;
+    gap: 14px;
+  }
+  .identity-form .full { width: 100%; }
+  .form-row-2 {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 640px) {
+    .form-row-2 { grid-template-columns: 1fr; }
+  }
+
+  /* ── Empty states ── */
+  .empty-state {
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 6px;
+    padding: 2rem 1rem;
+    color: var(--muted);
+  }
+  .empty-state strong { color: var(--fg); }
+  .empty-state p { margin: 0; font-size: 13px; max-width: 32ch; }
+  .empty-state .pill { margin-top: 8px; }
+  .empty-icon { font-size: 2.5rem; line-height: 1; opacity: 0.5; }
+  .empty-detail {
+    display: grid;
+    place-items: center;
+    min-height: 200px;
+    text-align: center;
+  }
+
+  /* ── Error banner ── */
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(251, 113, 133, 0.35);
+    background: rgba(251, 113, 133, 0.1);
+    color: #fca5a5;
+    font-size: 13px;
+  }
+  .error-banner p { margin: 0; flex: 1; }
+  .error-banner .pill { flex-shrink: 0; }
+
+  /* ── Workspace: sidebar + detail ── */
+  .workspace {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 300px 1fr;
+    align-items: start;
+  }
+  .sidebar {
+    max-height: calc(100svh - 160px);
+    overflow-y: auto;
+  }
+  .detail {
+    max-height: calc(100svh - 160px);
+    overflow-y: auto;
+  }
+
+  /* ── Sidebar list ── */
+  .list { display: grid; gap: 6px; }
+  .firewall-row {
+    display: grid;
+    gap: 4px;
+    text-align: left;
+    padding: 11px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--row-border);
+    background: var(--row-bg);
+    color: var(--fg);
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  .firewall-row:hover { border-color: rgba(249,115,22,.25); }
+  .firewall-row.selected {
+    border-color: rgba(249,115,22,.45);
+    background: rgba(249,115,22,.12);
+  }
+
+  /* ── Badges ── */
+  .dead-badge, .enforcement-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .dead-badge {
+    background: rgba(251,113,133,.18);
+    color: #fca5a5;
+    border: 1px solid rgba(251,113,133,.35);
+  }
+  .enforcement-badge.advisory {
+    background: rgba(250,204,21,.15);
+    color: #fde047;
+    border: 1px solid rgba(250,204,21,.3);
+  }
+  .enforcement-badge.soft {
+    background: rgba(96,165,250,.15);
+    color: #93c5fd;
+    border: 1px solid rgba(96,165,250,.3);
+  }
+
+  /* ── Detail head separator ── */
+  .detail-head {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--row-border);
+    margin-bottom: 4px;
+  }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin: 18px 0 14px;
+    flex-wrap: wrap;
+  }
   .tabs button, .toggle button, .actions button, .row-actions button, .upload {
-    padding: 8px 12px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--fg); cursor: pointer;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--fg);
+    cursor: pointer;
+    font-size: 13px;
+    transition: border-color .12s, background .12s;
   }
-  .tabs button.active, .toggle button.active, .cta { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); }
-  .panel, .version-list, .entry-list { display: grid; gap: 10px; }
-  .version, .entry, .audit { border: 1px solid var(--row-border); border-radius: 12px; padding: 10px; background: var(--row-bg); }
-  label span { display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted); }
+  .tabs button:hover, .toggle button:hover, .actions button:hover, .row-actions button:hover {
+    border-color: rgba(249,115,22,.3);
+  }
+  .tabs button.active, .toggle button.active, .cta {
+    border-color: rgba(249,115,22,.45);
+    background: rgba(249,115,22,.2);
+  }
+
+  /* ── Console panels ── */
+  .panel, .version-list, .entry-list {
+    display: grid;
+    gap: 12px;
+  }
+  .version, .entry, .audit {
+    border: 1px solid var(--row-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: var(--row-bg);
+  }
+
+  /* ── Form inputs ── */
+  label span {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+  }
   input, select, textarea, pre {
-    width: 100%; border: 1px solid var(--input-border); border-radius: 12px; background: var(--input-bg); color: var(--fg); padding: 9px 11px; outline: none;
+    width: 100%;
+    border: 1px solid var(--input-border);
+    border-radius: 12px;
+    background: var(--input-bg);
+    color: var(--fg);
+    padding: 10px 12px;
+    outline: none;
+    font-size: 13px;
+    transition: border-color .12s;
   }
-  pre { overflow: auto; white-space: pre-wrap; }
+  input:focus, select:focus, textarea:focus {
+    border-color: rgba(249,115,22,.45);
+  }
+  pre { overflow: auto; white-space: pre-wrap; font-size: 12px; }
+  textarea { line-height: 1.5; }
+
+  /* ── Text utilities ── */
   .muted, small { color: var(--muted); }
   .err { margin: 8px 0 0; color: var(--warn); }
   .warn { color: var(--caution); }
   .safe { color: var(--ok); }
+
+  /* ── Upload button ── */
   .upload { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
   .upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .wizard-steps { display: flex; align-items: center; gap: 0; margin: 12px 0 16px; }
-  .step { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--muted); cursor: pointer; font-size: 13px; transition: all .15s; }
+
+  /* ── Wizard steps ── */
+  .wizard-steps {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 16px 0 20px;
+  }
+  .step {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .15s;
+  }
   .step:disabled { cursor: default; opacity: .5; }
-  .step.active { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.15); color: var(--fg); }
-  .step.done { border-color: rgba(74,222,128,.4); color: rgba(74,222,128,.9); }
-  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--row-bg); font-size: 11px; font-weight: 600; }
+  .step.active {
+    border-color: rgba(249,115,22,.45);
+    background: rgba(249,115,22,.15);
+    color: var(--fg);
+  }
+  .step.done {
+    border-color: rgba(74,222,128,.4);
+    color: rgba(74,222,128,.9);
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--row-bg);
+    font-size: 11px;
+    font-weight: 600;
+  }
   .step.active .step-num { background: rgba(249,115,22,.25); }
   .step.done .step-num { background: rgba(74,222,128,.2); }
-  .step-line { flex: 0 0 24px; height: 1px; background: var(--input-border); }
-  .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .review-card { border: 1px solid var(--row-border); border-radius: 12px; padding: 12px; background: var(--row-bg); }
-  .review-card h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-  .review-card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .step-line {
+    flex: 0 0 20px;
+    height: 1px;
+    background: var(--input-border);
+  }
+
+  /* ── Review cards ── */
+  .review-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .review-card {
+    border: 1px solid var(--row-border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    background: var(--row-bg);
+  }
+  .review-card h3 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+  }
+  .review-card dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
   .review-card dt { color: var(--muted); }
   .review-card dd { margin: 0; }
-  .policy-preview { max-height: 200px; overflow: auto; font-size: 12px; margin-top: 8px; }
-  .preview-issues { display: grid; gap: 4px; margin: 6px 0; }
+  .policy-preview {
+    max-height: 220px;
+    overflow: auto;
+    font-size: 12px;
+    margin-top: 10px;
+    line-height: 1.55;
+  }
+  .preview-issues { display: grid; gap: 4px; margin: 8px 0; }
   .preview-issues p { margin: 0; font-size: 12px; }
-  .enforcement-notice { padding: 8px 12px; border-radius: 8px; background: rgba(251,113,133,.1); border: 1px solid rgba(251,113,133,.25); color: #fca5a5; font-size: 13px; margin-bottom: 12px; }
-  .activate-section .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+  /* ── Enforcement notice ── */
+  .enforcement-notice {
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(251,113,133,.1);
+    border: 1px solid rgba(251,113,133,.25);
+    color: #fca5a5;
+    font-size: 13px;
+    margin-bottom: 14px;
+    line-height: 1.45;
+  }
+
+  /* ── Activate section actions ── */
+  .activate-section .actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+
+  /* ── Responsive ── */
   @media (max-width: 900px) {
     .workspace { grid-template-columns: 1fr; }
     .review-grid { grid-template-columns: 1fr; }
+    .section { padding: 14px; }
   }
 </style>

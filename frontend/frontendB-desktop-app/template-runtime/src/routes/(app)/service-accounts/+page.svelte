@@ -3,6 +3,7 @@
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
   import { loadActiveOrgState, setActiveOrgId } from '@/lib/active-org';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   let accounts = [];
   let loading = true;
@@ -176,14 +177,21 @@
         </div>
       {/if}
       {#if message}<p class="ok">{message}</p>{/if}
-      {#if error}<p class="err">{error}</p>{/if}
+      {#if error}
+        <div class="error-banner">
+          <p>{humanizeError(error)}</p>
+        </div>
+      {/if}
     </div>
 
     <div class="card section">
       {#if loading}
         <p class="muted">Loading service accounts...</p>
       {:else if accounts.length === 0}
-        <p class="muted">No service accounts found.</p>
+        <div class="empty-state">
+          <p><strong>No service accounts found</strong></p>
+          <p>Create a service account above to generate machine-to-machine credentials.</p>
+        </div>
       {:else}
         <table>
           <thead>

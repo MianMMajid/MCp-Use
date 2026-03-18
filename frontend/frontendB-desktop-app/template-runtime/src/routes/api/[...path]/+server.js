@@ -48,7 +48,7 @@ async function proxy(request, path) {
     return new Response(
       JSON.stringify({
         message: 'Backend API unavailable',
-        target: target.toString(),
+        target: safePath,
         details: message,
       }),
       {

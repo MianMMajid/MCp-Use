@@ -8,6 +8,7 @@
   import { shellStore } from '@/lib/stores/shell-store';
   import { toastStore } from '@/lib/stores/toast-store';
   import { formatDate } from '@/lib/format';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   // ── Tab state ──
   const tabs = [
@@ -90,7 +91,7 @@
       if (!res.ok) throw new Error(data?.error || 'Failed');
       toastStore.success('Password changed');
       currentPassword = ''; newPassword = ''; confirmPassword = '';
-    } catch (err) { toastStore.error(err.message); }
+    } catch (err) { toastStore.error(humanizeError(err.message)); }
     finally { savingPassword = false; }
   }
 
@@ -107,7 +108,7 @@
       const keysData = await loadJson('/api/user/api-keys').catch(() => ({ items: [] }));
       apiKeys = keysData?.items || [];
       toastStore.success('API key created');
-    } catch (err) { toastStore.error(err.message); }
+    } catch (err) { toastStore.error(humanizeError(err.message)); }
     finally { creatingKey = false; }
   }
 
@@ -128,7 +129,7 @@
       invalidateCache('/api/user/api-keys');
       apiKeys = apiKeys.filter((k) => String(k.id) !== String(id));
       toastStore.success('Key revoked');
-    } catch (err) { toastStore.error(err.message); }
+    } catch (err) { toastStore.error(humanizeError(err.message)); }
     finally { revokingKey = false; }
   }
 
@@ -144,7 +145,7 @@
       if (!res.ok) throw new Error('Failed to save');
       invalidateCache('/api/notifications');
       toastStore.success('Notification preferences saved');
-    } catch (err) { toastStore.error(err.message); }
+    } catch (err) { toastStore.error(humanizeError(err.message)); }
     finally { savingNotifs = false; }
   }
 

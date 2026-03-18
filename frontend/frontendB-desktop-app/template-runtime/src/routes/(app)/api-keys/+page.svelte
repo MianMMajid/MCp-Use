@@ -3,6 +3,7 @@
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
   import { formatDate } from '@/lib/format';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   let keys = [];
   let loading = true;
@@ -103,7 +104,9 @@
         <p class="msg">{message}</p>
       {/if}
       {#if error}
-        <p class="err">{error}</p>
+        <div class="error-banner">
+          <p>{humanizeError(error)}</p>
+        </div>
       {/if}
     </div>
 
@@ -111,7 +114,10 @@
       {#if loading}
         <p class="muted">Loading API keys...</p>
       {:else if keys.length === 0}
-        <p class="muted">No API keys created yet.</p>
+        <div class="empty-state">
+          <p><strong>No API keys created yet</strong></p>
+          <p>Generate a key above to authenticate API requests.</p>
+        </div>
       {:else}
         <table>
           <thead>

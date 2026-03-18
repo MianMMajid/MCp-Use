@@ -5,6 +5,8 @@
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, patchJson, postJson, invalidateCache } from '@/lib/api';
   import { chatStore } from '@/lib/stores/chat-store';
+  import { toastStore } from '@/lib/stores/toast-store';
+  import { humanizeError } from '@/lib/utils/error-display';
   import AgentPalette from '@/lib/components/orchestration/agent-palette.svelte';
   import NodeConfigPanel from '@/lib/components/orchestration/node-config-panel.svelte';
   import EdgeConfigPanel from '@/lib/components/orchestration/edge-config-panel.svelte';
@@ -641,7 +643,7 @@
       {/if}
     </div>
 
-    {#if error}<p class="err-msg">{error}</p>{/if}
+    {#if error}<p class="err-msg">{humanizeError(error)}</p>{/if}
     {#if loading}<p class="muted">Loading orchestration...</p>{/if}
   </section>
 </AppShell>

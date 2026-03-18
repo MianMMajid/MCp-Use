@@ -5,6 +5,7 @@
   import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api';
   import { toastStore } from '@/lib/stores/toast-store';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   let loading = true;
   let error = '';
@@ -165,37 +166,56 @@
       prompt = '';
       endAt = '';
       invalidateCache('/api/tasks');
+      toastStore.success('Task scheduled');
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      toastStore.error(humanizeError(error));
     } finally {
       creating = false;
     }
   }
 
   async function assignTask(taskId, nextType, nextId) {
-    const payload = nextType === 'agent' ? { agentId: nextId } : { orchestrationId: nextId };
-    const response = await postJson(`/api/tasks/${taskId}/assign`, payload);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to assign task');
-    invalidateCache('/api/tasks');
-    await refresh();
+    try {
+      const payload = nextType === 'agent' ? { agentId: nextId } : { orchestrationId: nextId };
+      const response = await postJson(`/api/tasks/${taskId}/assign`, payload);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to assign task');
+      invalidateCache('/api/tasks');
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(humanizeError(error));
+    }
   }
 
   async function commandTask(taskId, command) {
-    const response = await postJson(`/api/tasks/${taskId}/${command}`, {});
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.ok === false) throw new Error(data?.error || `Failed to ${command}`);
-    invalidateCache('/api/tasks');
-    await refresh();
+    try {
+      const response = await postJson(`/api/tasks/${taskId}/${command}`, {});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || `Failed to ${command}`);
+      invalidateCache('/api/tasks');
+      toastStore.success(`Task ${command} successful`);
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(humanizeError(error));
+    }
   }
 
   async function updateTask(taskId, updates) {
-    const response = await patchJson(`/api/tasks/${taskId}`, updates);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to update task');
-    invalidateCache('/api/tasks');
-    await refresh();
+    try {
+      const response = await patchJson(`/api/tasks/${taskId}`, updates);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to update task');
+      invalidateCache('/api/tasks');
+      toastStore.success('Task updated');
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(humanizeError(error));
+    }
   }
 
   // Delete confirmation
@@ -241,7 +261,10 @@
         <p class="muted">Loading tasks...</p>
       {:else if tasks.length === 0}
         <div class="ghost-empty">
-          <p>No tasks scheduled yet. Assign an objective to get started.</p>
+          <div style="font-size: 2rem; opacity: 0.5;">&#128197;</div>
+          <p><strong>No tasks scheduled yet</strong></p>
+          <p>Define an objective below to schedule your first automated task.</p>
+          <button class="pill cta" style="margin-top: 8px;" on:click={() => document.querySelector('.builder')?.scrollIntoView({ behavior: 'smooth' })}>Create Task</button>
         </div>
       {:else}
         <div class="task-grid">
@@ -386,7 +409,12 @@
           </button>
         </div>
       </form>
-      {#if error}<p class="error">{error}</p>{/if}
+      {#if error}
+        <div class="error-banner">
+          <p>{humanizeError(error)}</p>
+          <button type="button" class="pill" on:click={refresh}>Retry</button>
+        </div>
+      {/if}
     </section>
   </section>
 </AppShell>

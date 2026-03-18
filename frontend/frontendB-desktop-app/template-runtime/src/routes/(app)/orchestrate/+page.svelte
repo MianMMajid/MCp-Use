@@ -6,6 +6,7 @@
   import { chatStore } from '@/lib/stores/chat-store';
   import { postJson, deleteJson, loadJson, invalidateCache } from '@/lib/api';
   import { deleteOrchestration, listOrchestrationExecutions } from '@/lib/orchestrations-api';
+  import { humanizeError } from '@/lib/utils/error-display';
   import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
   import { onMount } from 'svelte';
@@ -128,7 +129,7 @@
       await Promise.all([chatStore.fetchAgents(), chatStore.fetchOrchestrations(), loadTrash()]);
       toastStore.show(`Restored "${name || id}"`, 'success');
     } catch (err) {
-      toastStore.show(err instanceof Error ? err.message : 'Restore failed', 'error');
+      toastStore.show(humanizeError(err instanceof Error ? err.message : 'Restore failed'), 'error');
     } finally {
       trashBusy = '';
     }
@@ -147,7 +148,7 @@
         await loadTrash();
         toastStore.show(`Permanently deleted "${name || id}"`, 'success');
       } catch (err) {
-        toastStore.show(err instanceof Error ? err.message : 'Delete failed', 'error');
+        toastStore.show(humanizeError(err instanceof Error ? err.message : 'Delete failed'), 'error');
       } finally {
         trashBusy = '';
       }
@@ -235,7 +236,7 @@
       </div>
     </header>
 
-    {#if error}<p class="error">{error}</p>{/if}
+    {#if error}<p class="error">{humanizeError(error)}</p>{/if}
 
     <nav class="tabs">
       <button class="tab" class:active={activeTab === 'orchestrations'} on:click={() => (activeTab = 'orchestrations')}>

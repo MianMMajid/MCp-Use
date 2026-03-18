@@ -1,4 +1,5 @@
 <script>
+  import { humanizeError } from '../utils/error-display.js'
   import {
     degradedSecurityMessage,
     incidentColor,
@@ -154,7 +155,7 @@
   </header>
 
   {#if cyberError}
-    <div class="cyber-banner cyber-banner-error">{cyberError}</div>
+    <div class="cyber-banner cyber-banner-error">{humanizeError(cyberError)}</div>
   {/if}
   {#if cyberNotice}
     <div class="cyber-banner cyber-banner-notice">{cyberNotice}</div>

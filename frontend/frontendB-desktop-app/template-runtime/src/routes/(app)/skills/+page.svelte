@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, invalidateCache } from '@/lib/api';
+  import { humanizeError } from '@/lib/utils/error-display';
 
   let loading = true;
   let error = '';
@@ -227,7 +228,7 @@
 
     <!-- Grid -->
     {#if error}
-      <p class="empty" style="color: #fb7185;">{error}</p>
+      <p class="empty" style="color: #fb7185;">{humanizeError(error)}</p>
     {:else if loading}
       <p class="empty">Loading skills…</p>
     {:else if filtered.length === 0}

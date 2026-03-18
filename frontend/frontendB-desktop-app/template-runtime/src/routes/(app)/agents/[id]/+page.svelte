@@ -6,6 +6,7 @@
   import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
   import { loadJson, patchJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
   import { chatStore } from '@/lib/stores/chat-store';
+  import { humanizeError } from '@/lib/utils/error-display';
   import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
 
@@ -43,9 +44,11 @@
       const params = new URLSearchParams();
       if (marketplaceSearch) params.set('q', marketplaceSearch);
       params.set('transport', 'remote');
-      const data = await loadJson(`/api/skills/marketplace?${params}`);
+      const data = await loadJson(`/api/skills/marketplace?${params}`, { silent: true });
       marketplaceItems = data?.items || [];
-    } catch {} finally { marketplaceLoading = false; }
+    } catch (err) {
+      toastStore.error(humanizeError(err instanceof Error ? err.message : String(err)));
+    } finally { marketplaceLoading = false; }
   }
 
   function isSkillInstalled(serverName) {
@@ -69,9 +72,11 @@
       invalidateCache('/api/skills');
       invalidateCache(`/api/agents/${data.id}/tools`);
       _loadedId = '';
+      toastStore.success(`${server.name} installed`);
       await loadPage();
-    } catch {
+    } catch (err) {
       installing = { ...installing, [server.name]: false };
+      toastStore.error(humanizeError(err instanceof Error ? err.message : String(err)));
     }
   }
 
@@ -96,7 +101,7 @@
       toastStore.success(`Agent "${agentName || data.id}" deleted`);
       goto('/orchestrate');
     } catch (err) {
-      toastStore.error(err instanceof Error ? err.message : String(err));
+      toastStore.error(humanizeError(err instanceof Error ? err.message : String(err)));
     } finally {
       deletingAgent = false;
     }
@@ -361,8 +366,10 @@
         : equippedToolIds;
       agent = { ...agent, equippedToolIds: equippedToolIds.slice() };
       invalidateCache('/api/agents');
+      toastStore.success('Toolbelt saved');
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      toastStore.error(humanizeError(error));
     } finally {
       saving = false;
     }
@@ -380,7 +387,7 @@
       <section class="card panel"><p class="muted">Loading Openclaw agent…</p></section>
     {:else if error}
       <section class="card panel" style="text-align:center; padding:32px;">
-        <p class="err">{error}</p>
+        <p class="err">{humanizeError(error)}</p>
         <button class="pill" style="margin-top:12px; cursor:pointer;" on:click={() => goto('/orchestrate')}>Back to Builder</button>
       </section>
     {:else}
