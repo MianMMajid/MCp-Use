@@ -13,7 +13,7 @@ export function handleError({ error, event, status, message }) {
 // SvelteKit's built-in checkOrigin (enabled by default) + backend SameSite=Lax
 // cookies provide adequate CSRF protection. No additional CSRF handling needed.
 
-const PUBLIC_PATH_PREFIXES = ['/login', '/health', '/api', '/admin/api']
+const PUBLIC_PATH_PREFIXES = ['/login', '/forgot-password', '/reset-password', '/health', '/api', '/admin/api']
 const SESSION_CHECK_TIMEOUT_MS = 3000
 
 const SECURITY_HEADERS = {

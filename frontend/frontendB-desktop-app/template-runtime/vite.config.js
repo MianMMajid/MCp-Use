@@ -1,5 +1,6 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
@@ -37,5 +38,8 @@ export default defineConfig({
     },
     setupFiles: ['./vitest.setup.js'],
     include: ['src/**/*.test.{js,ts}'],
+    alias: [
+      { find: /^svelte$/, replacement: resolve('node_modules/svelte/src/index-client.js') },
+    ],
   },
 });

@@ -81,9 +81,12 @@
   });
 
   // ── Actions ──
+  let passwordError = '';
+
   async function changePassword() {
-    if (newPassword.length < 8) { toastStore.error('Password must be at least 8 characters'); return; }
-    if (newPassword !== confirmPassword) { toastStore.error('Passwords do not match'); return; }
+    passwordError = '';
+    if (newPassword.length < 8) { passwordError = 'Password must be at least 8 characters.'; return; }
+    if (newPassword !== confirmPassword) { passwordError = 'Passwords do not match.'; return; }
     savingPassword = true;
     try {
       const res = await postJson('/api/user/change-password', { currentPassword, newPassword });
@@ -261,6 +264,7 @@
                 <label for="confirm-pw">Confirm New Password</label>
                 <input id="confirm-pw" type="password" bind:value={confirmPassword} minlength="8" required />
               </div>
+              {#if passwordError}<p class="field-error" role="alert">{passwordError}</p>{/if}
               <button class="pill cta" type="submit" disabled={savingPassword}>
                 {savingPassword ? 'Saving...' : 'Change Password'}
               </button>

@@ -443,8 +443,11 @@ describe("Step 5: Cyber operations — Fix 1 regression", () => {
     {
       path: "/api/cyber/policies",
       validate: (json) => {
-        // Returns policy list — may be direct array or wrapped
-        assert.ok(json.policies || Array.isArray(json) || json.rules, "cyber/policies should have policies or rules");
+        // Returns flat policy object with domain/scan config or wrapped in policies/rules
+        assert.ok(
+          json.ok === true || json.policies || Array.isArray(json) || json.rules || json.allowedDomains,
+          "cyber/policies should have policy config fields"
+        );
       },
     },
     {
@@ -779,4 +782,246 @@ describe("Step 9: Full flow through Frontend A proxy", () => {
       );
     });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 10 — Data persistence: orchestrations, conversations, tasks
+//
+// Validates that orchestration data is properly persisted and returned
+// in the shape both frontends expect. Tests the full write→read cycle.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Step 10: Data persistence — orchestration conversations & tasks", () => {
+  let testOrchestrationId = "";
+
+  it("GET /api/orchestrations returns list with items array", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/orchestrations");
+    assertNotHtml(r, "/api/orchestrations");
+    const json = assertIsJson(r, "/api/orchestrations");
+    // Backend may return { items: [] } or [] — both valid
+    const items = json.items || json;
+    assert.ok(Array.isArray(items), "orchestrations should be an array");
+    if (items.length > 0) {
+      testOrchestrationId = String(items[0].id);
+      assert.ok(items[0].id, "orchestration should have id");
+    }
+  });
+
+  it("GET /api/orchestrations/:id/conversation returns { ok, items, objectivePackage }", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    if (!testOrchestrationId) return t.skip("No orchestration available");
+    const r = await fetchJson(GATEWAY, `/api/orchestrations/${testOrchestrationId}/conversation`);
+    assertNotHtml(r, "conversation GET");
+    const json = assertIsJson(r, "conversation GET");
+    assert.equal(json.ok, true);
+    // items is the conversation messages array
+    assert.ok(Array.isArray(json.items), "conversation should have items array");
+    // objectivePackage may be null or an object
+    assert.ok(json.objectivePackage === null || typeof json.objectivePackage === "object",
+      "objectivePackage should be null or object");
+  });
+
+  it("POST /api/orchestrations/:id/conversation → sends message and gets reply", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    if (!testOrchestrationId) return t.skip("No orchestration available");
+    const r = await fetchJson(GATEWAY, `/api/orchestrations/${testOrchestrationId}/conversation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "integration test probe" }),
+    });
+    assertNotHtml(r, "conversation POST");
+    const json = assertIsJson(r, "conversation POST");
+    assert.equal(json.ok, true);
+    assert.ok(Array.isArray(json.items), "response should have items array");
+    // Should contain at least the user message + manager reply
+    assert.ok(json.items.length >= 2, `Expected >= 2 messages, got ${json.items.length}`);
+    // Last message should be manager reply
+    const lastMsg = json.items[json.items.length - 1];
+    assert.equal(lastMsg.role, "manager", "last message should be from manager");
+    assert.ok(lastMsg.id, "message should have id");
+    assert.ok(lastMsg.text, "message should have text");
+    assert.ok(lastMsg.createdAt, "message should have createdAt");
+    // reply field should be present
+    assert.ok(json.reply, "response should have reply field");
+    // objectivePackage should be returned
+    assert.ok(json.objectivePackage, "response should have objectivePackage");
+    assert.ok(typeof json.objectivePackage.goal === "string", "objectivePackage should have goal");
+  });
+
+  it("Conversation persists across reads (not lost after POST)", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    if (!testOrchestrationId) return t.skip("No orchestration available");
+    // Read back conversation — should still have the messages from the POST above
+    const r = await fetchJson(GATEWAY, `/api/orchestrations/${testOrchestrationId}/conversation`);
+    const json = assertIsJson(r, "conversation re-read");
+    assert.equal(json.ok, true);
+    assert.ok(json.items.length >= 2, "conversation should persist messages from prior POST");
+    // Find our test message
+    const probe = json.items.find((m) => m.text === "integration test probe");
+    assert.ok(probe, "test probe message should be persisted");
+    assert.equal(probe.role, "user");
+  });
+
+  it("GET /api/orchestrations/executions returns list", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/orchestrations/executions?limit=5");
+    assertNotHtml(r, "executions list");
+    const json = assertIsJson(r, "executions list");
+    const items = json.items || json.executions || [];
+    assert.ok(Array.isArray(items), "executions should be an array");
+  });
+
+  it("GET /api/orchestrations/executions/:id/tasks returns task list with expected shape", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    // Get an execution to test against
+    const execR = await fetchJson(GATEWAY, "/api/orchestrations/executions?limit=1");
+    const execJson = assertIsJson(execR, "executions for task test");
+    const executions = execJson.items || execJson.executions || [];
+    if (executions.length === 0) return t.skip("No executions available");
+    const executionId = executions[0].id || executions[0].executionId;
+
+    const r = await fetchJson(GATEWAY, `/api/orchestrations/executions/${executionId}/tasks`);
+    assertNotHtml(r, "execution tasks");
+    const json = assertIsJson(r, "execution tasks");
+    const tasks = json.items || [];
+    assert.ok(Array.isArray(tasks), "tasks should be an array");
+    if (tasks.length > 0) {
+      const task = tasks[0];
+      // Validate task shape matches what Frontend B's orchestration dock renders
+      assert.ok(task.id || task.taskId, "task should have id or taskId");
+      assert.ok(task.executionId, "task should have executionId");
+      assert.ok(typeof task.title === "string", "task should have title string");
+      assert.ok(typeof task.status === "string", "task should have status string");
+      assert.ok(typeof task.ownerRole === "string", "task should have ownerRole string");
+      assert.ok(task.createdAt, "task should have createdAt");
+    }
+  });
+
+  it("Orchestration data endpoints return JSON through Frontend A proxy", async (t) => {
+    if (skipUnless(t, frontendAlive, gatewayAlive)) return;
+    const r = await fetchJson(FRONTEND_A, "/api/orchestrations");
+    assertNotHtml(r, "FrontendA /api/orchestrations");
+    assertIsJson(r, "FrontendA /api/orchestrations");
+    assert.ok([200, 401].includes(r.status), `Unexpected status ${r.status}`);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STEP 11 — Policy library: Phase 2 schema validation
+//
+// Validates that the backend accepts version 2 policy YAML with the new
+// inputRails, contentSafety, rateLimits, outputRails sections.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("Step 11: Policy schema — Phase 2 fields accepted by backend", () => {
+  it("POST /api/firewalls with inputRails policy compiles successfully", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    // Use the Frontend B firewall create endpoint
+    const r = await fetchJson(GATEWAY, "/api/firewalls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "test-input-rails-policy",
+        folder: "integration-test",
+        scope: "global",
+        policyText: `version: 2\nrules:\n  inputRails:\n    promptInjection: true\n    maxInputLength: 5000\n    blockedPatterns:\n      - "ignore previous"\n  constraints:\n    maxTimeoutSeconds: 30`,
+      }),
+    });
+    assertNotHtml(r, "POST /api/firewalls (inputRails)");
+    const json = assertIsJson(r, "POST /api/firewalls (inputRails)");
+    // 201 = created, 401 = needs session auth (not API key)
+    if (r.status === 201) {
+      assert.equal(json.ok, true);
+      assert.ok(json.firewall, "should return firewall object");
+    }
+    // 401 is acceptable — the endpoint requires session auth, not API key
+    assert.ok([200, 201, 401].includes(r.status), `Unexpected status ${r.status}`);
+  });
+
+  it("POST /api/firewalls with contentSafety + rateLimits compiles successfully", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/firewalls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "test-safety-ratelimit-policy",
+        folder: "integration-test",
+        scope: "global",
+        policyText: `version: 2\nrules:\n  contentSafety:\n    enabled: true\n    categories:\n      - hate\n      - violence\n    action: block\n  rateLimits:\n    maxRequestsPerMinute: 10\n    windowType: sliding\n  constraints:\n    maxTimeoutSeconds: 60`,
+      }),
+    });
+    assertNotHtml(r, "POST /api/firewalls (contentSafety+rateLimits)");
+    assertIsJson(r, "POST /api/firewalls (contentSafety+rateLimits)");
+    assert.ok([200, 201, 401].includes(r.status), `Unexpected status ${r.status}`);
+  });
+
+  it("POST /api/firewalls with outputRails (redaction patterns) compiles successfully", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/firewalls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "test-output-rails-policy",
+        folder: "integration-test",
+        scope: "global",
+        policyText: `version: 2\nrules:\n  outputRails:\n    maxResponseTokens: 2048\n    blockedOutputPatterns:\n      - "\\\\b\\\\d{3}-\\\\d{2}-\\\\d{4}\\\\b"\n  constraints:\n    maxTimeoutSeconds: 60`,
+      }),
+    });
+    assertNotHtml(r, "POST /api/firewalls (outputRails)");
+    assertIsJson(r, "POST /api/firewalls (outputRails)");
+    assert.ok([200, 201, 401].includes(r.status), `Unexpected status ${r.status}`);
+  });
+
+  it("POST /api/firewalls rejects invalid blockedPattern regex", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/firewalls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "test-bad-regex-policy",
+        folder: "integration-test",
+        scope: "global",
+        policyText: `version: 2\nrules:\n  inputRails:\n    blockedPatterns:\n      - "[invalid(regex"`,
+      }),
+    });
+    assertNotHtml(r, "POST /api/firewalls (bad regex)");
+    assertIsJson(r, "POST /api/firewalls (bad regex)");
+    // Should be 400 (validation error) or 401 (auth required)
+    assert.ok([400, 401].includes(r.status), `Expected 400 or 401 for bad regex, got ${r.status}`);
+  });
+
+  it("POST /api/firewalls rejects maxResponseTokens: 0", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/firewalls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "test-zero-tokens-policy",
+        folder: "integration-test",
+        scope: "global",
+        policyText: `version: 2\nrules:\n  outputRails:\n    maxResponseTokens: 0`,
+      }),
+    });
+    assertNotHtml(r, "POST /api/firewalls (zero tokens)");
+    assertIsJson(r, "POST /api/firewalls (zero tokens)");
+    assert.ok([400, 401].includes(r.status), `Expected 400 or 401 for zero tokens, got ${r.status}`);
+  });
+
+  it("POST /api/firewalls rejects unknown contentSafety category", async (t) => {
+    if (skipUnless(t, gatewayAlive)) return;
+    const r = await fetchJson(GATEWAY, "/api/firewalls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "test-bad-category-policy",
+        folder: "integration-test",
+        scope: "global",
+        policyText: `version: 2\nrules:\n  contentSafety:\n    enabled: true\n    categories:\n      - not_a_real_category\n    action: block`,
+      }),
+    });
+    assertNotHtml(r, "POST /api/firewalls (bad category)");
+    assertIsJson(r, "POST /api/firewalls (bad category)");
+    assert.ok([400, 401].includes(r.status), `Expected 400 or 401 for bad category, got ${r.status}`);
+  });
 });

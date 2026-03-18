@@ -22,12 +22,122 @@ import {
 
 const executionPersistenceWatchers = new Map();
 
-// ── In-memory stores for conversations, tasks, reassignments ──────────────
+// ── In-memory caches (DB-backed, loaded on demand) ────────────────────────
 const conversations = new Map();
 const objectivePackages = new Map();
 const executionTasks = new Map();
 const executionReassignments = new Map();
 let reassignCounter = 0;
+
+// ── DB persistence helpers for conversations & tasks ──────────────────────
+
+async function loadConversationFromDb(orchestrationId) {
+  try {
+    const result = await database.pool.query(
+      `SELECT id, role, text, created_at FROM orchestration_conversations WHERE orchestration_id = $1 ORDER BY created_at`,
+      [orchestrationId],
+    );
+    return result.rows.map((row) => ({ id: row.id, role: row.role, text: row.text, createdAt: row.created_at }));
+  } catch { return null; }
+}
+
+async function persistConversationMessage(orchestrationId, message) {
+  try {
+    await database.pool.query(
+      `INSERT INTO orchestration_conversations (id, orchestration_id, role, text, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+      [message.id, orchestrationId, message.role, message.text, message.createdAt],
+    );
+  } catch { /* non-fatal */ }
+}
+
+async function loadObjectivePackageFromDb(orchestrationId) {
+  try {
+    const result = await database.pool.query(
+      `SELECT * FROM orchestration_objective_packages WHERE orchestration_id = $1 LIMIT 1`,
+      [orchestrationId],
+    );
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return {
+      goal: row.goal,
+      successCriteria: row.success_criteria,
+      runtimeLimitMinutes: Number(row.runtime_limit_minutes),
+      budgetUsd: Number(row.budget_usd),
+      riskCeiling: row.risk_ceiling,
+      contextUrls: JSON.parse(row.context_urls_json || "[]"),
+      outputContract: row.output_contract,
+      escalationPolicy: row.escalation_policy,
+    };
+  } catch { return null; }
+}
+
+async function persistObjectivePackage(orchestrationId, pkg) {
+  try {
+    await database.pool.query(
+      `INSERT INTO orchestration_objective_packages
+         (orchestration_id, goal, success_criteria, runtime_limit_minutes, budget_usd, risk_ceiling, context_urls_json, output_contract, escalation_policy, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (orchestration_id) DO UPDATE SET
+         goal = EXCLUDED.goal, success_criteria = EXCLUDED.success_criteria,
+         runtime_limit_minutes = EXCLUDED.runtime_limit_minutes, budget_usd = EXCLUDED.budget_usd,
+         risk_ceiling = EXCLUDED.risk_ceiling, context_urls_json = EXCLUDED.context_urls_json,
+         output_contract = EXCLUDED.output_contract, escalation_policy = EXCLUDED.escalation_policy,
+         updated_at = EXCLUDED.updated_at`,
+      [orchestrationId, pkg.goal, pkg.successCriteria, pkg.runtimeLimitMinutes, pkg.budgetUsd,
+       pkg.riskCeiling, JSON.stringify(pkg.contextUrls || []), pkg.outputContract, pkg.escalationPolicy,
+       new Date().toISOString()],
+    );
+  } catch { /* non-fatal */ }
+}
+
+async function loadExecutionTasksFromDb(executionId) {
+  try {
+    const result = await database.pool.query(
+      `SELECT * FROM orchestration_execution_tasks WHERE execution_id = $1 ORDER BY created_at`,
+      [executionId],
+    );
+    if (result.rows.length === 0) return null;
+    return result.rows.map((row) => ({
+      id: row.task_id, taskId: row.task_id, executionId: row.execution_id, nodeId: row.node_id,
+      title: row.title, status: row.status, ownerRole: row.owner_role, ownerAgentId: row.owner_agent_id,
+      dueAt: row.due_at, createdAt: row.created_at, updatedAt: row.updated_at,
+      history: JSON.parse(row.history_json || "[]"),
+    }));
+  } catch { return null; }
+}
+
+async function persistExecutionTasks(executionId, tasks) {
+  try {
+    for (const task of tasks) {
+      await database.pool.query(
+        `INSERT INTO orchestration_execution_tasks
+           (task_id, execution_id, node_id, title, status, owner_role, owner_agent_id, due_at, created_at, updated_at, history_json)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (task_id) DO UPDATE SET
+           status = EXCLUDED.status, owner_role = EXCLUDED.owner_role, owner_agent_id = EXCLUDED.owner_agent_id,
+           due_at = EXCLUDED.due_at, updated_at = EXCLUDED.updated_at, history_json = EXCLUDED.history_json`,
+        [task.taskId || task.id, executionId, task.nodeId, task.title, task.status, task.ownerRole,
+         task.ownerAgentId, task.dueAt, task.createdAt, task.updatedAt, JSON.stringify(task.history || [])],
+      );
+    }
+  } catch { /* non-fatal */ }
+}
+
+async function persistReassignment(executionId, reassignment) {
+  try {
+    await database.pool.query(
+      `INSERT INTO orchestration_execution_reassignments
+         (reassignment_id, execution_id, task_id, from_role, from_agent_id, target_role, target_agent_id,
+          due_at, repeat_interval_minutes, max_repeats, status, created_at, warnings_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT DO NOTHING`,
+      [reassignment.id, executionId, reassignment.taskId, reassignment.fromRole, reassignment.fromAgentId,
+       reassignment.targetRole, reassignment.targetAgentId, reassignment.dueAt,
+       reassignment.repeatIntervalMinutes || 0, reassignment.maxRepeats || 1,
+       reassignment.status || "pending", reassignment.createdAt, JSON.stringify(reassignment.warnings || [])],
+    );
+  } catch { /* non-fatal */ }
+}
 
 const BUILTIN_TEMPLATES = [
   {
@@ -1205,9 +1315,17 @@ export function registerOrchestrationRoutes(app) {
       return c.json({ ok: false, error: "Orchestration not found" }, 404);
     }
 
-    const items = conversations.get(id) || [];
-    const objPkg = objectivePackages.get(id) || null;
-    return c.json({ ok: true, items, objectivePackage: objPkg });
+    let items = conversations.get(id);
+    if (!items) {
+      items = await loadConversationFromDb(id) || [];
+      if (items.length > 0) conversations.set(id, items);
+    }
+    let objPkg = objectivePackages.get(id);
+    if (!objPkg) {
+      objPkg = await loadObjectivePackageFromDb(id);
+      if (objPkg) objectivePackages.set(id, objPkg);
+    }
+    return c.json({ ok: true, items, objectivePackage: objPkg ?? null });
   });
 
   // POST /api/orchestrations/:id/conversation — send message in planning conversation
@@ -1225,17 +1343,20 @@ export function registerOrchestrationRoutes(app) {
     const message = String(body.message || "").trim();
 
     if (!conversations.has(id)) {
-      conversations.set(id, []);
+      const dbItems = await loadConversationFromDb(id);
+      conversations.set(id, dbItems || []);
     }
     const items = conversations.get(id);
 
     if (message) {
-      items.push({
+      const userMsg = {
         id: `conv-${id}-${items.length + 1}`,
         role: "user",
         text: message,
         createdAt: new Date().toISOString(),
-      });
+      };
+      items.push(userMsg);
+      persistConversationMessage(id, userMsg).catch(() => {});
     }
 
     // Compute objective package
@@ -1258,14 +1379,17 @@ export function registerOrchestrationRoutes(app) {
       escalationPolicy: String(incoming.escalationPolicy || "").trim(),
     };
     objectivePackages.set(id, nextObjective);
+    persistObjectivePackage(id, nextObjective).catch(() => {});
 
     const reply = `Manager update: next loop will plan/delegate around "${nextObjective.goal || "objective"}".`;
-    items.push({
+    const managerMsg = {
       id: `conv-${id}-${items.length + 1}`,
       role: "manager",
       text: reply,
       createdAt: new Date().toISOString(),
-    });
+    };
+    items.push(managerMsg);
+    persistConversationMessage(id, managerMsg).catch(() => {});
 
     return c.json({ ok: true, items, reply, objectivePackage: nextObjective });
   });
@@ -1284,25 +1408,32 @@ export function registerOrchestrationRoutes(app) {
     }
 
     if (!executionTasks.has(executionId)) {
-      // Auto-generate tasks from execution graph nodes
-      const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
-      const nodes = (graph?.nodes || []).filter((node) => node.isInstruction !== true);
-      const now = new Date().toISOString();
-      const tasks = nodes.map((node, idx) => ({
-        id: `${executionId}-task-${idx + 1}`,
-        taskId: `${executionId}-task-${idx + 1}`,
-        executionId,
-        nodeId: node.id,
-        title: `${node.label || node.id} task`,
-        status: idx === 0 ? "running" : "queued",
-        ownerRole: node.role || (idx === 0 ? "manager" : `worker-${idx}`),
-        ownerAgentId: node.agentId || null,
-        dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
-        createdAt: now,
-        updatedAt: now,
-        history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
-      }));
-      executionTasks.set(executionId, tasks);
+      // Try loading from DB first
+      const dbTasks = await loadExecutionTasksFromDb(executionId);
+      if (dbTasks && dbTasks.length > 0) {
+        executionTasks.set(executionId, dbTasks);
+      } else {
+        // Auto-generate tasks from execution graph nodes
+        const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
+        const nodes = (graph?.nodes || []).filter((node) => node.isInstruction !== true);
+        const now = new Date().toISOString();
+        const tasks = nodes.map((node, idx) => ({
+          id: `${executionId}-task-${idx + 1}`,
+          taskId: `${executionId}-task-${idx + 1}`,
+          executionId,
+          nodeId: node.id,
+          title: `${node.label || node.id} task`,
+          status: idx === 0 ? "running" : "queued",
+          ownerRole: node.role || (idx === 0 ? "manager" : `worker-${idx}`),
+          ownerAgentId: node.agentId || null,
+          dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
+          createdAt: now,
+          updatedAt: now,
+          history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
+        }));
+        executionTasks.set(executionId, tasks);
+        persistExecutionTasks(executionId, tasks).catch(() => {});
+      }
     }
 
     return c.json({ items: executionTasks.get(executionId) });
@@ -1328,25 +1459,32 @@ export function registerOrchestrationRoutes(app) {
       return c.json({ ok: false, error: "Execution is terminal; reassignment disabled." }, 409);
     }
 
-    // Ensure tasks exist
+    // Ensure tasks exist — load from DB, then fall back to auto-generation
     if (!executionTasks.has(executionId)) {
-      const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
-      const nodes = (graph?.nodes || []).filter((node) => node.isInstruction !== true);
-      const now = new Date().toISOString();
-      executionTasks.set(executionId, nodes.map((node, idx) => ({
-        id: `${executionId}-task-${idx + 1}`,
-        taskId: `${executionId}-task-${idx + 1}`,
-        executionId,
-        nodeId: node.id,
-        title: `${node.label || node.id} task`,
-        status: idx === 0 ? "running" : "queued",
-        ownerRole: node.role || (idx === 0 ? "manager" : `worker-${idx}`),
-        ownerAgentId: node.agentId || null,
-        dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
-        createdAt: now,
-        updatedAt: now,
-        history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
-      })));
+      const dbTasks = await loadExecutionTasksFromDb(executionId);
+      if (dbTasks && dbTasks.length > 0) {
+        executionTasks.set(executionId, dbTasks);
+      } else {
+        const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
+        const nodes = (graph?.nodes || []).filter((node) => node.isInstruction !== true);
+        const now = new Date().toISOString();
+        const tasks = nodes.map((node, idx) => ({
+          id: `${executionId}-task-${idx + 1}`,
+          taskId: `${executionId}-task-${idx + 1}`,
+          executionId,
+          nodeId: node.id,
+          title: `${node.label || node.id} task`,
+          status: idx === 0 ? "running" : "queued",
+          ownerRole: node.role || (idx === 0 ? "manager" : `worker-${idx}`),
+          ownerAgentId: node.agentId || null,
+          dueAt: new Date(Date.now() + (idx + 1) * 15 * 60 * 1000).toISOString(),
+          createdAt: now,
+          updatedAt: now,
+          history: [{ id: `${executionId}-task-${idx + 1}-h1`, type: "created", timestamp: now }],
+        }));
+        executionTasks.set(executionId, tasks);
+        persistExecutionTasks(executionId, tasks).catch(() => {});
+      }
     }
 
     const tasks = executionTasks.get(executionId);
@@ -1410,6 +1548,14 @@ export function registerOrchestrationRoutes(app) {
     }
     executionReassignments.get(executionId).unshift(reassignment);
 
+    // Persist reassignment to DB
+    persistReassignment(executionId, {
+      ...reassignment,
+      fromRole: task.ownerRole || "",
+      fromAgentId: task.ownerAgentId || "",
+      warnings,
+    }).catch(() => {});
+
     task.updatedAt = now;
     if (!Array.isArray(task.history)) task.history = [];
     task.history.push({
@@ -1419,6 +1565,9 @@ export function registerOrchestrationRoutes(app) {
       targetRole: reassignment.targetRole,
       targetAgentId: reassignment.targetAgentId,
     });
+
+    // Persist updated task state
+    persistExecutionTasks(executionId, executionTasks.get(executionId) || []).catch(() => {});
 
     return c.json({ ok: true, reassignment, warnings, message: "Timed reassignment scheduled." });
   });

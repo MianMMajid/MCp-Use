@@ -5,11 +5,26 @@
   const iconMap = { success: 'check', error: 'alert', warning: 'alert', info: 'spark' };
 </script>
 
-<div class="toast-container" aria-live="polite" aria-relevant="additions">
+<div class="toast-container" aria-relevant="additions">
   {#each $toastStore as toast (toast.id)}
-    <div class="toast {toast.type}" class:dismissing={toast.dismissing} role="status">
+    <div
+      class="toast {toast.type}"
+      class:dismissing={toast.dismissing}
+      role={toast.type === 'error' || toast.type === 'warning' ? 'alert' : 'status'}
+      aria-live={toast.type === 'error' || toast.type === 'warning' ? 'assertive' : 'polite'}
+      aria-atomic="true"
+      on:mouseenter={() => toastStore.pause(toast.id)}
+      on:mouseleave={() => toastStore.resume(toast.id)}
+      on:focusin={() => toastStore.pause(toast.id)}
+      on:focusout={() => toastStore.resume(toast.id)}
+    >
       <span class="toast-icon"><Icon name={iconMap[toast.type] || 'spark'} size={15} /></span>
       <span class="toast-msg">{toast.message}</span>
+      {#if toast.action}
+        <button class="toast-action" on:click={() => { toast.action.onClick?.(); toastStore.dismiss(toast.id); }}>
+          {toast.action.label}
+        </button>
+      {/if}
       <button class="toast-close" aria-label="Dismiss" on:click={() => toastStore.dismiss(toast.id)}>
         <Icon name="close" size={12} />
       </button>
@@ -61,6 +76,23 @@
 
   .toast-icon { flex-shrink: 0; }
   .toast-msg { flex: 1; line-height: 1.35; }
+
+  .toast-action {
+    flex-shrink: 0;
+    padding: 3px 10px;
+    border: 1px solid var(--accent-soft);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .toast-action:hover {
+    background: var(--accent-soft);
+  }
 
   .toast-close {
     flex-shrink: 0;

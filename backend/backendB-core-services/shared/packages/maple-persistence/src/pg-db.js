@@ -615,6 +615,65 @@ export class MaplePostgresDatabase {
           ON cyber_security_actions(incident_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_cyber_security_actions_quarantine
           ON cyber_security_actions(quarantine_id, created_at DESC);
+
+        -- Orchestration conversations and execution tasks (persisted across restarts)
+        CREATE TABLE IF NOT EXISTS orchestration_conversations (
+          id TEXT NOT NULL,
+          orchestration_id TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          text TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (orchestration_id, id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_conversations_orch
+          ON orchestration_conversations(orchestration_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS orchestration_objective_packages (
+          orchestration_id TEXT PRIMARY KEY,
+          goal TEXT NOT NULL DEFAULT '',
+          success_criteria TEXT NOT NULL DEFAULT '',
+          runtime_limit_minutes INTEGER NOT NULL DEFAULT 60,
+          budget_usd REAL NOT NULL DEFAULT 0,
+          risk_ceiling TEXT NOT NULL DEFAULT 'medium',
+          context_urls_json TEXT NOT NULL DEFAULT '[]',
+          output_contract TEXT NOT NULL DEFAULT '',
+          escalation_policy TEXT NOT NULL DEFAULT '',
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS orchestration_execution_tasks (
+          task_id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          node_id TEXT NOT NULL DEFAULT '',
+          title TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'queued',
+          owner_role TEXT NOT NULL DEFAULT '',
+          owner_agent_id TEXT,
+          due_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          history_json TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_execution_tasks_exec
+          ON orchestration_execution_tasks(execution_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS orchestration_execution_reassignments (
+          reassignment_id TEXT PRIMARY KEY,
+          execution_id TEXT NOT NULL,
+          task_id TEXT NOT NULL,
+          from_role TEXT NOT NULL DEFAULT '',
+          from_agent_id TEXT,
+          target_role TEXT NOT NULL DEFAULT '',
+          target_agent_id TEXT,
+          due_at TEXT,
+          repeat_interval_minutes INTEGER NOT NULL DEFAULT 0,
+          max_repeats INTEGER NOT NULL DEFAULT 1,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TEXT NOT NULL,
+          warnings_json TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_orchestration_execution_reassignments_exec
+          ON orchestration_execution_reassignments(execution_id, created_at DESC);
       `);
         }
         finally {
