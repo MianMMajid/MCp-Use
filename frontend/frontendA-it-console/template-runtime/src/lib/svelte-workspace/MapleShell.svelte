@@ -250,9 +250,7 @@
   $: categoryHrefById = Object.fromEntries(
     MAPLE_WORKSPACE_CATEGORIES.map((category) => [
       category.id,
-      category.id === 'docs'
-        ? '/quickstart'
-        : buildWorkspaceHref({
+      buildWorkspaceHref({
             category: category.id,
             view:
               category.id === 'observe'
@@ -267,7 +265,9 @@
                         ? 'members'
                         : category.id === 'compliance'
                           ? 'risk'
-                          : 'overview',
+                          : category.id === 'docs'
+                            ? 'overview'
+                            : 'overview',
             routePath: state.routePath,
             executionId: targetInput || (activeExecution?.executionId ?? ''),
             sessionId: activeExecution?.sessionId ?? '',

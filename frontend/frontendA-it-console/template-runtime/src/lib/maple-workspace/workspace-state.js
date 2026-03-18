@@ -53,8 +53,8 @@ const VIEW_ALIASES = Object.freeze({
 })
 
 const SPECIAL_LEGACY_ROUTE_TARGETS = Object.freeze({
-  '/maple/policies': '/maple/audit',
-  '/maple/runtime': '/maple/observability',
+  // /maple/policies and /maple/runtime now render at their own routes.
+  // /maple/tenants remains a governance-context redirect; tenant operations are CLI-first.
   '/maple/tenants': '/maple/audit',
 })
 

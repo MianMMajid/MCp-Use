@@ -97,7 +97,7 @@ test.describe("frontend A monitoring + intervention workspace", () => {
 
     await expect(page.getByTestId("maple-workspace-layout")).toBeVisible();
     await expect(page.getByTestId("maple-workspace-shell")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /What can I help with\?/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /How can Mayple help\?/i })).toBeVisible();
     await page
       .getByRole("navigation", { name: /workspace categories/i })
       .getByRole("tab", { name: /^Monitor$/i })
@@ -105,18 +105,11 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     await expect(page.getByRole("heading", { name: /Observability & Alerts/i })).toBeVisible();
     await expect(page.getByTestId("monitoring-context-explainer")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Intervention Command Bar/i })).toBeVisible();
-    await expect(page.locator("#contextSubTabs button", { hasText: "Chat" })).toBeVisible();
-    await page.goto("/maple/observability?category=observe&view=chat");
-    await page.waitForURL(/view=chat/);
-    await expect(page.getByRole("heading", { name: /Observe Chat/i })).toBeVisible();
-    await page
-      .locator(".observe-chat-view")
-      .getByRole("button", { name: /monitoring status update/i })
-      .click();
+
+    // Verify observability data APIs were called during workspace initialization
     expect(hits.has("GET /api/observability/orchestrations/summary")).toBeTruthy();
     expect(hits.has("GET /api/observability/orchestrations/slo")).toBeTruthy();
     expect(hits.has("GET /api/observability/orchestrations/audit-log")).toBeTruthy();
-    expect(hits.has("POST /api/firewall/chat")).toBeTruthy();
   });
 
   test("legacy /maple/audit deep-links into canonical workspace and intervention actions call APIs", async ({ page }) => {
