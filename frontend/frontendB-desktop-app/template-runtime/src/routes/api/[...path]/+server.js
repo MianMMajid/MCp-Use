@@ -2,12 +2,33 @@ import { env } from '$env/dynamic/private';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
+function sanitizePath(raw) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(String(raw ?? ''));
+  } catch {
+    return null;
+  }
+  const segments = decoded.split('/').filter(Boolean);
+  if (segments.some((s) => s === '..' || s === '.' || s.includes('\0'))) {
+    return null;
+  }
+  return segments.join('/');
+}
+
 function backendBase() {
   return env.MAYPLE_BACKEND_URL || env.BACKEND_URL || env.MAPLE_GATEWAY_ORIGIN || 'http://127.0.0.1:3000';
 }
 
 async function proxy(request, path) {
-  const target = new URL(`/api/${path}`, backendBase());
+  const safePath = sanitizePath(path);
+  if (safePath === null) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid path' }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    );
+  }
+  const target = new URL(`/api/${safePath}`, backendBase());
   const inUrl = new URL(request.url);
   target.search = inUrl.search;
 
