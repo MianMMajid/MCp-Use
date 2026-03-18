@@ -763,18 +763,12 @@ spec:
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
           command:
-            [
-              "npm",
-              "--prefix",
-              "frontend/frontendB-desktop-app/template-runtime",
-              "run",
-              "start",
-              "--",
-              "--hostname",
-              "0.0.0.0",
-              "--port",
-              "8080"
-            ]
+            ["node", "frontend/frontendB-desktop-app/template-runtime/build"]
+          env:
+            - name: PORT
+              value: "8080"
+            - name: HOST
+              value: "0.0.0.0"
           ports:
             - name: http
               containerPort: 8080

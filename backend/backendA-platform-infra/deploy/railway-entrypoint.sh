@@ -431,12 +431,12 @@ case "${MAPLE_SERVICE}" in
     export MAYPLE_BACKEND_URL="${MAYPLE_BACKEND_URL:-${MAPLE_GATEWAY_ORIGIN}}"
     export BACKEND_URL="${BACKEND_URL:-${MAPLE_GATEWAY_ORIGIN}}"
     cd /app/frontend/frontendB-desktop-app/template-runtime
-    if [ ! -f ".svelte-kit/output/server/index.js" ]; then
+    if [ ! -f "build/index.js" ]; then
       echo "[railway-entrypoint] SvelteKit server bundle missing — running vite build..."
       npm run build
     fi
     echo "[railway-entrypoint] Starting frontendB (Desktop App) on port ${FRONTEND_PORT}..."
-    exec npm run preview -- --host 0.0.0.0 --port "${FRONTEND_PORT}"
+    exec node build
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────

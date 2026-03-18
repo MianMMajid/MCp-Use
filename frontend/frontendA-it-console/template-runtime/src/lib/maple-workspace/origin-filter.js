@@ -1,4 +1,4 @@
-const SOURCE_FILTER_IDS = Object.freeze([
+export const SOURCE_FILTER_IDS = Object.freeze([
   'all',
   'frontend-b',
   'frontend-a',
@@ -41,18 +41,6 @@ function collectOriginCandidates(record) {
   ]
 
   return fields.filter((value) => typeof value === 'string' && value.trim().length > 0)
-}
-
-export function isFrontendBOriginRecord(record) {
-  const candidates = collectOriginCandidates(record)
-  return candidates.some((value) => hasHint(value, SOURCE_HINTS['frontend-b']))
-}
-
-export function filterFrontendBOrigin(records) {
-  if (!Array.isArray(records)) {
-    return []
-  }
-  return records.filter((record) => isFrontendBOriginRecord(record))
 }
 
 export function getAuditRecordSource(record) {

@@ -153,7 +153,7 @@ export function getAllPermissions() {
 
 /**
  * Mark permissions as failed so canAccessCategory falls back to fail-open.
- * Called by MapleShell when the permission load timeout fires.
+ * Called by the Maple workspace shell when the permission load timeout fires.
  */
 export function markPermissionLoadFailed() {
   if (!_loaded) {
@@ -231,7 +231,7 @@ function notify() {
 
 /**
  * Permission requirements for workspace categories.
- * Used by MapleShell to filter visible navigation.
+ * Used by the Maple workspace shell to filter visible navigation.
  */
 export const CATEGORY_PERMISSIONS = Object.freeze({
   chat: null, // always visible

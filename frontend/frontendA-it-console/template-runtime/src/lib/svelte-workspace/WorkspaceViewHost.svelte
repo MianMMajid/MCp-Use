@@ -587,7 +587,6 @@
       }
       firewallRulesNotice = 'Firewall rules applied successfully.'
     } catch (requestError) {
-      firewallRulesNotice = 'Rules saved locally for review. Backend apply is unavailable.'
       firewallRulesError = requestError instanceof Error ? requestError.message : 'Unable to apply rules.'
     } finally {
       firewallRulesBusy = false
@@ -622,22 +621,30 @@
 
     leakageBusy = true
     leakageNotice = ''
-    const queued = files.map((file) => ({
-      id: `${file.name}-${file.size}-${Date.now()}`,
-      name: file.name,
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-    }))
-    leakageDocs = [...queued, ...leakageDocs].slice(0, 20)
 
     try {
       const form = new FormData()
       for (const file of files) form.append('documents', file)
       form.append('policyMode', leakagePolicy)
-      await fetch('/api/firewall/context-leakage/documents', { method: 'POST', body: form })
+      const response = await fetch('/api/firewall/context-leakage/documents', {
+        method: 'POST',
+        body: form,
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || `Failed to submit documents (${response.status})`)
+      }
+      const uploaded = files.map((file) => ({
+        id: `${file.name}-${file.size}-${Date.now()}`,
+        name: file.name,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+      }))
+      leakageDocs = [...uploaded, ...leakageDocs].slice(0, 20)
       leakageNotice = `${files.length} document(s) submitted for context leakage scanning.`
-    } catch {
-      leakageNotice = `${files.length} document(s) queued locally.`
+    } catch (requestError) {
+      leakageNotice = ''
+      error = requestError instanceof Error ? requestError.message : 'Unable to submit context leakage documents.'
     } finally {
       leakageBusy = false
       if (input) input.value = ''
