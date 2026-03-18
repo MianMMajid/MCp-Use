@@ -2,6 +2,20 @@ import { env } from '$env/dynamic/private';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
+function sanitizePath(raw) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(String(raw ?? ''));
+  } catch {
+    return null;
+  }
+  const segments = decoded.split('/').filter(Boolean);
+  if (segments.some((s) => s === '..' || s === '.' || s.includes('\0'))) {
+    return null;
+  }
+  return segments.join('/');
+}
+
 function backendBase() {
   return env.MAPLE_ADMIN_CONSOLE_ORIGIN
     || env.MAPLE_GATEWAY_ORIGIN
@@ -11,7 +25,14 @@ function backendBase() {
 }
 
 async function proxy(request, path) {
-  const target = new URL(`/admin/api/${path}`, backendBase());
+  const safePath = sanitizePath(path);
+  if (safePath === null) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid path' }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    );
+  }
+  const target = new URL(`/admin/api/${safePath}`, backendBase());
   const inUrl = new URL(request.url);
   target.search = inUrl.search;
 
@@ -41,9 +62,17 @@ async function proxy(request, path) {
     );
   }
 
+  // Node's fetch auto-decompresses gzip/br responses but keeps the
+  // content-encoding header.  Forwarding that header causes browsers to
+  // try to decompress already-decompressed data.
+  const proxiedHeaders = new Headers(response.headers);
+  proxiedHeaders.delete('content-encoding');
+  proxiedHeaders.delete('content-length');
+  proxiedHeaders.delete('transfer-encoding');
+
   return new Response(response.body, {
     status: response.status,
-    headers: response.headers,
+    headers: proxiedHeaders,
   });
 }
 
