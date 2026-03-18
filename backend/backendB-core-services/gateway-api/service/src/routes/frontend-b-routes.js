@@ -135,6 +135,7 @@ async function requireOwnedAgent(ownerUserId, agentId) {
   if (!agent || String(agent.ownerId ?? "") !== String(ownerUserId)) {
     return null;
   }
+  if (agent.status === "archived") return null;
   return agent;
 }
 
@@ -143,6 +144,7 @@ async function requireOwnedOrchestration(ownerUserId, orchestrationId) {
   if (!orchestration || String(orchestration.ownerId ?? "") !== String(ownerUserId)) {
     return null;
   }
+  if (orchestration.status === "archived") return null;
   return orchestration;
 }
 
@@ -907,6 +909,9 @@ export function registerFrontendBRoutes(app) {
     if (!name || !policyText) {
       return c.json({ error: "name and policyText are required." }, 400);
     }
+    if (scope === "agent" && !assignedAgentId) {
+      return c.json({ error: "assignedAgentId is required for agent-scoped firewalls." }, 400);
+    }
     if (assignedAgentId && !(await requireOwnedAgent(auth.session.user.id, assignedAgentId))) {
       return c.json({ error: "Assigned agent not found." }, 404);
     }
@@ -988,6 +993,9 @@ export function registerFrontendBRoutes(app) {
     const assignedAgentId = scope === "agent"
       ? (body.assignedAgentId !== undefined ? asString(body.assignedAgentId) : existing.assignedAgentId)
       : null;
+    if (scope === "agent" && !assignedAgentId) {
+      return c.json({ error: "assignedAgentId is required for agent-scoped firewalls." }, 400);
+    }
     if (assignedAgentId && !(await requireOwnedAgent(auth.session.user.id, assignedAgentId))) {
       return c.json({ error: "Assigned agent not found." }, 404);
     }

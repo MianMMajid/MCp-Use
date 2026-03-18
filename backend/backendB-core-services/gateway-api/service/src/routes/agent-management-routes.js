@@ -114,6 +114,9 @@ export function registerAgentManagementRoutes(app) {
         if (!existing || (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
             return c.json({ error: "Agent not found" }, 404);
         }
+        if (existing.status === "archived") {
+            return c.json({ error: "Cannot modify an archived agent. Restore it first." }, 400);
+        }
         const body = await readJsonBody(c);
 
         const updates = {};

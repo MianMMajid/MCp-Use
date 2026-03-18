@@ -1524,6 +1524,9 @@ export function registerOrchestrationRoutes(app) {
       if (!orchestration) {
         return c.json({ ok: false, error: "Orchestration not found." }, 404);
       }
+      if (orchestration.status === "archived") {
+        return c.json({ ok: false, error: "Cannot execute an archived orchestration. Restore it first." }, 400);
+      }
 
       const requestedVersion = asString(body.definitionVersion) ?? "";
       const resolved = await resolveDefinitionForRuntime(orchestration, requestedVersion);
@@ -1668,6 +1671,9 @@ export function registerOrchestrationRoutes(app) {
     const existing = await database.findOrchestrationById(id);
     if (!existing || (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
       return c.json({ error: "Orchestration not found" }, 404);
+    }
+    if (existing.status === "archived") {
+      return c.json({ error: "Cannot modify an archived orchestration. Restore it first." }, 400);
     }
     const body = await readJsonBody(c);
 
