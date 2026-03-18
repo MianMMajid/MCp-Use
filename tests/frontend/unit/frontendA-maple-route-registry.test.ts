@@ -7,6 +7,12 @@ import {
   MAPLE_WORKSPACE_CATEGORIES,
   MAPLE_WORKSPACE_ROUTE_PATHS,
 } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/route-registry.js'
+import {
+  MAPLE_WORKSPACE_CATEGORY_IDS,
+} from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/registry-types.js'
+import {
+  CATEGORY_PERMISSIONS,
+} from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/permissions.js'
 
 const repoRoot = process.cwd()
 const mapleAppRoot = resolve(
@@ -59,6 +65,20 @@ describe('frontend A maple route registry', () => {
 
     for (const route of discoveredRoutes) {
       expect(registryRoutes.has(route)).toBe(true)
+    }
+  })
+
+  it('nav categories, type categories, and permission categories are aligned', () => {
+    const navIds = new Set(MAPLE_WORKSPACE_CATEGORIES.map((c) => c.id))
+    const permIds = new Set(Object.keys(CATEGORY_PERMISSIONS))
+
+    for (const id of MAPLE_WORKSPACE_CATEGORY_IDS) {
+      expect(navIds.has(id), `"${id}" in registry-types but missing from nav`).toBe(true)
+      expect(permIds.has(id), `"${id}" in registry-types but missing from permissions`).toBe(true)
+    }
+
+    for (const id of navIds) {
+      expect(MAPLE_WORKSPACE_CATEGORY_IDS.includes(id), `"${id}" in nav but missing from registry-types`).toBe(true)
     }
   })
 

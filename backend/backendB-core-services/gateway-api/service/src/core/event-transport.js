@@ -48,14 +48,42 @@ function createPgTransport(config) {
   const subscriptions = new Map(); // channel → Set<listener>
   let pgClient = null;
   let closed = false;
+  let connecting = null; // serializes concurrent ensurePgClient() calls
 
   async function ensurePgClient() {
     if (closed) return null;
     if (pgClient) return pgClient;
     if (!database?.pool) return null;
+    // Serialize: if another call is already connecting, wait for it
+    if (connecting) return connecting;
 
+    connecting = _doConnect();
+    try {
+      return await connecting;
+    } finally {
+      connecting = null;
+    }
+  }
+
+  async function _doConnect() {
     try {
       const client = await database.pool.connect();
+
+      // Re-check after async gap: if close() ran while we were awaiting
+      // pool.connect(), release the late client immediately to avoid
+      // orphaning it and blocking pool.end().
+      if (closed) {
+        try { client.release(); } catch { /* ignore */ }
+        return null;
+      }
+
+      // Guard against a concurrent call that resolved first (shouldn't
+      // happen with the serialization above, but defensive).
+      if (pgClient) {
+        try { client.release(); } catch { /* ignore */ }
+        return pgClient;
+      }
+
       pgClient = client;
 
       client.on("notification", (msg) => {

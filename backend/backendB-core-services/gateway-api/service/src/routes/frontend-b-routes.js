@@ -155,13 +155,22 @@ async function resolveTaskOrchestrationRuntime(ownerUserId, orchestrationId) {
   const currentNodes = Array.isArray(orchestration.nodes) ? orchestration.nodes : [];
   const currentEdges = Array.isArray(orchestration.edges) ? orchestration.edges : [];
   if (currentNodes.length > 0 || currentEdges.length > 0) {
+    // Use the inline definition but still resolve the version ID so
+    // execution records reference the correct version row.
+    let versionId = null;
+    if (typeof database.findLatestOrchestrationVersion === "function") {
+      try {
+        const versionRecord = await database.findLatestOrchestrationVersion(orchestration.id);
+        if (versionRecord) versionId = versionRecord.id ?? null;
+      } catch { /* version lookup is best-effort */ }
+    }
     return {
       orchestration: {
         ...orchestration,
         nodes: currentNodes,
         edges: currentEdges,
       },
-      versionId: null,
+      versionId,
       definitionVersion: asString(orchestration.updatedAt) ?? "",
     };
   }

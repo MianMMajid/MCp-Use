@@ -34,7 +34,7 @@ export function startGatewayWorkers({ database, transportBackend, redisUrl }) {
 
   return async function stopGatewayWorkers() {
     stopHitlBroker();
-    stopModifierApprovalBroker();
+    await stopModifierApprovalBroker();
     await stopAuditOutboxWorker();
     stopEscalationWorker();
     stopRetentionWorker();

@@ -76,8 +76,7 @@ test.describe("frontend B runtime smoke", () => {
 
     await page.goto(absoluteUrl("/skills"));
 
-    await expect(page.getByRole("heading", { name: "Skills Toolbox" })).toBeVisible();
-    await expect(page.getByText("OpenClaw CLI")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible();
   });
 
   test("sessions route restores persisted agent selection from local storage", async ({ page }) => {

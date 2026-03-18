@@ -13,6 +13,7 @@ import { withLeaderLock, LOCK_IDS } from "./leader-election.js";
 let _database = null;
 let _flushTimer = null;
 let _flushing = false;
+let _flushPromise = null;
 
 function hasPool(database) {
   return Boolean(database && typeof database.pool?.query === "function");
@@ -100,12 +101,24 @@ function fireAndForgetGrpc(event) {
  */
 export async function flushOutbox(options = {}) {
   if (_flushing) {
+    // If a flush is already in-flight, return its promise so callers
+    // (especially shutdown) can wait for the active flush to finish.
+    if (_flushPromise) return _flushPromise;
     return { flushed: 0, failed: 0, skipped: 0, reason: "already_flushing" };
   }
   _flushing = true;
   const batchSize = options.batchSize ?? openclawModifierAuditOutboxBatchSize;
   const db = options.database ?? _database;
 
+  _flushPromise = _doFlush(db, batchSize);
+  try {
+    return await _flushPromise;
+  } finally {
+    _flushPromise = null;
+  }
+}
+
+async function _doFlush(db, batchSize) {
   try {
     if (!hasPool(db)) {
       return { flushed: 0, failed: 0, skipped: 0, reason: "no_database" };

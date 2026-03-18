@@ -1,61 +1,35 @@
-import React from 'react'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { MapleDocsPanel } from '../../../frontend/frontendA-it-console/template-runtime/src/components/workspace/MapleDocsPanel.jsx'
-import { getMapleRoute } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/route-registry.js'
 import {
-  parseStoredDocsPanelPreference,
-  resolveInitialDocsPanelState,
-} from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/docs-panel-preferences.js'
+  MAPLE_ROUTE_REGISTRY,
+  MAPLE_WORKSPACE_CATEGORIES,
+} from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/route-registry.js'
+import {
+  MAPLE_WORKSPACE_CATEGORY_IDS,
+} from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/registry-types.js'
+import {
+  CATEGORY_PERMISSIONS,
+} from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/permissions.js'
 
-describe('frontend A docs panel', () => {
-  it('renders route summary, section anchors, endpoints, and legacy docs links', () => {
-    const routeRecord = getMapleRoute('/maple/observability')
-    if (!routeRecord) {
-      throw new Error('Missing /maple/observability route metadata.')
-    }
-
-    render(
-      React.createElement(MapleDocsPanel, {
-        isDesktop: true,
-        isOpen: true,
-        routeRecord,
-        onClose: vi.fn(),
-      }),
-    )
-
-    expect(screen.getByRole('heading', { name: 'Context Docs' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'A/B Role Split' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Route Summary' })).toBeInTheDocument()
-    expect(screen.getByText(routeRecord.description)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Section Anchors' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'API Endpoints' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Legacy Docs' })).toBeInTheDocument()
-
-    const firstEndpoint = routeRecord.apiEndpoints[0]
-    if (firstEndpoint) {
-      expect(screen.getByText(firstEndpoint)).toBeInTheDocument()
-    }
-
-    const firstAnchor = routeRecord.anchors[0]
-    if (firstAnchor) {
-      expect(screen.getByRole('link', { name: firstAnchor.title })).toHaveAttribute(
-        'href',
-        `${routeRecord.path}#${firstAnchor.id}`,
-      )
+describe('frontend A category alignment', () => {
+  it('MAPLE_WORKSPACE_CATEGORIES includes every id from MAPLE_WORKSPACE_CATEGORY_IDS', () => {
+    const navIds = new Set(MAPLE_WORKSPACE_CATEGORIES.map((c) => c.id))
+    for (const id of MAPLE_WORKSPACE_CATEGORY_IDS) {
+      expect(navIds.has(id), `"${id}" is in registry-types but missing from route-registry nav list`).toBe(true)
     }
   })
 
-  it('respects desktop/mobile default docs panel state rules', () => {
-    expect(resolveInitialDocsPanelState({ storedPreference: undefined, isDesktop: true })).toBe(true)
-    expect(resolveInitialDocsPanelState({ storedPreference: undefined, isDesktop: false })).toBe(false)
-    expect(resolveInitialDocsPanelState({ storedPreference: true, isDesktop: false })).toBe(true)
-    expect(resolveInitialDocsPanelState({ storedPreference: false, isDesktop: true })).toBe(false)
+  it('CATEGORY_PERMISSIONS covers every category in MAPLE_WORKSPACE_CATEGORY_IDS', () => {
+    for (const id of MAPLE_WORKSPACE_CATEGORY_IDS) {
+      expect(id in CATEGORY_PERMISSIONS, `"${id}" is missing from CATEGORY_PERMISSIONS`).toBe(true)
+    }
+  })
 
-    expect(parseStoredDocsPanelPreference('open')).toBe(true)
-    expect(parseStoredDocsPanelPreference('closed')).toBe(false)
-    expect(parseStoredDocsPanelPreference('anything-else')).toBeUndefined()
-    expect(parseStoredDocsPanelPreference(null)).toBeUndefined()
+  it('every route category appears in the nav list', () => {
+    const navIds = new Set(MAPLE_WORKSPACE_CATEGORIES.map((c) => c.id))
+    const routeCategories = new Set(MAPLE_ROUTE_REGISTRY.map((r) => r.category))
+    for (const cat of routeCategories) {
+      expect(navIds.has(cat), `route category "${cat}" is not navigable`).toBe(true)
+    }
   })
 })

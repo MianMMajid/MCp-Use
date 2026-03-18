@@ -45,6 +45,12 @@
   let downstreamTools = []
   let openclawCatalog = []
   let firewallRules = []
+  let cyberStatus = null
+  let cyberPolicies = null
+  let cyberIncidents = []
+  let cyberDownloads = []
+  let cyberQuarantine = []
+  let cyberSuppressions = []
   let authMe = null
   let currentOrgId = ''
   let orgMembers = []
@@ -322,6 +328,12 @@
         orgMembersRes,
         orgInvitesRes,
         orgRolesRes,
+        cyberStatusRes,
+        cyberPoliciesRes,
+        cyberIncidentsRes,
+        cyberDownloadsRes,
+        cyberQuarantineRes,
+        cyberSuppressionsRes,
       ] = await Promise.allSettled([
         safeFetch('/api/observability/orchestrations/summary').then(safeJson),
         safeFetch('/api/observability/orchestrations/slo').then(safeJson),
@@ -347,6 +359,12 @@
         safeFetch('/api/auth/me').then(safeJson),
         safeFetch('/api/firewall/rules/effective').then(safeJson),
         ...orgFetches,
+        safeFetch('/api/cyber/status').then(safeJson),
+        safeFetch('/api/cyber/policies').then(safeJson),
+        safeFetch('/api/cyber/incidents?limit=100').then(safeJson),
+        safeFetch('/api/cyber/downloads?limit=100').then(safeJson),
+        safeFetch('/api/cyber/quarantine').then(safeJson),
+        safeFetch('/api/cyber/suppressions').then(safeJson),
       ])
 
       if (summaryRes.status === 'fulfilled') summary = summaryRes.value
@@ -416,6 +434,13 @@
       if (orgRolesRes.status === 'fulfilled') {
         orgRoles = asArray(orgRolesRes.value?.roles ?? orgRolesRes.value?.items ?? orgRolesRes.value)
       }
+
+      if (cyberStatusRes.status === 'fulfilled') cyberStatus = cyberStatusRes.value ?? null
+      if (cyberPoliciesRes.status === 'fulfilled') cyberPolicies = cyberPoliciesRes.value ?? null
+      if (cyberIncidentsRes.status === 'fulfilled') cyberIncidents = asArray(cyberIncidentsRes.value?.items)
+      if (cyberDownloadsRes.status === 'fulfilled') cyberDownloads = asArray(cyberDownloadsRes.value?.items)
+      if (cyberQuarantineRes.status === 'fulfilled') cyberQuarantine = asArray(cyberQuarantineRes.value?.items)
+      if (cyberSuppressionsRes.status === 'fulfilled') cyberSuppressions = asArray(cyberSuppressionsRes.value?.items)
 
       if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId
       if (firewallRules.length === 0) firewallRules = defaultFirewallRules
@@ -726,6 +751,13 @@
               {downstreamTools}
               {openclawCatalog}
               {firewallRules}
+              {cyberStatus}
+              {cyberPolicies}
+              {cyberIncidents}
+              {cyberDownloads}
+              {cyberQuarantine}
+              {cyberSuppressions}
+              cyberRefresh={loadData}
               {authMe}
               {orgMembers}
               {orgInvites}

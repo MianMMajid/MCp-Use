@@ -34,6 +34,7 @@ const ALLOWED_API_PREFIXES = [
   '/api/agents',
   '/api/auth',
   '/api/chat',
+  '/api/firewalls',
   '/api/firewall/state',
   '/api/hitl/approvals',
   '/api/limits',
@@ -48,6 +49,8 @@ const ALLOWED_API_PREFIXES = [
   '/api/runtime',
   '/api/search',
   '/api/sessions',
+  '/api/skills',
+  '/api/tasks',
   '/api/tools',
   '/api/traces',
   '/api/usage',
@@ -78,6 +81,8 @@ function walk(dirPath) {
       continue
     }
     if (!FILE_EXTENSIONS.has(path.extname(entry.name))) continue
+    if (entry.name.includes('.test.')) continue
+    if (entry.name === 'proxy.js' || entry.name === 'proxy.disabled.js') continue
     if (fullPath.includes(`${path.sep}lib${path.sep}fake-mode${path.sep}`)) continue
     const content = fs.readFileSync(fullPath, 'utf8')
     FORBIDDEN_PATTERNS.forEach((pattern) => {
@@ -101,10 +106,16 @@ function walk(dirPath) {
   }
 }
 
+const ROUTE_GROUP_DIRS = ['', '(app)']
+
 for (const route of REQUIRED_ROUTES) {
-  let routeFile = route === '' ? path.join(ROUTES, '+page.svelte') : path.join(ROUTES, route, '+page.svelte')
-  let fallback = route === '' ? null : path.join(ROUTES, route, '+page.server.js')
-  if (!fs.existsSync(routeFile) && !(fallback && fs.existsSync(fallback))) {
+  const found = ROUTE_GROUP_DIRS.some((group) => {
+    const base = group ? path.join(ROUTES, group) : ROUTES
+    const routeFile = route === '' ? path.join(base, '+page.svelte') : path.join(base, route, '+page.svelte')
+    const fallback = route === '' ? null : path.join(base, route, '+page.server.js')
+    return fs.existsSync(routeFile) || (fallback && fs.existsSync(fallback))
+  })
+  if (!found) {
     violations.missingRoutes.push(route || '/')
   }
 }

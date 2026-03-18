@@ -12,6 +12,7 @@ let _roleLabel = "member";
 let _rbacVersion = 0;
 let _loaded = false;
 let _loading = false;
+let _loadFailed = false;
 
 /** @type {Array<() => void>} */
 const _subscribers = [];
@@ -28,8 +29,9 @@ export async function loadPermissions(userId) {
     // First get user info
     const meRes = await fetch("/api/auth/me", { credentials: "same-origin" });
     if (!meRes.ok) {
-      _permissions = new Set();
+      _permissions = defaultPermissionsForRole("member");
       _roleLabel = "member";
+      _loadFailed = true;
       _loaded = true;
       _loading = false;
       notify();
@@ -64,6 +66,7 @@ export async function loadPermissions(userId) {
       _permissions = new Set(data.permissions ?? []);
       _roleLabel = data.roleLabel ?? "member";
       _rbacVersion = data.rbacVersion ?? 0;
+      _loadFailed = false;
     } else {
       // RBAC endpoints not available — fall back to role-based defaults
       const role = me?.user?.role ?? "member";
@@ -71,9 +74,11 @@ export async function loadPermissions(userId) {
       _permissions = defaultPermissionsForRole(role);
     }
   } catch {
-    // Network error — use empty permissions (most restrictive)
-    _permissions = new Set();
+    // Network error — fail-open with member defaults for nav visibility.
+    // Actual API endpoints still enforce auth server-side.
+    _permissions = defaultPermissionsForRole("member");
     _roleLabel = "member";
+    _loadFailed = true;
   }
 
   _loaded = true;
@@ -83,15 +88,14 @@ export async function loadPermissions(userId) {
 
 /**
  * Check if the current user has a specific permission.
- * Returns true if user has the permission, or if permissions
- * haven't loaded yet (optimistic rendering to avoid flash).
+ * Returns false while permissions are loading (restrictive default).
  *
  * @param {string} resource
  * @param {string} action
  * @returns {boolean}
  */
 export function can(resource, action) {
-  if (!_loaded) return true; // Optimistic until loaded
+  if (!_loaded) return false;
   if (_permissions.has("*")) return true;
   return _permissions.has(`${resource}:${action}`);
 }
@@ -102,9 +106,17 @@ export function can(resource, action) {
  * @returns {boolean}
  */
 export function canAny(permissionPairs) {
-  if (!_loaded) return true;
+  if (!_loaded) return false;
   if (_permissions.has("*")) return true;
   return permissionPairs.some(([resource, action]) => _permissions.has(`${resource}:${action}`));
+}
+
+/**
+ * Check if permissions have finished loading and are ready to use.
+ * @returns {boolean}
+ */
+export function permissionsReady() {
+  return _loaded;
 }
 
 /**
@@ -137,6 +149,21 @@ export function permissionsLoaded() {
  */
 export function getAllPermissions() {
   return [..._permissions];
+}
+
+/**
+ * Mark permissions as failed so canAccessCategory falls back to fail-open.
+ * Called by MapleShell when the permission load timeout fires.
+ */
+export function markPermissionLoadFailed() {
+  if (!_loaded) {
+    _loadFailed = true;
+    _permissions = defaultPermissionsForRole("member");
+    _roleLabel = "member";
+    _loaded = true;
+    _loading = false;
+    notify();
+  }
 }
 
 /**
@@ -218,10 +245,13 @@ export const CATEGORY_PERMISSIONS = Object.freeze({
 
 /**
  * Check if a workspace category should be visible to the current user.
+ * Fails open when permissions could not be fetched — nav visibility is
+ * UI chrome; actual data endpoints enforce auth server-side.
  * @param {string} categoryId
  * @returns {boolean}
  */
 export function canAccessCategory(categoryId) {
+  if (_loadFailed) return true;
   const required = CATEGORY_PERMISSIONS[categoryId];
   if (!required) return true;
   return canAny(required);

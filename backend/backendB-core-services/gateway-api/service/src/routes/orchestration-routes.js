@@ -653,13 +653,19 @@ async function resolveDefinitionForRuntime(orchestration, definitionVersion) {
   const currentEdges = Array.isArray(orchestration?.edges) ? orchestration.edges : [];
   const hasCurrentDefinition = currentNodes.length > 0 || currentEdges.length > 0;
   if (!definitionVersion && hasCurrentDefinition) {
+    // Use the inline definition but still resolve the version record so
+    // execution records reference the correct version row.
+    let versionRecord = null;
+    try {
+      versionRecord = await findLatestOrchestrationVersion(orchestration.id);
+    } catch { /* version lookup is best-effort */ }
     return {
       orchestration: {
         ...orchestration,
         nodes: currentNodes,
         edges: currentEdges,
       },
-      versionRecord: null,
+      versionRecord,
       resolvedDefinitionVersion: asString(orchestration.updatedAt) ?? "",
     };
   }

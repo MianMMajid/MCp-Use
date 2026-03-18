@@ -93,14 +93,14 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     });
 
     await page.goto("/maple");
-    await page.waitForURL(/category=observe/);
+    await page.waitForURL(/category=chat/);
 
     await expect(page.getByTestId("maple-workspace-layout")).toBeVisible();
     await expect(page.getByTestId("maple-workspace-shell")).toBeVisible();
     await expect(page.getByRole("heading", { name: /What can I help with\?/i })).toBeVisible();
     await page
       .getByRole("navigation", { name: /workspace categories/i })
-      .getByRole("tab", { name: /^Observe$/i })
+      .getByRole("tab", { name: /^Monitor$/i })
       .click();
     await expect(page.getByRole("heading", { name: /Observability & Alerts/i })).toBeVisible();
     await expect(page.getByTestId("monitoring-context-explainer")).toBeVisible();
@@ -186,7 +186,7 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     await expect(page).toHaveURL(/\/maple\?/);
     await expect(page.getByRole("heading", { name: /Audit & Compliance Operations/i })).toBeVisible();
 
-    await page.getByLabel("Execution ID").fill("exec-parent-1");
+    await page.getByLabel("Trace or Session ID").fill("exec-parent-1");
     await page.getByRole("button", { name: "Pause" }).click();
     await page.getByRole("button", { name: "Resume" }).click();
 
@@ -210,7 +210,7 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     });
 
     await page.goto("/maple");
-    await page.waitForURL(/category=observe/);
+    await page.waitForURL(/category=chat/);
 
     await page
       .getByRole("navigation", { name: /workspace categories/i })

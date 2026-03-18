@@ -107,10 +107,12 @@ export function listRecentModifierApprovalEvents() {
 
 /**
  * Stop the transport and clean up.
+ * @returns {Promise<void>}
  */
-export function stopModifierApprovalBroker() {
+export async function stopModifierApprovalBroker() {
   if (_transport) {
-    _transport.close().catch(() => {});
+    const transport = _transport;
     _transport = null;
+    await transport.close().catch(() => {});
   }
 }
