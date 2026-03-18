@@ -265,6 +265,17 @@ async function loadNormalizedSkillCatalog() {
     });
   }
 
+  // Built-in native runtime tools
+  const builtinTools = [
+    { toolId: "web_search", name: "Web Search", description: "Search the web for current information. Returns titles, URLs, and snippets.", category: "web", tags: ["#web", "#search"], source: "built-in" },
+    { toolId: "web_fetch", name: "Web Fetch", description: "Fetch a web page and return its content as readable text.", category: "web", tags: ["#web", "#fetch"], source: "built-in" },
+  ];
+  for (const bt of builtinTools) {
+    if (!byId.has(bt.toolId)) {
+      byId.set(bt.toolId, { ...bt, status: "connected" });
+    }
+  }
+
   for (const item of cliItems) {
     const toolId = String(item.tool ?? item.name ?? "").trim();
     if (!toolId || byId.has(toolId)) continue;

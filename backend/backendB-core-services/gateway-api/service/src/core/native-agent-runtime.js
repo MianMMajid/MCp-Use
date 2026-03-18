@@ -208,6 +208,87 @@ async function callMcpTool(app, toolName, args) {
   return typeof result === "string" ? result : JSON.stringify(result);
 }
 
+// ── Built-in tools (no MCP server needed) ───────────
+
+const BUILTIN_TOOLS = [
+  {
+    name: "web_search",
+    description: "Search the web for current information. Returns titles, URLs, and snippets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search query" },
+      },
+      required: ["query"],
+    },
+    _builtin: true,
+  },
+  {
+    name: "web_fetch",
+    description: "Fetch a web page and return its content as readable text. Use for reading articles, docs, or any URL.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "URL to fetch" },
+      },
+      required: ["url"],
+    },
+    _builtin: true,
+  },
+];
+
+async function executeBuiltinTool(toolName, args) {
+  if (toolName === "web_search") {
+    const query = args.query || "";
+    if (!query) return "No search query provided.";
+    try {
+      // Use DuckDuckGo instant answer API (no key needed)
+      const res = await fetch(
+        `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`,
+        { signal: AbortSignal.timeout(10_000) }
+      );
+      const data = await res.json();
+      const results = [];
+      if (data.AbstractText) results.push(`Summary: ${data.AbstractText}\nSource: ${data.AbstractURL}`);
+      if (data.RelatedTopics) {
+        for (const topic of data.RelatedTopics.slice(0, 5)) {
+          if (topic.Text) results.push(`- ${topic.Text} ${topic.FirstURL || ""}`);
+        }
+      }
+      return results.length > 0 ? results.join("\n") : `No instant results for "${query}". Try a more specific query.`;
+    } catch (err) {
+      return `Search failed: ${err.message}`;
+    }
+  }
+
+  if (toolName === "web_fetch") {
+    const url = args.url || "";
+    if (!url) return "No URL provided.";
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Maple/1.0", "Accept": "text/html,text/plain,application/json" },
+        signal: AbortSignal.timeout(15_000),
+        redirect: "follow",
+      });
+      const contentType = res.headers.get("content-type") || "";
+      const text = await res.text();
+      if (contentType.includes("json")) return text.slice(0, 5000);
+      // Strip HTML tags for readability
+      const cleaned = text
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return cleaned.slice(0, 5000);
+    } catch (err) {
+      return `Fetch failed: ${err.message}`;
+    }
+  }
+
+  return `Unknown built-in tool: ${toolName}`;
+}
+
 // ── Tool resolution ─────────────────────────────────
 
 async function resolveToolsForAgent(equippedToolIds) {
@@ -215,6 +296,15 @@ async function resolveToolsForAgent(equippedToolIds) {
   const toolAppMap = new Map();
 
   for (const toolId of equippedToolIds) {
+    // Check if it's a built-in tool
+    const builtin = BUILTIN_TOOLS.find((t) => t.name === toolId);
+    if (builtin) {
+      tools.push({ ...builtin });
+      toolAppMap.set(builtin.name, { builtin: true, originalName: builtin.name });
+      continue;
+    }
+
+    // Check downstream MCP apps
     const appId = `mcp-registry:${toolId}`;
     const app = downstreamAppRegistry.get(appId) || downstreamAppRegistry.get(toolId);
     if (!app) {
@@ -381,6 +471,21 @@ async function executeToolCall(toolCall, tools, toolAppMap) {
         : toolCall.function?.arguments || toolCall.input || {};
   } catch {
     args = {};
+  }
+
+  // Handle built-in tools
+  if (mapping.builtin) {
+    try {
+      const start = Date.now();
+      const content = await executeBuiltinTool(mapping.originalName, args);
+      mapleLog("info", "native_agent.builtin_tool_ok", {
+        tool: toolDef.name,
+        durationMs: Date.now() - start,
+      });
+      return { content };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   try {
