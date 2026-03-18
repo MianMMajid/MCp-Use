@@ -35,10 +35,10 @@
   let permissionVersion = 0
 
   const CATEGORY_LABEL_BY_GROUP = Object.freeze({
-    chat: 'Chat',
-    monitor: 'Monitor',
-    firewalls: 'Firewalls',
-    agents: 'Agents',
+    chat: 'Investigate',
+    monitor: 'Observe',
+    firewalls: 'Protect',
+    agents: 'Govern',
   })
 
   $: routeRecord = getClosestMapleRoute($page.url.pathname)
@@ -144,6 +144,10 @@
                 <div class="context-panel-body">
                   {#if renderProductSurface('/maple/observability')}
                     <MapleRoutePage routePath="/maple/observability" embedded={true} />
+                  {:else if renderProductSurface('/maple/topology')}
+                    <MapleRoutePage routePath="/maple/topology" embedded={true} />
+                  {:else if renderProductSurface('/maple/forks')}
+                    <MapleRoutePage routePath="/maple/forks" embedded={true} />
                   {:else if renderProductSurface('/maple/runs')}
                     <RunsSurface />
                   {:else if renderProductSurface('/maple/gateway')}

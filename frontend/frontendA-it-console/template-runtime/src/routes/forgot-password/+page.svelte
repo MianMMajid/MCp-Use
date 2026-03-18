@@ -16,7 +16,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, redirectUrl: `${window.location.origin}/reset-password` }),
       })
 
       const payload = await response.json().catch(() => ({}))

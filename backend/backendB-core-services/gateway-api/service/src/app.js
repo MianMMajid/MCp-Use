@@ -8,6 +8,7 @@ import { registerEnterpriseModules } from "./bootstrap/register-enterprise-modul
 import { startGatewayWorkers } from "./bootstrap/register-workers.js";
 import { enforceGatewayStartupDependencies } from "./core/runtime-dependencies.js";
 import { eventTransportBackend, redisUrl } from "./config.js";
+import { shutdownNativeAgentRuntime } from "./core/native-agent-runtime.js";
 
 export async function createApp() {
     const app = server.app;
@@ -60,6 +61,7 @@ export async function createApp() {
     const shutdown = async () => {
         await stopWorkers();
         closeGrpcClients(grpcClients);
+        shutdownNativeAgentRuntime();
         await shutdownOpenClawRuntime();
         try {
             await database.close();

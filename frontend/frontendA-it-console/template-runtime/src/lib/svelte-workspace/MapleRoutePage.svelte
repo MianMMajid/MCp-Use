@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
 
   import { humanizeError } from '../utils/error-display.js'
   import { loadJson, loadMany, pickItems, sendJson } from '../api/maple-api.js'
@@ -27,6 +27,8 @@
     '/maple/agent': 20000,
     '/maple/downstream': 30000,
     '/maple/policies': 20000,
+    '/maple/topology': 30000,
+    '/maple/forks': 20000,
   })
 
   const ROUTE_REQUESTS = Object.freeze({
@@ -81,9 +83,18 @@
       ['agentStatus', '/api/openclaw/agent/status'],
       ['agentSessions', '/api/openclaw/agent/sessions'],
     ],
+    '/maple/topology': [
+      ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
+      ['runtimeStatus', '/api/runtime/status'],
+    ],
     '/maple/runs': [
       ['runs', '/api/runs'],
       ['agentSessions', '/api/openclaw/agent/sessions'],
+    ],
+    '/maple/forks': [
+      ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=100'],
+      ['filesystemStatus', '/api/firewall/filesystem/status'],
+      ['filesystemMutations', '/api/firewall/filesystem/mutations?limit=100'],
     ],
     '/maple/downstream': [
       ['downstreamApps', '/api/downstream/apps'],
@@ -143,6 +154,7 @@
   let selectedAgentDetail = null
   let selectedArtifacts = []
   let selectedArtifactsRunId = ''
+  let downstreamRouteLock = false
   let downstreamDispatch = {
     appId: '',
     toolName: '',
@@ -261,13 +273,18 @@
       const nextState = await loadMany(fetch, requests)
 
       if (routePath === '/maple/downstream') {
+        downstreamRouteLock = Boolean(nextState.downstreamApps?.value?.routeLock)
         const apps = pickItems(nextState.downstreamApps?.value, ['apps', 'items'])
         const firstApp = apps[0]
         const appId = firstApp?.appId ?? firstApp?.id ?? ''
         if (appId) {
-          nextState.downstreamTools = {
-            ok: true,
-            value: await loadJson(fetch, `/api/downstream/tools?appId=${encodeURIComponent(appId)}`),
+          try {
+            nextState.downstreamTools = {
+              ok: true,
+              value: await loadJson(fetch, `/api/downstream/tools?appId=${encodeURIComponent(appId)}`),
+            }
+          } catch {
+            nextState.downstreamTools = { ok: false, error: 'Failed to load tools for first app' }
           }
           if (!downstreamDispatch.appId) {
             downstreamDispatch = { ...downstreamDispatch, appId }
@@ -312,6 +329,7 @@
       }
 
       state = nextState
+      await tick()
 
       if (routePath === '/maple/interventions' && selectedPlanId) {
         await loadInterventionDetail(selectedPlanId)
@@ -543,7 +561,7 @@
     }
     await runAction('downstream:dispatch', () =>
       sendJson(fetch, '/api/downstream/dispatch', {
-        appId: downstreamDispatch.appId,
+        ...(downstreamRouteLock ? {} : { appId: downstreamDispatch.appId }),
         toolName: downstreamDispatch.toolName,
         arguments: argumentsPayload,
       }),
@@ -903,6 +921,21 @@
     slo={state.slo?.value ?? {}}
     auditEvents={observabilityAudit}
     runtimeCapabilities={pickItems(state.runtimeCapabilities?.value)}
+  />
+{:else if routePath === '/maple/topology'}
+  <WorkspaceViewHost
+    panelOpen={true}
+    state={{ category: 'observe', view: 'topology', routePath, routeRecord }}
+    {routeRecord}
+    topologyEndpoints={pickItems(state.runtimeCapabilities?.value, ['endpoints', 'items'])}
+    runtimeCapabilities={pickItems(state.runtimeCapabilities?.value)}
+  />
+{:else if routePath === '/maple/forks'}
+  <WorkspaceViewHost
+    panelOpen={true}
+    state={{ category: 'observe', view: 'forks', routePath, routeRecord }}
+    {routeRecord}
+    auditEvents={filterRecordsBySource(pickItems(state.auditLog?.value), sourceFilter)}
   />
 {:else if routePath === '/maple/runs'}
   <section class="docs-grid">
@@ -1269,10 +1302,14 @@
       </div>
       <pre class="mono panel-json">{JSON.stringify(state.downstreamTools?.value ?? {}, null, 2)}</pre>
       <div class="docs-grid compact-grid">
+        {#if !downstreamRouteLock}
         <label>
           <span class="mono">App ID</span>
           <input class="input" bind:value={downstreamDispatch.appId} />
         </label>
+        {:else}
+        <p class="mono chip">Route-lock active — server resolves target app.</p>
+        {/if}
         <label>
           <span class="mono">Tool</span>
           <input class="input" bind:value={downstreamDispatch.toolName} placeholder="web_search" />
@@ -1280,7 +1317,7 @@
       </div>
       <textarea class="textarea firewall-json-editor" bind:value={downstreamDispatch.payload} spellcheck="false"></textarea>
       <div class="actions">
-        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !downstreamDispatch.appId || !downstreamDispatch.toolName} on:click={handleDownstreamDispatch}>
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || (!downstreamRouteLock && !downstreamDispatch.appId) || !downstreamDispatch.toolName} on:click={handleDownstreamDispatch}>
           Dispatch
         </button>
       </div>

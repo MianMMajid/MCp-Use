@@ -22,6 +22,10 @@ const OPENAI_MODEL = process.env.MAPLE_FIREWALL_CHAT_OPENAI_MODEL || "gpt-4o";
 const ANTHROPIC_MODEL = process.env.MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MAX_TOOL_ROUNDS = 10;
 const DEFAULT_TIMEOUT_MS = 120_000;
+const NVIDIA_API_KEY = (process.env.NVIDIA_API_KEY || "").trim();
+const NVIDIA_MODEL = process.env.MAPLE_FIREWALL_CHAT_NVIDIA_MODEL || "nvidia/nemotron-3-super-120b-a12b";
+const NVIDIA_BASE_URL = (process.env.MAPLE_NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1").replace(/\/+$/, "");
+const NVIDIA_TIMEOUT_MS = 180_000;
 
 // ── Conversation store (in-memory, per session) ─────
 
@@ -40,12 +44,17 @@ function getConversation(sessionId) {
 }
 
 // Evict stale conversations periodically
-setInterval(() => {
+const _conversationEvictionTimer = setInterval(() => {
   const now = Date.now();
   for (const [id, conv] of conversationStore) {
     if (now - conv.updatedAt > CONVERSATION_TTL_MS) conversationStore.delete(id);
   }
 }, 5 * 60_000);
+
+export function shutdownNativeAgentRuntime() {
+  clearInterval(_conversationEvictionTimer);
+  conversationStore.clear();
+}
 
 // ── Direct MCP HTTP calls (bypasses cyber-proxy) ────
 
@@ -446,9 +455,10 @@ function toAnthropicTools(tools) {
 
 // ── LLM calling ─────────────────────────────────────
 
-async function callOpenAi(messages, tools, timeoutMs) {
+async function callOpenAi(messages, tools, timeoutMs, model) {
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured.");
   const body = {
-    model: OPENAI_MODEL,
+    model: model || OPENAI_MODEL,
     messages,
     max_tokens: 4096,
   };
@@ -482,9 +492,10 @@ async function callOpenAi(messages, tools, timeoutMs) {
   };
 }
 
-async function callAnthropic(messages, systemPrompt, tools, timeoutMs) {
+async function callAnthropic(messages, systemPrompt, tools, timeoutMs, model) {
+  if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured.");
   const body = {
-    model: ANTHROPIC_MODEL,
+    model: model || ANTHROPIC_MODEL,
     max_tokens: 4096,
     messages,
   };
@@ -521,6 +532,67 @@ async function callAnthropic(messages, systemPrompt, tools, timeoutMs) {
     usage: data.usage,
     raw: data,
   };
+}
+
+async function callNvidia(messages, tools, timeoutMs, model) {
+  if (!NVIDIA_API_KEY) throw new Error("NVIDIA_API_KEY is not configured.");
+  const body = {
+    model: model || NVIDIA_MODEL,
+    messages,
+    max_tokens: 4096,
+  };
+  if (tools.length > 0) {
+    body.tools = toOpenAiFunctions(tools);
+  }
+
+  const effectiveTimeout = timeoutMs || NVIDIA_TIMEOUT_MS;
+  const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${NVIDIA_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(effectiveTimeout),
+  });
+
+  if (res.status === 429) {
+    const retryAfter = res.headers.get("retry-after") || "unknown";
+    throw new Error(`NVIDIA API rate limited (429). Retry after: ${retryAfter}s`);
+  }
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    throw new Error(`NVIDIA API ${res.status}: ${err.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const choice = data.choices?.[0];
+  return {
+    content: choice?.message?.content || "",
+    toolCalls: choice?.message?.tool_calls || [],
+    finishReason: choice?.finish_reason || "stop",
+    usage: data.usage,
+    raw: choice?.message,
+  };
+}
+
+function resolveProvider(requested) {
+  const req = (requested || "").toLowerCase();
+  if (req === "nemoclaw" && NVIDIA_API_KEY) return "nvidia";
+  if (req === "nvidia" && NVIDIA_API_KEY) return "nvidia";
+  if (req === "anthropic" && ANTHROPIC_API_KEY) return "anthropic";
+  if (req === "openai" && OPENAI_API_KEY) return "openai";
+  if (OPENAI_API_KEY) return "openai";
+  if (ANTHROPIC_API_KEY) return "anthropic";
+  if (NVIDIA_API_KEY) return "nvidia";
+  return DEFAULT_PROVIDER;
+}
+
+function resolveModelName(provider) {
+  if (provider === "nvidia") return NVIDIA_MODEL;
+  if (provider === "anthropic") return ANTHROPIC_MODEL;
+  return OPENAI_MODEL;
 }
 
 // ── Tool execution ──────────────────────────────────
@@ -621,7 +693,8 @@ export async function runNativeAgentTurn(options = {}) {
   const sessionId = asString(options.sessionId) || `native-${runId}`;
   const equippedToolIds = Array.isArray(options.tools) ? options.tools : [];
   const timeoutMs = (options.timeoutSeconds || 120) * 1000;
-  const provider = DEFAULT_PROVIDER;
+  const provider = resolveProvider(options.provider || DEFAULT_PROVIDER);
+  const modelOverride = (asString(options.model) || "").trim();
 
   mapleLog("info", "native_agent.turn_begin", {
     runId,
@@ -667,14 +740,17 @@ export async function runNativeAgentTurn(options = {}) {
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     let llmResult;
 
-    if (provider === "anthropic" && ANTHROPIC_API_KEY) {
+    if (provider === "nvidia") {
+      const msgs = [{ role: "system", content: systemPrompt }, ...conv.messages];
+      llmResult = await callNvidia(msgs, tools, timeoutMs, modelOverride);
+    } else if (provider === "anthropic" && ANTHROPIC_API_KEY) {
       // Anthropic: system prompt is separate
       const msgs = conv.messages.filter((m) => m.role !== "system");
-      llmResult = await callAnthropic(msgs, systemPrompt, tools, timeoutMs);
+      llmResult = await callAnthropic(msgs, systemPrompt, tools, timeoutMs, modelOverride);
     } else {
       // OpenAI: system prompt as first message
       const msgs = [{ role: "system", content: systemPrompt }, ...conv.messages];
-      llmResult = await callOpenAi(msgs, tools, timeoutMs);
+      llmResult = await callOpenAi(msgs, tools, timeoutMs, modelOverride);
     }
 
     if (llmResult.usage) {
@@ -703,7 +779,7 @@ export async function runNativeAgentTurn(options = {}) {
         attachments: attachments.length > 0 ? attachments : undefined,
         usage: totalUsage,
         provider,
-        model: provider === "anthropic" ? ANTHROPIC_MODEL : OPENAI_MODEL,
+        model: modelOverride || resolveModelName(provider),
       };
     }
 
@@ -780,7 +856,7 @@ export async function runNativeAgentTurn(options = {}) {
     toolCalls: allToolCalls,
     usage: totalUsage,
     provider,
-    model: provider === "anthropic" ? ANTHROPIC_MODEL : OPENAI_MODEL,
+    model: modelOverride || resolveModelName(provider),
   };
 }
 

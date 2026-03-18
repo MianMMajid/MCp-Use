@@ -308,14 +308,14 @@ describe('AuthForm', () => {
       expect(body).toEqual({ username: 'new@test.com', email: 'new@test.com', password: 'Pass1234!', name: 'Test User' });
     });
 
-    it('forgot → POST /api/auth/forgot-password with { email } only', async () => {
+    it('forgot → POST /api/auth/forgot-password with { email, redirectUrl }', async () => {
       mockFetch();
       const el = mountForm({ mode: 'forgot' });
       setInput(el, '#auth-email', 'forgot@test.com');
 
       const body = await submitAndWait(el);
       expect(fetchSpy.mock.calls[0][0]).toBe('/api/auth/forgot-password');
-      expect(body).toEqual({ email: 'forgot@test.com' });
+      expect(body).toEqual({ email: 'forgot@test.com', redirectUrl: `${window.location.origin}/reset-password` });
     });
 
     it('reset → POST /api/auth/reset-password with { token, newPassword }', async () => {

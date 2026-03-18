@@ -74,7 +74,7 @@
     } else if (mode === 'register') {
       payload = { username: email, email, password, name };
     } else if (mode === 'forgot') {
-      payload = { email };
+      payload = { email, redirectUrl: `${window.location.origin}/reset-password` };
     } else if (mode === 'reset') {
       payload = { token, newPassword: password };
     } else if (mode === 'verify') {
