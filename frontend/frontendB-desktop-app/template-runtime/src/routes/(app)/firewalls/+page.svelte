@@ -166,15 +166,14 @@
         scope,
         assignedAgentId: scope === 'agent' ? selectedAgentId || null : null,
         policyText,
+        description,
+        enforcementLevel,
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || `Failed to create firewall (${response.status})`);
       }
-      entityName = '';
-      folderName = '';
-      policyText = '';
-      scope = 'global';
+      toastStore.success(`Firewall "${entityName}" deployed`);
       invalidateCache('/api/firewalls');
       await refresh();
       if (payload?.firewall?.id) setSelected(payload.firewall.id);

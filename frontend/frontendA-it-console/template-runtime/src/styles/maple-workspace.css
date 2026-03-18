@@ -103,7 +103,7 @@
   background: var(--panel, #fff);
   color: var(--mw-ink);
   font-weight: 600;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.45rem 0.95rem;
   cursor: pointer;
 }

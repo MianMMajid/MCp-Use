@@ -253,11 +253,11 @@ body {
   min-width: 0;
   padding: 0 14px;
   border: none;
-  border-radius: 19px;
+  border-radius: var(--radius-xl);
   background: transparent;
   color: var(--muted);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -323,7 +323,7 @@ body {
   align-items: center;
   height: 36px;
   padding: 2px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   background: var(--bg-soft);
   border: 1px solid var(--line);
 }
