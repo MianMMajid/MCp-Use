@@ -326,15 +326,6 @@
 
 <AppShell>
   <section class="page">
-    <section class="card section">
-      <div class="head">
-        <div>
-          <h1>Firewall Definition Zone</h1>
-          <p class="muted">Version, simulate, and activate gateway-backed firewall policies.</p>
-        </div>
-      </div>
-    </section>
-
     <div class="workspace">
       <aside class="card section sidebar">
         <div class="sidebar-head">
