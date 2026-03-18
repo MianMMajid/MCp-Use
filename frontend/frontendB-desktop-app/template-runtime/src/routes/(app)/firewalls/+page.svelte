@@ -70,14 +70,28 @@
     activatePreviewResult = null;
   }
 
+  async function readResponsePayload(response) {
+    return typeof response?.json === 'function'
+      ? await response.json().catch(() => ({}))
+      : (response ?? {});
+  }
+
+  function isResponseOk(response, payload) {
+    return typeof response?.ok === 'boolean' ? response.ok : payload?.ok !== false;
+  }
+
+  function responseStatus(response) {
+    return typeof response?.status === 'number' ? response.status : 200;
+  }
+
   async function previewBeforeActivate() {
     activateBusy = true;
     activatePreviewResult = null;
     try {
       const response = await postJson('/api/firewalls/preview', { policyText });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await readResponsePayload(response);
       activatePreviewResult = {
-        ok: response.ok && payload?.ok !== false,
+        ok: isResponseOk(response, payload) && payload?.ok !== false,
         valid: payload?.valid !== false,
         errors: payload?.errors || [],
         warnings: payload?.warnings || [],
@@ -176,9 +190,9 @@
         description,
         enforcementLevel,
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.error || `Failed to create firewall (${response.status})`);
+      const payload = await readResponsePayload(response);
+      if (!isResponseOk(response, payload) || payload?.ok === false) {
+        throw new Error(payload?.error || `Failed to create firewall (${responseStatus(response)})`);
       }
       toastStore.success(`Firewall "${entityName}" deployed`);
       invalidateCache('/api/firewalls');
@@ -201,9 +215,9 @@
         description: selectedObject.description ?? '',
         enforcementLevel: selectedObject.enforcementLevel ?? 'hard-mandatory',
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.error || `Failed to save firewall (${response.status})`);
+      const payload = await readResponsePayload(response);
+      if (!isResponseOk(response, payload) || payload?.ok === false) {
+        throw new Error(payload?.error || `Failed to save firewall (${responseStatus(response)})`);
       }
       invalidateCache('/api/firewalls');
       await refresh();
@@ -219,9 +233,9 @@
       const response = await postJson(`/api/firewalls/${selectedObject.id}/versions`, {
         policyText: revisionText,
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.error || `Failed to save revision (${response.status})`);
+      const payload = await readResponsePayload(response);
+      if (!isResponseOk(response, payload) || payload?.ok === false) {
+        throw new Error(payload?.error || `Failed to save revision (${responseStatus(response)})`);
       }
       revisionText = '';
       invalidateCache('/api/firewalls');
@@ -236,9 +250,9 @@
     error = '';
     try {
       const response = await postJson(`/api/firewalls/${selectedObject.id}/versions/${versionId}/activate`, {});
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.error || `Failed to activate version (${response.status})`);
+      const payload = await readResponsePayload(response);
+      if (!isResponseOk(response, payload) || payload?.ok === false) {
+        throw new Error(payload?.error || `Failed to activate version (${responseStatus(response)})`);
       }
       invalidateCache('/api/firewalls');
       await refresh();
@@ -291,8 +305,8 @@
     const action = item.archived ? 'restore' : 'archive';
     try {
       const response = await postJson(`/api/firewalls/${item.id}/${action}`, {});
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.ok === false) {
+      const payload = await readResponsePayload(response);
+      if (!isResponseOk(response, payload) || payload?.ok === false) {
         const msg = payload?.error || `Failed to ${action} firewall`;
         error = msg;
         toastStore.error(msg);
@@ -315,8 +329,8 @@
     const response = await postJson(`/api/firewalls/${selectedObject.id}/validate`, {
       policyText: selectedObject.policyText,
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok && payload?.error) {
+    const payload = await readResponsePayload(response);
+    if (!isResponseOk(response, payload) && payload?.error) {
       error = payload.error;
       return;
     }
@@ -339,9 +353,9 @@
     const response = await postJson(`/api/firewalls/${selectedObject.id}/simulate`, {
       prompt: simulatorPrompt,
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.ok === false) {
-      error = payload?.error || `Failed to simulate firewall (${response.status})`;
+    const payload = await readResponsePayload(response);
+    if (!isResponseOk(response, payload) || payload?.ok === false) {
+      error = payload?.error || `Failed to simulate firewall (${responseStatus(response)})`;
       return;
     }
     simulatorResult = { mode: 'simulation', ...(payload.result || {}) };
@@ -356,9 +370,9 @@
       name: snippetName || `policy-context-${Date.now()}.txt`,
       content: snippetContent,
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.ok === false) {
-      error = payload?.error || `Failed to add snippet (${response.status})`;
+    const payload = await readResponsePayload(response);
+    if (!isResponseOk(response, payload) || payload?.ok === false) {
+      error = payload?.error || `Failed to add snippet (${responseStatus(response)})`;
       return;
     }
     snippetName = '';
@@ -373,9 +387,9 @@
     const formData = new FormData();
     formData.set('file', file);
     const response = await postForm(`/api/firewalls/${selectedObject.id}/entries/file`, formData);
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.ok === false) {
-      error = payload?.error || `Failed to upload file (${response.status})`;
+    const payload = await readResponsePayload(response);
+    if (!isResponseOk(response, payload) || payload?.ok === false) {
+      error = payload?.error || `Failed to upload file (${responseStatus(response)})`;
       return;
     }
     invalidateCache('/api/firewalls');
@@ -422,6 +436,11 @@
                 <strong>{item.name}</strong>
                 <span>
                   {item.scope === 'agent' ? 'Agent' : 'Global'} · {item.status}
+                  {#if item.enforcementLevel === 'advisory'}
+                    <span class="enforcement-badge advisory" title="Advisory — logs only, never blocks">advisory</span>
+                  {:else if item.enforcementLevel === 'soft-mandatory'}
+                    <span class="enforcement-badge soft" title="Soft Mandatory — blocks with operator override">soft</span>
+                  {/if}
                   {#if item.scope === 'agent' && !item.assignedAgentId}
                     <span class="dead-badge" title="No agent assigned — this firewall is not evaluated by the runtime">dead</span>
                   {/if}
@@ -440,25 +459,28 @@
           <div class="detail-head">
             <div>
               <h2>{selectedObject.name}</h2>
+              {#if selectedObject.description}
+                <p class="muted" style="margin: 2px 0 4px;">{selectedObject.description}</p>
+              {/if}
               <p class="muted">
                 {selectedObject.scope === 'agent'
                   ? selectedObject.assignedAgentId
                     ? `Agent-scoped to ${selectedObject.assignedAgentId}`
                     : 'Agent-scoped — no agent assigned'
-                  : 'Global policy'} · {selectedObject.status}
+                  : 'Global policy'} · {selectedObject.status} · {ENFORCEMENT_LEVELS.find((l) => l.id === selectedObject.enforcementLevel)?.label ?? selectedObject.enforcementLevel}
               </p>
               {#if selectedObject.scope === 'agent' && !selectedObject.assignedAgentId}
                 <p class="warn" style="font-size: 12px; margin: 4px 0 0;">This firewall has no assigned agent and will not be evaluated by the runtime. Assign an agent or change scope to Global.</p>
               {/if}
             </div>
             <div class="row-actions">
-              <button class="pill" on:click={saveMetadata} disabled={selectedObject.scope === 'agent' && !selectedObject.assignedAgentId}>Save Metadata</button>
+              <button class="pill" on:click={saveMetadata} disabled={!selectedObject.name?.trim() || (selectedObject.scope === 'agent' && !selectedObject.assignedAgentId)}>Save Metadata</button>
               <button class="pill" on:click={() => requestArchive(selectedObject)}>{selectedObject.archived ? 'Restore' : 'Archive'}</button>
             </div>
           </div>
 
           <div class="builder compact">
-            <label><span>Name</span><input bind:value={selectedObject.name} /></label>
+            <label><span>Name</span><input bind:value={selectedObject.name} maxlength="255" /></label>
             <label><span>Folder</span><input bind:value={selectedObject.folder} /></label>
             <label>
               <span>Scope</span>
@@ -655,7 +677,7 @@
 
       {#if activateStep === 1}
         <div class="builder">
-          <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" /></label>
+          <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" maxlength="255" /></label>
           <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
           <label><span>Description</span><input bind:value={description} placeholder="Restricts payroll tools to approved agents" /></label>
           <label>
@@ -789,7 +811,10 @@
   .list { display: grid; gap: 8px; }
   .firewall-row { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--row-border); background: var(--row-bg); color: var(--fg); }
   .firewall-row.selected { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.12); }
-  .dead-badge { display: inline-block; padding: 1px 5px; border-radius: 999px; font-size: 10px; background: rgba(251,113,133,.18); color: #fca5a5; border: 1px solid rgba(251,113,133,.35); margin-left: 4px; vertical-align: middle; }
+  .dead-badge, .enforcement-badge { display: inline-block; padding: 1px 5px; border-radius: 999px; font-size: 10px; margin-left: 4px; vertical-align: middle; }
+  .dead-badge { background: rgba(251,113,133,.18); color: #fca5a5; border: 1px solid rgba(251,113,133,.35); }
+  .enforcement-badge.advisory { background: rgba(250,204,21,.15); color: #fde047; border: 1px solid rgba(250,204,21,.3); }
+  .enforcement-badge.soft { background: rgba(96,165,250,.15); color: #93c5fd; border: 1px solid rgba(96,165,250,.3); }
   .tabs { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
   .tabs button, .toggle button, .actions button, .row-actions button, .upload {
     padding: 8px 12px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--fg); cursor: pointer;

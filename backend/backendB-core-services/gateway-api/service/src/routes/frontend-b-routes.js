@@ -935,6 +935,14 @@ export function registerFrontendBRoutes(app) {
     if (!name || !policyText) {
       return c.json({ error: "name and policyText are required." }, 400);
     }
+    if (name.length > 255) {
+      return c.json({ error: "name must be 255 characters or less." }, 400);
+    }
+    const VALID_ENFORCEMENT_LEVELS = ["hard-mandatory", "soft-mandatory", "advisory"];
+    const enforcementLevel = asString(body.enforcementLevel) ?? "hard-mandatory";
+    if (!VALID_ENFORCEMENT_LEVELS.includes(enforcementLevel)) {
+      return c.json({ error: `enforcementLevel must be one of: ${VALID_ENFORCEMENT_LEVELS.join(", ")}` }, 400);
+    }
     if (scope === "agent" && !assignedAgentId) {
       return c.json({ error: "assignedAgentId is required for agent-scoped firewalls." }, 400);
     }
@@ -947,7 +955,7 @@ export function registerFrontendBRoutes(app) {
       scope,
       assignedAgentId,
       description: asString(body.description) ?? "",
-      enforcementLevel: asString(body.enforcementLevel) ?? "hard-mandatory",
+      enforcementLevel,
       policyText,
       activeVersionId: null,
       createdBy: auth.session.user.username || auth.session.user.id,
@@ -1021,6 +1029,15 @@ export function registerFrontendBRoutes(app) {
     const assignedAgentId = scope === "agent"
       ? (body.assignedAgentId !== undefined ? asString(body.assignedAgentId) : existing.assignedAgentId)
       : null;
+    const patchedName = body.name !== undefined ? asString(body.name) ?? existing.name : undefined;
+    if (patchedName !== undefined && patchedName.length > 255) {
+      return c.json({ error: "name must be 255 characters or less." }, 400);
+    }
+    const VALID_ENFORCEMENT_LEVELS = ["hard-mandatory", "soft-mandatory", "advisory"];
+    const patchedEnforcement = body.enforcementLevel !== undefined ? asString(body.enforcementLevel) ?? "hard-mandatory" : undefined;
+    if (patchedEnforcement !== undefined && !VALID_ENFORCEMENT_LEVELS.includes(patchedEnforcement)) {
+      return c.json({ error: `enforcementLevel must be one of: ${VALID_ENFORCEMENT_LEVELS.join(", ")}` }, 400);
+    }
     if (scope === "agent" && !assignedAgentId) {
       return c.json({ error: "assignedAgentId is required for agent-scoped firewalls." }, 400);
     }
@@ -1028,12 +1045,12 @@ export function registerFrontendBRoutes(app) {
       return c.json({ error: "Assigned agent not found." }, 404);
     }
     await frontendBStore.updateFirewall(auth.session.user.id, firewallId, {
-      name: body.name !== undefined ? asString(body.name) ?? existing.name : undefined,
+      name: patchedName,
       folder: body.folder !== undefined ? asString(body.folder) ?? "root" : undefined,
       scope,
       assignedAgentId,
       description: body.description !== undefined ? asString(body.description) ?? "" : undefined,
-      enforcementLevel: body.enforcementLevel !== undefined ? asString(body.enforcementLevel) ?? "hard-mandatory" : undefined,
+      enforcementLevel: patchedEnforcement,
     });
     let activationError = "";
     if (body.policyText !== undefined) {

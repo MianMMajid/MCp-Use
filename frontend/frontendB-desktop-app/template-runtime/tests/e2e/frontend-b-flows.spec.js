@@ -150,6 +150,8 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
   await page.goto('/firewalls');
   await page.getByPlaceholder('Payroll Policy').fill('Ops Agent Firewall');
   await page.getByPlaceholder('Finance').fill('Operations');
+  await page.getByPlaceholder('Restricts payroll tools to approved agents').fill('Agent firewall for operations team');
+  await page.getByLabel('Enforcement Level').selectOption('advisory');
   await page.getByRole('button', { name: 'Next: Define Policy' }).click();
   await page.getByPlaceholder(/version: 1/).fill(
     'version: 1\nrules:\n  allowedTools:\n    - status\n  blockedTargetProfiles:\n    - root'
