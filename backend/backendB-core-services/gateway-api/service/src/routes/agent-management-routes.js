@@ -163,6 +163,53 @@ export function registerAgentManagementRoutes(app) {
         }
     });
 
+    // POST /api/agents/:agentId/restore — restore archived agent
+    app.post("/api/agents/:agentId/restore", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) return unauthorized;
+
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+        const agentId = c.req.param("agentId");
+        try {
+            const existing = await database.findAgentById(agentId);
+            if (!existing || existing.status !== "archived" ||
+                (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+                return c.json({ error: "Archived agent not found" }, 404);
+            }
+            const agent = await database.restoreAgent(agentId);
+            mapleLog("info", "agent.restored", { agentId });
+            return c.json({ restored: true, agent });
+        } catch (err) {
+            mapleLog("error", "agent.restore_failed", { agentId, error: err.message });
+            return c.json({ error: "Failed to restore agent", details: err.message }, 500);
+        }
+    });
+
+    // DELETE /api/agents/:agentId/permanent — permanently delete archived agent
+    app.delete("/api/agents/:agentId/permanent", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) return unauthorized;
+
+        const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+        const agentId = c.req.param("agentId");
+        try {
+            const existing = await database.findAgentById(agentId);
+            if (!existing || existing.status !== "archived" ||
+                (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+                return c.json({ error: "Archived agent not found" }, 404);
+            }
+            const agent = await database.permanentlyDeleteAgent(agentId);
+            if (!agent) {
+                return c.json({ error: "Agent not found" }, 404);
+            }
+            mapleLog("info", "agent.permanently_deleted", { agentId });
+            return c.json({ deleted: true, agent });
+        } catch (err) {
+            mapleLog("error", "agent.permanent_delete_failed", { agentId, error: err.message });
+            return c.json({ error: "Failed to permanently delete agent", details: err.message }, 500);
+        }
+    });
+
     // POST /api/agents/:agentId/run — start a run for this agent
     app.post("/api/agents/:agentId/run", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);

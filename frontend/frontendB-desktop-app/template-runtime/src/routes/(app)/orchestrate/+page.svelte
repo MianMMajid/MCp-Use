@@ -8,6 +8,7 @@
   import { deleteOrchestration, listOrchestrationExecutions } from '@/lib/orchestrations-api';
   import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
+  import { onMount } from 'svelte';
 
   let activeTab = 'orchestrations';
   let agentSearch = '';
@@ -16,6 +17,10 @@
   let creatingOrch = false;
   let deleting = false;
   let error = '';
+  let showTrash = false;
+  let archivedAgents = [];
+  let archivedOrchestrations = [];
+  let trashBusy = '';
 
   // Delete confirmation state
   let confirmOpen = false;
@@ -88,6 +93,7 @@
         }
         toastStore.success(`Agent "${name || id}" deleted`);
       }
+      await loadTrash();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       toastStore.error(`Failed to delete: ${error}`);
@@ -98,6 +104,58 @@
 
   $: agents = Array.isArray($chatStore.agents) ? $chatStore.agents : [];
   $: orchestrations = Array.isArray($chatStore.orchestrations) ? $chatStore.orchestrations : [];
+
+  async function loadTrash() {
+    try {
+      const [agentRes, orchRes] = await Promise.all([
+        loadJson('/api/agents?status=archived'),
+        loadJson('/api/orchestrations?status=archived'),
+      ]);
+      archivedAgents = Array.isArray(agentRes?.items) ? agentRes.items : [];
+      archivedOrchestrations = Array.isArray(orchRes?.items) ? orchRes.items : [];
+    } catch { /* best effort */ }
+  }
+
+  $: trashCount = archivedAgents.length + archivedOrchestrations.length;
+
+  async function restoreItem(type, id, name) {
+    trashBusy = id;
+    try {
+      const path = type === 'agent' ? `/api/agents/${id}/restore` : `/api/orchestrations/${id}/restore`;
+      await postJson(path, {});
+      invalidateCache('/api/agents');
+      invalidateCache('/api/orchestrations');
+      await Promise.all([chatStore.fetchAgents(), chatStore.fetchOrchestrations(), loadTrash()]);
+      toastStore.show(`Restored "${name || id}"`, 'success');
+    } catch (err) {
+      toastStore.show(err instanceof Error ? err.message : 'Restore failed', 'error');
+    } finally {
+      trashBusy = '';
+    }
+  }
+
+  async function permanentlyDelete(type, id, name) {
+    confirmTitle = `Permanently delete ${type}?`;
+    confirmMessage = `"${name || id}" will be permanently removed. This cannot be undone.`;
+    confirmAction = async () => {
+      trashBusy = id;
+      try {
+        const path = type === 'agent' ? `/api/agents/${id}/permanent` : `/api/orchestrations/${id}/permanent`;
+        await deleteJson(path);
+        invalidateCache('/api/agents');
+        invalidateCache('/api/orchestrations');
+        await loadTrash();
+        toastStore.show(`Permanently deleted "${name || id}"`, 'success');
+      } catch (err) {
+        toastStore.show(err instanceof Error ? err.message : 'Delete failed', 'error');
+      } finally {
+        trashBusy = '';
+      }
+    };
+    confirmOpen = true;
+  }
+
+  onMount(() => { loadTrash(); });
 
   $: filteredAgents = agentSearch
     ? agents.filter((a) =>
@@ -293,6 +351,59 @@
         {/if}
       </div>
     {/if}
+
+    <!-- Recently Deleted -->
+    <div class="trash-toggle">
+      <button class="pill stat" on:click={() => { showTrash = !showTrash; if (showTrash) loadTrash(); }}>
+        {showTrash ? 'Hide' : 'Show'} Recently Deleted{#if trashCount > 0}&nbsp;({trashCount}){/if}
+      </button>
+    </div>
+
+    {#if showTrash}
+      <section class="trash-section">
+        <h3 class="trash-heading">Recently Deleted</h3>
+        <p class="trash-hint">Items are kept for 30 days. Restore or permanently delete them.</p>
+
+        {#if archivedOrchestrations.length === 0 && archivedAgents.length === 0}
+          <p class="muted" style="font-size:12px; text-align:center; padding:12px 0;">Trash is empty.</p>
+        {/if}
+
+        {#each archivedOrchestrations as item}
+          <div class="card orch-row trash-row">
+            <div class="orch-info">
+              <p class="orch-name">{item.name || item.id}</p>
+              <span class="badge zinc">orchestration</span>
+            </div>
+            <div class="orch-actions">
+              <button class="pill action-btn" disabled={trashBusy === item.id} on:click={() => restoreItem('orchestration', item.id, item.name)}>
+                Restore
+              </button>
+              <button class="pill action-btn danger-btn" disabled={trashBusy === item.id} on:click={() => permanentlyDelete('orchestration', item.id, item.name)}>
+                Delete forever
+              </button>
+            </div>
+          </div>
+        {/each}
+
+        {#each archivedAgents as agent}
+          {@const id = agent.agentId || agent.id}
+          <div class="card orch-row trash-row">
+            <div class="orch-info">
+              <p class="orch-name">{agent.name || id}</p>
+              <span class="badge zinc">agent</span>
+            </div>
+            <div class="orch-actions">
+              <button class="pill action-btn" disabled={trashBusy === id} on:click={() => restoreItem('agent', id, agent.name)}>
+                Restore
+              </button>
+              <button class="pill action-btn danger-btn" disabled={trashBusy === id} on:click={() => permanentlyDelete('agent', id, agent.name)}>
+                Delete forever
+              </button>
+            </div>
+          </div>
+        {/each}
+      </section>
+    {/if}
   </section>
 </AppShell>
 
@@ -384,6 +495,13 @@
   .empty-icon { font-size: 28px; opacity: 0.6; }
   .empty-state h3 { margin: 0; font-size: 15px; }
   .empty-state p { margin: 0; color: var(--muted); font-size: 12px; max-width: 280px; }
+
+  /* Trash section */
+  .trash-toggle { display: flex; justify-content: center; padding: 4px 0; }
+  .trash-section { display: grid; gap: 8px; }
+  .trash-heading { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .trash-hint { margin: 0; font-size: 11px; color: var(--muted); }
+  .trash-row { opacity: 0.7; border-style: dashed; }
 
   @media (max-width: 720px) {
     .top-bar { flex-direction: column; align-items: flex-start; }

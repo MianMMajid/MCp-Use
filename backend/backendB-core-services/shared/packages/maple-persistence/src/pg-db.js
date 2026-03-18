@@ -899,6 +899,8 @@ export class MaplePostgresDatabase {
         if (filters.status) {
             conditions.push(`status = $${idx++}`);
             params.push(filters.status);
+        } else if (!filters.includeArchived) {
+            conditions.push(`status != 'archived'`);
         }
         if (filters.riskTier) {
             conditions.push(`risk_tier = $${idx++}`);
@@ -949,6 +951,17 @@ export class MaplePostgresDatabase {
     }
     async archiveAgent(agentId) {
         return this.updateAgent(agentId, { status: "archived" });
+    }
+    async restoreAgent(agentId) {
+        return this.updateAgent(agentId, { status: "active" });
+    }
+    async permanentlyDeleteAgent(agentId) {
+        const result = await this.pool.query(
+            `DELETE FROM agents WHERE id = $1 AND status = 'archived' RETURNING *`,
+            [agentId]
+        );
+        if (result.rows.length === 0) return undefined;
+        return toAgentRecord(result.rows[0]);
     }
     async searchAgents(query, limit = 10) {
         const pattern = `%${query}%`;
@@ -1019,6 +1032,8 @@ export class MaplePostgresDatabase {
         if (filters.status) {
             conditions.push(`status = $${idx++}`);
             params.push(filters.status);
+        } else if (!filters.includeArchived) {
+            conditions.push(`status != 'archived'`);
         }
         const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
         const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 200);
@@ -1237,6 +1252,17 @@ export class MaplePostgresDatabase {
     }
     async archiveOrchestration(id) {
         return this.updateOrchestration(id, { status: "archived" });
+    }
+    async restoreOrchestration(id) {
+        return this.updateOrchestration(id, { status: "draft" });
+    }
+    async permanentlyDeleteOrchestration(id) {
+        const result = await this.pool.query(
+            `DELETE FROM orchestrations WHERE id = $1 AND status = 'archived' RETURNING *`,
+            [id]
+        );
+        if (result.rows.length === 0) return undefined;
+        return toOrchestrationRecord(result.rows[0]);
     }
     async close() {
         await this.pool.end();

@@ -1720,4 +1720,51 @@ export function registerOrchestrationRoutes(app) {
       );
     }
   });
+
+  // POST /api/orchestrations/:id/restore — restore archived orchestration
+  app.post("/api/orchestrations/:id/restore", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+    const id = c.req.param("id");
+    try {
+      const existing = await database.findOrchestrationById(id);
+      if (!existing || existing.status !== "archived" ||
+          (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+        return c.json({ error: "Archived orchestration not found" }, 404);
+      }
+      const orchestration = await database.restoreOrchestration(id);
+      mapleLog("info", "orchestration.restored", { id });
+      return c.json({ restored: true, orchestration });
+    } catch (err) {
+      mapleLog("error", "orchestration.restore_failed", { id, error: err.message });
+      return c.json({ error: "Failed to restore orchestration", details: err.message }, 500);
+    }
+  });
+
+  // DELETE /api/orchestrations/:id/permanent — permanently delete archived orchestration
+  app.delete("/api/orchestrations/:id/permanent", async (c) => {
+    const unauthorized = await requireApiKeyResponse(c, database);
+    if (unauthorized) return unauthorized;
+
+    const authContext = c.get("mapleAuthContext") ?? authContextStorage.getStore();
+    const id = c.req.param("id");
+    try {
+      const existing = await database.findOrchestrationById(id);
+      if (!existing || existing.status !== "archived" ||
+          (authContext?.userId && existing.ownerId && existing.ownerId !== authContext.userId)) {
+        return c.json({ error: "Archived orchestration not found" }, 404);
+      }
+      const orchestration = await database.permanentlyDeleteOrchestration(id);
+      if (!orchestration) {
+        return c.json({ error: "Orchestration not found" }, 404);
+      }
+      mapleLog("info", "orchestration.permanently_deleted", { id });
+      return c.json({ deleted: true, orchestration });
+    } catch (err) {
+      mapleLog("error", "orchestration.permanent_delete_failed", { id, error: err.message });
+      return c.json({ error: "Failed to permanently delete orchestration", details: err.message }, 500);
+    }
+  });
 }
