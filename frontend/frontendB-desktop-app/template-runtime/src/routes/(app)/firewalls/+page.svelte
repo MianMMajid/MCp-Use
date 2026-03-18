@@ -330,40 +330,9 @@
       <div class="head">
         <div>
           <h1>Firewall Definition Zone</h1>
-          <p class="muted">Create, version, simulate, and activate gateway-backed firewall policies.</p>
+          <p class="muted">Version, simulate, and activate gateway-backed firewall policies.</p>
         </div>
       </div>
-
-      <div class="builder">
-        <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" /></label>
-        <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
-        <label>
-          <span>Scope</span>
-          <select bind:value={scope}>
-            <option value="global">Global</option>
-            <option value="agent">Agent</option>
-          </select>
-        </label>
-        {#if scope === 'agent'}
-          <label>
-            <span>Agent</span>
-            <select bind:value={selectedAgentId}>
-              {#each agentOptions as option}
-                <option value={option.id}>{option.name}</option>
-              {/each}
-            </select>
-          </label>
-        {/if}
-        <label class="full">
-          <span>Policy</span>
-          <textarea rows="6" bind:value={policyText} placeholder={`version: 1\nrules:\n  allowedTools:\n    - status\n    - skills\n  blockedTargetProfiles:\n    - root\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30`}></textarea>
-        </label>
-      </div>
-
-      <div class="actions">
-        <button class="pill cta" on:click={activateFirewall} disabled={!entityName.trim() || !policyText.trim()}>Activate Firewall</button>
-      </div>
-      {#if error}<p class="err">{error}</p>{/if}
     </section>
 
     <div class="workspace">
@@ -556,6 +525,46 @@
         {/if}
       </section>
     </div>
+
+    <section class="card section">
+      <div class="head">
+        <div>
+          <h1>Activate Firewall</h1>
+          <p class="muted">Create a new gateway-backed firewall policy.</p>
+        </div>
+      </div>
+
+      <div class="builder">
+        <label><span>Name</span><input bind:value={entityName} placeholder="Payroll Policy" /></label>
+        <label><span>Folder</span><input bind:value={folderName} placeholder="Finance" /></label>
+        <label>
+          <span>Scope</span>
+          <select bind:value={scope}>
+            <option value="global">Global</option>
+            <option value="agent">Agent</option>
+          </select>
+        </label>
+        {#if scope === 'agent'}
+          <label>
+            <span>Agent</span>
+            <select bind:value={selectedAgentId}>
+              {#each agentOptions as option}
+                <option value={option.id}>{option.name}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+        <label class="full">
+          <span>Policy</span>
+          <textarea rows="6" bind:value={policyText} placeholder={`version: 1\nrules:\n  allowedTools:\n    - status\n    - skills\n  blockedTargetProfiles:\n    - root\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30`}></textarea>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button class="pill cta" on:click={activateFirewall} disabled={!entityName.trim() || !policyText.trim()}>Activate Firewall</button>
+      </div>
+      {#if error}<p class="err">{error}</p>{/if}
+    </section>
   </section>
 </AppShell>
 
