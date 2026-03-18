@@ -157,7 +157,7 @@
           ? { agentId: assignmentId }
           : { orchestrationId: assignmentId },
       };
-      const response = await postJson('/api/tasks', payload);
+      const response = await postJson('/api/tasks', payload, { silent: true });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) {
         throw new Error(data?.error || `Failed to create task (${response.status})`);
@@ -179,7 +179,7 @@
   async function assignTask(taskId, nextType, nextId) {
     try {
       const payload = nextType === 'agent' ? { agentId: nextId } : { orchestrationId: nextId };
-      const response = await postJson(`/api/tasks/${taskId}/assign`, payload);
+      const response = await postJson(`/api/tasks/${taskId}/assign`, payload, { silent: true });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to assign task');
       invalidateCache('/api/tasks');
@@ -192,7 +192,7 @@
 
   async function commandTask(taskId, command) {
     try {
-      const response = await postJson(`/api/tasks/${taskId}/${command}`, {});
+      const response = await postJson(`/api/tasks/${taskId}/${command}`, {}, { silent: true });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.error || `Failed to ${command}`);
       invalidateCache('/api/tasks');
@@ -206,7 +206,7 @@
 
   async function updateTask(taskId, updates) {
     try {
-      const response = await patchJson(`/api/tasks/${taskId}`, updates);
+      const response = await patchJson(`/api/tasks/${taskId}`, updates, { silent: true });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to update task');
       invalidateCache('/api/tasks');
@@ -235,7 +235,7 @@
     if (deletingTask) return;
     deletingTask = true;
     try {
-      await deleteJson(`/api/tasks/${taskId}`);
+      await deleteJson(`/api/tasks/${taskId}`, { silent: true });
       invalidateCache('/api/tasks');
       toastStore.success('Task deleted');
       await refresh();

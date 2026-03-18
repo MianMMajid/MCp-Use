@@ -61,7 +61,7 @@
     try {
       const body = { name: server.name };
       if (apiKeys[server.name]) body.apiKey = apiKeys[server.name];
-      const res = await postJson('/api/skills/marketplace/install', body);
+      const res = await postJson('/api/skills/marketplace/install', body, { silent: true });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok || payload?.ok === false) {
         installing = { ...installing, [server.name]: false };
@@ -92,7 +92,7 @@
     if (deletingAgent) return;
     deletingAgent = true;
     try {
-      await deleteJson(`/api/agents/${data.id}`);
+      await deleteJson(`/api/agents/${data.id}`, { silent: true });
       invalidateCache('/api/agents');
       await chatStore.fetchAgents();
       if ($chatStore.selectedAgentId === String(data.id)) {
@@ -115,7 +115,7 @@
   async function runSmokeTest(skillId) {
     smokeTests = { ...smokeTests, [skillId]: { loading: true, result: null, error: '' } };
     try {
-      const response = await postJson(`/api/skills/${skillId}/smoke-test`, {});
+      const response = await postJson(`/api/skills/${skillId}/smoke-test`, {}, { silent: true });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         smokeTests = { ...smokeTests, [skillId]: { loading: false, result: null, error: payload?.error || 'Test failed' } };
@@ -130,7 +130,7 @@
   async function runGovernedExecution(skillId, command) {
     governedRuns = { ...governedRuns, [skillId]: { loading: true, command, result: null, proof: null, error: '' } };
     try {
-      const response = await postJson(`/api/skills/${skillId}/governed-execution`, { command });
+      const response = await postJson(`/api/skills/${skillId}/governed-execution`, { command }, { silent: true });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         governedRuns = { ...governedRuns, [skillId]: { loading: false, command, result: null, proof: payload?.proof || null, error: payload?.error || 'Failed' } };
@@ -348,7 +348,7 @@
       // Use data.id (from route param) instead of stale agent closure
       const agentId = data.id;
       if (trimmedName && trimmedName !== String(agent.name || '')) {
-        const agentRes = await patchJson(`/api/agents/${agentId}`, { name: trimmedName });
+        const agentRes = await patchJson(`/api/agents/${agentId}`, { name: trimmedName }, { silent: true });
         const agentPayload = await agentRes.json().catch(() => ({}));
         if (!agentRes.ok || agentPayload?.ok === false) {
           throw new Error(agentPayload?.error || `Failed to update agent name (${agentRes.status})`);
@@ -356,7 +356,7 @@
         agent = { ...agent, ...agentPayload, name: trimmedName };
       }
 
-      const response = await patchJson(`/api/agents/${agentId}/tools`, { equippedToolIds });
+      const response = await patchJson(`/api/agents/${agentId}/tools`, { equippedToolIds }, { silent: true });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.error || `Failed to save toolbelt (${response.status})`);

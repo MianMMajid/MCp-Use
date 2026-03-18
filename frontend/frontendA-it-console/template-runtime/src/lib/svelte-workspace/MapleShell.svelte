@@ -567,10 +567,22 @@
         dataStale = true
       }
     }, 15000)
+    // Listen for offline/online connectivity events from hooks.client.js
+    function onConnectivity(event) {
+      if (event.detail?.online) {
+        notice = ''
+        loadData().catch(() => {})
+      } else {
+        notice = 'You are offline. Showing cached data.'
+        dataStale = true
+      }
+    }
+    document.addEventListener('maple:connectivity', onConnectivity)
     return () => {
       window.clearInterval(id)
       clearTimeout(permTimeout)
       unsubPermissions()
+      document.removeEventListener('maple:connectivity', onConnectivity)
       // Abort any in-flight fetches on unmount
       if (pollController) pollController.abort()
     }

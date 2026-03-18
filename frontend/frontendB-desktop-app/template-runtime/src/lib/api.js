@@ -36,17 +36,12 @@ const CIRCUIT_OPEN_DURATION_MS = 30_000
 
 function checkCircuit() {
   const now = Date.now()
+  // Circuit is open and timeout has NOT expired — reject immediately
   if (_circuitState.openUntil > now) {
-    if (!_circuitState.halfOpen) {
-      // Allow one probe request in half-open state
-      _circuitState.halfOpen = true
-      return
-    }
     throw new Error('Service temporarily unavailable. Please try again shortly.')
   }
-  // Circuit is closed or open period expired
-  if (_circuitState.openUntil > 0 && _circuitState.openUntil <= now) {
-    // Transition to half-open: allow the request through as a probe
+  // Open period expired — allow one probe request (half-open)
+  if (_circuitState.openUntil > 0 && _circuitState.openUntil <= now && !_circuitState.halfOpen) {
     _circuitState.halfOpen = true
   }
 }

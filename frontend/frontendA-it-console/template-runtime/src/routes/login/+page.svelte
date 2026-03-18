@@ -379,7 +379,7 @@
             type="email"
             bind:value={email}
             on:blur={onEmailBlur}
-            autocomplete="username"
+            autocomplete="email"
             required
           />
         </label>

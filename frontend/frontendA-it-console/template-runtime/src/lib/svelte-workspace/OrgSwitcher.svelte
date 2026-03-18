@@ -85,6 +85,7 @@
     on:click={toggle}
     aria-label="Switch organization"
     aria-expanded={open}
+    aria-haspopup="listbox"
     disabled={loading}
   >
     <span class="org-avatar">{getInitial(displayName)}</span>

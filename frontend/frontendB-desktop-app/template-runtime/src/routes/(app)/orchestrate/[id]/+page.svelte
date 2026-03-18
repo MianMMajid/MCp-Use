@@ -255,7 +255,7 @@
     saving = true; error = '';
     try {
       const payload = { name: orchestrationName.trim() || data.id, description: orchestrationInstructions, nodes: persistentFlowNodes(flowNodes).map(toApiNode), edges: persistentFlowEdges(flowEdges).map(toApiEdge) };
-      const r = await patchJson(`/api/orchestrations/${data.id}`, payload);
+      const r = await patchJson(`/api/orchestrations/${data.id}`, payload, { silent: true });
       if (!r.ok) throw new Error(`Save failed (${r.status})`);
       orchestration = await r.json().catch(() => orchestration);
       invalidateCache('/api/orchestrations');
@@ -278,7 +278,7 @@
     runtimeBusyCount += 1;
     error = '';
     try {
-      const r = await postJson(path, body);
+      const r = await postJson(path, body, { silent: true });
       const p = await r.json().catch(() => ({}));
       if (!r.ok || p?.ok === false) throw new Error(p?.error || `Request failed (${r.status})`);
       return p;
