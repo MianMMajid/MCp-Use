@@ -117,14 +117,6 @@ export async function registerGatewayRoutes(app) {
   registerRuntimeDiagnosticsRoutes(app);
   registerToolGovernanceRoutes(app);
 
-  // Alias for frontend path mismatch: /api/orchestrations/executions/approvals
-  app.get("/api/orchestrations/executions/approvals", async (c) => {
-    // Proxy to the existing operations route
-    const url = new URL(c.req.url);
-    url.pathname = "/api/operations/orchestrations/approvals";
-    return c.redirect(url.toString(), 307);
-  });
-
   // Initialize RBAC store (non-fatal)
   try {
     const rbacStore = new RbacStore({ database });

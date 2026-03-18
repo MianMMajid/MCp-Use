@@ -45,6 +45,7 @@
   let downstreamTools = []
   let openclawCatalog = []
   let firewallRules = []
+  let firewallRulesSource = 'loading'
   let cyberStatus = null
   let cyberPolicies = null
   let cyberIncidents = []
@@ -422,6 +423,7 @@
             status: String(rule.status ?? 'enabled'),
             source: String(rule.source ?? 'runtime'),
           }))
+          firewallRulesSource = 'live'
         }
       }
 
@@ -443,13 +445,19 @@
       if (cyberSuppressionsRes.status === 'fulfilled') cyberSuppressions = asArray(cyberSuppressionsRes.value?.items)
 
       if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId
-      if (firewallRules.length === 0) firewallRules = defaultFirewallRules
+      if (firewallRules.length === 0) {
+        firewallRules = defaultFirewallRules
+        firewallRulesSource = 'defaults'
+      }
 
       error = '' // Clear stale error from prior failed poll
     } catch (loadError) {
       if (loadError?.name === 'AbortError') return // poll was superseded
       error = loadError instanceof Error ? loadError.message : 'Failed loading runtime data.'
-      if (firewallRules.length === 0) firewallRules = defaultFirewallRules
+      if (firewallRules.length === 0) {
+        firewallRules = defaultFirewallRules
+        firewallRulesSource = 'defaults'
+      }
     }
   }
 
@@ -751,6 +759,7 @@
               {downstreamTools}
               {openclawCatalog}
               {firewallRules}
+              {firewallRulesSource}
               {cyberStatus}
               {cyberPolicies}
               {cyberIncidents}

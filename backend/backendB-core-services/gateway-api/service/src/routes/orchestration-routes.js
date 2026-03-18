@@ -783,6 +783,14 @@ export function registerOrchestrationRoutes(app) {
     });
   });
 
+  // Static /approvals route MUST be registered before the dynamic :executionId
+  // route, otherwise "approvals" matches as an executionId and returns 404.
+  app.get("/api/orchestrations/executions/approvals", async (c) => {
+    const url = new URL(c.req.url);
+    url.pathname = "/api/operations/orchestrations/approvals";
+    return c.redirect(url.toString(), 307);
+  });
+
   app.get("/api/orchestrations/executions/:executionId", async (c) => {
     const unauthorized = await requireApiKeyResponse(c, database);
     if (unauthorized) return unauthorized;

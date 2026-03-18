@@ -27,6 +27,7 @@
   export let downstreamTools = []
   export let openclawCatalog = []
   export let firewallRules = []
+  export let firewallRulesSource = 'loading'
   export let cyberStatus = null
   export let cyberPolicies = null
   export let cyberIncidents = []
