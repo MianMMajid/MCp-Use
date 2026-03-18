@@ -9,7 +9,10 @@ import {
   cyberQuarantineEnabled,
   cyberToolAllowedDomains,
   downloadScanProvider,
+  downloadScanVirusTotalAnalysisPollAttempts,
+  downloadScanVirusTotalAnalysisPollDelayMs,
   downloadScanVirusTotalApiKey,
+  downloadScanVirusTotalUploadAllowedDomains,
   downloadScanVirusTotalUploadFallback,
 } from "../config.js";
 import { replayAuditEvents } from "./audit-outbox.js";
@@ -258,6 +261,9 @@ export async function getCyberStatus(options = {}) {
       provider: downloadScanProvider,
       hashLookupFirst: downloadScanProvider === "virustotal",
       uploadFallbackEnabled: downloadScanProvider === "virustotal" && downloadScanVirusTotalUploadFallback,
+      uploadAllowedDomains: downloadScanProvider === "virustotal" ? downloadScanVirusTotalUploadAllowedDomains : [],
+      analysisPollAttempts: downloadScanProvider === "virustotal" ? downloadScanVirusTotalAnalysisPollAttempts : 0,
+      analysisPollDelayMs: downloadScanProvider === "virustotal" ? downloadScanVirusTotalAnalysisPollDelayMs : 0,
       quarantineEnabled: cyberQuarantineEnabled,
       enrichmentConfigured: downloadScanProvider !== "virustotal" || vtConfigured,
       degraded:
@@ -284,6 +290,9 @@ export function getCyberPolicies() {
     scanProvider: downloadScanProvider,
     hashLookupFirst: downloadScanProvider === "virustotal",
     uploadFallbackEnabled: downloadScanProvider === "virustotal" && downloadScanVirusTotalUploadFallback,
+    uploadAllowedDomains: downloadScanProvider === "virustotal" ? downloadScanVirusTotalUploadAllowedDomains : [],
+    analysisPollAttempts: downloadScanProvider === "virustotal" ? downloadScanVirusTotalAnalysisPollAttempts : 0,
+    analysisPollDelayMs: downloadScanProvider === "virustotal" ? downloadScanVirusTotalAnalysisPollDelayMs : 0,
     quarantineEnabled: cyberQuarantineEnabled,
     maxResponseBytes: cyberMaxResponseBytes,
     allowLocalTargets: cyberAllowLocalTargets,

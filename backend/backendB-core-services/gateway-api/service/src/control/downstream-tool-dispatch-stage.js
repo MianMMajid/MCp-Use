@@ -7,6 +7,7 @@ import { createPostExecutionCandidateStep, createPreExecutionCandidateStep, crea
 import { evaluateModifierGovernance } from "../core/openclaw-modifier-runtime.js";
 import { preflightFilesystemMutation } from "../core/filesystem-intervention-service.js";
 import { database } from "../state.js";
+import { extractTextFromMcpResult } from "./downstream-proxy-utils.js";
 export async function dispatchDownstreamAndLogStage(options) {
     const app = resolveDownstreamApp(options.appId);
     const trace = resolveProxyTrace({
@@ -200,9 +201,15 @@ export async function dispatchDownstreamAndLogStage(options) {
     }
     catch (dispatchError) {
         const failure = `Downstream dispatch failed: ${errorMessage(dispatchError)}`;
+        const failedToolResult = dispatchError?.toolResult && typeof dispatchError.toolResult === "object"
+            ? dispatchError.toolResult
+            : { error: failure };
+        const failedCyberReport = dispatchError?.cyberReport && typeof dispatchError.cyberReport === "object"
+            ? dispatchError.cyberReport
+            : null;
         const { loggedStep, report } = await appendLoggedStep({
             output: failure,
-            toolOutput: { error: failure },
+            toolOutput: failedToolResult,
             failed: true,
             stage: "dispatch_error",
         });
@@ -217,6 +224,12 @@ export async function dispatchDownstreamAndLogStage(options) {
             report,
             app,
             failure,
+            dispatch: {
+                result: failedToolResult,
+                textPreview: extractTextFromMcpResult(failedToolResult),
+                cyberReport: failedCyberReport,
+            },
+            cyberReport: failedCyberReport,
         };
     }
 }

@@ -90,6 +90,12 @@ export const config = {
     virustotalApiKey: optionalEnv("MAPLE_VIRUSTOTAL_API_KEY"),
     virustotalApiUrl: optionalEnv("MAPLE_VIRUSTOTAL_API_URL", "https://www.virustotal.com/api/v3"),
     virustotalUploadFallback: optionalEnvBool("MAPLE_VIRUSTOTAL_UPLOAD_FALLBACK", false),
+    virustotalUploadAllowedDomains: (optionalEnv("MAPLE_VIRUSTOTAL_UPLOAD_ALLOWED_DOMAINS", ""))
+        .split(",")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean),
+    virustotalAnalysisPollAttempts: optionalEnvInt("MAPLE_VIRUSTOTAL_ANALYSIS_POLL_ATTEMPTS", 0, { min: 0, max: 5 }),
+    virustotalAnalysisPollDelayMs: optionalEnvInt("MAPLE_VIRUSTOTAL_ANALYSIS_POLL_DELAY_MS", 10000, { min: 500, max: 60000 }),
     downloadScanTimeoutMs: optionalEnvInt("MAPLE_DOWNLOAD_SCAN_TIMEOUT_MS", 4000, { min: 250, max: 30000 }),
     malwareSandboxProvider: (() => {
         const raw = optionalEnv("MAPLE_MALWARE_SANDBOX_PROVIDER", "none").toLowerCase();

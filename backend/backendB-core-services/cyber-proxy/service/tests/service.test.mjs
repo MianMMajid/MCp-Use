@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const { checkUrl, scanContent } = await import(`../src/ssrf-guard.js?t=${Date.now()}`);
-const { createCyberProxyService } = await import(`../src/service.js?t=${Date.now()}`);
+const { createCyberProxyService, _internal } = await import(`../src/service.js?t=${Date.now()}`);
 const {
   buildLocalScanResult,
   scanDownloadedContent,
@@ -189,10 +189,8 @@ test("scanDownloadedContent: virustotal provider stays hash-only by default on l
     assert.equal(scan.quarantined, false);
     assert.equal(scan.blocked, false);
     assert.equal(scan.reasons.includes("VirusTotal hash lookup miss; sample upload disabled"), true);
-    assert.deepEqual(scan.analysis?.reputation, {
-      lookupMiss: true,
-      uploaded: false,
-    });
+    assert.equal(scan.analysis?.reputation?.lookupMiss, true);
+    assert.equal(scan.analysis?.reputation?.uploaded, false);
     assert.equal(calls.length, 1);
     assert.match(calls[0].url, /^https:\/\/vt\.example\/api\/v3\/files\/[a-f0-9]{64}$/);
     assert.equal(calls[0].method, "GET");
@@ -253,6 +251,118 @@ test("scanDownloadedContent: virustotal upload fallback can be explicitly enable
   }
 });
 
+test("scanDownloadedContent: virustotal upload fallback stays disabled for non-allowlisted sources", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: String(options.method || "GET") });
+    if (String(url).includes("/files/") && String(options.method || "GET") === "GET") {
+      return new Response(JSON.stringify({ error: { code: "NotFoundError" } }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const scan = await scanDownloadedContent({
+      provider: "virustotal",
+      virustotalApiKey: "vt-test-key",
+      virustotalApiUrl: "https://vt.example/api/v3",
+      virustotalUploadFallback: true,
+      virustotalUploadAllowedDomains: ["secure.eicar.org"],
+      content: Buffer.from("safe example"),
+      contentType: "text/html",
+      filename: "example.html",
+      sourceUrl: "https://example.com/",
+      localResult: buildLocalScanResult({
+        threats: [],
+        quarantined: false,
+      }),
+    });
+
+    assert.equal(scan.status, "completed");
+    assert.equal(scan.analysis?.reputation?.uploaded, false);
+    assert.equal(scan.reasons.includes("VirusTotal hash lookup miss; sample upload not allowed for this source"), true);
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("scanDownloadedContent: virustotal upload fallback can poll once for an allowlisted demo source", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method || "GET");
+    calls.push({ url: String(url), method });
+    if (String(url).includes("/files/") && method === "GET") {
+      return new Response(JSON.stringify({ error: { code: "NotFoundError" } }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).endsWith("/files") && method === "POST") {
+      return new Response(JSON.stringify({ data: { id: "analysis-demo-1" } }), {
+        status: 202,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).endsWith("/analyses/analysis-demo-1") && method === "GET") {
+      return new Response(JSON.stringify({
+        data: {
+          attributes: {
+            status: "completed",
+            stats: {
+              malicious: 12,
+              suspicious: 0,
+              harmless: 0,
+              undetected: 55,
+            },
+          },
+        },
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected fetch url: ${url}`);
+  };
+
+  try {
+    const scan = await scanDownloadedContent({
+      provider: "virustotal",
+      virustotalApiKey: "vt-test-key",
+      virustotalApiUrl: "https://vt.example/api/v3",
+      virustotalUploadFallback: true,
+      virustotalUploadAllowedDomains: ["secure.eicar.org"],
+      virustotalAnalysisPollAttempts: 1,
+      virustotalAnalysisPollDelayMs: 1,
+      content: Buffer.from("X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"),
+      contentType: "text/plain",
+      filename: "eicar.com.txt",
+      sourceUrl: "https://secure.eicar.org/eicar.com.txt",
+      localResult: buildLocalScanResult({
+        threats: [],
+        quarantined: false,
+      }),
+    });
+
+    assert.equal(scan.provider, "virustotal");
+    assert.equal(scan.status, "completed");
+    assert.equal(scan.stage, "final_verdict");
+    assert.equal(scan.verdict, "malicious");
+    assert.equal(scan.blocked, true);
+    assert.equal(scan.quarantined, true);
+    assert.equal(scan.analysis?.upload?.analysisId, "analysis-demo-1");
+    assert.equal(scan.analysis?.reputation?.malicious, 12);
+    assert.equal(calls.length, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("scanDownloadedContent: sandbox provider returns queued deeper analysis state", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
@@ -283,6 +393,47 @@ test("scanDownloadedContent: sandbox provider returns queued deeper analysis sta
     assert.equal(scan.stage, "analysis_pending");
     assert.equal(scan.analysis?.sandbox?.status, "pending");
     assert.equal(scan.reasons.includes("Sandbox analysis queued"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("executeMediatedWebFetch fetches original URL bytes and returns tool-compatible JSON-RPC", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    assert.equal(String(url), "https://example.com/");
+    return new Response("<html><body><h1>Example Domain</h1><p>demo</p></body></html>", {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  };
+
+  try {
+    const result = await _internal.executeMediatedWebFetch({
+      effectivePolicyUrl: "https://example.com/",
+      requestId: "demo-1",
+      maxChars: 5000,
+      effectiveMaxBytes: 1024 * 1024,
+      scope: { allowFileDownload: true },
+      resolvedIp: "93.184.216.34",
+      timeout: 5000,
+      auditContext: { appId: "default", toolName: "web_fetch" },
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.policyReason, "ok");
+    const payload = JSON.parse(result.body.toString("utf8"));
+    assert.equal(payload.jsonrpc, "2.0");
+    assert.equal(payload.id, "demo-1");
+    assert.equal(payload.result.structuredContent.tool, "web_fetch");
+    assert.equal(payload.result.structuredContent.data.source, "cyber-proxy");
+    assert.equal(payload.result.structuredContent.data.url, "https://example.com/");
+    assert.match(payload.result.text, /Example Domain/);
+    assert.equal(payload.result.structuredContent.data.scan.provider, "local");
+    assert.equal(payload.result.structuredContent.data.scan.verdict, "safe");
   } finally {
     globalThis.fetch = originalFetch;
   }

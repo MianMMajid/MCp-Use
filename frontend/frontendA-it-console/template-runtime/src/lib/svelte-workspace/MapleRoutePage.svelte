@@ -141,6 +141,35 @@
     return !['closed', 'resolved'].includes(incidentState) && (severity.includes('high') || severity.includes('critical'))
   })
 
+  function getNestedCyberScan(item) {
+    const rawArtifact = item?.metadata?.rawArtifact
+    const content = rawArtifact?.content
+    const nestedResultScan = content?.result?.scan
+    if (nestedResultScan && typeof nestedResultScan === 'object') return nestedResultScan
+    const nestedPreviewScan = content?.scan
+    if (nestedPreviewScan && typeof nestedPreviewScan === 'object') return nestedPreviewScan
+    const rawContentResultScan = content?.mediation?.result?.scan
+    if (rawContentResultScan && typeof rawContentResultScan === 'object') return rawContentResultScan
+    return item?.scan ?? null
+  }
+
+  function getCyberDownloadLabel(item) {
+    return item?.metadata?.rawArtifact?.url
+      ?? item?.url
+      ?? item?.metadata?.rawArtifact?.filename
+      ?? item?.filename
+      ?? item?.fileName
+      ?? item?.downloadId
+      ?? '--'
+  }
+
+  function getCyberDownloadTrace(item) {
+    return item?.metadata?.rawArtifact?.traceId
+      ?? item?.traceId
+      ?? item?.sessionId
+      ?? '--'
+  }
+
   async function refresh() {
     loading = true
     error = ''
@@ -714,8 +743,8 @@
       <div class="stack-list">
         {#each cyberDownloads.slice(0, 10) as item}
           <div class="list-card static">
-            <strong>{item.fileName ?? item.downloadId ?? item.url ?? '--'}</strong>
-            <span>{scanLabel(item.scan)} · {scanColor(item.scan)} · trace={item.traceId ?? '--'}</span>
+            <strong>{getCyberDownloadLabel(item)}</strong>
+            <span>{scanLabel(getNestedCyberScan(item))} · {scanColor(getNestedCyberScan(item))} · trace={getCyberDownloadTrace(item)}</span>
           </div>
         {/each}
       </div>

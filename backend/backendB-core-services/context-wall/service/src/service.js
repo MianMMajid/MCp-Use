@@ -415,7 +415,7 @@ function parseJsonValue(raw, fallback) {
         return fallback;
     }
 }
-function deriveScopeFromArguments(args) {
+function deriveScopeFromArguments(args, toolName = "") {
     const candidateUrl = typeof args.url === "string" ? args.url
         : typeof args.targetUrl === "string" ? args.targetUrl
             : typeof args.endpoint === "string" ? args.endpoint
@@ -429,7 +429,7 @@ function deriveScopeFromArguments(args) {
         return {
             allowedDomains: [hostname],
             maxBytes: 500_000,
-            allowFileDownload: false,
+            allowFileDownload: String(toolName || "").endsWith(".web_fetch") || String(toolName || "") === "web_fetch",
         };
     }
     catch {
@@ -743,7 +743,7 @@ export function createContextWallService(approvalQueue, policyStore) {
             }, { required: true });
         }
         const requestedScope = request.scope;
-        const derivedScope = deriveScopeFromArguments(parsedArgs);
+        const derivedScope = deriveScopeFromArguments(parsedArgs, `${appId}.${toolName}`);
         const mergedScope = requestedScope ?? derivedScope;
         const response = await mcpProxyBreaker.execute(() => grpcUnary(getMcpProxy(), "executeTool", {
             context: normalizedContext,
@@ -1266,7 +1266,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                             argumentsJson: toolCall?.argumentsJson ?? Buffer.from("{}"),
                             sessionId: requestContext.sessionId,
                             traceId: requestContext.traceId,
-                            scope: argsResult.ok ? deriveScopeFromArguments(argsResult.value) : undefined,
+                            scope: argsResult.ok ? deriveScopeFromArguments(argsResult.value, `${appId}.${toolName}`) : undefined,
                         });
                         let toolPayload = {};
                         if (!executeResult.allowed) {
@@ -1328,7 +1328,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                     argumentsJson: call.request.argumentsJson,
                     sessionId: call.request.sessionId || "",
                     traceId: call.request.traceId || "",
-                    scope: call.request.scope ?? deriveScopeFromArguments(parsedArgs.value),
+                    scope: call.request.scope ?? deriveScopeFromArguments(parsedArgs.value, `${call.request.appId || ""}.${call.request.toolName || ""}`),
                 });
                 callback(null, response);
             }

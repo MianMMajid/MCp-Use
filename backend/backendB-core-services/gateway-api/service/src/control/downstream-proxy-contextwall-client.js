@@ -27,6 +27,17 @@ function assertForwardAllowed(response, operation) {
         throw new Error(response?.errorMessage || `${operation} failed`);
     }
 }
+
+function buildMediatedToolError(response, operation, parsedToolResult = {}) {
+    const errorText = response?.allowed === false
+        ? `Policy blocked ${operation}: ${response?.blockedReason || "blocked"}`
+        : response?.errorMessage || `${operation} failed`;
+    const error = new Error(errorText);
+    error.blockedByPolicy = response?.allowed === false;
+    error.cyberReport = parsedToolResult.cyberReport ?? null;
+    error.toolResult = parsedToolResult.result ?? {};
+    return error;
+}
 export async function mcpJsonRpcRequest(app, method, params, requestContextOverrides = {}) {
     const requestId = randomUUID();
     const startedAt = Date.now();
@@ -94,9 +105,12 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
                 sessionId: gatewayRequestContext.sessionId,
                 traceId: gatewayRequestContext.traceId,
             }, { deadlineMs: DEADLINE_TOOL_EXEC_MS });
-            assertForwardAllowed(response, `${app.id}.${toolName}`);
-            recordMediatedToolCall("ok");
             const parsedToolResult = parseMediatedToolResult(response?.resultJson);
+            if (response?.allowed === false || !response?.success) {
+                recordMediatedToolCall("error");
+                throw buildMediatedToolError(response, `${app.id}.${toolName}`, parsedToolResult);
+            }
+            recordMediatedToolCall("ok");
             return {
                 requestId,
                 durationMs: Date.now() - startedAt,
@@ -106,7 +120,9 @@ export async function mcpJsonRpcRequest(app, method, params, requestContextOverr
             };
         }
         catch (error) {
-            recordMediatedToolCall("error");
+            if (!error?.cyberReport) {
+                recordMediatedToolCall("error");
+            }
             throw error;
         }
     }

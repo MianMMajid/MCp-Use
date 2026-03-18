@@ -143,6 +143,377 @@ function tryParseJsonObject(body) {
     return null;
 }
 
+function clampInteger(value, minimum, maximum, fallback) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+    return Math.max(minimum, Math.min(maximum, parsed));
+}
+
+function extractToolCall(requestBody) {
+    const parsed = tryParseJsonObject(requestBody);
+    if (!parsed || String(parsed.method || "").trim() !== "tools/call") {
+        return null;
+    }
+    const params = parsed.params && typeof parsed.params === "object" && !Array.isArray(parsed.params)
+        ? parsed.params
+        : {};
+    const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments)
+        ? params.arguments
+        : {};
+    return {
+        id: parsed.id ?? null,
+        name: String(params.name || "").trim(),
+        args,
+    };
+}
+
+function extractMediatedWebFetchRequest(requestBody) {
+    const toolCall = extractToolCall(requestBody);
+    if (!toolCall || toolCall.name !== "web_fetch") {
+        return null;
+    }
+    const url = typeof toolCall.args.url === "string" ? toolCall.args.url.trim() : "";
+    if (!url) {
+        return null;
+    }
+    return {
+        jsonRpcId: toolCall.id,
+        url,
+        maxChars: clampInteger(toolCall.args.maxChars, 500, 30000, 8000),
+    };
+}
+
+function truncateText(value, maxChars = 8000) {
+    const text = String(value ?? "");
+    if (text.length <= maxChars) {
+        return text;
+    }
+    return `${text.slice(0, maxChars)}...`;
+}
+
+function stripHtml(input) {
+    return String(input ?? "")
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<\/?[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function decodeHtmlEntities(input) {
+    return String(input ?? "")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, "\"")
+        .replace(/&#39;/gi, "'");
+}
+
+function normalizeReadableText(input) {
+    return decodeHtmlEntities(String(input ?? "")).replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function isTextLikeContent(contentType) {
+    const normalized = String(contentType || "").toLowerCase();
+    return normalized.startsWith("text/")
+        || normalized.includes("json")
+        || normalized.includes("xml")
+        || normalized.includes("javascript")
+        || normalized.includes("svg")
+        || normalized.includes("markdown")
+        || normalized.includes("html");
+}
+
+function buildBinarySummary(url, contentType, sizeBytes) {
+    const parts = [
+        `Fetched ${url}.`,
+        `Content-Type: ${contentType || "application/octet-stream"}.`,
+        `Size: ${sizeBytes} bytes.`,
+        "Binary content omitted from inline response.",
+    ];
+    return parts.join(" ");
+}
+
+function formatWebFetchText(content, contentType, sourceUrl, maxChars) {
+    if (!isTextLikeContent(contentType)) {
+        return buildBinarySummary(sourceUrl, contentType, content.length);
+    }
+    const rawText = Buffer.from(content).toString("utf8");
+    const normalizedContentType = String(contentType || "").toLowerCase();
+    const readable = normalizedContentType.includes("html")
+        ? stripHtml(rawText)
+        : rawText;
+    const normalized = normalizeReadableText(readable);
+    if (!normalized) {
+        return `Fetched ${sourceUrl} but content was empty.`;
+    }
+    return truncateText(normalized, maxChars);
+}
+
+function getFilenameFromUrl(url) {
+    try {
+        const pathname = new URL(url).pathname;
+        const segments = pathname.split("/").filter((segment) => segment.length > 0);
+        return segments.length > 0 ? segments.at(-1) : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+
+function buildWebFetchJsonRpcResult({ requestId, sourceUrl, text, contentType, rawSizeBytes, resolvedIp, scan }) {
+    return {
+        jsonrpc: "2.0",
+        id: requestId ?? null,
+        result: {
+            text,
+            content: [{ type: "text", text }],
+            structuredContent: {
+                tool: "web_fetch",
+                data: {
+                    url: sourceUrl,
+                    source: "cyber-proxy",
+                    content: text,
+                    contentLength: text.length,
+                    contentType,
+                    rawSizeBytes,
+                    resolvedIp,
+                    sha256: String(scan?.sha256 || ""),
+                    scan,
+                },
+            },
+        },
+    };
+}
+
+async function fetchResponseBuffer(url, options, maxBytes) {
+    const response = await fetch(url, options);
+    const headers = {};
+    response.headers.forEach((value, key) => {
+        headers[key] = value;
+    });
+    const chunks = [];
+    let totalBytes = 0;
+    let sizeExceeded = false;
+    const reader = response.body?.getReader();
+    if (reader) {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBytes) {
+                reader.cancel();
+                sizeExceeded = true;
+                break;
+            }
+            chunks.push(value);
+        }
+    }
+    else {
+        const buffer = Buffer.from(await response.arrayBuffer());
+        totalBytes = buffer.length;
+        if (totalBytes > maxBytes) {
+            sizeExceeded = true;
+        }
+        else {
+            chunks.push(buffer);
+        }
+    }
+    return {
+        response,
+        headers,
+        body: Buffer.concat(chunks),
+        totalBytes,
+        sizeExceeded,
+    };
+}
+
+async function executeMediatedWebFetch({
+    effectivePolicyUrl,
+    requestId,
+    maxChars,
+    effectiveMaxBytes,
+    scope,
+    resolvedIp,
+    timeout,
+    auditContext,
+}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+        const fetched = await fetchResponseBuffer(effectivePolicyUrl, {
+            method: "GET",
+            headers: {
+                accept: "text/html, text/plain;q=0.9, application/json;q=0.8, */*;q=0.6",
+                "user-agent": "maple-cyber-proxy/1.0",
+            },
+            signal: controller.signal,
+        }, effectiveMaxBytes);
+        const { response, headers, body, totalBytes, sizeExceeded } = fetched;
+        const contentType = headers["content-type"] || "application/octet-stream";
+        if (sizeExceeded) {
+            const reason = `Response exceeds scoped max_bytes (${totalBytes} > ${effectiveMaxBytes})`;
+            await emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
+                summary: reason,
+                payload: { url: effectivePolicyUrl, ...auditContext, scopedMaxBytes: effectiveMaxBytes },
+            }, { required: true });
+            return {
+                statusCode: 403,
+                headers,
+                body: Buffer.from(JSON.stringify({ error: "Response blocked by scoped size policy", reason })),
+                resolvedIp,
+                sanitized: false,
+                malwareDetected: false,
+                quarantined: true,
+                threatsFound: ["max_bytes_exceeded"],
+                quarantineReason: reason,
+                policyReason: reason,
+            };
+        }
+        if (!scope.allowFileDownload && isDownloadLikeResponse(contentType, headers)) {
+            const reason = "File download blocked by credential scope";
+            await emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
+                summary: reason,
+                payload: { url: effectivePolicyUrl, ...auditContext, contentType },
+            }, { required: true });
+            return {
+                statusCode: 403,
+                headers,
+                body: Buffer.from(JSON.stringify({ error: reason })),
+                resolvedIp,
+                sanitized: false,
+                malwareDetected: false,
+                quarantined: true,
+                threatsFound: ["download_blocked"],
+                quarantineReason: reason,
+                policyReason: reason,
+            };
+        }
+        const readableText = formatWebFetchText(body, contentType, effectivePolicyUrl, maxChars);
+        const htmlLike = String(contentType || "").toLowerCase().includes("html");
+        const localScanInput = htmlLike
+            ? Buffer.from(readableText, "utf8")
+            : body;
+        const localScanContentType = htmlLike
+            ? "text/plain; charset=utf-8"
+            : contentType;
+        const scanResult = scanContent(localScanInput, localScanContentType, effectivePolicyUrl);
+        const scan = await buildDownloadScan({
+            content: body,
+            contentType,
+            sourceUrl: effectivePolicyUrl,
+            filename: getFilenameFromUrl(effectivePolicyUrl),
+            localResult: scanResult,
+        });
+        const responseHeaders = attachScanHeaders({
+            ...headers,
+            "content-type": "application/json",
+        }, scan);
+        if (isPendingOnlyScan(scanResult, scan)) {
+            return {
+                statusCode: 202,
+                headers: responseHeaders,
+                body: Buffer.from(JSON.stringify({
+                    accepted: true,
+                    status: "analysis_pending",
+                    message: "Download accepted for asynchronous malware analysis",
+                    scan,
+                    sourceUrl: effectivePolicyUrl,
+                })),
+                resolvedIp,
+                sanitized: false,
+                malwareDetected: false,
+                quarantined: false,
+                threatsFound: [],
+                quarantineReason: "",
+                policyReason: "analysis_pending",
+            };
+        }
+        if (scanResult.quarantined || scan.quarantined || scan.blocked) {
+            const quarantineReason = scanResult.quarantineReason || scan.reasons?.[0] || "content_quarantined";
+            await emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
+                summary: `Download quarantined: ${quarantineReason}`,
+                payload: {
+                    url: effectivePolicyUrl,
+                    ...auditContext,
+                    threats: scanResult.threats,
+                    scan,
+                },
+            }, { required: true });
+            return {
+                statusCode: 403,
+                headers: responseHeaders,
+                body: Buffer.from(JSON.stringify({
+                    error: "Download quarantined",
+                    reason: quarantineReason,
+                    threats: scanResult.threats,
+                    scan,
+                })),
+                resolvedIp,
+                sanitized: false,
+                malwareDetected: scan.verdict === "malicious",
+                quarantined: true,
+                threatsFound: [...new Set([...(scanResult.threats ?? []), ...(scan.reasons ?? [])])],
+                quarantineReason,
+                policyReason: quarantineReason,
+            };
+        }
+        if (!scanResult.safe) {
+            return {
+                statusCode: 403,
+                headers: responseHeaders,
+                body: Buffer.from(JSON.stringify({ error: "Response content blocked", threats: scanResult.threats, scan })),
+                resolvedIp,
+                sanitized: false,
+                malwareDetected: true,
+                quarantined: false,
+                threatsFound: scanResult.threats,
+                quarantineReason: "",
+                policyReason: "content_blocked",
+            };
+        }
+        const injectionScan = scanContentForInjection(Buffer.from(readableText, "utf8"), "text/plain; charset=utf-8");
+        if (injectionScan.hasInjection && injectionScan.confidence >= 0.7) {
+            responseHeaders["x-maple-injection-detected"] = "true";
+            responseHeaders["x-maple-injection-confidence"] = String(injectionScan.confidence.toFixed(2));
+            emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",
+                summary: `Indirect prompt injection detected in fetched content (confidence ${(injectionScan.confidence * 100).toFixed(0)}%)`,
+                payload: { url: effectivePolicyUrl, patterns: injectionScan.patterns, categories: injectionScan.categories, confidence: injectionScan.confidence },
+            });
+        }
+        return {
+            statusCode: response.ok ? 200 : response.status,
+            headers: responseHeaders,
+            body: Buffer.from(JSON.stringify(buildWebFetchJsonRpcResult({
+                requestId,
+                sourceUrl: effectivePolicyUrl,
+                text: readableText,
+                contentType,
+                rawSizeBytes: body.length,
+                resolvedIp,
+                scan,
+            }))),
+            resolvedIp,
+            sanitized: false,
+            malwareDetected: false,
+            quarantined: false,
+            threatsFound: injectionScan.hasInjection ? [`indirect_injection:${injectionScan.patterns.join(",")}`] : [],
+            quarantineReason: "",
+            policyReason: response.ok ? "ok" : `upstream_http_${response.status}`,
+        };
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+
 function extractEffectivePolicyUrl(requestUrl, requestBody) {
     const parsed = tryParseJsonObject(requestBody);
     if (!parsed || String(parsed.method || "").trim() !== "tools/call") {
@@ -321,6 +692,9 @@ async function buildDownloadScan(options = {}) {
         virustotalApiKey: config.virustotalApiKey,
         virustotalApiUrl: config.virustotalApiUrl,
         virustotalUploadFallback: config.virustotalUploadFallback,
+        virustotalUploadAllowedDomains: config.virustotalUploadAllowedDomains,
+        virustotalAnalysisPollAttempts: config.virustotalAnalysisPollAttempts,
+        virustotalAnalysisPollDelayMs: config.virustotalAnalysisPollDelayMs,
         timeoutMs: config.downloadScanTimeoutMs,
         malwareSandboxProvider: config.malwareSandboxProvider,
         malwareSandboxApiUrl: config.malwareSandboxApiUrl,
@@ -491,6 +865,7 @@ export function createCyberProxyService() {
                 const effectiveMaxBytes = scope.maxBytes ? Math.min(scope.maxBytes, config.maxResponseBytes) : config.maxResponseBytes;
                 const toolName = String(call.request.toolName || "jsonrpc.forward");
                 const requestBody = normalizeRequestBody(body);
+                const mediatedWebFetch = extractMediatedWebFetchRequest(requestBody);
                 const effectivePolicyUrl = extractEffectivePolicyUrl(url, requestBody);
                 const urlCheck = await evaluateUrlPolicy(effectivePolicyUrl, toolName, scope.allowedDomains);
                 if (!urlCheck.allowed) {
@@ -524,6 +899,44 @@ export function createCyberProxyService() {
                 }
                 const start = Date.now();
                 const timeout = Math.min(timeoutMs || config.requestTimeoutMs, 60000);
+                if (mediatedWebFetch) {
+                    try {
+                        const result = await executeMediatedWebFetch({
+                            effectivePolicyUrl,
+                            requestId: mediatedWebFetch.jsonRpcId,
+                            maxChars: mediatedWebFetch.maxChars,
+                            effectiveMaxBytes,
+                            scope,
+                            resolvedIp: urlCheck.resolvedIp,
+                            timeout,
+                            auditContext: {
+                                appId: call.request.appId || "",
+                                toolName,
+                            },
+                        });
+                        callback(null, {
+                            ...result,
+                            durationMs: Date.now() - start,
+                        });
+                        return;
+                    }
+                    catch (err) {
+                        callback(null, {
+                            statusCode: 502,
+                            headers: {},
+                            body: Buffer.from(JSON.stringify({ error: err.message })),
+                            durationMs: Date.now() - start,
+                            resolvedIp: "",
+                            sanitized: false,
+                            malwareDetected: false,
+                            quarantined: false,
+                            threatsFound: [],
+                            quarantineReason: "",
+                            policyReason: err.message || "upstream_error",
+                        });
+                        return;
+                    }
+                }
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), timeout);
                 try {
@@ -755,6 +1168,7 @@ export function createCyberProxyService() {
                 const effectiveMaxBytes = scope.maxBytes ? Math.min(scope.maxBytes, config.maxResponseBytes) : config.maxResponseBytes;
                 const toolName = String(call.request.toolName || "jsonrpc.forward");
                 const requestBody = normalizeRequestBody(body);
+                const mediatedWebFetch = extractMediatedWebFetchRequest(requestBody);
                 const effectivePolicyUrl = extractEffectivePolicyUrl(url, requestBody);
                 const urlCheck = await evaluateUrlPolicy(effectivePolicyUrl, toolName, scope.allowedDomains);
                 if (!urlCheck.allowed) {
@@ -775,6 +1189,53 @@ export function createCyberProxyService() {
                     return;
                 }
                 const timeout = Math.min(timeoutMs || config.requestTimeoutMs, 60000);
+                if (mediatedWebFetch) {
+                    try {
+                        const result = await executeMediatedWebFetch({
+                            effectivePolicyUrl,
+                            requestId: mediatedWebFetch.jsonRpcId,
+                            maxChars: mediatedWebFetch.maxChars,
+                            effectiveMaxBytes,
+                            scope,
+                            resolvedIp: urlCheck.resolvedIp,
+                            timeout,
+                            auditContext: {
+                                appId: call.request.appId || "",
+                                toolName,
+                            },
+                        });
+                        call.write({
+                            data: result.body,
+                            isFinal: true,
+                            statusCode: result.statusCode,
+                            headers: result.headers,
+                            sanitized: result.sanitized,
+                            malwareDetected: result.malwareDetected,
+                            quarantined: result.quarantined,
+                            threatsFound: result.threatsFound,
+                            quarantineReason: result.quarantineReason,
+                            policyReason: result.policyReason,
+                            resolvedIp: result.resolvedIp,
+                        });
+                    }
+                    catch {
+                        call.write({
+                            data: Buffer.from(JSON.stringify({ error: "Upstream request failed" })),
+                            isFinal: true,
+                            statusCode: 502,
+                            headers: {},
+                            sanitized: false,
+                            malwareDetected: false,
+                            quarantined: false,
+                            threatsFound: [],
+                            quarantineReason: "",
+                            policyReason: "upstream_error",
+                            resolvedIp: "",
+                        });
+                    }
+                    call.end();
+                    return;
+                }
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), timeout);
                 const resp = await fetch(url, {
@@ -939,4 +1400,9 @@ export function createCyberProxyService() {
     server.addService(cyberProto.CyberProxyService.service, serviceImpl);
     return server;
 }
+export const _internal = {
+    extractMediatedWebFetchRequest,
+    formatWebFetchText,
+    executeMediatedWebFetch,
+};
 //# sourceMappingURL=service.js.map

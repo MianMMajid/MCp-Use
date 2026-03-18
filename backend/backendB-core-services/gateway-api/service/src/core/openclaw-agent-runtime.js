@@ -7,6 +7,9 @@ import {
   downloadScanTimeoutMs,
   downloadScanVirusTotalApiKey,
   downloadScanVirusTotalApiUrl,
+  downloadScanVirusTotalAnalysisPollAttempts,
+  downloadScanVirusTotalAnalysisPollDelayMs,
+  downloadScanVirusTotalUploadAllowedDomains,
   downloadScanVirusTotalUploadFallback,
   malwareSandboxApiToken,
   malwareSandboxApiUrl,
@@ -477,6 +480,9 @@ async function withArtifactScan(artifact = {}) {
       virustotalApiKey: downloadScanVirusTotalApiKey,
       virustotalApiUrl: downloadScanVirusTotalApiUrl,
       virustotalUploadFallback: downloadScanVirusTotalUploadFallback,
+      virustotalUploadAllowedDomains: downloadScanVirusTotalUploadAllowedDomains,
+      virustotalAnalysisPollAttempts: downloadScanVirusTotalAnalysisPollAttempts,
+      virustotalAnalysisPollDelayMs: downloadScanVirusTotalAnalysisPollDelayMs,
       timeoutMs: downloadScanTimeoutMs,
       malwareSandboxProvider,
       malwareSandboxApiUrl,
@@ -856,16 +862,17 @@ function buildMediationReply(payload = {}) {
   }
 
   if (payload.kind === "mediated_network") {
-    if (payload.ok !== true) {
-      return [
-        `Maple blocked or quarantined the network action through the mediated firewall path.`,
-        `tool=${payload.toolName || "--"} traceId=${payload.traceId || "--"} sessionId=${payload.sessionId || "--"}.`,
-        `${payload.error || "Review Frontend A /maple/cyber for the incident/evidence."}`,
-      ].join(" ");
-    }
     const cyberReport = payload.cyberReport && typeof payload.cyberReport === "object"
       ? payload.cyberReport
       : null;
+    const scan = cyberReport?.scan && typeof cyberReport.scan === "object"
+      ? cyberReport.scan
+      : payload.result?.scan && typeof payload.result.scan === "object"
+        ? payload.result.scan
+        : null;
+    const scanSummary = scan
+      ? `Scan provider=${scan.provider || "--"} stage=${scan.stage || "--"} verdict=${scan.verdict || "--"}.`
+      : "";
     const cyberSummary = cyberReport
       ? cyberReport.quarantined
         ? `Cyber verdict: quarantined (${cyberReport.quarantineReason || "policy review required"}).`
@@ -877,6 +884,15 @@ function buildMediationReply(payload = {}) {
               ? `Cyber verdict: blocked by cyber policy.`
               : ""
       : "";
+    if (payload.ok !== true) {
+      return [
+        `Maple blocked or quarantined the network action through the mediated firewall path.`,
+        `tool=${payload.toolName || "--"} traceId=${payload.traceId || "--"} sessionId=${payload.sessionId || "--"}.`,
+        cyberSummary || payload.error || "Review Frontend A /maple/cyber for the incident/evidence.",
+        scanSummary,
+        cyberSummary && payload.error ? payload.error : "",
+      ].join(" ");
+    }
     const rawPreview = String(payload.resultPreview || payload.resultText || "").trim();
     const hasMeaningfulPreview =
       rawPreview.length > 0 &&
@@ -892,6 +908,7 @@ function buildMediationReply(payload = {}) {
       `Maple executed the network action through the mediated firewall path.`,
       `tool=${payload.toolName || "--"} traceId=${payload.traceId || "--"} sessionId=${payload.sessionId || "--"}.`,
       preview,
+      scanSummary,
     ].join(" ");
   }
 

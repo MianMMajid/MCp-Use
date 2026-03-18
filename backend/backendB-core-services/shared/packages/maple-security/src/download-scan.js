@@ -22,6 +22,21 @@ function normalizeStringArray(values) {
     .filter((value) => value.length > 0);
 }
 
+function normalizeDomainList(values) {
+  if (Array.isArray(values)) {
+    return values
+      .map((value) => String(value ?? "").trim().toLowerCase())
+      .filter((value) => value.length > 0);
+  }
+  if (typeof values === "string") {
+    return values
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value.length > 0);
+  }
+  return [];
+}
+
 function defaultContentType(contentType, fallback = "application/octet-stream") {
   const normalized = String(contentType ?? "").trim();
   return normalized || fallback;
@@ -110,6 +125,84 @@ function virustotalVerdictFromStats(stats = {}) {
   };
 }
 
+function hostnameMatchesDomain(hostname, domain) {
+  const normalizedHost = String(hostname ?? "").trim().toLowerCase();
+  const normalizedDomain = String(domain ?? "").trim().toLowerCase();
+  return normalizedHost === normalizedDomain || normalizedHost.endsWith(`.${normalizedDomain}`);
+}
+
+function sourceUrlAllowedForUpload(sourceUrl, allowedDomains) {
+  if (allowedDomains.length === 0) {
+    return false;
+  }
+  try {
+    const hostname = new URL(String(sourceUrl || "")).hostname.toLowerCase();
+    return allowedDomains.some((domain) => hostnameMatchesDomain(hostname, domain));
+  } catch {
+    return false;
+  }
+}
+
+function extractAnalysisStats(payload = {}) {
+  return payload?.data?.attributes?.stats
+    ?? payload?.data?.attributes?.last_analysis_stats
+    ?? payload?.meta?.stats
+    ?? {};
+}
+
+async function pollVirusTotalAnalysis(baseScan, {
+  baseUrl,
+  headers,
+  timeoutMs,
+  analysisId,
+  attempts,
+  delayMs,
+}) {
+  const maxAttempts = Math.max(0, Number.parseInt(String(attempts ?? 0), 10) || 0);
+  if (!analysisId || maxAttempts <= 0) {
+    return null;
+  }
+  const waitMs = Math.max(500, Number.parseInt(String(delayMs ?? 0), 10) || 0);
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    // eslint-disable-next-line no-await-in-loop
+    const analysis = await fetchJsonWithTimeout(`${baseUrl}/analyses/${encodeURIComponent(analysisId)}`, { headers }, timeoutMs);
+    if (!analysis.response.ok) {
+      continue;
+    }
+    const status = String(analysis.json?.data?.attributes?.status ?? "").trim().toLowerCase();
+    const stats = extractAnalysisStats(analysis.json);
+    const hasStats = Object.keys(stats).length > 0;
+    if (status === "completed" || hasStats) {
+      const vt = virustotalVerdictFromStats(stats);
+      return mergeScan(baseScan, {
+        provider: "virustotal",
+        stage: "reputation_enriched",
+        status: "completed",
+        verdict: vt.verdict,
+        analysis: {
+          reputation: {
+            malicious: Number(stats.malicious ?? 0),
+            suspicious: Number(stats.suspicious ?? 0),
+            harmless: Number(stats.harmless ?? 0),
+            undetected: Number(stats.undetected ?? 0),
+          },
+          upload: {
+            uploaded: true,
+            analysisId,
+            polled: true,
+          },
+        },
+        checkedAt: new Date().toISOString(),
+        blocked: baseScan.blocked || vt.blocked,
+        quarantined: baseScan.quarantined || vt.blocked,
+      });
+    }
+  }
+  return null;
+}
+
 async function enrichWithVirusTotal(baseScan, options) {
   const apiKey = String(options.virustotalApiKey ?? "").trim();
   if (!apiKey) {
@@ -122,6 +215,11 @@ async function enrichWithVirusTotal(baseScan, options) {
   const headers = { "x-apikey": apiKey, accept: "application/json" };
   const keepLocalEnforcement = shouldKeepLocalEnforcement(baseScan);
   const uploadFallbackEnabled = toBoolean(options.virustotalUploadFallback, false);
+  const uploadAllowedDomains = normalizeDomainList(options.virustotalUploadAllowedDomains);
+  const allowUploadForSource = sourceUrlAllowedForUpload(options.sourceUrl, uploadAllowedDomains);
+  const uploadAllowed = uploadFallbackEnabled && (keepLocalEnforcement || allowUploadForSource);
+  const analysisPollAttempts = Math.max(0, Number.parseInt(String(options.virustotalAnalysisPollAttempts ?? 0), 10) || 0);
+  const analysisPollDelayMs = Math.max(500, Number.parseInt(String(options.virustotalAnalysisPollDelayMs ?? 10000), 10) || 10000);
 
   try {
     const lookup = await fetchJsonWithTimeout(`${baseUrl}/files/${encodeURIComponent(sha256)}`, { headers }, timeoutMs);
@@ -150,7 +248,7 @@ async function enrichWithVirusTotal(baseScan, options) {
       });
     }
 
-    if (lookup.response.status === 404 && (!uploadFallbackEnabled || !options.content || Buffer.from(options.content).length === 0)) {
+    if (lookup.response.status === 404 && (!uploadAllowed || !options.content || Buffer.from(options.content).length === 0)) {
       return mergeScan(baseScan, {
         provider: "virustotal",
         stage: "reputation_enriched",
@@ -159,9 +257,14 @@ async function enrichWithVirusTotal(baseScan, options) {
           reputation: {
             lookupMiss: true,
             uploaded: false,
+            uploadAllowedDomains,
           },
         },
-        reasons: ["VirusTotal hash lookup miss; sample upload disabled"],
+        reasons: [
+          uploadFallbackEnabled && uploadAllowedDomains.length > 0
+            ? "VirusTotal hash lookup miss; sample upload not allowed for this source"
+            : "VirusTotal hash lookup miss; sample upload disabled",
+        ],
         checkedAt: new Date().toISOString(),
       });
     }
@@ -173,6 +276,18 @@ async function enrichWithVirusTotal(baseScan, options) {
       form.append("file", new Blob([Buffer.from(options.content)], { type: contentType }), filename);
       const submit = await fetchJsonWithTimeout(`${baseUrl}/files`, { method: "POST", headers: { "x-apikey": apiKey }, body: form }, timeoutMs);
       if (submit.response.ok || submit.response.status === 202) {
+        const analysisId = String(submit.json?.data?.id ?? "").trim();
+        const polled = await pollVirusTotalAnalysis(baseScan, {
+          baseUrl,
+          headers,
+          timeoutMs,
+          analysisId,
+          attempts: analysisPollAttempts,
+          delayMs: analysisPollDelayMs,
+        });
+        if (polled) {
+          return polled;
+        }
         return mergeScan(baseScan, {
           provider: "virustotal",
           stage: "analysis_pending",
@@ -182,6 +297,8 @@ async function enrichWithVirusTotal(baseScan, options) {
             reputation: {
               queued: true,
               uploaded: true,
+              analysisId,
+              polled: analysisPollAttempts > 0,
             },
           },
           reasons: ["VirusTotal analysis queued"],

@@ -232,6 +232,9 @@ function toCyberReport(response, statusCode) {
         contentBlocked: threatsFound.length > 0 && !Boolean(response?.malwareDetected),
         quarantineReason: String(response?.quarantineReason || response?.policyReason || ""),
         resolvedIp: String(response?.resolvedIp || ""),
+        scan: response?.scan && typeof response.scan === "object" && !Array.isArray(response.scan)
+            ? response.scan
+            : null,
     };
 }
 function normalizeCyberReport(raw, statusCode) {
@@ -247,6 +250,9 @@ function normalizeCyberReport(raw, statusCode) {
         contentBlocked: threatsFound.length > 0 && !Boolean(raw?.malware),
         quarantineReason: String(raw?.quarantineReason || ""),
         resolvedIp: String(raw?.resolvedIp || ""),
+        scan: raw?.scan && typeof raw.scan === "object" && !Array.isArray(raw.scan)
+            ? raw.scan
+            : null,
     };
 }
 function normalizeDispatchContext(context = {}, traceId = "") {
@@ -611,7 +617,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     const errorMessage = dispatched.errorMessage || `Cyber-proxy returned HTTP ${dispatched.statusCode}`;
                     callback(null, {
                         success: false,
-                        resultJson: jsonBuf(rpcResponse?.error ?? rpcResponse ?? { error: errorMessage }),
+                        resultJson: jsonBuf(rpcResponse ?? { error: errorMessage }),
                         errorMessage,
                         durationMs,
                         appId,
