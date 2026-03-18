@@ -28,3 +28,6 @@ yarn-error.log*
 
 # sveltekit build output
 .svelte-kit/
+
+# legacy next.js build cache (project migrated to sveltekit)
+.next/
