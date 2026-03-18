@@ -4,8 +4,8 @@ This package is the canonical frontend A runtime. The operator product target is
 
 ## Canonical ownership
 
-- Route entry: `src/routes/maple/+page.svelte`
-- Shell and route host: `src/lib/svelte-workspace/MapleShell.svelte`
+- Route entry: `src/routes/maple/+layout.svelte` with real route ownership under `src/routes/maple/*/+page.svelte`
+- Shell and route host: `src/lib/svelte-workspace/MapleLayoutShell.svelte` and `src/lib/svelte-workspace/MapleRoutePage.svelte`
 - Route metadata: `src/lib/maple-workspace/route-registry.js`
 - Machine-readable parity matrix: `src/lib/maple-workspace/frontendA-parity-spec.js`
 
@@ -21,8 +21,9 @@ Use these checks when working on the workspace:
 
 ```bash
 npm run check:route-conflicts
+npm run check
 npm run check:parity
-npm run test:cyber-ui
+npm run test
 ```
 
 ## Legacy reference intake

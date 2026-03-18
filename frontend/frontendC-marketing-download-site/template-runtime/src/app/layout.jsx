@@ -1,5 +1,3 @@
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
 import clsx from 'clsx'
 
 import '@/styles/tailwind.css'
@@ -27,8 +25,6 @@ export default function RootLayout({ children }) {
       lang="en"
       className={clsx(
         'h-full scroll-smooth bg-white antialiased overscroll-none scroll-pt-24',
-        GeistSans.variable,
-        GeistMono.variable,
       )}
     >
       <body className="flex h-full flex-col">{children}</body>

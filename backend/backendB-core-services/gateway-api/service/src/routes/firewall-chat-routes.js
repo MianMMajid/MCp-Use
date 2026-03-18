@@ -6,6 +6,7 @@ import { asString, asBoolean, readJsonBody } from "../helpers.js";
 import { buildFirewallChatContext, generateFirewallChatReply, normalizeFirewallChatHistory, } from "../trace-helpers.js";
 import { buildFeatureCapabilitiesFromDependencyReport, evaluateGatewayRuntimeDependencies, } from "../core/runtime-dependencies.js";
 import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
+import { runSecureChatTurn } from "../core/secure-chat-runtime.js";
 function resolveFirewallRequestContext(options) {
     const authContext = getAuthContext(options.context);
     const requestContext = options.context?.get("mapleRequestContext") ?? {};
@@ -58,26 +59,27 @@ export function registerFirewallChatRoutes() {
             fallbackSessionId: context.trace?.sessionId,
             fallbackTraceId: context.trace?.id,
         });
-        const chatResult = await generateFirewallChatReply({
-            question: message,
-            context,
-            messages: [{ role: "user", content: message }],
-            requestContext,
-            model,
-            reasoningEffort,
-        });
-        const orchestrationUnavailable = chatResult.mode === "unavailable";
-        return c.json({
-            ok: !orchestrationUnavailable,
+        // Use secure chat runtime: INPUT POLICY → LLM → OUTPUT POLICY → AUDIT
+        const secureChatResult = await runSecureChatTurn({
             message,
-            reply: chatResult.reply,
-            mode: chatResult.mode,
-            provider: chatResult.provider,
-            attempts: chatResult.attempts,
+            sessionId: requestContext.sessionId || context.trace?.sessionId,
+            requestContext,
+        });
+
+        const blocked = secureChatResult.blocked === true;
+        const failed = secureChatResult.mode === "error";
+        return c.json({
+            ok: !blocked && !failed,
+            message,
+            reply: secureChatResult.reply,
+            mode: secureChatResult.mode,
+            provider: secureChatResult.provider,
+            model: secureChatResult.model,
+            blocked,
             traceId: context.trace?.id ?? null,
             generatedAt: new Date().toISOString(),
             ...(includeContext ? { context } : {}),
-        }, orchestrationUnavailable ? 503 : 200);
+        }, blocked ? 403 : failed ? 503 : 200);
     });
     // ── Chat capabilities + streaming bridge ──────────────────────────────────
     server.get("/api/chat/capabilities", async (c) => {

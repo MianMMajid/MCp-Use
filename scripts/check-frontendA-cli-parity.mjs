@@ -88,8 +88,8 @@ function unique(values) {
 }
 
 assert(
-  FRONTEND_A_CANONICAL_SURFACE.frontendRouteEntry === "src/routes/maple/+page.svelte",
-  "Canonical frontend A route entry must point at src/routes/maple/+page.svelte.",
+  FRONTEND_A_CANONICAL_SURFACE.frontendRouteEntry === "src/routes/maple/+layout.svelte",
+  "Canonical frontend A route entry must point at src/routes/maple/+layout.svelte.",
 );
 assert(
   FRONTEND_A_CANONICAL_SURFACE.canonicalPathPrefix === MAPLE_WORKSPACE_PATH_PREFIX,
@@ -218,7 +218,7 @@ for (const criticalSurface of FRONTEND_A_PARITY_CRITICAL_SVELTE_SURFACES) {
 }
 
 assert(
-  fileIncludes("frontend/frontendA-it-console/README.md", "src/routes/maple/+page.svelte"),
+  fileIncludes("frontend/frontendA-it-console/README.md", "src/routes/maple/+layout.svelte"),
   "frontend/frontendA-it-console/README.md must describe the canonical Svelte route entry.",
 );
 assert(

@@ -1,8 +1,7 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
 
-  const DEFAULT_MAPLE_CHAT_HREF =
-    '/maple?category=chat&view=chat&route=%2Fmaple%2Fobservability'
+  const DEFAULT_MAPLE_CHAT_HREF = '/maple/observability'
 
   function isSafeRedirect(url) {
     if (!url) return false
@@ -40,11 +39,19 @@
   let mfaTrustDevice = false
   let mfaAttemptsRemaining = 5
   let mfaExpired = false
+  let mfaCodeInput
+  let mfaRecoveryInput
 
   // SSO state
   let ssoConfigured = false
   let ssoChecking = false
   let ssoRedirectUrl = ''
+
+  async function focusActiveMfaInput() {
+    await tick()
+    if (!mfaRequired) return
+    ;(mfaRecoveryMode ? mfaRecoveryInput : mfaCodeInput)?.focus()
+  }
 
   onMount(async () => {
     try {
@@ -129,6 +136,7 @@
           mfaCode = ''
           mfaRecoveryMode = false
           error = ''
+          focusActiveMfaInput()
           return
         }
 
@@ -284,6 +292,7 @@
           <label>
             Authenticator Code
             <input
+              bind:this={mfaCodeInput}
               type="text"
               inputmode="numeric"
               pattern="[0-9]*"
@@ -294,19 +303,18 @@
               on:paste={onMfaCodePaste}
               placeholder="000000"
               required
-              autofocus
             />
           </label>
         {:else}
           <label>
             Recovery Code
             <input
+              bind:this={mfaRecoveryInput}
               type="text"
               bind:value={mfaRecoveryCode}
               placeholder="XXXX-XXXX"
               autocomplete="off"
               required
-              autofocus
             />
           </label>
         {/if}
@@ -323,11 +331,11 @@
 
       <div class="mfa-links">
         {#if !mfaRecoveryMode}
-          <button type="button" class="link-btn" on:click={() => { mfaRecoveryMode = true; error = '' }}>
+          <button type="button" class="link-btn" on:click={() => { mfaRecoveryMode = true; error = ''; focusActiveMfaInput() }}>
             Use a recovery code instead
           </button>
         {:else}
-          <button type="button" class="link-btn" on:click={() => { mfaRecoveryMode = false; error = '' }}>
+          <button type="button" class="link-btn" on:click={() => { mfaRecoveryMode = false; error = ''; focusActiveMfaInput() }}>
             Use authenticator code
           </button>
         {/if}

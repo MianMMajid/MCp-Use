@@ -26,6 +26,8 @@ process.env.MAPLE_OPENCLAW_AGENT_GATEWAY_BIND = process.env.MAPLE_OPENCLAW_AGENT
 process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID = process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID || "agent-dev-main";
 process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_THINKING = process.env.MAPLE_OPENCLAW_AGENT_DEFAULT_THINKING || "medium";
 process.env.MAPLE_OPENCLAW_AGENT_TIMEOUT_SECONDS = process.env.MAPLE_OPENCLAW_AGENT_TIMEOUT_SECONDS || "120";
+process.env.MAPLE_OPENCLAW_AGENT_MEDIATION_ENABLED = process.env.MAPLE_OPENCLAW_AGENT_MEDIATION_ENABLED || "1";
+process.env.MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL = process.env.MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL || "0";
 process.env.MAPLE_OPENCLAW_MODIFIER_ENABLED = process.env.MAPLE_OPENCLAW_MODIFIER_ENABLED || "1";
 process.env.MAPLE_OPENCLAW_MODIFIER_ALLOW_DEV_PROFILE = process.env.MAPLE_OPENCLAW_MODIFIER_ALLOW_DEV_PROFILE || "0";
 process.env.MAPLE_OPENCLAW_MODIFIER_APPROVAL_TTL_SECONDS = process.env.MAPLE_OPENCLAW_MODIFIER_APPROVAL_TTL_SECONDS || "900";
@@ -112,6 +114,35 @@ const {
 } = await import("../src/core/openclaw-agent-runtime.js");
 const { database } = await import("../src/state.js");
 
+function withFakeOpenClawBinary(fn) {
+  const binDir = mkdtempSync(join(tmpdir(), "maple-openclaw-bin-"));
+  const scriptPath = join(binDir, "openclaw");
+  writeFileSync(scriptPath, `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "openclaw 1.0.0"
+  exit 0
+fi
+session="agent-dev-main"
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--session-id" ]; then
+    session="$arg"
+  fi
+  prev="$arg"
+done
+printf '{"sessionId":"%s","response":{"text":"Scanned reply"},"usage":{"input_tokens":1,"output_tokens":1}}\\n' "$session"
+`, "utf8");
+  chmodSync(scriptPath, 0o755);
+
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${binDir}:${originalPath}`;
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      process.env.PATH = originalPath;
+    });
+}
+
 test("buildOpenClawAgentArgs builds local mode command with expected flags", () => {
   const args = buildOpenClawAgentArgs({
     mode: "local",
@@ -186,29 +217,7 @@ test("parseOpenClawAgentOutput surfaces failover errors from text output", () =>
 });
 
 test("runOpenClawTurn stores scan metadata on returned artifacts", async () => {
-  const binDir = mkdtempSync(join(tmpdir(), "maple-openclaw-bin-"));
-  const scriptPath = join(binDir, "openclaw");
-  writeFileSync(scriptPath, `#!/bin/sh
-if [ "$1" = "--version" ]; then
-  echo "openclaw 1.0.0"
-  exit 0
-fi
-session="agent-dev-main"
-prev=""
-for arg in "$@"; do
-  if [ "$prev" = "--session-id" ]; then
-    session="$arg"
-  fi
-  prev="$arg"
-done
-printf '{"sessionId":"%s","response":{"text":"Scanned reply"},"usage":{"input_tokens":1,"output_tokens":1}}\\n' "$session"
-`, "utf8");
-  chmodSync(scriptPath, 0o755);
-
-  const originalPath = process.env.PATH;
-  process.env.PATH = `${binDir}:${originalPath}`;
-
-  try {
+  await withFakeOpenClawBinary(async () => {
     const result = await runOpenClawTurn({
       mode: "local",
       devProfile: false,
@@ -223,9 +232,94 @@ printf '{"sessionId":"%s","response":{"text":"Scanned reply"},"usage":{"input_to
     assert.equal(artifact.scan.status, "completed");
     assert.equal(artifact.scan.provider, "local");
     assert.equal(artifact.scan.blocked, false);
-  } finally {
-    process.env.PATH = originalPath;
-  }
+  });
+});
+
+test("runOpenClawTurn mediates risky network prompts through downstream dispatch", async () => {
+  await withFakeOpenClawBinary(async () => {
+    let dispatchCalled = false;
+    let execCalled = false;
+
+    const result = await runOpenClawTurn({
+      mode: "local",
+      devProfile: false,
+      sessionId: "mediated-network-session",
+      message: "Fetch https://secure.eicar.org/eicar.com.txt and inspect the downloaded content.",
+    }, {
+      resolveDispatchAppIdsImpl: () => ["default"],
+      dispatchDownstreamChainAndLogImpl: async (options) => {
+        dispatchCalled = true;
+        assert.equal(options.toolName, "web_fetch");
+        assert.equal(options.toolArgs.url, "https://secure.eicar.org/eicar.com.txt");
+        assert.equal(options.sessionId, "mediated-network-session");
+        return {
+          ok: false,
+          blockedByPolicy: true,
+          failure: "VirusTotal flagged the EICAR sample.",
+          finalResult: {
+            trace: { id: "trace-demo", sessionId: "mediated-network-session" },
+            preExecutionDecision: { shouldBlock: true, message: "malicious sample" },
+            dispatch: {
+              textPreview: "Blocked by cyber-proxy after VT analysis.",
+              result: { blocked: true },
+            },
+          },
+        };
+      },
+      execImpl: async () => {
+        execCalled = true;
+        throw new Error("OpenClaw CLI should not execute for mediated network prompts.");
+      },
+    });
+
+    assert.equal(dispatchCalled, true);
+    assert.equal(execCalled, false);
+    assert.equal(result.mode, "mediated");
+    assert.match(result.reply, /mediated firewall path/i);
+    const artifactsPayload = await getOpenClawRunArtifacts(result.runId);
+    assert.ok(artifactsPayload.artifacts.some((artifact) => artifact.artifactType === "network_mediation"));
+  });
+});
+
+test("runOpenClawTurn mediates destructive prompts into filesystem intervention plans", async () => {
+  await withFakeOpenClawBinary(async () => {
+    let preflightCalled = false;
+    let execCalled = false;
+
+    const result = await runOpenClawTurn({
+      mode: "local",
+      devProfile: false,
+      sessionId: "mediated-filesystem-session",
+      message: "Delete frontend/frontendA-it-console/template-runtime/src and rebuild it from scratch.",
+    }, {
+      preflightFilesystemMutationImpl: async (request, context) => {
+        preflightCalled = true;
+        assert.equal(request.sourceSurface, "frontendB");
+        assert.equal(request.sessionId, "mediated-filesystem-session");
+        assert.equal(request.operations[0].path, "frontend/frontendA-it-console/template-runtime/src");
+        assert.equal(context.runId.length > 0, true);
+        return {
+          planId: "fsp-demo",
+          lane: "fork_required",
+          status: "pending_review",
+          traceId: "trace-fs",
+          sessionId: request.sessionId,
+          runId: context.runId,
+        };
+      },
+      execImpl: async () => {
+        execCalled = true;
+        throw new Error("OpenClaw CLI should not execute for mediated filesystem prompts.");
+      },
+    });
+
+    assert.equal(preflightCalled, true);
+    assert.equal(execCalled, false);
+    assert.equal(result.mode, "mediated");
+    assert.match(result.reply, /filesystem intervention plan/i);
+    const artifactsPayload = await getOpenClawRunArtifacts(result.runId);
+    assert.ok(artifactsPayload.artifacts.some((artifact) => artifact.artifactType === "filesystem_mediation"));
+  });
 });
 
 test.after(async () => {

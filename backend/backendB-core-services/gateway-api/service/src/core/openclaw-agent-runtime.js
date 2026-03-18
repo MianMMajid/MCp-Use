@@ -18,6 +18,8 @@ import {
   openclawAgentDefaultTimeoutSeconds,
   openclawAgentDevProfile,
   openclawAgentEnabled,
+  openclawAgentMediationEnabled,
+  openclawAgentRequireVirustotal,
   openclawAgentGatewayBind,
   openclawAgentGatewayPort,
   openclawAgentMode,
@@ -25,10 +27,12 @@ import {
 } from "../config.js";
 import { asString } from "../helpers.js";
 import { emitAuditEvent } from "../audit-emitter.js";
-import { mapleLog } from "../logging.js";
+import { currentRequestContext, mapleLog } from "../logging.js";
 import { database } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
 import { persistRunArtifactsAsEvidence } from "./cyber-security-service.js";
+import { dispatchDownstreamChainAndLog, resolveDispatchAppIds } from "../firewall-proxy.js";
+import { preflightFilesystemMutation } from "./filesystem-intervention-service.js";
 import { buildAgentBaseline } from "../../../../shared/packages/maple-risk-engine/src/ml/cross-agent-detector.js";
 import { buildLocalScanResult, scanDownloadedContent } from "../../../../shared/packages/maple-security/src/download-scan.js";
 
@@ -736,6 +740,269 @@ function resolveTargetAgentId(options = {}) {
   return legacyAgentId;
 }
 
+function firstUrlInText(value) {
+  const match = String(value ?? "").match(/https?:\/\/[^\s)'"`]+/i);
+  return match ? match[0] : "";
+}
+
+function sanitizePromptSubject(value) {
+  return String(value ?? "")
+    .replace(/^['"`]+|['"`]+$/g, "")
+    .replace(/[.?!]\s*$/g, "")
+    .trim();
+}
+
+function extractWikipediaTitle(message) {
+  const match = String(message ?? "").match(/wikipedia (?:summary|article)?(?:\s+of)?\s+(.+?)(?:\s+(?:and|then)\b|$)/i);
+  return match ? sanitizePromptSubject(match[1]) : "";
+}
+
+function extractSearchQuery(message) {
+  const match = String(message ?? "").match(/(?:search for|look up|research|find information on|find info on)\s+(.+?)(?:\s+(?:and|then)\b|$)/i);
+  return match ? sanitizePromptSubject(match[1]) : "";
+}
+
+function extractFilesystemPath(message) {
+  const candidates = [];
+  for (const match of String(message ?? "").matchAll(/[`'"]([^`'"]*\/[^`'"]+)['"`]/g)) {
+    candidates.push(match[1]);
+  }
+  for (const match of String(message ?? "").matchAll(/\b([A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)+)\b/g)) {
+    candidates.push(match[1]);
+  }
+  const normalized = candidates
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => value && !/^https?:\/\//i.test(value));
+  return normalized[0] || "";
+}
+
+function inferPromptMediation(message) {
+  const normalized = String(message ?? "").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const explicitUrl = firstUrlInText(normalized);
+  if (explicitUrl) {
+    return {
+      kind: "mediated_network",
+      toolName: "web_fetch",
+      toolArgs: {
+        url: explicitUrl,
+        maxChars: 2400,
+      },
+      summary: `Fetch ${explicitUrl}`,
+    };
+  }
+
+  const wikipediaTitle = extractWikipediaTitle(normalized);
+  if (wikipediaTitle) {
+    return {
+      kind: "mediated_network",
+      toolName: "wikipedia_summary",
+      toolArgs: {
+        title: wikipediaTitle,
+        lang: "en",
+      },
+      summary: `Wikipedia summary for ${wikipediaTitle}`,
+    };
+  }
+
+  const searchQuery = extractSearchQuery(normalized);
+  if (searchQuery) {
+    return {
+      kind: "mediated_network",
+      toolName: "web_search",
+      toolArgs: {
+        query: searchQuery,
+        maxResults: 5,
+      },
+      summary: `Web search for ${searchQuery}`,
+    };
+  }
+
+  if (/\b(delete|remove|wipe|rebuild|rewrite|replace|clean out|clean up)\b/i.test(normalized)) {
+    const targetPath = extractFilesystemPath(normalized);
+    if (targetPath) {
+      const recursive = /\b(recursive|recursively|entire|whole|tree|from scratch|all)\b/i.test(normalized) || /\/src\/?$/.test(targetPath);
+      return {
+        kind: "mediated_filesystem",
+        command: recursive ? `rm -rf ${targetPath}` : `rm -f ${targetPath}`,
+        operations: [
+          {
+            type: "delete",
+            path: targetPath,
+            recursive,
+          },
+        ],
+        summary: `Delete ${targetPath}`,
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildMediationReply(payload = {}) {
+  if (payload.kind === "mediated_filesystem") {
+    const item = payload.item ?? {};
+    return [
+      `I did not execute the destructive filesystem request directly.`,
+      `Maple created filesystem intervention plan ${item.planId || "--"} with lane ${item.lane || "--"} and status ${item.status || "--"}.`,
+      `Review it in Frontend A under /maple/interventions before any promotion.`,
+    ].join(" ");
+  }
+
+  if (payload.kind === "mediated_network") {
+    if (payload.ok !== true) {
+      return [
+        `Maple blocked or quarantined the network action through the mediated firewall path.`,
+        `tool=${payload.toolName || "--"} traceId=${payload.traceId || "--"} sessionId=${payload.sessionId || "--"}.`,
+        `${payload.error || "Review Frontend A /maple/cyber for the incident/evidence."}`,
+      ].join(" ");
+    }
+    return [
+      `Maple executed the network action through the mediated firewall path.`,
+      `tool=${payload.toolName || "--"} traceId=${payload.traceId || "--"} sessionId=${payload.sessionId || "--"}.`,
+      `${payload.resultPreview || payload.resultText || "Review Frontend A /maple/cyber for evidence and scan state."}`,
+    ].join(" ");
+  }
+
+  return "Mediated action completed.";
+}
+
+async function maybeRunMediatedTurn(run, options = {}, dependencies = {}) {
+  if (!openclawAgentMediationEnabled) {
+    return null;
+  }
+  const intent = inferPromptMediation(options.message);
+  if (!intent) {
+    return null;
+  }
+
+  const requestContext = currentRequestContext() ?? {};
+  const tenantId = asString(options.tenantId || requestContext.tenantId || "default");
+  const orgId = asString(options.orgId || requestContext.orgId || "default");
+  const userId = asString(options.userId || requestContext.userId || "");
+  const deviceId = asString(options.deviceId || requestContext.deviceId || "cli");
+
+  if (intent.kind === "mediated_filesystem") {
+    const item = await (dependencies.preflightFilesystemMutationImpl ?? preflightFilesystemMutation)({
+      workspaceRoot: process.cwd(),
+      toolName: "shell",
+      sourceSurface: "frontendB",
+      sourceType: "agent_prompt",
+      taskText: asString(options.message),
+      command: intent.command,
+      operations: intent.operations,
+      traceId: "",
+      sessionId: run.sessionId,
+      runId: run.runId,
+    }, {
+      database,
+      tenantId,
+      orgId,
+      traceId: "",
+      sessionId: run.sessionId,
+      runId: run.runId,
+      actorUserId: userId,
+    });
+    if (!item) {
+      throw new Error("Filesystem mediation did not detect a mutation plan.");
+    }
+    const mediationPayload = {
+      kind: "mediated_filesystem",
+      item: {
+        planId: item.planId,
+        lane: item.lane,
+        status: item.status,
+        traceId: item.traceId,
+        sessionId: item.sessionId,
+        runId: item.runId,
+      },
+    };
+    return {
+      reply: buildMediationReply(mediationPayload),
+      raw: {
+        mediation: mediationPayload,
+      },
+      artifacts: [
+        {
+          artifactType: "filesystem_mediation",
+          filename: `filesystem-mediation-${item.planId}.json`,
+          contentType: "application/json",
+          traceId: item.traceId,
+          content: mediationPayload,
+        },
+      ],
+    };
+  }
+
+  if (openclawAgentRequireVirustotal) {
+    if (downloadScanProvider !== "virustotal" || !downloadScanVirusTotalApiKey) {
+      throw new Error("OpenClaw mediated network actions require VirusTotal-backed scanning, but MAPLE_DOWNLOAD_SCAN_PROVIDER=virustotal with a real MAPLE_VIRUSTOTAL_API_KEY is not configured.");
+    }
+  }
+
+  const appIds = dependencies.resolveDispatchAppIdsImpl
+    ? dependencies.resolveDispatchAppIdsImpl({
+        includeDefaultExecutionOrder: true,
+      })
+    : resolveDispatchAppIds({
+        includeDefaultExecutionOrder: true,
+      });
+
+  const chainResult = await (dependencies.dispatchDownstreamChainAndLogImpl ?? dispatchDownstreamChainAndLog)({
+    appIds,
+    toolName: intent.toolName,
+    toolArgs: {
+      ...intent.toolArgs,
+      runId: run.runId,
+    },
+    sessionId: run.sessionId,
+    traceId: "",
+    origin: "openclaw_agent",
+    tenantId,
+    orgId,
+    userId,
+    deviceId,
+    runId: run.runId,
+  });
+
+  const finalResult = chainResult.finalResult ?? {};
+  const mediationPayload = {
+    kind: "mediated_network",
+    ok: chainResult.ok === true,
+    toolName: intent.toolName,
+    appIds,
+    traceId: finalResult.trace?.id || "",
+    sessionId: finalResult.trace?.sessionId || run.sessionId,
+    runId: run.runId,
+    resultPreview: finalResult.dispatch?.textPreview || "",
+    result: finalResult.dispatch?.result ?? null,
+    error: chainResult.ok ? "" : (chainResult.failure || finalResult.failure || ""),
+    blockedByPolicy: chainResult.blockedByPolicy === true,
+    policy: finalResult.preExecutionDecision ?? null,
+    cyberReport: finalResult.dispatch?.cyberReport ?? finalResult.cyberReport ?? null,
+  };
+  return {
+    reply: buildMediationReply(mediationPayload),
+    raw: {
+      mediation: mediationPayload,
+    },
+    artifacts: [
+      {
+        artifactType: "network_mediation",
+        filename: `network-mediation-${run.runId}.json`,
+        contentType: "application/json",
+        traceId: mediationPayload.traceId,
+        url: intent.toolArgs?.url || "",
+        content: mediationPayload,
+      },
+    ],
+  };
+}
+
 export function buildOpenClawAgentArgs(options = {}) {
   const mode = options.mode === "local" ? "local" : "gateway";
   const devProfile = options.devProfile === true;
@@ -916,7 +1183,7 @@ function resolveRuntimeOptions(options) {
   };
 }
 
-export async function runOpenClawTurn(options = {}) {
+export async function runOpenClawTurn(options = {}, dependencies = {}) {
   assertRuntimeEnabled();
   if (!runtimeState.bootstrapped) {
     await bootstrapOpenClawRuntime();
@@ -960,14 +1227,45 @@ export async function runOpenClawTurn(options = {}) {
     1200,
     openclawAgentDefaultTimeoutSeconds
   );
+  const execImpl = dependencies.execImpl ?? execFileAsync;
 
   try {
+    const mediated = await maybeRunMediatedTurn(run, options, dependencies);
+    if (mediated) {
+      const resultPayload = {
+        mode: "mediated",
+        sessionId: run.sessionId,
+        reply: mediated.reply,
+        raw: mediated.raw,
+      };
+      await completeRunRecord(run, resultPayload, [
+        {
+          artifactType: "reply",
+          content: mediated.reply,
+        },
+        {
+          artifactType: "raw",
+          content: mediated.raw ?? null,
+        },
+        ...(Array.isArray(mediated.artifacts) ? mediated.artifacts : []),
+      ]);
+      mapleLog("info", "openclaw_agent.turn_complete", {
+        mode: "mediated",
+        sessionId: run.sessionId,
+        replyChars: mediated.reply.length,
+      });
+      return {
+        ...resultPayload,
+        runId: run.runId,
+      };
+    }
+
     mapleLog("info", "openclaw_agent.turn_begin", {
       mode: resolved.mode,
       sessionId: run.sessionId,
       deliver: options.deliver === true,
     });
-    const { stdout, stderr } = await execFileAsync("openclaw", args, {
+    const { stdout, stderr } = await execImpl("openclaw", args, {
       timeout: timeoutSeconds * 1000 + 3000,
       maxBuffer: 8 * 1024 * 1024,
     });

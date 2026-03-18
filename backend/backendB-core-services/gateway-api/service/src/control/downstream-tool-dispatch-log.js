@@ -21,8 +21,10 @@ export async function dispatchDownstreamChainAndLog(options) {
             sessionId: options.sessionId,
             origin: options.origin,
             tenantId: options.tenantId,
+            orgId: options.orgId,
             userId: options.userId,
             deviceId: options.deviceId,
+            runId: options.runId,
         });
         finalResult = stageResult;
         activeTraceId = stageResult.trace.id;

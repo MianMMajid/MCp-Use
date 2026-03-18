@@ -406,6 +406,27 @@ export function getMapleRoute(path) {
   return MAPLE_ROUTE_REGISTRY_BY_PATH.get(path) ?? null
 }
 
+export function getClosestMapleRoute(path) {
+  const direct = getMapleRoute(path)
+  if (direct) {
+    return direct
+  }
+  return (
+    MAPLE_ROUTE_REGISTRY
+      .filter((route) => path === route.path || path.startsWith(`${route.path}/`))
+      .sort((left, right) => right.path.length - left.path.length)[0] ?? null
+  )
+}
+
+export function getMaplePrimaryRouteForCategory(category) {
+  return getMapleRoutesByCategory(category)[0] ?? null
+}
+
+export function getMapleRouteForLegacyPath(path) {
+  const route = MAPLE_ROUTE_REGISTRY.find((entry) => entry.legacyAliases.includes(path))
+  return route ?? null
+}
+
 export const MAPLE_WORKSPACE_ROUTE_PATHS = Object.freeze(
   MAPLE_ROUTE_REGISTRY.map((route) => route.path),
 )

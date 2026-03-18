@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --host 0.0.0.0",
+    "dev": "svelte-kit sync && vite dev --host 0.0.0.0",
     "dev:warm": "vite dev --host 0.0.0.0 --port 4101",
-    "build": "npm run check:route-conflicts && npm run check:parity && vite build",
+    "build": "svelte-kit sync && npm run check:route-conflicts && npm run check:parity && vite build",
     "start": "node build/index.js",
-    "lint": "npm run check:route-conflicts && npm run check:parity",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "lint": "npm run check && npm run check:route-conflicts && npm run check:parity",
     "check:route-conflicts": "node scripts/check-route-conflicts.mjs",
     "check:parity": "node ../../../scripts/check-frontendA-cli-parity.mjs",
-    "test:cyber-ui": "node --test tests/cyber-view-model.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:cyber-ui": "node --test tests/cyber-view-model.test.mjs",
+    "test:e2e": "npm run build"
   },
   "dependencies": {
     "@sveltejs/adapter-node": "^5.0.0",
@@ -24,6 +27,7 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "svelte-check": "^4.4.5",
     "typescript": "^5.9.3",
     "vite": "^6.2.7"
   }

@@ -122,6 +122,47 @@ function normalizeRequestBody(body) {
     }
     return undefined;
 }
+
+function tryParseJsonObject(body) {
+    try {
+        if (typeof body === "string") {
+            const parsed = JSON.parse(body);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+        }
+        if (Buffer.isBuffer(body) || body instanceof Uint8Array) {
+            const parsed = JSON.parse(Buffer.from(body).toString("utf8"));
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+        }
+        if (body && typeof body === "object" && !Array.isArray(body)) {
+            return body;
+        }
+    }
+    catch {
+        return null;
+    }
+    return null;
+}
+
+function extractEffectivePolicyUrl(requestUrl, requestBody) {
+    const parsed = tryParseJsonObject(requestBody);
+    if (!parsed || String(parsed.method || "").trim() !== "tools/call") {
+        return requestUrl;
+    }
+    const params = parsed.params && typeof parsed.params === "object" && !Array.isArray(parsed.params)
+        ? parsed.params
+        : {};
+    const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments)
+        ? params.arguments
+        : {};
+    const candidateKeys = ["url", "uri", "href", "downloadUrl", "targetUrl", "endpoint"];
+    for (const key of candidateKeys) {
+        const candidate = args[key];
+        if (typeof candidate === "string" && candidate.trim().length > 0) {
+            return candidate.trim();
+        }
+    }
+    return requestUrl;
+}
 function describeRequestBody(body) {
     if (body === undefined || body === null) {
         return { kind: "empty" };
@@ -296,10 +337,22 @@ function attachScanHeaders(headers, scan) {
         ...headers,
         "x-maple-scan-provider": String(scan.provider || ""),
         "x-maple-scan-status": String(scan.status || ""),
+        "x-maple-scan-stage": String(scan.stage || ""),
         "x-maple-scan-verdict": String(scan.verdict || ""),
         "x-maple-scan-sha256": String(scan.sha256 || ""),
         "x-maple-scan-checked-at": String(scan.checkedAt || ""),
     };
+}
+
+function isPendingOnlyScan(scanResult, scan) {
+    return Boolean(
+        scan &&
+        scan.status === "pending" &&
+        !scan.blocked &&
+        !scan.quarantined &&
+        scanResult?.safe !== false &&
+        !scanResult?.quarantined
+    );
 }
 async function evaluateUrlPolicy(url, toolName, scopedAllowedDomains) {
     const urlCheck = await checkUrl(url, [], config.blockedDomains);
@@ -436,13 +489,16 @@ export function createCyberProxyService() {
                 const scope = parseCredentialScopes(inboundHeaders);
                 const effectiveMaxBytes = scope.maxBytes ? Math.min(scope.maxBytes, config.maxResponseBytes) : config.maxResponseBytes;
                 const toolName = String(call.request.toolName || "jsonrpc.forward");
-                const urlCheck = await evaluateUrlPolicy(url, toolName, scope.allowedDomains);
+                const requestBody = normalizeRequestBody(body);
+                const effectivePolicyUrl = extractEffectivePolicyUrl(url, requestBody);
+                const urlCheck = await evaluateUrlPolicy(effectivePolicyUrl, toolName, scope.allowedDomains);
                 if (!urlCheck.allowed) {
                     await emitAuditEvent({
                         eventType: "AUDIT_EVENT_TYPE_URL_BLOCKED",
                         summary: `URL blocked: ${url} — ${urlCheck.reason}`,
                         payload: {
                             url,
+                            effectivePolicyUrl,
                             reason: urlCheck.reason,
                             resolvedIp: urlCheck.resolvedIp,
                             toolName,
@@ -470,7 +526,6 @@ export function createCyberProxyService() {
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), timeout);
                 try {
-                    const requestBody = normalizeRequestBody(body);
                     if (requestBody === undefined) {
                         mapleLog("warn", "cyber_proxy_request_body_unparsed", {
                             url,
@@ -576,10 +631,34 @@ export function createCyberProxyService() {
                     const scan = await buildDownloadScan({
                         content: respBody,
                         contentType,
-                        sourceUrl: url,
+                        sourceUrl: effectivePolicyUrl,
                         localResult: scanResult,
                     });
                     const respHeadersWithScan = attachScanHeaders(respHeaders, scan);
+                    if (isPendingOnlyScan(scanResult, scan)) {
+                        callback(null, {
+                            statusCode: 202,
+                            headers: {
+                                ...respHeadersWithScan,
+                                "content-type": "application/json",
+                            },
+                            body: Buffer.from(JSON.stringify({
+                                accepted: true,
+                                status: "analysis_pending",
+                                message: "Download accepted for asynchronous malware analysis",
+                                scan,
+                            })),
+                            durationMs: Date.now() - start,
+                            resolvedIp: urlCheck.resolvedIp,
+                            sanitized: false,
+                            malwareDetected: false,
+                            quarantined: false,
+                            threatsFound: [],
+                            quarantineReason: "",
+                            policyReason: "analysis_pending",
+                        });
+                        return;
+                    }
                     if (scanResult.quarantined || scan.quarantined || scan.blocked) {
                         mapleLog("warn", "cyber_proxy_content_quarantined", { url, reason: scanResult.quarantineReason, threats: scanResult.threats });
                         await emitAuditEvent({
@@ -674,7 +753,9 @@ export function createCyberProxyService() {
                 const scope = parseCredentialScopes(inboundHeaders);
                 const effectiveMaxBytes = scope.maxBytes ? Math.min(scope.maxBytes, config.maxResponseBytes) : config.maxResponseBytes;
                 const toolName = String(call.request.toolName || "jsonrpc.forward");
-                const urlCheck = await evaluateUrlPolicy(url, toolName, scope.allowedDomains);
+                const requestBody = normalizeRequestBody(body);
+                const effectivePolicyUrl = extractEffectivePolicyUrl(url, requestBody);
+                const urlCheck = await evaluateUrlPolicy(effectivePolicyUrl, toolName, scope.allowedDomains);
                 if (!urlCheck.allowed) {
                     call.write({
                         data: Buffer.from(JSON.stringify({ error: urlCheck.reason })),
@@ -698,7 +779,7 @@ export function createCyberProxyService() {
                 const resp = await fetch(url, {
                     method: method || "GET",
                     headers: sanitizeOutboundHeaders(inboundHeaders),
-                    body: method !== "GET" && method !== "HEAD" ? body : undefined,
+                    body: method !== "GET" && method !== "HEAD" ? requestBody : undefined,
                     signal: controller.signal,
                 });
                 clearTimeout(timer);
@@ -748,10 +829,35 @@ export function createCyberProxyService() {
                 const scan = await buildDownloadScan({
                     content: respBody,
                     contentType,
-                    sourceUrl: url,
+                    sourceUrl: effectivePolicyUrl,
                     localResult: scanResult,
                 });
                 const respHeadersWithScan = attachScanHeaders(respHeaders, scan);
+                if (isPendingOnlyScan(scanResult, scan)) {
+                    call.write({
+                        data: Buffer.from(JSON.stringify({
+                            accepted: true,
+                            status: "analysis_pending",
+                            message: "Download accepted for asynchronous malware analysis",
+                            scan,
+                        })),
+                        isFinal: true,
+                        statusCode: 202,
+                        headers: {
+                            ...respHeadersWithScan,
+                            "content-type": "application/json",
+                        },
+                        sanitized: false,
+                        malwareDetected: false,
+                        quarantined: false,
+                        threatsFound: [],
+                        quarantineReason: "",
+                        policyReason: "analysis_pending",
+                        resolvedIp: urlCheck.resolvedIp,
+                    });
+                    call.end();
+                    return;
+                }
                 if (scanResult.quarantined || scan.quarantined || scan.blocked) {
                     emitAuditEvent({
                         eventType: "AUDIT_EVENT_TYPE_CONTENT_SCANNED",

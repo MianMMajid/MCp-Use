@@ -122,6 +122,40 @@ test("maple observability retention help exposes retention-days", () => {
   assert.match(result.stdout, /--retention-days <days>/);
 });
 
+test("maple demo commands expose start, full, and guard flows", () => {
+  const start = runCli(["demo", "start", "--help"]);
+  assert.equal(start.status, 0, start.stderr);
+  assert.match(start.stdout, /Start a demo session/);
+
+  const full = runCli(["demo", "full", "--help"]);
+  assert.equal(full.status, 0, full.stderr);
+  assert.match(full.stdout, /Run the full demo flow/);
+
+  const guard = runCli(["demo", "guard", "--help"]);
+  assert.equal(guard.status, 0, guard.stderr);
+  assert.match(guard.stdout, /Run the guarded demo flow/);
+});
+
+test("maple tenant commands expose binding governance flows", () => {
+  const list = runCli(["tenant", "bindings", "--help"]);
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /List tenant bindings/);
+
+  const add = runCli(["tenant", "add-binding", "--help"]);
+  assert.equal(add.status, 0, add.stderr);
+  assert.match(add.stdout, /--tenant-id <tenantId>/);
+  assert.match(add.stdout, /--org-id <orgId>/);
+  assert.match(add.stdout, /--user-id <userId>/);
+
+  const remove = runCli(["tenant", "remove-binding", "--help"]);
+  assert.equal(remove.status, 0, remove.stderr);
+  assert.match(remove.stdout, /Remove a tenant binding/);
+
+  const scope = runCli(["tenant", "scope", "--help"]);
+  assert.equal(scope.status, 0, scope.stderr);
+  assert.match(scope.stdout, /Resolve tenant scope/);
+});
+
 test("maple cyber downloads help exposes scan filters", () => {
   const result = runCli(["cyber", "downloads", "--help"]);
   assert.equal(result.status, 0, result.stderr);

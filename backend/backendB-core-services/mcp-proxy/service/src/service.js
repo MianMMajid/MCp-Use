@@ -65,6 +65,22 @@ const cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto
 const auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
 const cyberProxyBreaker = new CircuitBreaker("mcp-proxy->cyber-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("mcp-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
+function extractScopeTargetHost(targetUrl, toolArgs) {
+    const candidateKeys = ["url", "uri", "href", "downloadUrl", "targetUrl"];
+    for (const key of candidateKeys) {
+        const candidate = toolArgs?.[key];
+        if (typeof candidate !== "string" || candidate.trim().length === 0) {
+            continue;
+        }
+        try {
+            return new URL(candidate).hostname;
+        }
+        catch {
+            // Ignore malformed candidate URLs and continue.
+        }
+    }
+    return new URL(targetUrl).hostname;
+}
 function getCyberProxy() {
     return cyberProxyPool.getClient();
 }
@@ -208,7 +224,7 @@ function toCyberReport(response, statusCode) {
     // Derive malware strictly from the explicit malwareDetected field set by cyber-proxy.
     // Do NOT promote non-malware content threats (e.g., indirect injection tags) to malware.
     return {
-        urlReputation: statusCode >= 400 ? "blocked" : "ok",
+        urlReputation: statusCode >= 400 || Boolean(response?.quarantined) ? "blocked" : statusCode === 202 ? "pending" : "ok",
         sanitized: Boolean(response?.sanitized),
         malware: Boolean(response?.malwareDetected),
         quarantined: Boolean(response?.quarantined),
@@ -319,8 +335,15 @@ async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, crede
             payload = {};
         }
         const cyberReport = toCyberReport(response, statusCode);
+        const pendingAnalysis = statusCode === 202 && payload?.status === "analysis_pending";
         if (statusCode >= 400) {
-            const errorMessage = `cyber-proxy returned HTTP ${statusCode}`;
+            const reasonDetail = typeof payload?.reason === "string" && payload.reason.trim().length > 0
+                ? `: ${payload.reason.trim()}`
+                : "";
+            const errorDetail = typeof payload?.error === "string" && payload.error.trim().length > 0
+                ? ` (${payload.error.trim()})`
+                : "";
+            const errorMessage = `cyber-proxy returned HTTP ${statusCode}${errorDetail}${reasonDetail}`;
             emitAuditEvent({
                 eventType: "AUDIT_EVENT_TYPE_TOOL_FAILED",
                 summary: errorMessage,
@@ -332,6 +355,21 @@ async function dispatchViaToolRunner(appId, url, body, timeoutMs, traceId, crede
                 payload,
                 statusCode,
                 errorMessage,
+                cyberReport,
+            };
+        }
+        if (pendingAnalysis) {
+            emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_TOOL_COMPLETED",
+                summary: `mcp-proxy accepted JSON-RPC for ${appId || "dynamic-target"} pending malware analysis`,
+                traceId,
+                payload: { appId, targetUrl: url, statusCode, toolName, pendingAnalysis: true },
+            });
+            return {
+                success: true,
+                payload,
+                statusCode,
+                errorMessage: "",
                 cyberReport,
             };
         }
@@ -543,7 +581,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     const scope = requestedScope;
                     if (scope.allowedDomains && scope.allowedDomains.length > 0) {
                         try {
-                            const targetHost = new URL(target.url).hostname;
+                            const targetHost = extractScopeTargetHost(target.url, toolArgs);
                             const domainAllowed = scope.allowedDomains.some((d) => targetHost === d || targetHost.endsWith(`.${d}`));
                             if (!domainAllowed) {
                                 callback({ code: grpc.status.PERMISSION_DENIED, message: `Target domain ${targetHost} is not in allowed scope: ${scope.allowedDomains.join(", ")}` });
