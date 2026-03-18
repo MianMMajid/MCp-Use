@@ -263,6 +263,7 @@ export default function HITLQueuePage() {
   useEffect(() => {
     let es
     let gwAttempts = 0
+    let gwReconnectTimer = null
     const MAX_SSE_RETRIES = 10
     const SSE_BASE_DELAY = 1000
     const SSE_MAX_DELAY = 30_000
@@ -297,12 +298,12 @@ export default function HITLQueuePage() {
         if (gwAttempts > MAX_SSE_RETRIES) { setGwSseStatus('disconnected'); return }
         setGwSseStatus('reconnecting')
         const delay = Math.min(SSE_BASE_DELAY * 2 ** (gwAttempts - 1), SSE_MAX_DELAY)
-        setTimeout(connectGw, delay)
+        gwReconnectTimer = setTimeout(connectGw, delay)
       }
       gwEventSourceRef.current = es
     }
     connectGw()
-    return () => { if (gwEventSourceRef.current) gwEventSourceRef.current.close() }
+    return () => { clearTimeout(gwReconnectTimer); if (gwEventSourceRef.current) gwEventSourceRef.current.close() }
   }, [])
 
   /* -- Gateway HITL decision -- */

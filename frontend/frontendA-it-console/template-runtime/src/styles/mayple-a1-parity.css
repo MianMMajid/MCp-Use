@@ -69,7 +69,7 @@
 *:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 input:focus-visible,
@@ -85,7 +85,7 @@ html, body {
   min-height: 100%;
   font-family: 'Inter', 'Nunito', 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -125,7 +125,7 @@ body {
   padding: 0 16px;
   background: var(--panel);
   backdrop-filter: blur(20px) saturate(180%);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border-bottom: 1px solid var(--line);
   transition: border-radius var(--dur-spring) var(--ease-spring), opacity 0.25s, transform 0.25s;
 }
@@ -178,8 +178,8 @@ body {
 }
 
 .welcome-state.is-hidden { display: none; }
-.welcome-heading { margin: 0; font-size: 28px; font-weight: 700; }
-.welcome-sub { margin: 0; font-size: 13px; color: var(--muted); text-align: center; max-width: 560px; }
+.welcome-heading { margin: 0; font-size: var(--text-2xl); font-weight: 700; }
+.welcome-sub { margin: 0; font-size: var(--text-base); color: var(--muted); text-align: center; max-width: 560px; }
 .welcome-pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .welcome-pill {
   height: 36px;

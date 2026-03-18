@@ -25,6 +25,70 @@
   let snippetName = '';
   let snippetContent = '';
 
+  // ── Activate wizard state ──────────────────────────────────────────────────
+  let activateStep = 1;
+  let enforcementLevel = 'hard-mandatory';
+  let description = '';
+  let activatePreviewResult = null;
+  let activateBusy = false;
+  let templateId = '';
+
+  const ENFORCEMENT_LEVELS = [
+    { id: 'hard-mandatory', label: 'Hard Mandatory', desc: 'Block violations immediately. No override.' },
+    { id: 'soft-mandatory', label: 'Soft Mandatory', desc: 'Block violations, but operators can override with reason.' },
+    { id: 'advisory', label: 'Advisory', desc: 'Log violations as warnings. Never block.' },
+  ];
+
+  const POLICY_TEMPLATES = [
+    { id: '', label: 'Blank', desc: 'Write policy YAML from scratch', yaml: '' },
+    { id: 'restrictive', label: 'Restrictive', desc: 'Block by default, allow only safe tools', yaml: `version: 1\nrules:\n  defaultAction: block\n  allowedTools:\n    - status\n    - health\n  blockedTargetProfiles:\n    - root\n    - system\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30\n    maxBufferMb: 4` },
+    { id: 'permissive', label: 'Permissive', desc: 'Allow by default, block dangerous operations', yaml: `version: 1\nrules:\n  defaultAction: allow\n  blockedTools:\n    - setup\n    - reset\n    - uninstall\n    - daemon\n  blockedTargetProfiles:\n    - root\n  constraints:\n    allowDevProfile: true\n    maxTimeoutSeconds: 120` },
+    { id: 'audit-only', label: 'Audit Only', desc: 'Log everything, block nothing', yaml: `version: 1\nrules:\n  defaultAction: allow\n  auditAll: true\n  constraints:\n    allowDevProfile: true\n    maxTimeoutSeconds: 120` },
+  ];
+
+  function applyTemplate() {
+    const tpl = POLICY_TEMPLATES.find((t) => t.id === templateId);
+    if (tpl?.yaml) policyText = tpl.yaml;
+  }
+
+  function resetActivateForm() {
+    activateStep = 1;
+    entityName = '';
+    folderName = '';
+    policyText = '';
+    scope = 'global';
+    enforcementLevel = 'hard-mandatory';
+    description = '';
+    templateId = '';
+    activatePreviewResult = null;
+  }
+
+  async function previewBeforeActivate() {
+    activateBusy = true;
+    activatePreviewResult = null;
+    try {
+      const response = await postJson('/api/firewalls/preview', { policyText });
+      const payload = await response.json().catch(() => ({}));
+      activatePreviewResult = {
+        ok: response.ok && payload?.ok !== false,
+        valid: payload?.valid !== false,
+        errors: payload?.errors || [],
+        warnings: payload?.warnings || [],
+        ruleCount: payload?.ruleCount ?? 0,
+      };
+    } catch (err) {
+      activatePreviewResult = { ok: false, valid: false, errors: [err instanceof Error ? err.message : String(err)], warnings: [], ruleCount: 0 };
+    } finally {
+      activateBusy = false;
+    }
+  }
+
+  $: activateStepValid = {
+    1: entityName.trim().length > 0,
+    2: policyText.trim().length > 0,
+    3: !(scope === 'agent' && !selectedAgentId),
+  };
+
   $: agentOptions = Array.isArray(agents)
     ? agents.map((item) => ({ id: String(item.agentId || item.id), name: item.name || String(item.id) }))
     : [];
@@ -380,7 +444,7 @@
               {/if}
             </div>
             <div class="row-actions">
-              <button class="pill" on:click={saveMetadata}>Save Metadata</button>
+              <button class="pill" on:click={saveMetadata} disabled={selectedObject.scope === 'agent' && !selectedObject.assignedAgentId}>Save Metadata</button>
               <button class="pill" on:click={() => requestArchive(selectedObject)}>{selectedObject.archived ? 'Restore' : 'Archive'}</button>
             </div>
           </div>

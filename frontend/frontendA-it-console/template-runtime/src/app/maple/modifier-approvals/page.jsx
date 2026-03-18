@@ -108,6 +108,7 @@ export default function ModifierApprovalsPage() {
   useEffect(() => {
     let es
     let attempts = 0
+    let reconnectTimer = null
     const MAX_SSE_RETRIES = 10
     const SSE_BASE_DELAY = 1000
     const SSE_MAX_DELAY = 30_000
@@ -137,12 +138,12 @@ export default function ModifierApprovalsPage() {
         if (attempts > MAX_SSE_RETRIES) { setSseStatus('disconnected'); return }
         setSseStatus('reconnecting')
         const delay = Math.min(SSE_BASE_DELAY * 2 ** (attempts - 1), SSE_MAX_DELAY)
-        setTimeout(connect, delay)
+        reconnectTimer = setTimeout(connect, delay)
       }
       eventSourceRef.current = es
     }
     connect()
-    return () => { if (eventSourceRef.current) eventSourceRef.current.close() }
+    return () => { clearTimeout(reconnectTimer); if (eventSourceRef.current) eventSourceRef.current.close() }
   }, [])
 
   async function handleDecision(approvalId, action, reason) {
