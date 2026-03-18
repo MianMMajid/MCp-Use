@@ -282,13 +282,15 @@ body {
   border-radius: 0;
   opacity: 0;
   transform: translateY(-12px);
-  transition: transform var(--dur-spring) var(--ease-spring), opacity 0.25s;
+  filter: blur(1px);
+  transition: transform var(--dur-spring) var(--ease-spring), opacity 0.25s, filter 0.25s;
 }
 
 .context-panel.is-open {
   flex: 1;
   opacity: 1;
   transform: translateY(0);
+  filter: blur(0);
 }
 
 .context-panel-body {
@@ -397,6 +399,17 @@ body {
   background: var(--panel);
   box-shadow: var(--shadow-soft);
   padding: 12px;
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-spring), border-color 0.2s;
+}
+
+.panel:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-strong);
+}
+
+.context-panel-body > .view-panel.panel:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .view-panel {
@@ -460,6 +473,12 @@ body {
   border-radius: var(--radius-lg);
   background: var(--panel);
   padding: 12px;
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.2s var(--ease-spring), border-color 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-strong);
 }
 
 .panel-head {
@@ -526,7 +545,15 @@ body {
   font-size: var(--text-base);
   font-weight: 500;
   min-height: 36px;
-  transition: border-color 150ms, background 150ms;
+  transition: border-color 150ms, background 150ms, transform 0.15s;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.action-btn:active {
+  transform: scale(0.97);
 }
 
 .action-btn.primary {
@@ -1557,14 +1584,27 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   }
 }
 
+@keyframes dropdownReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes viewFadeIn {
   from {
     opacity: 0;
     transform: translateY(8px);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0);
   }
 }
 

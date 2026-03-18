@@ -10,7 +10,7 @@
 import jsYaml from "js-yaml";
 import { simulateModifierPolicy, diffPolicies } from "./policy-simulator.js";
 
-const SUPPORTED_VERSIONS = [1];
+const SUPPORTED_VERSIONS = [1, 2];
 
 const VALID_CONSTRAINT_KEYS = new Set([
   "maxTimeoutSeconds",
@@ -155,6 +155,115 @@ export function validatePolicyDocument(doc) {
         }
         if (rules.approval.requireForDangerous != null && typeof rules.approval.requireForDangerous !== "boolean") {
           errors.push("rules.approval.requireForDangerous must be a boolean");
+        }
+      }
+    }
+
+    // ── Phase 2: inputRails ──
+    if (rules.inputRails != null) {
+      if (typeof rules.inputRails !== "object") {
+        errors.push("rules.inputRails must be an object");
+      } else {
+        if (rules.inputRails.promptInjection != null && typeof rules.inputRails.promptInjection !== "boolean") {
+          errors.push("rules.inputRails.promptInjection must be a boolean");
+        }
+        if (rules.inputRails.maxInputLength != null) {
+          if (typeof rules.inputRails.maxInputLength !== "number" || rules.inputRails.maxInputLength <= 0) {
+            errors.push("rules.inputRails.maxInputLength must be a positive number");
+          } else if (rules.inputRails.maxInputLength > 1_000_000) {
+            errors.push("rules.inputRails.maxInputLength cannot exceed 1000000");
+          }
+        }
+        if (rules.inputRails.blockedPatterns != null) {
+          if (!Array.isArray(rules.inputRails.blockedPatterns)) {
+            errors.push("rules.inputRails.blockedPatterns must be an array");
+          } else {
+            for (let i = 0; i < rules.inputRails.blockedPatterns.length; i++) {
+              const pattern = String(rules.inputRails.blockedPatterns[i] ?? "");
+              try { new RegExp(pattern); } catch (err) {
+                errors.push(`rules.inputRails.blockedPatterns[${i}] is not a valid regex: ${err.message}`);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ── Phase 2: contentSafety ──
+    const VALID_CONTENT_CATEGORIES = new Set(["hate", "violence", "sexual", "self-harm", "criminal", "harassment"]);
+    const VALID_CONTENT_ACTIONS = new Set(["block", "warn", "log"]);
+    if (rules.contentSafety != null) {
+      if (typeof rules.contentSafety !== "object") {
+        errors.push("rules.contentSafety must be an object");
+      } else {
+        if (rules.contentSafety.enabled != null && typeof rules.contentSafety.enabled !== "boolean") {
+          errors.push("rules.contentSafety.enabled must be a boolean");
+        }
+        if (rules.contentSafety.categories != null) {
+          if (!Array.isArray(rules.contentSafety.categories)) {
+            errors.push("rules.contentSafety.categories must be an array");
+          } else {
+            for (const cat of rules.contentSafety.categories) {
+              if (!VALID_CONTENT_CATEGORIES.has(String(cat))) {
+                errors.push(`rules.contentSafety.categories: unknown category "${cat}". Valid: ${[...VALID_CONTENT_CATEGORIES].join(", ")}`);
+              }
+            }
+          }
+        }
+        if (rules.contentSafety.action != null && !VALID_CONTENT_ACTIONS.has(String(rules.contentSafety.action))) {
+          errors.push(`rules.contentSafety.action must be one of: ${[...VALID_CONTENT_ACTIONS].join(", ")}`);
+        }
+      }
+    }
+
+    // ── Phase 2: rateLimits ──
+    const VALID_WINDOW_TYPES = new Set(["sliding", "fixed"]);
+    if (rules.rateLimits != null) {
+      if (typeof rules.rateLimits !== "object") {
+        errors.push("rules.rateLimits must be an object");
+      } else {
+        if (rules.rateLimits.maxRequestsPerMinute != null) {
+          if (typeof rules.rateLimits.maxRequestsPerMinute !== "number" || rules.rateLimits.maxRequestsPerMinute < 1) {
+            errors.push("rules.rateLimits.maxRequestsPerMinute must be a positive number");
+          } else if (rules.rateLimits.maxRequestsPerMinute > 10_000) {
+            errors.push("rules.rateLimits.maxRequestsPerMinute cannot exceed 10000");
+          }
+        }
+        if (rules.rateLimits.maxTokensPerHour != null) {
+          if (typeof rules.rateLimits.maxTokensPerHour !== "number" || rules.rateLimits.maxTokensPerHour < 1) {
+            errors.push("rules.rateLimits.maxTokensPerHour must be a positive number");
+          }
+        }
+        if (rules.rateLimits.windowType != null && !VALID_WINDOW_TYPES.has(String(rules.rateLimits.windowType))) {
+          errors.push(`rules.rateLimits.windowType must be one of: ${[...VALID_WINDOW_TYPES].join(", ")}`);
+        }
+      }
+    }
+
+    // ── Phase 2: outputRails ──
+    if (rules.outputRails != null) {
+      if (typeof rules.outputRails !== "object") {
+        errors.push("rules.outputRails must be an object");
+      } else {
+        if (rules.outputRails.maxResponseTokens != null) {
+          if (typeof rules.outputRails.maxResponseTokens !== "number" || rules.outputRails.maxResponseTokens <= 0) {
+            errors.push("rules.outputRails.maxResponseTokens must be a positive number");
+          }
+        }
+        if (rules.outputRails.requireJsonSchema != null && typeof rules.outputRails.requireJsonSchema !== "boolean") {
+          errors.push("rules.outputRails.requireJsonSchema must be a boolean");
+        }
+        if (rules.outputRails.blockedOutputPatterns != null) {
+          if (!Array.isArray(rules.outputRails.blockedOutputPatterns)) {
+            errors.push("rules.outputRails.blockedOutputPatterns must be an array");
+          } else {
+            for (let i = 0; i < rules.outputRails.blockedOutputPatterns.length; i++) {
+              const pattern = String(rules.outputRails.blockedOutputPatterns[i] ?? "");
+              try { new RegExp(pattern); } catch (err) {
+                errors.push(`rules.outputRails.blockedOutputPatterns[${i}] is not a valid regex: ${err.message}`);
+              }
+            }
+          }
         }
       }
     }

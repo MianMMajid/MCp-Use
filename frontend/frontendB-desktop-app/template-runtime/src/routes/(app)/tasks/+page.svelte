@@ -235,7 +235,7 @@
       <p class="muted">Define intent, schedule it, and route execution through agents or orchestrations.</p>
     </section>
 
-    <section class="card section">
+    <section class="card section task-list-section">
       <h2>Scheduled Tasks</h2>
       {#if loading}
         <p class="muted">Loading tasks...</p>
@@ -405,6 +405,7 @@
 <style>
   .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content 1fr max-content; }
   .section { padding: 13px; display: grid; gap: 10px; }
+  .task-list-section { position: relative; z-index: 4; }
   .header {
     padding: 8px 11px;
     gap: 3px;
@@ -462,7 +463,7 @@
     gap: 9px;
     position: relative;
   }
-  .task-card.menu-open { z-index: 10; }
+  .task-card.menu-open { z-index: 20; }
   .task-top { display: flex; gap: 10px; justify-content: space-between; align-items: start; }
   .title { margin: 0; font-weight: 700; font-size: 14px; }
   .prompt { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
@@ -513,7 +514,7 @@
     position: absolute;
     right: 0;
     top: 36px;
-    z-index: 8;
+    z-index: 30;
     min-width: 124px;
     border: 1px solid var(--border);
     border-radius: 10px;

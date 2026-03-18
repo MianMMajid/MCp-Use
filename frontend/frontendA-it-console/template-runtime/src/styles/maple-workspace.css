@@ -77,6 +77,32 @@
   height: 0.5rem;
   border-radius: var(--radius-pill);
   background: var(--ok, #059669);
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(5, 150, 105, 0); }
+}
+
+.mw-status-dot.degraded {
+  background: var(--caution, #d97706);
+  animation-name: statusPulseCaution;
+}
+
+@keyframes statusPulseCaution {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(217, 119, 6, 0); }
+}
+
+.mw-status-dot.critical {
+  background: var(--warn, #dc2626);
+  animation-name: statusPulseCritical;
+}
+
+@keyframes statusPulseCritical {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0); }
 }
 
 .mw-topbar-actions {
@@ -426,8 +452,8 @@
 }
 
 .mw-intervention-action-danger {
-  border-color: rgba(166, 62, 45, 0.45);
-  background: rgba(255, 236, 233, 0.9);
+  border-color: var(--danger-tint);
+  background: var(--danger-tint-bg);
   color: var(--warn);
 }
 
@@ -446,7 +472,7 @@
   position: absolute;
   inset: 0;
   border-radius: var(--radius-lg);
-  background: rgba(29, 18, 11, 0.46);
+  background: var(--surface-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -455,7 +481,7 @@
 
 .mw-intervention-confirm-card {
   width: min(26rem, 100%);
-  border: 1px solid rgba(229, 215, 199, 0.95);
+  border: 1px solid var(--border-warm-strong);
   border-radius: var(--radius-lg);
   background: var(--panel, #fff);
   padding: 0.75rem;
@@ -482,7 +508,7 @@
 }
 
 .mw-intervention-confirm-actions button {
-  border: 1px solid rgba(229, 215, 199, 0.95);
+  border: 1px solid var(--border-warm-strong);
   border-radius: var(--radius-sm);
   padding: 0.34rem 0.62rem;
   font-size: var(--text-xs);
@@ -535,7 +561,7 @@
 
 .mw-docs-section {
   padding: 0.95rem 1rem;
-  border-top: 1px solid rgba(229, 215, 199, 0.65);
+  border-top: 1px solid var(--border-warm);
 }
 
 .mw-docs-section h3 {
@@ -572,8 +598,8 @@
 .mw-docs-list code {
   font-size: var(--text-xs);
   color: var(--mw-muted);
-  background: rgba(248, 236, 218, 0.75);
-  border: 1px solid rgba(229, 215, 199, 0.75);
+  background: var(--surface-warm);
+  border: 1px solid var(--border-warm-strong);
   border-radius: var(--radius-sm);
   padding: 0.15rem 0.4rem;
 }
@@ -631,14 +657,14 @@
 
 .mw-chat-bubble-user {
   margin-left: 20%;
-  background: rgba(215, 104, 25, 0.14);
-  border: 1px solid rgba(215, 104, 25, 0.28);
+  background: var(--brand-tint);
+  border: 1px solid var(--brand-tint-strong);
 }
 
 .mw-chat-bubble-assistant {
   margin-right: 20%;
   background: var(--panel, #fff);
-  border: 1px solid rgba(229, 215, 199, 0.95);
+  border: 1px solid var(--border-warm-strong);
 }
 
 .mw-chat-prompts {
@@ -680,7 +706,7 @@
 }
 
 .mw-chat-form button {
-  border: 1px solid rgba(215, 104, 25, 0.45);
+  border: 1px solid var(--brand-tint-border);
   background: linear-gradient(160deg, #ef8f37, var(--mw-brand));
   color: #fff;
   border-radius: var(--radius-lg);
@@ -971,7 +997,7 @@
 .mw-source-badge {
   font-size: var(--text-2xs);
   color: var(--mw-muted);
-  border: 1px solid rgba(232, 116, 12, 0.35);
+  border: 1px solid var(--brand-tint-border);
   border-radius: var(--radius-pill);
   padding: 0.1rem 0.5rem;
   background: var(--bg-soft, #f4f4f5);
