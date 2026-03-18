@@ -400,12 +400,14 @@
     font-size: 0.875rem;
   }
   .cyber-banner-error {
-    background: var(--color-rose, #fee2e2);
-    color: var(--color-rose-text, #9f1239);
+    background: var(--warn-soft, rgba(248, 113, 113, 0.12));
+    color: var(--warn, #f87171);
+    border: 1px solid var(--warn-border, rgba(248, 113, 113, 0.30));
   }
   .cyber-banner-notice {
-    background: var(--color-sky, #e0f2fe);
-    color: var(--color-sky-text, #0c4a6e);
+    background: var(--info-soft, rgba(96, 165, 250, 0.12));
+    color: var(--info, #60a5fa);
+    border: 1px solid var(--info-border, rgba(96, 165, 250, 0.30));
   }
   .cyber-status-grid {
     display: grid;
@@ -420,7 +422,7 @@
     margin-top: 1rem;
   }
   .cyber-status-card {
-    border: 1px solid var(--border, #e5e7eb);
+    border: 1px solid var(--line, #3f3f46);
     border-radius: 0.75rem;
     padding: 1rem;
   }
