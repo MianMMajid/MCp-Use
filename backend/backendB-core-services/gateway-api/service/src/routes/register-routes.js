@@ -15,6 +15,7 @@ import { registerRbacRoutes } from "./rbac-routes.js";
 import { registerAuthMfaRoutes } from "./auth-routes-mfa.js";
 import { registerFirewallRuleRoutes } from "./firewall-rule-routes.js";
 import { registerFirewallContextLeakageRoutes } from "./firewall-context-leakage-routes.js";
+import { registerCyberRoutes } from "./cyber-routes.js";
 import { registerRiskPostureRoutes } from "./risk-posture-routes.js";
 import { registerComplianceRoutes } from "./compliance-routes.js";
 import { registerShadowAgentRoutes } from "./shadow-agent-routes.js";
@@ -35,7 +36,6 @@ const SIDE_EFFECT_ROUTE_MODULES = [
   "./auth-routes.js",
   "./billing-routes.js",
   "./firewall-routes.js",
-  "./cyber-routes.js",
   "./openclaw-agent-routes.js",
   "./openclaw-cli-routes.js",
   "./openclaw-modifier-routes.js",
@@ -86,6 +86,9 @@ export async function registerGatewayRoutes(app) {
   // Firewall rule CRUD (Phase 5 — endpoints the frontend already calls)
   registerFirewallRuleRoutes(app);
   registerFirewallContextLeakageRoutes(app);
+
+  // Cyber operations routes (refactored from side-effect to explicit registration)
+  registerCyberRoutes(app);
 
   // Phase 6: Risk posture, compliance, shadow agents, policy versioning
   registerRiskPostureRoutes(app);

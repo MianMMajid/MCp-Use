@@ -14,12 +14,7 @@ const mapleGatewayOrigin =
 function resolveAdminConsoleOrigin() {
   if (process.env.MAPLE_ADMIN_CONSOLE_ORIGIN) return process.env.MAPLE_ADMIN_CONSOLE_ORIGIN
   if (inKubernetes) return 'https://admin-console-api:9443'
-  try {
-    const parsed = new URL(mapleGatewayOrigin)
-    return `${parsed.protocol}//${parsed.hostname}:4001`
-  } catch {
-    return 'http://127.0.0.1:4001'
-  }
+  return mapleGatewayOrigin
 }
 
 const mapleAdminConsoleOrigin = resolveAdminConsoleOrigin()

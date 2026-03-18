@@ -1,6 +1,7 @@
 import { authContextStorage, requireApiKeyResponse } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { database, server } from "../state.js";
+import { allowNoAuth } from "../config.js";
 import { hasValidStepUp } from "../core/step-up-auth.js";
 import { flushOutbox, getOutboxHealth, replayAuditEvents } from "../core/audit-outbox.js";
 import {
@@ -31,17 +32,25 @@ import { resolveVerifiedTenantScope } from "../core/tenant-claim-resolver.js";
  * (fail-closed) unless allowEmpty is explicitly true.
  */
 async function verifiedScope(c, { allowEmpty = false } = {}) {
+  const ctx = authContextStorage.getStore();
+  const authBypass = ctx?.authBypass === true;
+  const rawTenantId = asString(c.req.header("x-tenant-id")) ?? "";
+  const rawOrgId = asString(c.req.header("x-org-id")) ?? "";
+
+  // In local dev (allowNoAuth) or admin bootstrap (authBypass),
+  // allow unscoped access when no tenant headers are provided.
+  if ((authBypass || allowNoAuth) && !rawTenantId && !rawOrgId) {
+    return { error: false, tenantId: "", orgId: "" };
+  }
+
   const scope = await resolveVerifiedTenantScope({
-    tenantId: asString(c.req.header("x-tenant-id")) ?? "",
-    orgId: asString(c.req.header("x-org-id")) ?? "",
+    tenantId: rawTenantId,
+    orgId: rawOrgId,
     tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
   });
-  // Reject unverified scopes when a tenantId is present
   if (!scope.verified && scope.tenantId) {
     return { error: true, tenantId: "", orgId: "" };
   }
-  // Reject missing tenant scope on observability endpoints (fail-closed).
-  // An empty orgId alone is not sufficient for scoping.
   if (!allowEmpty && !scope.tenantId) {
     return { error: true, tenantId: "", orgId: "" };
   }
