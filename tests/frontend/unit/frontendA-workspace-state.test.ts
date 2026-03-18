@@ -129,8 +129,10 @@ describe('normalizeWorkspaceView', () => {
 // ---------------------------------------------------------------------------
 describe('resolveLegacyRoute', () => {
   it('resolves special legacy redirects', () => {
-    expect(resolveLegacyRoute('/maple/policies')).toBe('/maple/audit')
-    expect(resolveLegacyRoute('/maple/runtime')).toBe('/maple/observability')
+    // /maple/policies and /maple/runtime now render at their own routes
+    expect(resolveLegacyRoute('/maple/policies')).toBe('/maple/policies')
+    expect(resolveLegacyRoute('/maple/runtime')).toBe('/maple/runtime')
+    // /maple/tenants remains a governance-context redirect
     expect(resolveLegacyRoute('/maple/tenants')).toBe('/maple/audit')
   })
 
@@ -146,7 +148,8 @@ describe('resolveLegacyRoute', () => {
   })
 
   it('handles trailing slashes', () => {
-    expect(resolveLegacyRoute('/maple/policies/')).toBe('/maple/audit')
+    expect(resolveLegacyRoute('/maple/policies/')).toBe('/maple/policies')
+    expect(resolveLegacyRoute('/maple/tenants/')).toBe('/maple/audit')
   })
 })
 

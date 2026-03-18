@@ -5,14 +5,22 @@ export const metadata = {
 
 export const sections = [
   { title: 'Endpoints', id: 'endpoints' },
+  { title: 'Deprecation', id: 'deprecation' },
 ]
 
 # Admin API
 
+> **Note:** This page is a legacy reference. The canonical operator runtime is the Svelte `/maple` workspace. See `src/routes/maple/+page.svelte`.
+
 ## Endpoints
 
-- `/admin/api/policies`
-- `/admin/api/audit/events`
-- `/admin/api/reload`
+- `/admin/api/policies` — policy CRUD (admin-console-api origin)
+- `/admin/api/policies/reload` — force policy cache refresh
+- `/admin/api/audit` — audit event browsing and export
 
-Protect these endpoints with strict authentication and role checks in production.
+## Deprecation
+
+- `/api/policies/effective` is deprecated in favor of `/api/firewall/rules/effective`.
+- `/api/policies/simulate` remains the active simulation endpoint.
+
+Protect admin endpoints with strict authentication and role checks in production.

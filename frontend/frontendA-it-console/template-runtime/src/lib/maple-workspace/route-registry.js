@@ -300,6 +300,8 @@ function toAnchors(path) {
 const ROUTE_SURFACE_BY_PATH = Object.freeze({
   '/maple/observability': { category: 'observe', view: 'live' },
   '/maple/gateway': { category: 'firewalls', view: 'cybersecurity' },
+  '/maple/interventions': { category: 'firewalls', view: 'cybersecurity' },
+  '/maple/cyber': { category: 'firewalls', view: 'cybersecurity' },
   '/maple/runs': { category: 'observe', view: 'timeline' },
   '/maple/community': { category: 'observe', view: 'timeline' },
   '/maple/chat': { category: 'chat', view: 'chat' },

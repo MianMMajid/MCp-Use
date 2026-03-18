@@ -523,6 +523,24 @@
     }
   }
 
+  async function dispatchDownstreamTool(row) {
+    const toolId = row.toolId || row.app || ''
+    const appId = row.appId || ''
+    if (!toolId) return
+    try {
+      const res = await fetch('/api/downstream/dispatch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ toolId, appId }),
+      })
+      if (!res.ok) throw new Error(`Dispatch failed (${res.status})`)
+      notice = `Dispatched ${toolId} successfully.`
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Dispatch failed.'
+    }
+  }
+
   async function onLeakageDocsSelected(event) {
     const input = event.currentTarget
     const files = Array.from(input?.files ?? [])
@@ -904,7 +922,7 @@
                   <td class="mono">{row.app}</td>
                   <td>{row.source.toLowerCase()}</td>
                   <td>{row.detail || row.kind || '-'}</td>
-                  <td><button type="button" class="action-btn">Dispatch</button></td>
+                  <td><button type="button" class="action-btn" on:click={() => dispatchDownstreamTool(row)} disabled={!!busy}>Dispatch</button></td>
                 </tr>
               {/each}
             </tbody>
