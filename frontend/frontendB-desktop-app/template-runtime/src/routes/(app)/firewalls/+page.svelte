@@ -806,8 +806,9 @@
   .builder { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   .builder.compact { margin-top: 12px; }
   .builder .full { grid-column: 1 / -1; }
-  .workspace { display: grid; gap: 12px; grid-template-columns: 320px 1fr; }
-  .sidebar, .detail { min-height: 520px; }
+  .workspace { display: grid; gap: 12px; grid-template-columns: 320px 1fr; align-items: start; }
+  .sidebar { min-height: 320px; max-height: calc(100svh - 160px); overflow-y: auto; }
+  .detail { min-height: 320px; max-height: calc(100svh - 160px); overflow-y: auto; }
   .list { display: grid; gap: 8px; }
   .firewall-row { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--row-border); background: var(--row-bg); color: var(--fg); }
   .firewall-row.selected { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.12); }
