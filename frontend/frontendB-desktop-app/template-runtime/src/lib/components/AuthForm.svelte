@@ -4,6 +4,7 @@
   import Icon from '@/lib/components/icons/Icon.svelte';
   import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   export let mode = 'login';
+  export let token = '';
 
   let email = '';
   let password = '';
@@ -12,6 +13,11 @@
   let success = '';
   let busy = false;
   let showPassword = false;
+
+  // Show missing-token error immediately for token-based flows
+  $: if ((mode === 'reset' || mode === 'verify') && !token) {
+    error = 'Invalid or missing link. Please request a new one.';
+  }
 
   const titles = {
     login: 'Sign in',
@@ -26,7 +32,7 @@
     register: 'Create account',
     forgot: 'Send reset link',
     reset: 'Update password',
-    verify: 'Verify',
+    verify: 'Verify email',
   };
 
   const endpoint = {
@@ -37,9 +43,9 @@
     verify: '/api/auth/verify-email/confirm',
   }[mode];
 
-  // Password strength (register only)
+  // Password strength (register or reset modes)
   $: strength = (() => {
-    if (mode !== 'register') return 0;
+    if (mode !== 'register' && mode !== 'reset') return 0;
     let s = 0;
     if (password.length >= 8) s++;
     if (/[A-Z]/.test(password)) s++;
@@ -51,21 +57,29 @@
   $: strengthLabel = ['Weak', 'Weak', 'Fair', 'Good', 'Strong'][strength];
   $: strengthColor = ['var(--danger)', 'var(--danger)', 'var(--caution)', 'var(--ok)', 'var(--ok)'][strength];
 
+  // Fields shown per mode
+  $: showEmail = mode === 'login' || mode === 'register' || mode === 'forgot';
+  $: showName = mode === 'register';
+  $: showPassword_ = mode === 'login' || mode === 'register' || mode === 'reset';
+
   async function submit(event) {
     event.preventDefault();
     busy = true;
     error = '';
     success = '';
 
-    const payload = { email, password };
+    let payload;
     if (mode === 'login') {
-      payload.username = email;
+      payload = { username: email, email, password };
+    } else if (mode === 'register') {
+      payload = { username: email, email, password, name };
+    } else if (mode === 'forgot') {
+      payload = { email };
+    } else if (mode === 'reset') {
+      payload = { token, newPassword: password };
+    } else if (mode === 'verify') {
+      payload = { token };
     }
-    if (mode === 'register') {
-      payload.username = email;
-      payload.name = name;
-    }
-    if (mode === 'forgot') delete payload.password;
 
     try {
       const res = await fetch(endpoint, {
@@ -80,6 +94,7 @@
         if (res.status === 409) throw new Error('An account with this email already exists.');
         if (res.status === 429) throw new Error('Too many attempts. Please wait a moment and try again.');
         if (res.status === 404) throw new Error('No account found with this email.');
+        if (res.status === 410) throw new Error('This link has expired or already been used. Please request a new one.');
         throw new Error(data?.error || data?.details || 'Something went wrong. Please try again.');
       }
 
@@ -87,7 +102,11 @@
         success = 'Reset link sent! Check your inbox.';
       } else if (mode === 'reset') {
         success = 'Password updated. You can now sign in.';
-      } else if (mode === 'login' || mode === 'register' || mode === 'verify') {
+      } else if (mode === 'verify') {
+        success = 'Email verified! Redirecting...';
+        invalidateCache();
+        setTimeout(() => goto('/'), 1500);
+      } else if (mode === 'login' || mode === 'register') {
         invalidateCache();
         await goto('/');
       }
@@ -113,7 +132,7 @@
   {/if}
 
   <form on:submit={submit}>
-    {#if mode === 'register'}
+    {#if showName}
       <div class="field-group">
         <label for="auth-name">Full name</label>
         <input
@@ -126,21 +145,23 @@
       </div>
     {/if}
 
-    <div class="field-group">
-      <label for="auth-email">Email address</label>
-      <input
-        id="auth-email"
-        class="field"
-        bind:value={email}
-        type="email"
-        autocomplete={mode === 'login' ? 'username' : 'email'}
-        required
-      />
-    </div>
-
-    {#if mode !== 'forgot'}
+    {#if showEmail}
       <div class="field-group">
-        <label for="auth-password">Password</label>
+        <label for="auth-email">Email address</label>
+        <input
+          id="auth-email"
+          class="field"
+          bind:value={email}
+          type="email"
+          autocomplete={mode === 'login' ? 'username' : 'email'}
+          required
+        />
+      </div>
+    {/if}
+
+    {#if showPassword_}
+      <div class="field-group">
+        <label for="auth-password">{mode === 'reset' ? 'New password' : 'Password'}</label>
         <div class="password-wrap">
           <input
             id="auth-password"
@@ -148,7 +169,8 @@
             bind:value={password}
             type={showPassword ? 'text' : 'password'}
             autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
-            aria-describedby={mode === 'register' ? 'password-strength' : undefined}
+            minlength={mode === 'register' || mode === 'reset' ? 8 : undefined}
+            aria-describedby={(mode === 'register' || mode === 'reset') && password.length > 0 ? 'password-strength' : undefined}
             required
           />
           <button
@@ -161,7 +183,7 @@
           </button>
         </div>
 
-        {#if mode === 'register' && password.length > 0}
+        {#if (mode === 'register' || mode === 'reset') && password.length > 0}
           <div class="strength" id="password-strength">
             <div class="strength-bar">
               <div class="strength-fill" style="width: {strength * 25}%; background: {strengthColor}"></div>
@@ -176,7 +198,7 @@
       </div>
     {/if}
 
-    <button class="submit-btn" type="submit" disabled={busy}>
+    <button class="submit-btn" type="submit" disabled={busy || ((mode === 'reset' || mode === 'verify') && !token)}>
       {#if busy}
         <span class="spinner"><Icon name="loader" size={18} /></span>
       {:else}
@@ -191,6 +213,10 @@
     {:else if mode === 'register'}
       <span>Already have an account? <a href="/login">Sign in</a></span>
     {:else if mode === 'forgot'}
+      <span><a href="/login">Back to sign in</a></span>
+    {:else if mode === 'reset'}
+      <span><a href="/login">Back to sign in</a></span>
+    {:else if mode === 'verify'}
       <span><a href="/login">Back to sign in</a></span>
     {/if}
   </div>
