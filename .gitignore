@@ -74,3 +74,4 @@ mcp-firewall-reference/
 .maple/dev-fast/
 **/test-results/
 **/service-utilization-events.ndjson
+.maple/generated-images/

@@ -6,6 +6,8 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { writeFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { database } from "../state.js";
@@ -208,12 +210,13 @@ async function callMcpTool(app, toolName, args) {
   return typeof result === "string" ? result : JSON.stringify(result);
 }
 
-// ── Built-in tools (no MCP server needed) ───────────
+// ── Built-in tools (OpenAI-powered) ──────────────────
 
 const BUILTIN_TOOLS = [
   {
-    name: "web_search",
-    description: "Search the web for current information. Returns titles, URLs, and snippets.",
+    name: "openai_web_search",
+    description:
+      "Search the web using OpenAI for current, real-time information. Returns a synthesized answer with citations and source URLs.",
     inputSchema: {
       type: "object",
       properties: {
@@ -224,65 +227,133 @@ const BUILTIN_TOOLS = [
     _builtin: true,
   },
   {
-    name: "web_fetch",
-    description: "Fetch a web page and return its content as readable text. Use for reading articles, docs, or any URL.",
+    name: "openai_image_generation",
+    description:
+      "Generate an image using OpenAI DALL-E. Returns a URL to the generated image. Use for creating illustrations, diagrams, concept art, or any visual content.",
     inputSchema: {
       type: "object",
       properties: {
-        url: { type: "string", description: "URL to fetch" },
+        prompt: {
+          type: "string",
+          description: "Detailed description of the image to generate",
+        },
+        size: {
+          type: "string",
+          enum: ["1024x1024", "1024x1792", "1792x1024"],
+          description: "Image size (default: 1024x1024)",
+        },
+        quality: {
+          type: "string",
+          enum: ["standard", "hd"],
+          description: "Image quality (default: standard)",
+        },
       },
-      required: ["url"],
+      required: ["prompt"],
     },
     _builtin: true,
   },
 ];
 
 async function executeBuiltinTool(toolName, args) {
-  if (toolName === "web_search") {
+  if (toolName === "openai_web_search") {
     const query = args.query || "";
     if (!query) return "No search query provided.";
+    if (!OPENAI_API_KEY) return "OpenAI API key not configured.";
     try {
-      // Use DuckDuckGo instant answer API (no key needed)
-      const res = await fetch(
-        `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`,
-        { signal: AbortSignal.timeout(10_000) }
-      );
-      const data = await res.json();
-      const results = [];
-      if (data.AbstractText) results.push(`Summary: ${data.AbstractText}\nSource: ${data.AbstractURL}`);
-      if (data.RelatedTopics) {
-        for (const topic of data.RelatedTopics.slice(0, 5)) {
-          if (topic.Text) results.push(`- ${topic.Text} ${topic.FirstURL || ""}`);
-        }
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-search-preview",
+          web_search_options: { search_context_size: "medium" },
+          messages: [
+            {
+              role: "user",
+              content: query,
+            },
+          ],
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return `Search failed (${res.status}): ${errBody}`;
       }
-      return results.length > 0 ? results.join("\n") : `No instant results for "${query}". Try a more specific query.`;
+      const data = await res.json();
+      const choice = data.choices?.[0];
+      const answer = choice?.message?.content || "No results found.";
+
+      // Extract citations if present
+      const annotations = choice?.message?.annotations || [];
+      const citations = annotations
+        .filter((a) => a.type === "url_citation")
+        .map((a) => `- [${a.url_citation?.title || "Source"}](${a.url_citation?.url})`)
+        .slice(0, 10);
+
+      if (citations.length > 0) {
+        return `${answer}\n\nSources:\n${citations.join("\n")}`;
+      }
+      return answer;
     } catch (err) {
       return `Search failed: ${err.message}`;
     }
   }
 
-  if (toolName === "web_fetch") {
-    const url = args.url || "";
-    if (!url) return "No URL provided.";
+  if (toolName === "openai_image_generation") {
+    const prompt = args.prompt || "";
+    if (!prompt) return "No image prompt provided.";
+    if (!OPENAI_API_KEY) return "OpenAI API key not configured.";
     try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "Maple/1.0", "Accept": "text/html,text/plain,application/json" },
-        signal: AbortSignal.timeout(15_000),
-        redirect: "follow",
+      const res = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt,
+          n: 1,
+          size: args.size || "1024x1024",
+          quality: args.quality || "standard",
+        }),
+        signal: AbortSignal.timeout(60_000),
       });
-      const contentType = res.headers.get("content-type") || "";
-      const text = await res.text();
-      if (contentType.includes("json")) return text.slice(0, 5000);
-      // Strip HTML tags for readability
-      const cleaned = text
-        .replace(/<script[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      return cleaned.slice(0, 5000);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        return `Image generation failed (${res.status}): ${errBody}`;
+      }
+      const data = await res.json();
+      const image = data.data?.[0];
+      if (!image) return "No image was generated.";
+
+      // Download and cache image locally to avoid SAS token URLs triggering secret detection
+      let localUrl = image.url;
+      try {
+        const imgRes = await fetch(image.url, { signal: AbortSignal.timeout(30_000) });
+        if (imgRes.ok) {
+          const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+          const imgId = randomUUID();
+          const imgDir = join(process.cwd(), ".maple", "generated-images");
+          await mkdir(imgDir, { recursive: true });
+          const imgPath = join(imgDir, `${imgId}.png`);
+          await writeFile(imgPath, imgBuffer);
+          const origin = process.env.MAPLE_GATEWAY_ORIGIN || "http://127.0.0.1:3000";
+          localUrl = `${origin}/api/generated-images/${imgId}.png`;
+        }
+      } catch (dlErr) {
+        mapleLog("warn", "native_agent.image_download_failed", { error: dlErr.message });
+      }
+
+      const revisedPrompt = image.revised_prompt
+        ? `\nRevised prompt: ${image.revised_prompt}`
+        : "";
+      return `Image generated successfully!\n![Generated Image](${localUrl})${revisedPrompt}`;
     } catch (err) {
-      return `Fetch failed: ${err.message}`;
+      return `Image generation failed: ${err.message}`;
     }
   }
 

@@ -83,7 +83,7 @@ export async function handle({ event, resolve }) {
     response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     response.headers.set(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'self'"
+      `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:* http://localhost:* ${process.env.MAPLE_GATEWAY_ORIGIN || ''}; connect-src 'self'; font-src 'self' data:; frame-ancestors 'self'`
     );
   }
 

@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { healthRoutes } from "./health.js";
 import { redirectRoutes } from "./redirect-routes.js";
 import { registerTraceRoutes } from "./trace-routes.js";
@@ -63,6 +65,22 @@ export async function registerGatewayRoutes(app) {
   for (const modulePath of SIDE_EFFECT_ROUTE_MODULES) {
     await import(modulePath);
   }
+
+  // Serve AI-generated images (cached locally from any provider: DALL-E, Nano Banana Pro, etc.)
+  app.get("/api/generated-images/:filename", (c) => {
+    const filename = c.req.param("filename").replace(/[^a-zA-Z0-9._-]/g, "");
+    const imgPath = join(process.cwd(), ".maple", "generated-images", filename);
+    if (!existsSync(imgPath)) return c.json({ error: "Image not found" }, 404);
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const mimeTypes = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif" };
+    const buf = readFileSync(imgPath);
+    return new Response(buf, {
+      headers: {
+        "Content-Type": mimeTypes[ext] || "image/png",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  });
 
   app.route("/", healthRoutes);
   app.route("/", redirectRoutes);

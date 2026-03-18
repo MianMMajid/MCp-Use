@@ -61,6 +61,23 @@
     return agentDisplayName();
   }
 
+  function renderMessage(text) {
+    // Escape HTML first to prevent XSS
+    let safe = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Render markdown images: ![alt](url) — supports both absolute and relative URLs
+    safe = safe.replace(/!\[([^\]]*)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g,
+      '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;" loading="lazy" />');
+    // Render markdown links: [text](url)
+    safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">$1</a>');
+    // Render bold: **text**
+    safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return safe;
+  }
+
   function roleInitial(role) {
     if (role === 'user') return 'U';
     return agentDisplayName().charAt(0).toUpperCase();
@@ -251,7 +268,11 @@
               <span class="msg-avatar-spacer"></span>
             {/if}
             <div class="msg-bubble" class:msg-bubble-user={isUser} class:msg-bubble-agent={!isUser}>
-              <p>{text}</p>
+              {#if isUser}
+                <p>{text}</p>
+              {:else}
+                <p>{@html renderMessage(text)}</p>
+              {/if}
               <div class="msg-meta">
                 {#if item.timestamp || item.createdAt}
                   <span class="msg-time">{formatTime(item.timestamp || item.createdAt)}</span>
