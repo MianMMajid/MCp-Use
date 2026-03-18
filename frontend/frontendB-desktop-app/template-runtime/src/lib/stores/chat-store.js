@@ -383,7 +383,7 @@ function createChatStore() {
           reconstructed.push({ id: `out-${runId}`, role: 'agent', content: runData.output.reply, timestamp: runData.updatedAt, cost: runData.cost ?? null });
         }
       }
-      patch({ messages: reconstructed });
+      patch({ messages: capArray(reconstructed, MAX_MESSAGES) });
     } catch {
       patch({ messages: [] });
     }
@@ -560,7 +560,7 @@ function createChatStore() {
       createdAt: new Date().toISOString()
     };
 
-    patch({ orchestrationError: '', busy: true, busyStatus: 'Delegating to orchestration...', orchestrationConversation: [...state.orchestrationConversation, local] });
+    patch({ orchestrationError: '', busy: true, busyStatus: 'Delegating to orchestration...', orchestrationConversation: capArray([...state.orchestrationConversation, local], MAX_MESSAGES) });
 
     try {
       const payload = await postOrchestrationConversation(orchestrationId, { message: content });
@@ -569,10 +569,10 @@ function createChatStore() {
       } else if (payload?.reply) {
         const next = get({ subscribe });
         patch({
-          orchestrationConversation: [
+          orchestrationConversation: capArray([
             ...next.orchestrationConversation,
             { id: `mgr-${Date.now()}`, role: 'manager', text: payload.reply, createdAt: new Date().toISOString() }
-          ]
+          ], MAX_MESSAGES)
         });
       }
       invalidateCache(`/api/orchestrations/${orchestrationId}/conversation`);
