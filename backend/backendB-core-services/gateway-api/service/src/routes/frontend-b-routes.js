@@ -898,6 +898,32 @@ export function registerFrontendBRoutes(app) {
     return c.json({ ok: true, firewall });
   });
 
+  // ── POST /api/firewalls/preview — validate policy YAML without persisting ──
+  app.post("/api/firewalls/preview", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) return auth.error;
+    const body = await readJsonBody(c);
+    const policyText = asString(body.policyText) ?? "";
+    if (!policyText) {
+      return c.json({ ok: false, error: "policyText is required.", valid: false, errors: ["policyText is required."], warnings: [] }, 400);
+    }
+    const compilation = compileFrontendBFirewallPolicy(policyText, {
+      firewallId: "preview",
+      firewallName: asString(body.name) ?? "preview",
+      firewallVersionId: "preview",
+      scope: asString(body.scope) ?? "global",
+      assignedAgentId: asString(body.assignedAgentId) ?? null,
+    });
+    return c.json({
+      ok: true,
+      valid: compilation.valid,
+      errors: compilation.errors,
+      warnings: compilation.warnings,
+      ruleCount: compilation.policy?.rules?.length ?? 0,
+      compiledAt: compilation.compiledAt,
+    });
+  });
+
   app.post("/api/firewalls", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) return auth.error;
@@ -1006,6 +1032,8 @@ export function registerFrontendBRoutes(app) {
       folder: body.folder !== undefined ? asString(body.folder) ?? "root" : undefined,
       scope,
       assignedAgentId,
+      description: body.description !== undefined ? asString(body.description) ?? "" : undefined,
+      enforcementLevel: body.enforcementLevel !== undefined ? asString(body.enforcementLevel) ?? "hard-mandatory" : undefined,
     });
     let activationError = "";
     if (body.policyText !== undefined) {
