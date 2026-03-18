@@ -753,6 +753,8 @@ export class FrontendBStore {
       folder: String(row.folder ?? "root"),
       scope: String(row.scope ?? "global"),
       assignedAgentId: row.assigned_agent_id ? String(row.assigned_agent_id) : null,
+      description: String(row.description ?? ""),
+      enforcementLevel: String(row.enforcement_level ?? "hard-mandatory"),
       policyText,
       archived: Boolean(row.archived),
       policyVersions: versions,

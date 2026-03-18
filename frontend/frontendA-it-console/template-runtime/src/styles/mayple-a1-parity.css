@@ -1097,7 +1097,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .modal-head { display: flex; justify-content: space-between; align-items: center; }
 .modal-tabs { display: inline-flex; gap: 0.35rem; background: #f8f5f0; padding: 2px; border-radius: var(--radius-pill); }
-.modal-tab { border: none; background: transparent; border-radius: 999px; padding: 0.32rem 0.75rem; }
+.modal-tab { border: none; background: transparent; border-radius: var(--radius-pill); padding: 0.32rem 0.75rem; }
 .modal-tab.is-active { background: #fff; border: 1px solid var(--line-strong); }
 .modal-panel { display: grid; gap: 0.65rem; }
 
