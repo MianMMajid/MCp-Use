@@ -38,6 +38,32 @@
   let apiKeys = {};
   let expandedServer = null;
 
+  // API key config for installed skills
+  let configSkillId = '';
+  let configApiKey = '';
+  let configBusy = false;
+
+  async function updateSkillApiKey(toolId) {
+    configBusy = true;
+    try {
+      const res = await patchJson(`/api/skills/${toolId}/apikey`, { apiKey: configApiKey });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.ok === false) {
+        toastStore.error('Failed to update API key');
+        return;
+      }
+      configSkillId = '';
+      configApiKey = '';
+      toastStore.success('API key updated');
+      invalidateCache('/api/skills');
+      invalidateCache(`/api/agents/${data.id}/tools`);
+      _loadedId = '';
+      await loadPage();
+    } catch (err) {
+      toastStore.error(err instanceof Error ? err.message : String(err));
+    } finally { configBusy = false; }
+  }
+
   async function loadMarketplace() {
     marketplaceLoading = true;
     try {
@@ -552,8 +578,21 @@
                           {governedRuns[id]?.loading ? '...' : 'Proof'}
                         </button>
                       {/if}
+                      {#if tool.source === 'mcp-registry' || tool.source === 'registry'}
+                        <button class="pill mini" title="Configure API key" on:click|stopPropagation={() => { configSkillId = configSkillId === id ? '' : id; configApiKey = ''; }}>
+                          {configSkillId === id ? '✕' : '⚙'}
+                        </button>
+                      {/if}
                       <button class="pill mini" title="Add skill" on:click={() => equipSkill(id)}>+</button>
                     </div>
+                    {#if configSkillId === id}
+                      <div class="config-row">
+                        <input type="password" placeholder="API key" bind:value={configApiKey} on:keydown={(e) => e.key === 'Enter' && updateSkillApiKey(id)} on:click|stopPropagation />
+                        <button class="pill mini cta" on:click|stopPropagation={() => updateSkillApiKey(id)} disabled={configBusy || !configApiKey}>
+                          {configBusy ? '…' : 'Save'}
+                        </button>
+                      </div>
+                    {/if}
                     {#if smokeTests[id]?.result}
                       <div class="test-result" class:pass={smokeTests[id].result.passed} class:fail={!smokeTests[id].result.passed}>
                         {smokeTests[id].result.passed ? 'PASS' : 'FAIL'}
@@ -712,6 +751,9 @@
 
   /* Test result badges */
   .test-btn, .proof-btn { font-size: 11px; padding: 2px 6px; }
+  .config-row { display: flex; gap: 4px; margin-top: 4px; }
+  .config-row input { flex: 1; border: 1px solid rgba(249,115,22,.3); border-radius: 8px; background: rgba(249,115,22,.06); color: var(--fg); padding: 4px 8px; font-size: 11px; outline: none; font-family: ui-monospace, monospace; min-width: 0; }
+  .config-row input:focus { border-color: rgba(249,115,22,.5); }
   .test-result { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: center; }
   .test-result.pass { color: var(--ok); background: var(--ok-soft); }
   .test-result.fail { color: var(--warn); background: rgba(207, 94, 94, 0.12); }
