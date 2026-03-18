@@ -155,6 +155,7 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
     'version: 1\nrules:\n  allowedTools:\n    - status\n  blockedTargetProfiles:\n    - root'
   );
   await page.getByRole('button', { name: 'Next: Review' }).click();
+  await expect(page.getByRole('heading', { name: 'Policy Preview' })).toBeVisible();
   await page.getByRole('button', { name: 'Deploy Firewall' }).click();
 
   await expect(page.getByRole('heading', { name: 'Ops Agent Firewall' })).toBeVisible();
