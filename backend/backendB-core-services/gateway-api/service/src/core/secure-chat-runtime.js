@@ -226,8 +226,6 @@ export async function runSecureChatTurn(options = {}) {
     mapleLog("info", "secure_chat.output_blocked", {
       turnId,
       reason: outputPolicy.blockedReason,
-      rule: outputPolicy.rule,
-      replyPreview: reply.substring(0, 300),
     });
 
     emitAuditEvent({

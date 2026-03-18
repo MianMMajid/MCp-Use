@@ -341,8 +341,7 @@ async function executeBuiltinTool(toolName, args) {
           await mkdir(imgDir, { recursive: true });
           const imgPath = join(imgDir, `${imgId}.png`);
           await writeFile(imgPath, imgBuffer);
-          const origin = process.env.MAPLE_GATEWAY_ORIGIN || "http://127.0.0.1:3000";
-          localUrl = `${origin}/api/generated-images/${imgId}.png`;
+          localUrl = `/api/generated-images/${imgId}.png`;
         }
       } catch (dlErr) {
         mapleLog("warn", "native_agent.image_download_failed", { error: dlErr.message });
