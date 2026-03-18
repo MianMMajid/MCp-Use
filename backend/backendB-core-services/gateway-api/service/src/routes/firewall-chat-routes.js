@@ -110,14 +110,10 @@ export function registerFirewallChatRoutes() {
         }
         const body = await readJsonBody(c);
         const messages = Array.isArray(body.messages) ? body.messages : [];
-        const model = asString(body.model) ?? "";
-        const reasoningEffort = asString(body.reasoningEffort) ?? "";
         const normalizedHistory = normalizeFirewallChatHistory(messages, "Give me a firewall status update.");
         const userTurns = normalizedHistory.filter((turn) => turn.role === "user");
         const message = asString(userTurns[userTurns.length - 1]?.content) ?? "Give me a firewall status update.";
-        const traceId = asString(body.traceId);
-        const sessionId = asString(body.sessionId);
-        const context = buildFirewallChatContext({ traceId, sessionId });
+        const sessionId = asString(body.sessionId) || `global-chat-${(c.req.header("x-session-id") || "default")}`;
         const streamScope = await resolveVerifiedTenantScope({
             tenantId: asString(c.req.header("x-tenant-id")) ?? "",
             orgId: asString(c.req.header("x-org-id")) ?? "",
@@ -128,29 +124,30 @@ export function registerFirewallChatRoutes() {
             context: c,
             request: c.req,
             verifiedTenantId: streamScope.verified ? streamScope.tenantId : "default",
-            traceId,
             sessionId,
-            fallbackSessionId: context.trace?.sessionId,
-            fallbackTraceId: context.trace?.id,
         });
-        const chatResult = await generateFirewallChatReply({
-            question: message,
-            context,
-            messages: normalizedHistory,
+        // Use secure chat runtime: policy gate + native execution with memory
+        const secureChatResult = await runSecureChatTurn({
+            message,
+            sessionId,
             requestContext,
-            model,
-            reasoningEffort,
         });
-        if (chatResult.mode === "unavailable") {
+        if (secureChatResult.mode === "error") {
             return c.json({
                 ok: false,
-                error: chatResult.reply,
-                mode: chatResult.mode,
-                provider: chatResult.provider,
-                attempts: chatResult.attempts,
+                error: secureChatResult.reply,
+                mode: secureChatResult.mode,
             }, 503);
         }
-        const reply = chatResult.reply;
+        if (secureChatResult.blocked) {
+            return c.json({
+                ok: false,
+                error: secureChatResult.reply,
+                mode: secureChatResult.mode,
+                blocked: true,
+            }, 403);
+        }
+        const reply = secureChatResult.reply;
         const encoder = new TextEncoder();
         let closed = false;
         let timer;

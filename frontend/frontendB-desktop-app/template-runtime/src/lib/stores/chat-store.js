@@ -462,6 +462,13 @@ function createChatStore() {
       const modelSelection = typeof window !== 'undefined'
         ? readStoredChatModelSelection(window.localStorage)
         : readStoredChatModelSelection(null);
+      // Ensure persistent session ID for conversation memory
+      let sessionId = state.sessionId;
+      if (!sessionId) {
+        sessionId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        patch({ sessionId });
+      }
+
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         credentials: 'same-origin',
@@ -469,7 +476,8 @@ function createChatStore() {
         body: JSON.stringify({
           messages: [{ role: 'user', content }],
           model: modelSelection.modelId,
-          reasoningEffort: modelSelection.reasoningEffort
+          reasoningEffort: modelSelection.reasoningEffort,
+          sessionId,
         })
       });
 
