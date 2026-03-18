@@ -165,6 +165,8 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
   await page.goto('/tasks');
   await page.getByPlaceholder('Weekly governance summary').fill('Nightly task');
   await page.getByPlaceholder(/Describe the full task objective/).fill('Generate a nightly status report.');
+  await page.getByLabel('Assign Type').selectOption('orchestration');
+  await page.getByLabel('Assign Target').selectOption({ label: 'Ops Flow' });
   await page.getByRole('button', { name: 'Schedule Task' }).click();
 
   await expect(page.getByText('Nightly task')).toBeVisible();

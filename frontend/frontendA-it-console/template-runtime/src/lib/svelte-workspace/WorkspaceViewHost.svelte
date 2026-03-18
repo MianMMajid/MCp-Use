@@ -336,6 +336,68 @@
     detail: String(item.description ?? ''),
   }))
   $: marketplaceRows = [...catalogRows, ...appRows, ...toolRows, ...openclawRows]
+  // ── Compliance data ──
+  let riskPosture = null
+  let riskPostureLoading = false
+  let riskPostureError = ''
+  let complianceFrameworks = []
+  let complianceMappings = {}
+  let complianceLoading = false
+  let complianceError = ''
+
+  async function loadRiskPosture() {
+    riskPostureLoading = true
+    riskPostureError = ''
+    try {
+      const res = await fetch('/api/risk/posture', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      if (!res.ok) throw new Error(`Risk posture unavailable (${res.status})`)
+      riskPosture = await res.json()
+    } catch (err) {
+      riskPostureError = err instanceof Error ? err.message : 'Failed to load risk posture.'
+      riskPosture = null
+    } finally {
+      riskPostureLoading = false
+    }
+  }
+
+  async function loadComplianceFrameworks() {
+    complianceLoading = true
+    complianceError = ''
+    try {
+      const res = await fetch('/api/compliance/frameworks', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      if (!res.ok) throw new Error(`Frameworks unavailable (${res.status})`)
+      const data = await res.json()
+      complianceFrameworks = data.items ?? []
+      // Load mappings for each framework
+      for (const fw of complianceFrameworks) {
+        loadComplianceMappings(fw.id)
+      }
+    } catch (err) {
+      complianceError = err instanceof Error ? err.message : 'Failed to load frameworks.'
+      complianceFrameworks = []
+    } finally {
+      complianceLoading = false
+    }
+  }
+
+  async function loadComplianceMappings(frameworkId) {
+    try {
+      const res = await fetch(`/api/compliance/mappings?framework=${encodeURIComponent(frameworkId)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      if (!res.ok) return
+      const data = await res.json()
+      complianceMappings = { ...complianceMappings, [frameworkId]: data }
+    } catch {
+      // silent — framework row stays without mapping data
+    }
+  }
+
+  $: if (panelOpen && state.category === 'compliance' && state.view === 'risk' && !riskPosture && !riskPostureLoading && !riskPostureError) {
+    loadRiskPosture()
+  }
+  $: if (panelOpen && state.category === 'compliance' && state.view === 'frameworks' && complianceFrameworks.length === 0 && !complianceLoading && !complianceError) {
+    loadComplianceFrameworks()
+  }
+
   let marketplaceQuery = ''
   let marketplaceKind = 'all'
   $: filteredMarketplaceRows = marketplaceRows.filter((row) => {
@@ -1358,27 +1420,47 @@
     <article class="panel">
       <div class="panel-head">
         <h2 class="panel-title">Posture Score</h2>
-        <span class="chip">real-time</span>
+        <span class="chip">{riskPosture ? 'live' : 'loading'}</span>
+        {#if riskPosture}<button type="button" class="action-btn" on:click={loadRiskPosture}>Refresh</button>{/if}
       </div>
-      <div class="risk-gauge-wrap" style="text-align:center; padding: 2rem 0;">
-        <div style="font-size: 4rem; font-weight: 800; color: var(--brand);">72</div>
-        <div style="font-size: 1rem; color: var(--muted);">/100 — Moderate Risk</div>
-        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--muted);">
-          Score aggregated from: firewall rule coverage, denial rate, MFA adoption, SSO configuration, and open approvals.
-        </p>
-      </div>
-      <div class="panel-head"><h2 class="panel-title">Recommendations</h2></div>
-      <div class="table-wrap">
-        <table class="timeline-table">
-          <thead><tr><th>Priority</th><th>Recommendation</th><th>Impact</th></tr></thead>
-          <tbody>
-            <tr><td>1</td><td>Enable MFA for all admin users</td><td>+12 points</td></tr>
-            <tr><td>2</td><td>Configure SSO for primary domain</td><td>+10 points</td></tr>
-            <tr><td>3</td><td>Review 3 pending HITL approvals</td><td>+5 points</td></tr>
-            <tr><td>4</td><td>Add firewall rules for detected shadow agents</td><td>+8 points</td></tr>
-          </tbody>
-        </table>
-      </div>
+      {#if riskPostureLoading}
+        <p style="text-align:center; padding: 2rem 0; color: var(--muted);">Loading risk posture...</p>
+      {:else if riskPostureError}
+        <div style="text-align:center; padding: 2rem 0;">
+          <p style="color: var(--warn);">{riskPostureError}</p>
+          <button type="button" class="action-btn" on:click={loadRiskPosture}>Retry</button>
+        </div>
+      {:else if riskPosture}
+        <div class="risk-gauge-wrap" style="text-align:center; padding: 2rem 0;">
+          <div style="font-size: 4rem; font-weight: 800; color: var(--brand);">{riskPosture.score}</div>
+          <div style="font-size: 1rem; color: var(--muted);">/100 — Grade {riskPosture.grade}</div>
+          <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--muted);">
+            Score aggregated from: firewall rule coverage, denial rate, MFA adoption, SSO configuration, and open approvals.
+          </p>
+          <p style="font-size: 0.75rem; color: var(--muted);">Computed {new Date(riskPosture.computedAt).toLocaleString()}</p>
+        </div>
+        {#if riskPosture.recommendations?.length > 0}
+          <div class="panel-head"><h2 class="panel-title">Recommendations</h2></div>
+          <div class="table-wrap">
+            <table class="timeline-table">
+              <thead><tr><th>Severity</th><th>Recommendation</th><th>Details</th></tr></thead>
+              <tbody>
+                {#each riskPosture.recommendations as rec, i}
+                  <tr>
+                    <td><span class="chip" style="background: {rec.severity === 'high' ? 'var(--warn)' : 'var(--accent)'}; color: white;">{rec.severity}</span></td>
+                    <td>{rec.title}</td>
+                    <td>{rec.description}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <p style="color: var(--muted); padding: 1rem 0;">No recommendations — posture looks good.</p>
+        {/if}
+      {:else}
+        <p style="text-align:center; padding: 2rem 0; color: var(--muted);">No risk data available.</p>
+      {/if}
     </article>
   </section>
 {/if}
@@ -1389,32 +1471,52 @@
       <h1>Compliance Frameworks</h1>
       <p>Map controls from OWASP LLM Top 10 and NIST AI RMF to your security posture.</p>
     </header>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">OWASP LLM Top 10 (2025)</h2>
-        <span class="chip">10 controls</span>
+    {#if complianceLoading}
+      <p style="padding: 1rem 0; color: var(--muted);">Loading frameworks...</p>
+    {:else if complianceError}
+      <div style="padding: 1rem 0;">
+        <p style="color: var(--warn);">{complianceError}</p>
+        <button type="button" class="action-btn" on:click={loadComplianceFrameworks}>Retry</button>
       </div>
-      <div class="table-wrap">
-        <table class="timeline-table">
-          <thead><tr><th>Control</th><th>Name</th><th>Status</th><th>Evidence</th></tr></thead>
-          <tbody>
-            <tr><td>LLM01</td><td>Prompt Injection</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>Firewall rules active</td></tr>
-            <tr><td>LLM02</td><td>Insecure Output Handling</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>DLP engine enabled</td></tr>
-            <tr><td>LLM03</td><td>Training Data Poisoning</td><td><span class="chip" style="background: var(--muted); color: white;">Not Assessed</span></td><td>—</td></tr>
-            <tr><td>LLM04</td><td>Model Denial of Service</td><td><span class="chip" style="background: var(--accent); color: white;">Partial</span></td><td>Rate limiting in place</td></tr>
-            <tr><td>LLM05</td><td>Supply Chain Vulnerabilities</td><td><span class="chip" style="background: var(--accent); color: white;">Partial</span></td><td>Tool registry active</td></tr>
-            <tr><td>LLM06</td><td>Sensitive Information Disclosure</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>Context leakage scanning</td></tr>
-            <tr><td>LLM07</td><td>Insecure Plugin Design</td><td><span class="chip" style="background: var(--accent); color: white;">Partial</span></td><td>MCP proxy controls</td></tr>
-            <tr><td>LLM08</td><td>Excessive Agency</td><td><span class="chip" style="background: var(--ok); color: white;">Compliant</span></td><td>HITL + approval workflows</td></tr>
-            <tr><td>LLM09</td><td>Overreliance</td><td><span class="chip" style="background: var(--muted); color: white;">Not Assessed</span></td><td>—</td></tr>
-            <tr><td>LLM10</td><td>Model Theft</td><td><span class="chip" style="background: var(--warn); color: white;">Non-Compliant</span></td><td>No model access controls</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="actions" style="margin-top: 1rem;">
-        <button type="button" class="action-btn primary" disabled={!can('compliance', 'update')}>Generate Report</button>
-      </div>
-    </article>
+    {:else if complianceFrameworks.length === 0}
+      <article class="panel">
+        <p style="color: var(--muted); padding: 1rem 0;">No compliance frameworks loaded. Controls may need to be seeded.</p>
+      </article>
+    {:else}
+      {#each complianceFrameworks as fw}
+        {@const mappingData = complianceMappings[fw.id]}
+        <article class="panel" style="margin-bottom: 1rem;">
+          <div class="panel-head">
+            <h2 class="panel-title">{fw.name} {fw.version ? `(${fw.version})` : ''}</h2>
+            <span class="chip">{mappingData?.summary?.total ?? fw.controlCount} controls{mappingData?.summary ? ` · ${mappingData.summary.compliancePct}% compliant` : ''}</span>
+          </div>
+          {#if mappingData?.items?.length > 0}
+            <div class="table-wrap">
+              <table class="timeline-table">
+                <thead><tr><th>Control</th><th>Name</th><th>Status</th><th>Evidence</th></tr></thead>
+                <tbody>
+                  {#each mappingData.items as ctrl}
+                    {@const statusColor = ctrl.status === 'compliant' ? 'var(--ok)' : ctrl.status === 'partial' ? 'var(--accent)' : ctrl.status === 'non_compliant' ? 'var(--warn)' : 'var(--muted)'}
+                    {@const statusLabel = ctrl.status === 'non_compliant' ? 'Non-Compliant' : ctrl.status === 'not_assessed' ? 'Not Assessed' : ctrl.status === 'partial' ? 'Partial' : 'Compliant'}
+                    <tr>
+                      <td>{ctrl.control_id}</td>
+                      <td>{ctrl.control_name}</td>
+                      <td><span class="chip" style="background: {statusColor}; color: white;">{statusLabel}</span></td>
+                      <td>{Array.isArray(ctrl.evidence) && ctrl.evidence.length > 0 ? ctrl.evidence.join(', ') : '—'}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <p style="color: var(--muted); padding: 0.5rem 0;">No control mappings loaded for this framework.</p>
+          {/if}
+        </article>
+      {/each}
+    {/if}
+    <div class="actions" style="margin-top: 1rem;">
+      <button type="button" class="action-btn primary" disabled={!can('compliance', 'update')}>Generate Report</button>
+    </div>
   </section>
 {/if}
 
