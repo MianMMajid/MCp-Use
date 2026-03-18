@@ -3,7 +3,17 @@ import * as protoLoader from "@grpc/proto-loader";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { loadGrpcTlsConfig, loadServiceClientSecurePooled, createGrpcServer, CircuitBreaker, mapleLog } from "@maple/common";
-import { enforceTraceFirewall, evaluateFirewallStep, detectPromptInjection, scanForPII, redactPII, buildFilesystemMutationPlan } from "@maple/security";
+import {
+    enforceTraceFirewall,
+    evaluateFirewallStep,
+    detectPromptInjection,
+    scanForPII,
+    redactPII,
+    buildFilesystemMutationPlan,
+    sanitizeTextWithLeakagePolicy,
+    sanitizeStructuredContent,
+    redactDisplayValue,
+} from "@maple/security";
 import { analyzeTraceRisks, applyAuditToTrace } from "@maple/risk-engine";
 import { generateOpenAI } from "./providers/openai.js";
 import { generateAnthropic } from "./providers/anthropic.js";
@@ -415,6 +425,328 @@ function parseJsonValue(raw, fallback) {
         return fallback;
     }
 }
+function stripMarkdownCodeFence(text) {
+    const value = String(text ?? "").trim();
+    const fencedMatch = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fencedMatch ? fencedMatch[1].trim() : value;
+}
+function resolveLeakagePolicyMode(values = []) {
+    const normalized = (Array.isArray(values) ? values : [])
+        .map((value) => String(value ?? "").trim().toLowerCase())
+        .filter(Boolean);
+    if (normalized.includes("strict")) {
+        return "strict";
+    }
+    if (normalized.includes("review")) {
+        return "review";
+    }
+    if (normalized.includes("monitor")) {
+        return "monitor";
+    }
+    return "strict";
+}
+function replaceRanges(text, ranges = [], replacementSelector = (range) => range.replacement ?? "") {
+    const source = String(text ?? "");
+    const sorted = [...(Array.isArray(ranges) ? ranges : [])]
+        .filter((range) => Number.isFinite(range?.startIndex) && Number.isFinite(range?.endIndex))
+        .sort((left, right) => Number(right.startIndex) - Number(left.startIndex));
+    let next = source;
+    for (const range of sorted) {
+        const start = Math.max(0, Number(range.startIndex));
+        const end = Math.max(start, Number(range.endIndex));
+        next = `${next.slice(0, start)}${replacementSelector(range)}${next.slice(end)}`;
+    }
+    return next;
+}
+function buildRedactedOriginalText(text, matches = []) {
+    return replaceRanges(text, matches, (match) => match.redactedMatchedText || redactDisplayValue(match.matchedText, match.category));
+}
+function buildProtoLeakageMatches(matches = []) {
+    return (Array.isArray(matches) ? matches : []).map((match) => ({
+        entityId: String(match.entityId || ""),
+        documentId: String(match.documentId || ""),
+        category: String(match.category || ""),
+        redactedValue: String(match.redactedMatchedText || redactDisplayValue(match.matchedText, match.category)),
+        action: String(match.action || ""),
+        replacementValue: String(match.replacementValue || ""),
+        source: String(match.source || ""),
+        severity: String(match.severity || ""),
+        startIndex: Number(match.startIndex || 0),
+        endIndex: Number(match.endIndex || 0),
+    }));
+}
+function buildDetectorLeakageMatches(text, findings = [], { action = "block", policyMode = "strict", source = "detector" } = {}) {
+    const sourceText = String(text ?? "");
+    return (Array.isArray(findings) ? findings : []).map((finding, index) => ({
+        entityId: `builtin-${String(finding?.category || "sensitive")}-${Number(finding?.startIndex || 0)}-${Number(finding?.endIndex || 0)}-${index}`,
+        documentId: "",
+        category: String(finding?.category || finding?.pattern || "sensitive"),
+        matchedText: sourceText.slice(Number(finding?.startIndex || 0), Number(finding?.endIndex || 0)),
+        redactedMatchedText: `[${String(finding?.category || "SENSITIVE").toUpperCase()}:${String(finding?.pattern || "match").toUpperCase()}]`,
+        action,
+        replacementValue: "",
+        source,
+        startIndex: Number(finding?.startIndex || 0),
+        endIndex: Number(finding?.endIndex || 0),
+        severity: String(finding?.severity || "high"),
+        policyMode,
+    }));
+}
+function buildPatternLeakageMatches(patterns = [], { action = "block", policyMode = "strict", source = "detector" } = {}) {
+    return (Array.isArray(patterns) ? patterns : [])
+        .map((pattern) => String(pattern ?? "").trim())
+        .filter(Boolean)
+        .map((pattern, index) => ({
+        entityId: `builtin-pattern-${pattern}-${index}`,
+        documentId: "",
+        category: pattern,
+        matchedText: "",
+        redactedMatchedText: `[${pattern.toUpperCase()}]`,
+        action,
+        replacementValue: "",
+        source,
+        startIndex: 0,
+        endIndex: 0,
+        severity: /medical_record_number|ssn|private_key|api_token|credential/i.test(pattern) ? "critical" : "high",
+        policyMode,
+    }));
+}
+async function recordLeakageEvent(leakageStore, payload, failureLogKey) {
+    if (!leakageStore) {
+        return;
+    }
+    await leakageStore.recordEvent(payload).catch((error) => {
+        mapleLog("warn", failureLogKey, {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    });
+}
+function hasUsableProviderApiKey(provider) {
+    const apiKey = providerApiKey(provider);
+    if (!apiKey) {
+        return false;
+    }
+    const lowered = apiKey.toLowerCase();
+    return !lowered.startsWith("test-") && !lowered.includes("placeholder");
+}
+function shouldTrySemanticLeakageAssist(text, toolName = "") {
+    const source = String(text ?? "").trim();
+    if (!source || source.length > 4000) {
+        return false;
+    }
+    const normalizedToolName = String(toolName ?? "").trim().toLowerCase();
+    if (normalizedToolName === "web_search" || normalizedToolName === "web_fetch") {
+        return true;
+    }
+    return /\b(where i live|my address|home address|call me at|email me at|patient|medical record|mrn|dob|contact me|reddit|google|restaurants|recommend|near me|search)\b/i.test(source);
+}
+function firstJsonObjectFromText(text) {
+    const stripped = stripMarkdownCodeFence(text);
+    try {
+        return JSON.parse(stripped);
+    }
+    catch {
+        const start = stripped.indexOf("{");
+        const end = stripped.lastIndexOf("}");
+        if (start >= 0 && end > start) {
+            try {
+                return JSON.parse(stripped.slice(start, end + 1));
+            }
+            catch {
+                return null;
+            }
+        }
+    }
+    return null;
+}
+async function generateSemanticLeakageDecision(text, context = {}, activeEntities = []) {
+    if (String(process.env.NODE_ENV || "").trim().toLowerCase() === "test") {
+        return null;
+    }
+    const requestedProvider = inferProviderForModel("");
+    const providerOrder = requestedProvider === "anthropic"
+        ? ["anthropic", "openai"]
+        : ["openai", "anthropic"];
+    const availableProvider = providerOrder.find((provider) => hasUsableProviderApiKey(provider));
+    if (!availableProvider) {
+        return null;
+    }
+    const policyHints = activeEntities.slice(0, 10).map((entity) => ({
+        category: String(entity.category || ""),
+        displayText: String(entity.displayText || ""),
+        replacementValue: String(entity.replacementValue || ""),
+        action: String(entity.action || ""),
+        policyMode: String(entity.policyMode || "strict"),
+    }));
+    const response = await generateViaLocalProviders({
+        model: providerModelName(availableProvider),
+        reasoningEffort: "low",
+        maxTokens: 250,
+        temperature: 0,
+        tools: [],
+        messages: [
+            {
+                role: "CHAT_ROLE_SYSTEM",
+                content: [
+                    "You are a context-leakage sanitizer.",
+                    "Return JSON only.",
+                    'Schema: {"blocked":boolean,"sanitizedText":string,"category":string,"action":"rewrite|placeholder_redact|block|none","replacementValue":string,"confidence":number,"rationale":string}.',
+                    "Rewrite exact home/work addresses to coarse location such as City, ST when possible.",
+                    "Remove phone numbers or emails from research/search/recommendation requests when the request still makes sense.",
+                    "Block patient-identity, DOB, MRN, secrets, credentials, and financial/government identifiers.",
+                    "If no change is required, set action to none and sanitizedText to the input.",
+                ].join("\n"),
+            },
+            {
+                role: "CHAT_ROLE_USER",
+                content: JSON.stringify({
+                    toolName: String(context.toolName || ""),
+                    policyMode: String(context.policyMode || "strict"),
+                    policyHints,
+                    text: String(text ?? ""),
+                }),
+            },
+        ],
+    }).catch((error) => {
+        mapleLog("warn", "context_wall.semantic_sanitizer_failed", {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    });
+    const parsed = firstJsonObjectFromText(response?.message?.content || "");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return null;
+    }
+    const action = String(parsed.action || "none").trim().toLowerCase();
+    return {
+        blocked: parsed.blocked === true || action === "block",
+        sanitizedText: typeof parsed.sanitizedText === "string" ? parsed.sanitizedText : String(text ?? ""),
+        category: String(parsed.category || ""),
+        action,
+        replacementValue: String(parsed.replacementValue || ""),
+        confidence: Number(parsed.confidence || 0),
+        rationale: String(parsed.rationale || ""),
+    };
+}
+async function applyLeakagePolicyToText(text, context = {}, leakageStore) {
+    const tenantId = String(context.tenantId || "default");
+    const orgId = String(context.orgId || "default");
+    const activeEntities = leakageStore
+        ? await leakageStore.getActiveEntities({ tenantId, orgId }).catch(() => [])
+        : [];
+    const deterministic = sanitizeTextWithLeakagePolicy(text, activeEntities, {
+        toolName: context.toolName,
+        policyMode: resolveLeakagePolicyMode(activeEntities.map((entity) => entity.policyMode)),
+    });
+    let result = {
+        ...deterministic,
+        policyMode: resolveLeakagePolicyMode([
+            deterministic.matches.map((match) => match.policyMode),
+            activeEntities.map((entity) => entity.policyMode),
+        ].flat()),
+        rationale: deterministic.matches.length > 0 ? "Deterministic leakage policy match." : "",
+    };
+    if (!result.blocked && result.matches.length === 0 && shouldTrySemanticLeakageAssist(text, context.toolName)) {
+        const semantic = await generateSemanticLeakageDecision(text, {
+            toolName: context.toolName,
+            policyMode: result.policyMode,
+        }, activeEntities);
+        if (semantic && semantic.action !== "none" && semantic.confidence >= 0.55) {
+            result = {
+                blocked: semantic.blocked,
+                blockedReason: semantic.blocked
+                    ? semantic.rationale || `Sensitive ${semantic.category || "content"} blocked by semantic sanitizer.`
+                    : "",
+                modified: String(semantic.sanitizedText || "") !== String(text ?? ""),
+                sanitizedText: semantic.sanitizedText || String(text ?? ""),
+                matches: semantic.action === "none" ? [] : [{
+                    entityId: "",
+                    documentId: "",
+                    category: semantic.category || "semantic_sensitive_content",
+                    matchedText: "",
+                    redactedMatchedText: `[${String(semantic.category || "SENSITIVE").toUpperCase()}]`,
+                    action: semantic.action,
+                    replacementValue: semantic.replacementValue || "",
+                    source: "semantic",
+                    startIndex: 0,
+                    endIndex: 0,
+                    severity: semantic.blocked ? "high" : "medium",
+                    policyMode: result.policyMode,
+                }],
+                confidence: semantic.confidence,
+                policyMode: result.policyMode,
+                rationale: semantic.rationale || "Semantic leakage sanitizer rewrote or blocked the request.",
+            };
+        }
+    }
+    const redactedOriginalText = buildRedactedOriginalText(text, result.matches);
+    if (leakageStore && (result.matches.length > 0 || result.blocked || result.modified)) {
+        await recordLeakageEvent(leakageStore, {
+            tenantId,
+            orgId,
+            sessionId: context.sessionId || "",
+            runId: context.runId || "",
+            traceId: context.traceId || "",
+            toolName: context.toolName || "",
+            direction: context.direction || "prompt",
+            action: result.blocked ? "block" : result.modified ? "rewrite" : "monitor",
+            blocked: result.blocked === true,
+            documentId: result.matches.find((match) => match.documentId)?.documentId || "",
+            entityIds: result.matches.map((match) => match.entityId).filter(Boolean),
+            originalRedactedText: redactedOriginalText,
+            sanitizedText: result.sanitizedText,
+            reason: result.blockedReason || result.rationale || "",
+            confidence: Number(result.confidence || 0),
+        }, "context_wall.leakage_event_record_failed");
+    }
+    return {
+        ...result,
+        activeEntities,
+        redactedOriginalText,
+    };
+}
+async function applyLeakagePolicyToStructuredContent(value, context = {}, leakageStore) {
+    const tenantId = String(context.tenantId || "default");
+    const orgId = String(context.orgId || "default");
+    const activeEntities = leakageStore
+        ? await leakageStore.getActiveEntities({ tenantId, orgId }).catch(() => [])
+        : [];
+    const result = sanitizeStructuredContent(value, activeEntities, {
+        toolName: context.toolName,
+        policyMode: resolveLeakagePolicyMode(activeEntities.map((entity) => entity.policyMode)),
+    });
+    const redactedOriginalText = JSON.stringify({
+        redactedMatches: result.matches.map((match) => ({
+            category: match.category,
+            value: match.redactedMatchedText || redactDisplayValue(match.matchedText, match.category),
+            action: match.action,
+        })),
+    });
+    if (leakageStore && (result.matches.length > 0 || result.blocked || result.modified)) {
+        await recordLeakageEvent(leakageStore, {
+            tenantId,
+            orgId,
+            sessionId: context.sessionId || "",
+            runId: context.runId || "",
+            traceId: context.traceId || "",
+            toolName: context.toolName || "",
+            direction: context.direction || "outbound_tool_args",
+            action: result.blocked ? "block" : result.modified ? "rewrite" : "monitor",
+            blocked: result.blocked === true,
+            documentId: result.matches.find((match) => match.documentId)?.documentId || "",
+            entityIds: result.matches.map((match) => match.entityId).filter(Boolean),
+            originalRedactedText: redactedOriginalText,
+            sanitizedText: JSON.stringify(result.sanitizedContent ?? {}),
+            reason: result.blockedReason || "",
+            confidence: Number(result.confidence || 0),
+        }, "context_wall.leakage_structured_event_record_failed");
+    }
+    return {
+        ...result,
+        policyMode: resolveLeakagePolicyMode(activeEntities.map((entity) => entity.policyMode)),
+        redactedOriginalText,
+    };
+}
 function deriveScopeFromArguments(args, toolName = "") {
     const candidateUrl = typeof args.url === "string" ? args.url
         : typeof args.targetUrl === "string" ? args.targetUrl
@@ -441,10 +773,12 @@ function normalizeRequestContext(raw) {
         requestId: String(raw?.requestId || ""),
         sessionId: String(raw?.sessionId || ""),
         traceId: String(raw?.traceId || ""),
+        runId: String(raw?.runId || ""),
         userId: String(raw?.userId || ""),
         keyFingerprint: String(raw?.keyFingerprint || ""),
         sourceService: String(raw?.sourceService || ""),
         tenantId: String(raw?.tenantId || ""),
+        orgId: String(raw?.orgId || ""),
         deviceId: String(raw?.deviceId || ""),
     };
 }
@@ -570,8 +904,9 @@ function embedToolExecutionMetadata(resultJson, cyberReport) {
     }));
 }
 
-export function createContextWallService(approvalQueue, policyStore) {
+export function createContextWallService(approvalQueue, policyStore, options = {}) {
     const getExternalRules = () => policyStore?.getExternalRules();
+    const leakageStore = options?.leakageStore;
     const server = createGrpcServer();
     const executeToolWithPolicyInternal = async (request) => {
         const normalizedContext = normalizeRequestContext(request.context);
@@ -588,7 +923,57 @@ export function createContextWallService(approvalQueue, policyStore) {
         if (!parsedArgsResult.ok) {
             throw new Error("argumentsJson must be valid JSON");
         }
-        const parsedArgs = parsedArgsResult.value;
+        const leakageResult = await applyLeakagePolicyToStructuredContent(parsedArgsResult.value, {
+            ...normalizedContext,
+            toolName: `${appId}.${toolName}`,
+            direction: "outbound_tool_args",
+            runId: request.runId || "",
+        }, leakageStore);
+        if (leakageResult.blocked) {
+            const blockedReason = leakageResult.blockedReason || `Sensitive outbound content blocked for ${appId}.${toolName}.`;
+            await emitAuditEvent({
+                eventType: "AUDIT_EVENT_TYPE_POLICY_DENIED",
+                summary: `Context leakage blocked ${appId}.${toolName}`,
+                severity: "RISK_SEVERITY_HIGH",
+                traceId,
+                payload: {
+                    appId,
+                    toolName,
+                    targetUrl,
+                    sessionId,
+                    reason: blockedReason,
+                    leakageMatches: buildProtoLeakageMatches(leakageResult.matches),
+                },
+            }, { required: true });
+            return {
+                allowed: false,
+                blockedReason,
+                decision: toProtoPolicyDecision({
+                    enabled: true,
+                    action: "deny",
+                    shouldBlock: true,
+                    severity: "high",
+                    message: blockedReason,
+                    recommendation: "Remove the protected context or rely on the sanitized replacement.",
+                    rule: "context-leakage-block",
+                    redactedPatterns: leakageResult.matches.map((match) => `${match.category}:${match.redactedMatchedText || redactDisplayValue(match.matchedText, match.category)}`),
+                    evaluatedAt: new Date().toISOString(),
+                    defaultAction: "deny",
+                    step: undefined,
+                }),
+                success: false,
+                resultJson: Buffer.from(JSON.stringify({
+                    error: blockedReason,
+                    blocked: true,
+                    leakageMatches: buildProtoLeakageMatches(leakageResult.matches),
+                })),
+                errorMessage: blockedReason,
+                durationMs: 0,
+                appId,
+                toolName,
+            };
+        }
+        const parsedArgs = leakageResult.sanitizedContent ?? parsedArgsResult.value;
         const toolCallId = String(request.toolCallId ||
             `${traceId || "trace"}.${approvalStepIndex}.${appId}.${toolName}`);
         const candidateStep = withContextMetadata({
@@ -1016,8 +1401,8 @@ export function createContextWallService(approvalQueue, policyStore) {
             }
         },
         SanitizePrompt(call, callback) {
-            try {
-                const prompt = call.request.prompt || "";
+            (async () => {
+                const prompt = String(call.request.prompt || "");
                 const context = normalizeRequestContext(call.request.context);
                 // Run prompt injection detection
                 const injectionResult = detectPromptInjection(prompt);
@@ -1035,6 +1420,12 @@ export function createContextWallService(approvalQueue, policyStore) {
                         blocked: true,
                         blockedReason: `Prompt injection detected (confidence ${(injectionResult.confidence * 100).toFixed(0)}%)`,
                         injectionPatterns: injectionResult.matches.map(m => m.pattern),
+                        matches: [],
+                        policyMode: "strict",
+                        confidence: injectionResult.confidence,
+                        rationale: "Prompt injection detector blocked the request.",
+                        modified: false,
+                        redactedOriginalPrompt: "[PROMPT_INJECTION_BLOCKED]",
                     });
                     return;
                 }
@@ -1049,30 +1440,176 @@ export function createContextWallService(approvalQueue, policyStore) {
                     guardStatus: "pending",
                 }, context);
                 const decision = evaluateFirewallStep(syntheticStep, getExternalRules());
+                if (decision.shouldBlock) {
+                    const policyMode = "strict";
+                    const blockedText = String(decision.step?.prompt ?? prompt ?? "");
+                    const piiDetectorFindings = scanForPII(blockedText);
+                    const messagePatterns = decision.message && /PII\/PHI data detected/i.test(decision.message)
+                        ? String(decision.message)
+                            .match(/\(([^)]+)\)/)?.[1]
+                            ?.split(",")
+                            .map((value) => value.trim())
+                        : [];
+                    const detectorMatches = piiDetectorFindings.length > 0
+                        ? buildDetectorLeakageMatches(blockedText, piiDetectorFindings, {
+                            action: "block",
+                            policyMode,
+                            source: "detector",
+                        })
+                        : buildPatternLeakageMatches(messagePatterns, {
+                            action: "block",
+                            policyMode,
+                            source: "detector",
+                        });
+                    const redactedOriginalPrompt = detectorMatches.length > 0
+                        ? buildRedactedOriginalText(blockedText, detectorMatches)
+                        : "[POLICY_BLOCKED]";
+                    await recordLeakageEvent(leakageStore, {
+                        tenantId: context.tenantId || "default",
+                        orgId: context.orgId || "default",
+                        sessionId: context.sessionId || "",
+                        runId: context.runId || "",
+                        traceId: context.traceId || "",
+                        toolName: "",
+                        direction: "prompt_input",
+                        action: "block",
+                        blocked: true,
+                        documentId: detectorMatches.find((match) => match.documentId)?.documentId || "",
+                        entityIds: detectorMatches.map((match) => match.entityId).filter(Boolean),
+                        originalRedactedText: redactedOriginalPrompt,
+                        sanitizedText: "",
+                        reason: decision.message || "Prompt blocked by firewall policy.",
+                        confidence: 1,
+                    }, "context_wall.leakage_policy_block_event_record_failed");
+                    callback(null, {
+                        sanitizedPrompt: "",
+                        redactedPatterns: decision.redactedPatterns ?? [],
+                        hadSecrets: (decision.redactedPatterns ?? []).length > 0,
+                        blocked: true,
+                        blockedReason: decision.message || "Prompt blocked by firewall policy.",
+                        injectionPatterns: injectionResult.matches.map(m => m.pattern),
+                        matches: buildProtoLeakageMatches(detectorMatches),
+                        policyMode,
+                        confidence: 1,
+                        rationale: decision.recommendation || "",
+                        modified: false,
+                        redactedOriginalPrompt,
+                    });
+                    return;
+                }
                 let sanitizedPrompt = decision.step?.prompt ?? prompt;
+                const promptBeforePiiRedaction = String(sanitizedPrompt ?? "");
                 const allRedactedPatterns = [...(decision.redactedPatterns ?? [])];
                 // Run PII scan on the sanitized prompt text
                 const piiFindings = scanForPII(sanitizedPrompt);
+                const piiMatches = piiFindings.length > 0
+                    ? buildDetectorLeakageMatches(promptBeforePiiRedaction, piiFindings, {
+                        action: "placeholder_redact",
+                        policyMode: "strict",
+                        source: "detector",
+                    })
+                    : [];
                 if (piiFindings.length > 0) {
                     sanitizedPrompt = redactPII(sanitizedPrompt, piiFindings);
                     for (const f of piiFindings) {
                         allRedactedPatterns.push(`pii:${f.pattern}`);
                     }
                 }
-                mapleLog("debug", "context_wall_sanitize_prompt", { hadSecrets: allRedactedPatterns.length > 0, piiFindings: piiFindings.length });
+                const leakageResult = await applyLeakagePolicyToText(sanitizedPrompt, {
+                    ...context,
+                    direction: "prompt_input",
+                    toolName: "",
+                }, leakageStore);
+                const piiFallbackMatches = piiMatches.length > 0
+                    ? piiMatches
+                    : buildPatternLeakageMatches(allRedactedPatterns
+                        .filter((pattern) => String(pattern).startsWith("pii:"))
+                        .map((pattern) => String(pattern).slice(4)), {
+                        action: "placeholder_redact",
+                        policyMode: "strict",
+                        source: "detector",
+                    });
+                if (piiFindings.length > 0 && piiFallbackMatches.length > 0) {
+                    await recordLeakageEvent(leakageStore, {
+                        tenantId: context.tenantId || "default",
+                        orgId: context.orgId || "default",
+                        sessionId: context.sessionId || "",
+                        runId: context.runId || "",
+                        traceId: context.traceId || "",
+                        toolName: "",
+                        direction: "prompt_input",
+                        action: "rewrite",
+                        blocked: false,
+                        documentId: "",
+                        entityIds: piiFallbackMatches.map((match) => match.entityId).filter(Boolean),
+                        originalRedactedText: piiMatches.length > 0
+                            ? buildRedactedOriginalText(promptBeforePiiRedaction, piiMatches)
+                            : sanitizedPrompt,
+                        sanitizedText: sanitizedPrompt,
+                        reason: `Built-in PII redaction applied (${piiFindings.map((finding) => finding.pattern).join(", ")}).`,
+                        confidence: 1,
+                    }, "context_wall.pii_redaction_event_record_failed");
+                }
+                const effectivePromptMatches = leakageResult.matches.length > 0 ? leakageResult.matches : piiFallbackMatches;
+                mapleLog("debug", "context_wall_sanitize_prompt", {
+                    hadSecrets: allRedactedPatterns.length > 0,
+                    piiFindings: piiFindings.length,
+                    leakageMatches: leakageResult.matches.length,
+                    leakageBlocked: leakageResult.blocked,
+                });
                 callback(null, {
-                    sanitizedPrompt,
+                    sanitizedPrompt: leakageResult.blocked ? "" : leakageResult.sanitizedText,
                     redactedPatterns: allRedactedPatterns,
                     hadSecrets: allRedactedPatterns.length > 0,
-                    blocked: false,
-                    blockedReason: "",
+                    blocked: leakageResult.blocked === true,
+                    blockedReason: leakageResult.blocked ? leakageResult.blockedReason : "",
                     injectionPatterns: injectionResult.matches.map(m => m.pattern),
+                    matches: buildProtoLeakageMatches(effectivePromptMatches),
+                    policyMode: leakageResult.policyMode || "strict",
+                    confidence: Number(leakageResult.confidence || 0),
+                    rationale: leakageResult.rationale || "",
+                    modified: leakageResult.modified === true || effectivePromptMatches.length > 0,
+                    redactedOriginalPrompt: leakageResult.redactedOriginalText
+                        || (piiMatches.length > 0
+                            ? buildRedactedOriginalText(promptBeforePiiRedaction, piiMatches)
+                            : effectivePromptMatches.length > 0
+                                ? sanitizedPrompt
+                                : buildRedactedOriginalText(prompt, leakageResult.matches)),
                 });
-            }
-            catch (err) {
+            })().catch((err) => {
                 mapleLog("error", "context_wall_sanitize_prompt_failed", { error: err.message });
                 callback({ code: grpc.status.INTERNAL, message: err.message });
-            }
+            });
+        },
+        SanitizeStructuredContent(call, callback) {
+            (async () => {
+                const context = normalizeRequestContext(call.request.context);
+                const parsed = parseJsonObject(call.request.contentJson, {});
+                if (!parsed.ok) {
+                    callback({ code: grpc.status.INVALID_ARGUMENT, message: "contentJson must be valid JSON" });
+                    return;
+                }
+                const toolName = String(call.request.toolName || "");
+                const result = await applyLeakagePolicyToStructuredContent(parsed.value, {
+                    ...context,
+                    toolName,
+                    direction: "outbound_tool_args",
+                }, leakageStore);
+                callback(null, {
+                    allowed: result.blocked !== true,
+                    blockedReason: result.blocked ? result.blockedReason : "",
+                    sanitizedContentJson: Buffer.from(JSON.stringify(result.sanitizedContent ?? parsed.value)),
+                    modified: result.modified === true,
+                    matches: buildProtoLeakageMatches(result.matches),
+                    policyMode: result.policyMode || "strict",
+                    confidence: Number(result.confidence || 0),
+                    rationale: result.blockedReason || "",
+                    redactedOriginalText: result.redactedOriginalText || "",
+                });
+            })().catch((err) => {
+                mapleLog("error", "context_wall_sanitize_structured_content_failed", { error: err.message });
+                callback({ code: grpc.status.INTERNAL, message: err.message });
+            });
         },
         GetAllowedTools(call, callback) {
             try {
@@ -1147,6 +1684,20 @@ export function createContextWallService(approvalQueue, policyStore) {
                     });
                     return;
                 }
+                const leakageResult = await applyLeakagePolicyToText(decision.step?.prompt ?? latestPrompt, {
+                    ...requestContext,
+                    direction: "orchestrate_chat_input",
+                }, leakageStore);
+                if (leakageResult.blocked) {
+                    callback(null, {
+                        allowed: false,
+                        blockedReason: leakageResult.blockedReason || "Sensitive content blocked by context leakage policy.",
+                        reply: "",
+                        model: "",
+                        redactedPatterns: leakageResult.matches.map((match) => `${match.category}:${match.redactedMatchedText || redactDisplayValue(match.matchedText, match.category)}`),
+                    });
+                    return;
+                }
                 const requestTools = Array.isArray(call.request.tools) ? call.request.tools : [];
                 let rawTools = requestTools;
                 if (rawTools.length === 0) {
@@ -1178,7 +1729,7 @@ export function createContextWallService(approvalQueue, policyStore) {
                 }
                 const initialModelMessages = turns.map((t, idx) => {
                     const content = idx === latestUserTurnIndex
-                        ? (decision.step?.prompt ?? String(t.content ?? ""))
+                        ? (leakageResult.sanitizedText || (decision.step?.prompt ?? String(t.content ?? "")))
                         : String(t.content ?? "");
                     return {
                         role: toModelRole(String(t.role ?? "user")),
@@ -1348,6 +1899,42 @@ export function createContextWallService(approvalQueue, policyStore) {
                     return;
                 }
                 const payload = payloadParsed.value;
+                if (String(payload.method || "") === "tools/call" && payload.params && typeof payload.params === "object" && !Array.isArray(payload.params)) {
+                    const toolName = String(payload.params.name || "");
+                    const rawArgs = payload.params.arguments && typeof payload.params.arguments === "object" && !Array.isArray(payload.params.arguments)
+                        ? payload.params.arguments
+                        : {};
+                    const leakageResult = await applyLeakagePolicyToStructuredContent(rawArgs, {
+                        ...requestContext,
+                        toolName,
+                        direction: "jsonrpc_outbound",
+                    }, leakageStore);
+                    if (leakageResult.blocked) {
+                        const blockedReason = leakageResult.blockedReason || `Sensitive outbound content blocked for ${toolName || appId}.`;
+                        callback(null, {
+                            allowed: false,
+                            blockedReason,
+                            decision: toProtoPolicyDecision({
+                                enabled: true,
+                                action: "deny",
+                                shouldBlock: true,
+                                severity: "high",
+                                message: blockedReason,
+                                recommendation: "Remove the protected context or rely on the sanitized replacement.",
+                                rule: "context-leakage-block",
+                                redactedPatterns: leakageResult.matches.map((match) => `${match.category}:${match.redactedMatchedText || redactDisplayValue(match.matchedText, match.category)}`),
+                                evaluatedAt: new Date().toISOString(),
+                                defaultAction: "deny",
+                                step: undefined,
+                            }),
+                            success: false,
+                            responseJson: Buffer.from(JSON.stringify({ error: blockedReason })),
+                            errorMessage: blockedReason,
+                        });
+                        return;
+                    }
+                    payload.params.arguments = leakageResult.sanitizedContent ?? rawArgs;
+                }
                 const candidateStep = withContextMetadata({
                     index: 0,
                     timestamp: new Date().toISOString(),

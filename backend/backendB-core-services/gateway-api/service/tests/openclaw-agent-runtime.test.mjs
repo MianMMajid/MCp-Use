@@ -289,6 +289,112 @@ test("runOpenClawTurn mediates risky network prompts through downstream dispatch
   });
 });
 
+test("runOpenClawTurn sanitizes protected location context before mediated search dispatch", async () => {
+  await withFakeOpenClawBinary(async () => {
+    let dispatchCalled = false;
+    let sanitizerRunId = "";
+    const result = await runOpenClawTurn({
+      mode: "local",
+      devProfile: false,
+      sessionId: "sanitized-search-session",
+      message: "Ask people on reddit if there is a good restaurant where I live, I live at 2788 San Tomas Expy, Santa Clara, CA 95051.",
+    }, {
+      sanitizePromptImpl: async (_prompt, options) => {
+        sanitizerRunId = String(options?.runId || "");
+        return ({
+        sanitizedPrompt: "Ask people on reddit if there is a good restaurant where I live, I live at Santa Clara, CA.",
+        blocked: false,
+        blockedReason: "",
+        matches: [{ category: "address", redactedValue: "[ADDRESS:Santa Clara, CA]" }],
+        modified: true,
+        policyMode: "strict",
+        confidence: 0.9,
+        rationale: "Address generalized to coarse location.",
+        redactedOriginalPrompt: "Ask people on reddit if there is a good restaurant where I live, I live at [ADDRESS:Santa Clara, CA].",
+      });
+      },
+      sanitizeStructuredContentImpl: async (content) => ({
+        allowed: true,
+        blockedReason: "",
+        sanitizedContent: content,
+        modified: false,
+        matches: [],
+        policyMode: "strict",
+        confidence: 0.9,
+        rationale: "",
+        redactedOriginalText: JSON.stringify(content),
+      }),
+      resolveDispatchAppIdsImpl: () => ["default"],
+      dispatchDownstreamChainAndLogImpl: async (options) => {
+        dispatchCalled = true;
+        assert.equal(options.toolName, "web_search");
+        assert.equal(options.toolArgs.query, "site:reddit.com restaurants in Santa Clara, CA");
+        return {
+          ok: true,
+          blockedByPolicy: false,
+          finalResult: {
+            trace: { id: "trace-search", sessionId: "sanitized-search-session" },
+            preExecutionDecision: { shouldBlock: false, message: "allowed" },
+            dispatch: {
+              textPreview: "site:reddit.com results",
+              result: { ok: true },
+              cyberReport: { malware: false, quarantined: false, urlReputation: "allowed" },
+            },
+          },
+        };
+      },
+      execImpl: async () => {
+        throw new Error("OpenClaw CLI should not execute for sanitized mediated prompts.");
+      },
+    });
+
+    assert.equal(dispatchCalled, true);
+    assert.equal(sanitizerRunId.length > 0, true);
+    assert.equal(result.mode, "mediated");
+    const artifactsPayload = await getOpenClawRunArtifacts(result.runId);
+    assert.ok(artifactsPayload.artifacts.some((artifact) => artifact.artifactType === "context_leakage_prompt"));
+  });
+});
+
+test("runOpenClawTurn blocks prompts when context leakage sanitization blocks the request", async () => {
+  await withFakeOpenClawBinary(async () => {
+    let execCalled = false;
+    let sanitizerRunId = "";
+    const result = await runOpenClawTurn({
+      mode: "local",
+      devProfile: false,
+      sessionId: "blocked-sanitizer-session",
+      message: "Research this patient Jane Doe, DOB 01/01/1990, MRN 123456.",
+    }, {
+      sanitizePromptImpl: async (_prompt, options) => {
+        sanitizerRunId = String(options?.runId || "");
+        return ({
+        sanitizedPrompt: "",
+        blocked: true,
+        blockedReason: "Sensitive patient identity cannot be safely generalized.",
+        matches: [{ category: "medical_record_number", redactedValue: "[MRN]" }],
+        modified: false,
+        policyMode: "strict",
+        confidence: 1,
+        rationale: "PHI blocked in strict mode.",
+        redactedOriginalPrompt: "Research this patient [PATIENT], DOB [DOB], MRN [MRN].",
+      });
+      },
+      execImpl: async () => {
+        execCalled = true;
+        throw new Error("OpenClaw CLI should not execute when prompt sanitization blocks the turn.");
+      },
+    });
+
+    assert.equal(execCalled, false);
+    assert.equal(sanitizerRunId.length > 0, true);
+    assert.equal(result.mode, "context-wall");
+    assert.match(result.reply, /Sensitive patient identity/);
+    const artifactsPayload = await getOpenClawRunArtifacts(result.runId);
+    assert.ok(artifactsPayload.artifacts.some((artifact) => artifact.artifactType === "context_leakage_prompt"));
+  });
+});
+
 test("runOpenClawTurn mediates destructive prompts into filesystem intervention plans", async () => {
   await withFakeOpenClawBinary(async () => {
     let preflightCalled = false;

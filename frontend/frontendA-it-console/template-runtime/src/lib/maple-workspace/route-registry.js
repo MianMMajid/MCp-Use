@@ -178,8 +178,12 @@ const MAPLE_ROUTE_DEFINITIONS = [
     title: 'Policy Center',
     category: 'admin',
     tabLabel: 'Policy Center',
-    description: 'Policy operations surface (currently redirects to audit workflows).',
-    apiEndpoints: ['/api/policies/effective', '/api/policies/simulate', '/admin/api/policies'],
+    description: 'Manage context leakage policies, extracted entities, and runtime rewrite/block evidence.',
+    apiEndpoints: [
+      '/api/firewall/context-leakage/documents',
+      '/api/firewall/context-leakage/entities',
+      '/api/firewall/context-leakage/events',
+    ],
     preferredView: 'policy',
   },
   {

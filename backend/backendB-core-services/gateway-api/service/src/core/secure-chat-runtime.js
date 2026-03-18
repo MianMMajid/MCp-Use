@@ -53,6 +53,35 @@ async function evaluateMessagePolicy(message, direction, options = {}) {
   const clients = getGrpcClients();
   const grpcContext = buildGrpcContext(options);
 
+  if (direction === "input") {
+    try {
+      const response = await grpcUnaryProtected(clients.contextWall, "sanitizePrompt", {
+        prompt: message,
+        context: grpcContext,
+      }, { deadlineMs: 10_000 });
+      if (response?.blocked === true) {
+        return {
+          allowed: false,
+          content: message,
+          redacted: response?.redactedPatterns || [],
+          blockedReason: response?.blockedReason || "Message blocked by firewall policy.",
+          rule: "context-leakage",
+        };
+      }
+      return {
+        allowed: true,
+        content: response?.sanitizedPrompt || message,
+        redacted: response?.redactedPatterns || [],
+        decision: response?.modified ? "sanitized" : "allow",
+      };
+    } catch (err) {
+      mapleLog("warn", "secure_chat.prompt_sanitize_failed", {
+        error: err.message,
+        fallback: "evaluate_step",
+      });
+    }
+  }
+
   const step = {
     index: 0,
     timestamp: new Date().toISOString(),

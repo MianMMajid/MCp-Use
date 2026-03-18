@@ -119,6 +119,44 @@ message SanitizePromptResponse {
   bool blocked = 4;
   string blocked_reason = 5;
   repeated string injection_patterns = 6;
+  repeated ContextLeakageMatch matches = 7;
+  string policy_mode = 8;
+  double confidence = 9;
+  string rationale = 10;
+  bool modified = 11;
+  string redacted_original_prompt = 12;
+}
+
+message ContextLeakageMatch {
+  string entity_id = 1;
+  string document_id = 2;
+  string category = 3;
+  string redacted_value = 4;
+  string action = 5;
+  string replacement_value = 6;
+  string source = 7;
+  string severity = 8;
+  int32 start_index = 9;
+  int32 end_index = 10;
+}
+
+message SanitizeStructuredContentRequest {
+  bytes content_json = 1;
+  string tool_name = 2;
+  string origin_text = 3;
+  maple.common.v1.RequestContext context = 4;
+}
+
+message SanitizeStructuredContentResponse {
+  bool allowed = 1;
+  string blocked_reason = 2;
+  bytes sanitized_content_json = 3;
+  bool modified = 4;
+  repeated ContextLeakageMatch matches = 5;
+  string policy_mode = 6;
+  double confidence = 7;
+  string rationale = 8;
+  string redacted_original_text = 9;
 }
 
 message GetAllowedToolsRequest {
@@ -144,7 +182,6 @@ message OrchestrateChatRequest {
   double temperature = 5;
   int32 max_tokens = 6;
   repeated maple.common.v1.ToolInfo tools = 7;
-  string reasoning_effort = 8;
 }
 
 message OrchestrateChatResponse {
@@ -219,6 +256,7 @@ service ContextWallService {
   rpc ListPendingApprovals (ListPendingApprovalsRequest) returns (ListPendingApprovalsResponse);
   rpc AuditTrace (AuditTraceRequest) returns (AuditTraceResponse);
   rpc SanitizePrompt (SanitizePromptRequest) returns (SanitizePromptResponse);
+  rpc SanitizeStructuredContent (SanitizeStructuredContentRequest) returns (SanitizeStructuredContentResponse);
   rpc GetAllowedTools (GetAllowedToolsRequest) returns (GetAllowedToolsResponse);
   rpc OrchestrateChat (OrchestrateChatRequest) returns (OrchestrateChatResponse);
   rpc ExecuteToolWithPolicy (ExecuteToolWithPolicyRequest) returns (ExecuteToolWithPolicyResponse);

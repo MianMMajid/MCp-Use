@@ -19,6 +19,7 @@
     '/maple/hitl': 15000,
     '/maple/agent': 20000,
     '/maple/downstream': 30000,
+    '/maple/policies': 20000,
   })
 
   const ROUTE_REQUESTS = Object.freeze({
@@ -72,6 +73,11 @@
     '/maple/downstream': [
       ['downstreamApps', '/api/downstream/apps'],
     ],
+    '/maple/policies': [
+      ['leakageDocuments', '/api/firewall/context-leakage/documents'],
+      ['leakageEntities', '/api/firewall/context-leakage/entities?activeOnly=false'],
+      ['leakageEvents', '/api/firewall/context-leakage/events?limit=100'],
+    ],
     '/maple/demo': [],
     '/maple/tenants': [
       ['tenantBindings', '/api/operations/orchestrations/tenant-bindings'],
@@ -108,6 +114,10 @@
     toolName: '',
     payload: '{"query":"OpenAI GPT-5.4","maxResults":3}',
   }
+  let leakagePolicyMode = 'strict'
+  let leakageInlineText = ''
+  let leakageInlineName = 'context-policy.txt'
+  let leakageFileInput
   let agentMode = 'turn'
   let agentPrompt = ''
   let agentReply = null
@@ -127,6 +137,9 @@
   $: interventionPlans = pickItems(state.filesystemMutations?.value)
   $: agentSessions = pickItems(state.agentSessions?.value, ['sessions', 'items'])
   $: downstreamApps = pickItems(state.downstreamApps?.value, ['apps', 'items'])
+  $: leakageDocuments = pickItems(state.leakageDocuments?.value)
+  $: leakageEntities = pickItems(state.leakageEntities?.value)
+  $: leakageEvents = pickItems(state.leakageEvents?.value)
   $: selectedPlan = interventionPlans.find((item) => item.planId === selectedPlanId) ?? selectedPlan
   $: if (!selectedPlanId && interventionPlans.length > 0) {
     selectedPlanId = interventionPlans[0].planId
@@ -430,6 +443,65 @@
         arguments: argumentsPayload,
       }),
     )
+  }
+
+  async function handleLeakageUpload() {
+    busy = 'leakage:upload'
+    error = ''
+    notice = ''
+    try {
+      const formData = new FormData()
+      formData.append('policyMode', leakagePolicyMode)
+      if (leakageInlineText.trim()) {
+        formData.append('name', leakageInlineName || 'context-policy.txt')
+        formData.append('text', leakageInlineText)
+      }
+      const files = leakageFileInput?.files ? Array.from(leakageFileInput.files) : []
+      for (const file of files) {
+        formData.append('documents', file)
+      }
+      const response = await fetch('/api/firewall/context-leakage/documents', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: formData,
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error || `/api/firewall/context-leakage/documents -> ${response.status}`)
+      }
+      leakageInlineText = ''
+      if (leakageFileInput) {
+        leakageFileInput.value = ''
+      }
+      notice = `Stored ${payload?.documents?.length ?? 0} context leakage document(s).`
+      await refresh()
+    } catch (requestError) {
+      error = requestError instanceof Error ? requestError.message : String(requestError)
+    } finally {
+      busy = ''
+    }
+  }
+
+  async function deleteLeakageDocument(documentId) {
+    await runAction(`leakage:document:${documentId}:delete`, async () => {
+      const response = await fetch(`/api/firewall/context-leakage/documents/${encodeURIComponent(documentId)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error || `DELETE context leakage document -> ${response.status}`)
+      }
+      notice = 'Context leakage document deleted.'
+    })
+  }
+
+  async function updateLeakageEntity(entityId, body) {
+    await runAction(`leakage:entity:${entityId}`, async () => {
+      await sendJson(fetch, `/api/firewall/context-leakage/entities/${encodeURIComponent(entityId)}/mode`, body)
+      notice = 'Context leakage entity updated.'
+    })
   }
 
   async function runDemo(action) {
@@ -936,6 +1008,122 @@
         <button type="button" class="action-btn primary" disabled={Boolean(busy) || !downstreamDispatch.appId || !downstreamDispatch.toolName} on:click={handleDownstreamDispatch}>
           Dispatch
         </button>
+      </div>
+    </article>
+  </section>
+{:else if routePath === '/maple/policies'}
+  <section class="docs-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Context Leakage Intake</h2>
+        <span class="chip">{leakagePolicyMode}</span>
+      </div>
+      <label>
+        <span class="mono">Mode</span>
+        <select class="select" bind:value={leakagePolicyMode}>
+          <option value="strict">strict</option>
+          <option value="review">review</option>
+          <option value="monitor">monitor</option>
+        </select>
+      </label>
+      <label>
+        <span class="mono">Inline doc name</span>
+        <input class="input" bind:value={leakageInlineName} />
+      </label>
+      <label>
+        <span class="mono">Policy text</span>
+        <textarea
+          class="textarea firewall-json-editor"
+          bind:value={leakageInlineText}
+          placeholder="Avoid: My address: 2788 San Tomas Expy, Santa Clara, CA 95051"
+          spellcheck="false"
+        ></textarea>
+      </label>
+      <label>
+        <span class="mono">Upload files</span>
+        <input bind:this={leakageFileInput} type="file" multiple />
+      </label>
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={handleLeakageUpload}>
+          Store docs
+        </button>
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Documents</h2>
+        <span class="chip">{leakageDocuments.length}</span>
+      </div>
+      <div class="stack-list">
+        {#if leakageDocuments.length === 0}
+          <p class="empty-row">No active context leakage documents uploaded yet.</p>
+        {:else}
+          {#each leakageDocuments as item}
+            <div class="list-card static">
+              <strong>{item.fileName ?? item.documentId}</strong>
+              <span>{item.policyMode ?? 'strict'} · {formatDate(item.createdAt)} · active={String(item.isActive ?? true)}</span>
+              <div class="actions">
+                <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => deleteLeakageDocument(item.documentId)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Extracted Entities</h2>
+        <span class="chip">{leakageEntities.length}</span>
+      </div>
+      <div class="stack-list">
+        {#if leakageEntities.length === 0}
+          <p class="empty-row">Extracted protected entities appear here after upload.</p>
+        {:else}
+          {#each leakageEntities as item}
+            <div class="list-card static">
+              <strong>{item.displayText ?? item.category}</strong>
+              <span>{item.category} · {item.action} · {item.replacementValue || '--'} · active={String(item.isActive ?? true)}</span>
+              <div class="actions">
+                <select class="select" value={item.policyMode ?? 'strict'} on:change={(event) => updateLeakageEntity(item.entityId, { policyMode: event.currentTarget.value })}>
+                  <option value="strict">strict</option>
+                  <option value="review">review</option>
+                  <option value="monitor">monitor</option>
+                </select>
+                <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => updateLeakageEntity(item.entityId, { isActive: !(item.isActive ?? true) })}>
+                  {item.isActive === false ? 'Activate' : 'Deactivate'}
+                </button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Enforcement Events</h2>
+        <span class="chip">{leakageEvents.length}</span>
+      </div>
+      <div class="stack-list">
+        {#if leakageEvents.length === 0}
+          <p class="empty-row">No rewrite or block events recorded yet.</p>
+        {:else}
+          {#each leakageEvents as item}
+            <div class="list-card static">
+              <strong>{item.action} · {item.direction || 'prompt'}</strong>
+              <span>session={item.sessionId || '--'} · run={item.runId || '--'} · trace={item.traceId || '--'} · tool={item.toolName || '--'}</span>
+              <pre class="mono panel-json">{JSON.stringify({
+                originalRedactedText: item.originalRedactedText,
+                sanitizedText: item.sanitizedText,
+                blocked: item.blocked,
+                reason: item.reason,
+                confidence: item.confidence,
+                entityIds: item.entityIds,
+              }, null, 2)}</pre>
+            </div>
+          {/each}
+        {/if}
       </div>
     </article>
   </section>

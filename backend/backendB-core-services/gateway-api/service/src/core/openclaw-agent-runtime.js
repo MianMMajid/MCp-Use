@@ -32,7 +32,9 @@ import {
 import { asString } from "../helpers.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { currentRequestContext, mapleLog } from "../logging.js";
-import { database } from "../state.js";
+import { authContextStorage } from "../auth.js";
+import { grpcUnary } from "../grpc-clients.js";
+import { database, getGrpcClients } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
 import { persistRunArtifactsAsEvidence } from "./cyber-security-service.js";
 import { dispatchDownstreamChainAndLog, resolveDispatchAppIds } from "../firewall-proxy.js";
@@ -397,12 +399,12 @@ function emitSessionEvent(sessionId, eventType, payload = {}) {
   return event;
 }
 
-async function createRunRecord({ type, sessionId, input, parentRunId }) {
+async function createRunRecord({ runId, type, sessionId, input, parentRunId }) {
   const session = ensureSessionRecord(sessionId);
-  const runId = randomUUID();
+  const effectiveRunId = asString(runId) || randomUUID();
   const createdAt = nowIso();
   const run = {
-    runId,
+    runId: effectiveRunId,
     type: String(type ?? "turn"),
     sessionId: session.sessionId,
     status: "running",
@@ -416,26 +418,26 @@ async function createRunRecord({ type, sessionId, input, parentRunId }) {
     childRunIds: [],
   };
   evictOldest(runStore, MAX_RUNS);
-  runStore.set(runId, run);
+  runStore.set(effectiveRunId, run);
 
   if (parentRunId) {
     const parent = runStore.get(parentRunId);
     if (parent) {
-      parent.childRunIds.push(runId);
+      parent.childRunIds.push(effectiveRunId);
       await persistRunRecord(parent).catch(() => {});
     }
   }
 
   session.status = "running";
   session.updatedAt = createdAt;
-  session.lastRunId = runId;
+  session.lastRunId = effectiveRunId;
   session.lastError = "";
   session.cancelRequested = false;
-  session.runIds.push(runId);
+  session.runIds.push(effectiveRunId);
   await persistRunRecord(run).catch(() => {});
   await persistSessionRecord(session).catch(() => {});
   emitSessionEvent(session.sessionId, "run_started", {
-    runId,
+    runId: effectiveRunId,
     type: run.type,
     parentRunId: run.parentRunId,
   });
@@ -766,8 +768,43 @@ function extractWikipediaTitle(message) {
 }
 
 function extractSearchQuery(message) {
-  const match = String(message ?? "").match(/(?:search for|look up|research|find information on|find info on)\s+(.+?)(?:\s+(?:and|then)\b|$)/i);
+  const match = String(message ?? "").match(/(?:search for|look up|research|find information on|find info on|google|ask online|ask people on reddit about|ask reddit about)\s+(.+?)(?:\s+(?:and|then)\b|$)/i);
   return match ? sanitizePromptSubject(match[1]) : "";
+}
+
+function extractLocationHint(message) {
+  const directCityState = String(message ?? "").match(/\b([A-Z][A-Za-z.\- ]+,\s*[A-Z]{2})\b/);
+  if (directCityState) {
+    return sanitizePromptSubject(
+      directCityState[1].replace(/^(?:I live at|live at|at|where I live in)\s+/i, ""),
+    );
+  }
+  const inLocation = String(message ?? "").match(/\b(?:in|near|around)\s+([A-Z][A-Za-z.\- ]+(?:,\s*[A-Z]{2})?)/);
+  if (inLocation) {
+    return sanitizePromptSubject(
+      inLocation[1].replace(/^(?:I live at|live at|at)\s+/i, ""),
+    );
+  }
+  return "";
+}
+
+function buildRecommendationQuery(message) {
+  const normalized = String(message ?? "");
+  const location = extractLocationHint(normalized);
+  const wantsReddit = /\breddit\b/i.test(normalized);
+  if (/\brestaurant|restaurants|eat|dining|food\b/i.test(normalized)) {
+    const base = location ? `restaurants in ${location}` : "restaurants";
+    return wantsReddit ? `site:reddit.com ${base}` : base;
+  }
+  if (/\brecommend|recommendation|best\b/i.test(normalized) && location) {
+    const base = `recommendations in ${location}`;
+    return wantsReddit ? `site:reddit.com ${base}` : base;
+  }
+  if (/\bwhere i live|near me|local service|around here\b/i.test(normalized) && location) {
+    const base = `recommendations in ${location}`;
+    return wantsReddit ? `site:reddit.com ${base}` : base;
+  }
+  return "";
 }
 
 function extractFilesystemPath(message) {
@@ -782,6 +819,148 @@ function extractFilesystemPath(message) {
     .map((value) => String(value ?? "").trim())
     .filter((value) => value && !/^https?:\/\//i.test(value));
   return normalized[0] || "";
+}
+
+function buildContextWallRequestContext(overrides = {}) {
+  const requestContext = currentRequestContext() ?? {};
+  const authContext = authContextStorage.getStore?.() ?? {};
+  const tenantId = asString(overrides.tenantId || requestContext.tenantId || authContext.tenantId || "default");
+  const orgId = asString(overrides.orgId || requestContext.orgId || authContext.orgId || "default");
+  return {
+    requestId: asString(overrides.requestId || requestContext.requestId || ""),
+    sessionId: asString(overrides.sessionId || requestContext.sessionId || ""),
+    traceId: asString(overrides.traceId || requestContext.traceId || ""),
+    runId: asString(overrides.runId || requestContext.runId || ""),
+    userId: asString(overrides.userId || authContext.userId || requestContext.userId || "frontend-b-demo-user"),
+    keyFingerprint: asString(authContext.keyFingerprint || ""),
+    sourceService: "gateway-api",
+    tenantId,
+    deviceId: asString(overrides.deviceId || requestContext.deviceId || "frontend-b"),
+    orgId,
+  };
+}
+
+function getContextWallClient() {
+  return getGrpcClients()?.contextWall ?? null;
+}
+
+async function sanitizePromptViaContextWall(prompt, options = {}, dependencies = {}) {
+  if (typeof dependencies.sanitizePromptImpl === "function") {
+    return dependencies.sanitizePromptImpl(prompt, options);
+  }
+  const contextWall = getContextWallClient();
+  if (!contextWall) {
+    return {
+      sanitizedPrompt: prompt,
+      blocked: false,
+      blockedReason: "",
+      matches: [],
+      modified: false,
+      policyMode: "strict",
+      confidence: 0,
+      rationale: "",
+      redactedOriginalPrompt: prompt,
+    };
+  }
+  const response = await grpcUnary(contextWall, "sanitizePrompt", {
+    prompt,
+    context: buildContextWallRequestContext(options),
+  }, { deadlineMs: 10000 });
+  const hasSanitizedPrompt = typeof response?.sanitizedPrompt === "string";
+  const hasRedactedOriginalPrompt = typeof response?.redactedOriginalPrompt === "string";
+  return {
+    sanitizedPrompt: hasSanitizedPrompt ? String(response.sanitizedPrompt) : prompt,
+    blocked: response?.blocked === true,
+    blockedReason: String(response?.blockedReason || ""),
+    matches: Array.isArray(response?.matches) ? response.matches : [],
+    modified: response?.modified === true,
+    policyMode: String(response?.policyMode || "strict"),
+    confidence: Number(response?.confidence || 0),
+    rationale: String(response?.rationale || ""),
+    redactedOriginalPrompt: hasRedactedOriginalPrompt ? String(response.redactedOriginalPrompt) : prompt,
+  };
+}
+
+async function sanitizeStructuredContentViaContextWall(content, options = {}, dependencies = {}) {
+  if (typeof dependencies.sanitizeStructuredContentImpl === "function") {
+    return dependencies.sanitizeStructuredContentImpl(content, options);
+  }
+  const contextWall = getContextWallClient();
+  if (!contextWall) {
+    return {
+      allowed: true,
+      blockedReason: "",
+      sanitizedContent: content,
+      modified: false,
+      matches: [],
+      policyMode: "strict",
+      confidence: 0,
+      rationale: "",
+      redactedOriginalText: JSON.stringify(content ?? {}),
+    };
+  }
+  const response = await grpcUnary(contextWall, "sanitizeStructuredContent", {
+    contentJson: Buffer.from(JSON.stringify(content ?? {})),
+    toolName: asString(options.toolName || ""),
+    originText: asString(options.originText || ""),
+    context: buildContextWallRequestContext(options),
+  }, { deadlineMs: 10000 });
+  let sanitizedContent = content;
+  try {
+    sanitizedContent = JSON.parse(Buffer.from(response?.sanitizedContentJson ?? Buffer.from("{}")).toString("utf8"));
+  } catch {
+    sanitizedContent = content;
+  }
+  return {
+    allowed: response?.allowed !== false,
+    blockedReason: String(response?.blockedReason || ""),
+    sanitizedContent,
+    modified: response?.modified === true,
+    matches: Array.isArray(response?.matches) ? response.matches : [],
+    policyMode: String(response?.policyMode || "strict"),
+    confidence: Number(response?.confidence || 0),
+    rationale: String(response?.rationale || ""),
+    redactedOriginalText: String(response?.redactedOriginalText || JSON.stringify(content ?? {})),
+  };
+}
+
+function leakageArtifactFromPrompt(sanitizedPrompt, originalPrompt) {
+  return {
+    artifactType: "context_leakage_prompt",
+    filename: "context-leakage-prompt.json",
+    contentType: "application/json",
+    content: {
+      originalRedactedPrompt: sanitizedPrompt.redactedOriginalPrompt || originalPrompt,
+      sanitizedPrompt: sanitizedPrompt.sanitizedPrompt,
+      blocked: sanitizedPrompt.blocked === true,
+      blockedReason: sanitizedPrompt.blockedReason || "",
+      modified: sanitizedPrompt.modified === true,
+      matches: sanitizedPrompt.matches ?? [],
+      policyMode: sanitizedPrompt.policyMode || "strict",
+      confidence: Number(sanitizedPrompt.confidence || 0),
+      rationale: sanitizedPrompt.rationale || "",
+    },
+  };
+}
+
+function leakageArtifactFromToolArgs(result, toolName, originalArgs) {
+  return {
+    artifactType: "context_leakage_outbound",
+    filename: `context-leakage-${toolName || "tool"}.json`,
+    contentType: "application/json",
+    content: {
+      toolName,
+      blocked: result.allowed === false,
+      blockedReason: result.blockedReason || "",
+      modified: result.modified === true,
+      matches: result.matches ?? [],
+      policyMode: result.policyMode || "strict",
+      confidence: Number(result.confidence || 0),
+      redactedOriginalText: result.redactedOriginalText || JSON.stringify(originalArgs ?? {}),
+      sanitizedContent: result.sanitizedContent ?? originalArgs ?? {},
+      rationale: result.rationale || "",
+    },
+  };
 }
 
 function inferPromptMediation(message) {
@@ -826,6 +1005,19 @@ function inferPromptMediation(message) {
         maxResults: 5,
       },
       summary: `Web search for ${searchQuery}`,
+    };
+  }
+
+  const recommendationQuery = buildRecommendationQuery(normalized);
+  if (recommendationQuery) {
+    return {
+      kind: "mediated_network",
+      toolName: "web_search",
+      toolArgs: {
+        query: recommendationQuery,
+        maxResults: 5,
+      },
+      summary: `Recommendation search for ${recommendationQuery}`,
     };
   }
 
@@ -997,11 +1189,58 @@ async function maybeRunMediatedTurn(run, options = {}, dependencies = {}) {
         includeDefaultExecutionOrder: true,
       });
 
+  const sanitizedToolArgs = await sanitizeStructuredContentViaContextWall(intent.toolArgs, {
+    sessionId: run.sessionId,
+    traceId: mediationTraceId,
+    tenantId,
+    orgId,
+    userId,
+    deviceId,
+    toolName: intent.toolName,
+    originText: asString(options.message),
+  }, dependencies);
+  if (sanitizedToolArgs.allowed === false) {
+    const mediationPayload = {
+      kind: "mediated_network",
+      ok: false,
+      toolName: intent.toolName,
+      appIds,
+      traceId: mediationTraceId,
+      sessionId: run.sessionId,
+      runId: run.runId,
+      error: sanitizedToolArgs.blockedReason || "Sensitive outbound tool arguments blocked by context leakage policy.",
+      blockedByPolicy: true,
+      policy: {
+        action: "deny",
+        rule: "context-leakage-block",
+        message: sanitizedToolArgs.blockedReason || "Sensitive outbound tool arguments blocked by context leakage policy.",
+      },
+      cyberReport: null,
+    };
+    return {
+      reply: buildMediationReply(mediationPayload),
+      raw: {
+        mediation: mediationPayload,
+      },
+      artifacts: [
+        leakageArtifactFromToolArgs(sanitizedToolArgs, intent.toolName, intent.toolArgs),
+        {
+          artifactType: "network_mediation",
+          filename: `network-mediation-${run.runId}.json`,
+          contentType: "application/json",
+          traceId: mediationPayload.traceId,
+          url: intent.toolArgs?.url || "",
+          content: mediationPayload,
+        },
+      ],
+    };
+  }
+
   const chainResult = await (dependencies.dispatchDownstreamChainAndLogImpl ?? dispatchDownstreamChainAndLog)({
     appIds,
     toolName: intent.toolName,
     toolArgs: {
-      ...intent.toolArgs,
+      ...(sanitizedToolArgs.sanitizedContent ?? intent.toolArgs),
       runId: run.runId,
     },
     sessionId: run.sessionId,
@@ -1036,6 +1275,9 @@ async function maybeRunMediatedTurn(run, options = {}, dependencies = {}) {
       mediation: mediationPayload,
     },
     artifacts: [
+      ...(sanitizedToolArgs.modified
+        ? [leakageArtifactFromToolArgs(sanitizedToolArgs, intent.toolName, intent.toolArgs)]
+        : []),
       {
         artifactType: "network_mediation",
         filename: `network-mediation-${run.runId}.json`,
@@ -1244,24 +1486,73 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
   }
   const requestedSessionId =
     asString(options.sessionId) ?? openclawAgentDefaultSessionId;
+  const requestContext = currentRequestContext() ?? {};
+  const preallocatedRunId = randomUUID();
+  const promptSanitization = await sanitizePromptViaContextWall(message, {
+    runId: preallocatedRunId,
+    sessionId: requestedSessionId,
+    traceId: asString(requestContext.traceId || ""),
+    tenantId: asString(options.tenantId || requestContext.tenantId || "default"),
+    orgId: asString(options.orgId || requestContext.orgId || "default"),
+    userId: asString(options.userId || requestContext.userId || "frontend-b-demo-user"),
+    deviceId: asString(options.deviceId || requestContext.deviceId || "frontend-b"),
+  }, dependencies);
+  const sanitizedMessage = promptSanitization.blocked ? "" : asString(promptSanitization.sanitizedPrompt || message) || message;
   const run = await createRunRecord({
+    runId: preallocatedRunId,
     type: "turn",
     sessionId: requestedSessionId,
     parentRunId: asString(options.parentRunId) || null,
     input: {
-      message,
+      message: sanitizedMessage || promptSanitization.redactedOriginalPrompt || "",
       mode: resolved.mode,
       deliver: options.deliver === true,
       agentId: asString(options.agentId) || null,
+      sanitized: promptSanitization.modified === true || promptSanitization.blocked === true,
     },
   });
+  const promptSanitizationArtifact = leakageArtifactFromPrompt(promptSanitization, message);
+  if (promptSanitization.blocked) {
+    const resultPayload = {
+      mode: "context-wall",
+      sessionId: run.sessionId,
+      reply: promptSanitization.blockedReason || "Maple blocked the request because it contained protected context.",
+      raw: {
+        policy: {
+          blocked: true,
+          reason: promptSanitization.blockedReason || "",
+          matches: promptSanitization.matches ?? [],
+        },
+      },
+    };
+    await completeRunRecord(run, resultPayload, [
+      promptSanitizationArtifact,
+      {
+        artifactType: "reply",
+        content: resultPayload.reply,
+      },
+      {
+        artifactType: "raw",
+        content: resultPayload.raw,
+      },
+    ]);
+    mapleLog("info", "openclaw_agent.turn_complete", {
+      mode: "context-wall-blocked",
+      sessionId: run.sessionId,
+      replyChars: resultPayload.reply.length,
+    });
+    return {
+      ...resultPayload,
+      runId: run.runId,
+    };
+  }
   if (isSessionCancelRequested(run.sessionId)) {
     await completeRunRecord(run, { canceled: true }, []);
     throw new Error("OpenClaw session was canceled.");
   }
   const args = buildOpenClawAgentArgs({
     ...options,
-    message,
+    message: sanitizedMessage,
     sessionId: run.sessionId,
     mode: resolved.mode,
     devProfile: resolved.devProfile,
@@ -1275,7 +1566,10 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
   const execImpl = dependencies.execImpl ?? execFileAsync;
 
   try {
-    const mediated = await maybeRunMediatedTurn(run, options, dependencies);
+    const mediated = await maybeRunMediatedTurn(run, {
+      ...options,
+      message: sanitizedMessage,
+    }, dependencies);
     if (mediated) {
       const resultPayload = {
         mode: "mediated",
@@ -1284,6 +1578,7 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
         raw: mediated.raw,
       };
       await completeRunRecord(run, resultPayload, [
+        ...(promptSanitization.modified || (promptSanitization.matches?.length ?? 0) > 0 ? [promptSanitizationArtifact] : []),
         {
           artifactType: "reply",
           content: mediated.reply,
@@ -1334,6 +1629,7 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
       raw: parsed.parsed ?? null,
     };
     await completeRunRecord(run, resultPayload, [
+      ...(promptSanitization.modified || (promptSanitization.matches?.length ?? 0) > 0 ? [promptSanitizationArtifact] : []),
       {
         artifactType: "reply",
         content: parsed.reply,

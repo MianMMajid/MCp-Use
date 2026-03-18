@@ -1,6 +1,6 @@
 import { startGrpcServer, gracefulShutdown, mapleLog } from "@maple/common";
 import { createServer as createHttpServer } from "node:http";
-import { PolicyStore } from "@maple/security";
+import { PolicyStore, ContextLeakageStore } from "@maple/security";
 import { ApprovalQueue } from "./approval-queue.js";
 import { PolicyStorePg } from "./policy-store-pg.js";
 import { createContextWallService, closeContextWallClients } from "./service.js";
@@ -42,6 +42,7 @@ async function main() {
     await policyStore.initialize();
     // Load persisted policies from PostgreSQL if available
     let policyStorePg;
+    let leakageStore;
     if (config.databaseUrl) {
         try {
             policyStorePg = new PolicyStorePg();
@@ -51,6 +52,15 @@ async function main() {
             mapleLog("warn", "context_wall_policy_pg_init_failed", { error: err.message });
             policyStorePg = undefined;
         }
+        try {
+            leakageStore = new ContextLeakageStore({ databaseUrl: config.databaseUrl });
+            await leakageStore.initialize();
+            mapleLog("info", "context_wall_leakage_store_initialized");
+        }
+        catch (err) {
+            mapleLog("warn", "context_wall_leakage_store_init_failed", { error: err.message });
+            leakageStore = undefined;
+        }
     }
     policyStore.onReload((result) => {
         mapleLog("info", "context_wall_policy_reloaded", {
@@ -59,11 +69,18 @@ async function main() {
             error: result.error,
         });
     });
-    const server = createContextWallService(approvalQueue, policyStore);
+    const server = createContextWallService(approvalQueue, policyStore, {
+        leakageStore,
+    });
     await startGrpcServer(server, { port: config.port, host: config.host, serviceName: "context-wall" });
     serviceReady = true;
     mapleLog("info", "context_wall_ready");
-    gracefulShutdown(server, "context-wall", () => closeContextWallClients());
+    gracefulShutdown(server, "context-wall", async () => {
+        closeContextWallClients();
+        if (leakageStore?.destroy) {
+            await leakageStore.destroy().catch(() => {});
+        }
+    });
 }
 main().catch((err) => {
     mapleLog("error", "context_wall_fatal", { error: err.message });

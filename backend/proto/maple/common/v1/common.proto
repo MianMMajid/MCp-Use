@@ -156,6 +156,8 @@ message RequestContext {
   string source_service = 6;
   string tenant_id = 7;
   string device_id = 8;
+  string org_id = 9;
+  string run_id = 10;
 }
 
 message ErrorDetail {
