@@ -145,10 +145,12 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
   await page.goto('/firewalls');
   await page.getByPlaceholder('Payroll Policy').fill('Ops Agent Firewall');
   await page.getByPlaceholder('Finance').fill('Operations');
+  await page.getByRole('button', { name: 'Next: Define Policy' }).click();
   await page.getByPlaceholder(/version: 1/).fill(
     'version: 1\nrules:\n  allowedTools:\n    - status\n  blockedTargetProfiles:\n    - root'
   );
-  await page.getByRole('button', { name: 'Activate Firewall' }).click();
+  await page.getByRole('button', { name: 'Next: Review' }).click();
+  await page.getByRole('button', { name: 'Deploy Firewall' }).click();
 
   await expect(page.getByRole('heading', { name: 'Ops Agent Firewall' })).toBeVisible();
   await page.getByRole('button', { name: 'Versions' }).click();

@@ -89,8 +89,8 @@
 .mw-source-badge {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(215, 104, 25, 0.35);
-  background: rgba(255, 245, 232, 0.9);
+  border: 1px solid var(--brand-tint-border);
+  background: var(--surface-warm);
   border-radius: var(--radius-pill);
   padding: 0.2rem 0.55rem;
   font-size: var(--text-2xs);
@@ -156,7 +156,7 @@
 }
 
 .mw-category-pill-active {
-  border-color: rgba(215, 104, 25, 0.48);
+  border-color: var(--brand-tint-border);
   background: var(--caution-soft, rgba(217, 119, 6, 0.08));
   color: var(--mw-ink);
 }
@@ -194,10 +194,10 @@
 }
 
 .mw-view-tab-active {
-  border-color: rgba(215, 104, 25, 0.6);
+  border-color: var(--brand-tint-border);
   background: var(--panel, #fff);
   color: var(--mw-ink);
-  box-shadow: inset 0 0 0 1px rgba(215, 104, 25, 0.15);
+  box-shadow: inset 0 0 0 1px var(--brand-tint);
 }
 
 .mw-view-tab-label {
@@ -317,7 +317,7 @@
 }
 
 .mw-context-explainer-reco {
-  border-top: 1px solid rgba(229, 215, 199, 0.6);
+  border-top: 1px solid var(--border-warm);
   padding-top: 0.5rem;
 }
 
@@ -352,7 +352,7 @@
 }
 
 .mw-intervention-compact {
-  background: rgba(255, 252, 248, 0.95);
+  background: var(--surface-warm);
 }
 
 .mw-intervention-header {
@@ -390,7 +390,7 @@
 
 .mw-intervention-inputs input,
 .mw-intervention-inputs textarea {
-  border: 1px solid rgba(229, 215, 199, 0.95);
+  border: 1px solid var(--border-warm-strong);
   background: var(--panel, #fff);
   color: var(--mw-ink);
   border-radius: var(--radius-md);
@@ -409,7 +409,7 @@
 }
 
 .mw-intervention-action {
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid var(--brand-tint-strong);
   background: var(--bg-soft, #f4f4f5);
   color: var(--mw-ink);
   border-radius: var(--radius-md);

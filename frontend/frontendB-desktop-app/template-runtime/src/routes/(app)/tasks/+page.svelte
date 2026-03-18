@@ -416,16 +416,16 @@
   h2 { font-size: 0.98rem; }
   .muted { margin: 0; color: var(--muted); font-size: 12px; }
 
-  .builder { display: grid; gap: 12px; grid-template-columns: 1fr 1.2fr; }
+  .builder { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   .column { border: 1px solid var(--row-border); border-radius: 14px; background: var(--row-bg); padding: 10px; display: grid; gap: 8px; align-content: start; }
-  label span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
+  label span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; }
   input, textarea, select {
     width: 100%;
     border: 1px solid var(--input-border);
-    border-radius: 11px;
+    border-radius: 12px;
     background: var(--input-bg);
     color: var(--fg);
-    padding: 8px 10px;
+    padding: 9px 11px;
     outline: none;
   }
   textarea { resize: vertical; }
@@ -504,8 +504,8 @@
   .muted-shield { border-color: rgba(107,114,128,.3); background: var(--row-bg); color: #9ca3af; cursor: default; }
 
   .assign { display: grid; gap: 4px; }
-  .assign span { color: var(--muted); font-size: 10px; }
-  .assign select { padding: 6px 8px; font-size: 12px; }
+  .assign span { color: var(--muted); font-size: 12px; }
+  .assign select { padding: 9px 11px; font-size: 13px; }
 
   .menu-wrap { position: relative; }
   .menu-btn { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }

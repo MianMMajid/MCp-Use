@@ -698,14 +698,14 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .mw-chat-bubble-user {
   margin-left: 20%;
-  background: rgba(215, 104, 25, 0.14);
-  border: 1px solid rgba(215, 104, 25, 0.28);
+  background: var(--brand-tint);
+  border: 1px solid var(--brand-tint-strong);
 }
 
 .mw-chat-bubble-assistant {
   margin-right: 20%;
   background: var(--panel);
-  border: 1px solid rgba(229, 215, 199, 0.95);
+  border: 1px solid var(--border-warm-strong);
 }
 
 .mw-chat-form {
@@ -725,7 +725,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .mw-chat-form button {
-  border: 1px solid rgba(215, 104, 25, 0.45);
+  border: 1px solid var(--brand-tint-border);
   background: linear-gradient(160deg, #ef8f37, var(--brand));
   color: #fff;
   border-radius: var(--radius-lg);
@@ -853,7 +853,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .topology-agent-card strong {
   font-size: var(--text-xs);
-  color: #1a1a1a;
+  color: var(--ink);
 }
 
 .topology-agent-card span {
@@ -997,7 +997,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   border: 1px solid #e5ddd4;
   border-radius: var(--radius-pill);
   background: rgba(248, 244, 238, 0.9);
-  color: #1a1a1a;
+  color: var(--ink);
   font-size: var(--text-xs);
   padding: 0.42rem 0.7rem;
   overflow-wrap: anywhere;
@@ -1096,7 +1096,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .modal-head { display: flex; justify-content: space-between; align-items: center; }
-.modal-tabs { display: inline-flex; gap: 0.35rem; background: #f8f5f0; padding: 2px; border-radius: var(--radius-pill); }
+.modal-tabs { display: inline-flex; gap: 0.35rem; background: var(--bg-soft); padding: 2px; border-radius: var(--radius-pill); }
 .modal-tab { border: none; background: transparent; border-radius: var(--radius-pill); padding: 0.32rem 0.75rem; }
 .modal-tab.is-active { background: #fff; border: 1px solid var(--line-strong); }
 .modal-panel { display: grid; gap: 0.65rem; }
@@ -1624,7 +1624,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .marketplace-section-title {
   font-size: var(--text-base);
   font-weight: 650;
-  color: #1f1f1f;
+  color: var(--ink);
   margin: 0 0 8px;
 }
 
