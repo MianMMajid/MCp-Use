@@ -142,7 +142,7 @@
 .mw-category-pill {
   border: 1px solid transparent;
   background: var(--bg-soft, #f4f4f5);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   display: grid;
   gap: 4px;
@@ -162,12 +162,12 @@
 }
 
 .mw-category-title {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .mw-category-description {
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   line-height: 1.2;
 }
 

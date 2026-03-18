@@ -790,7 +790,28 @@
   .safe { color: var(--ok); }
   .upload { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
   .upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .wizard-steps { display: flex; align-items: center; gap: 0; margin: 12px 0 16px; }
+  .step { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--muted); cursor: pointer; font-size: 13px; transition: all .15s; }
+  .step:disabled { cursor: default; opacity: .5; }
+  .step.active { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.15); color: var(--fg); }
+  .step.done { border-color: rgba(74,222,128,.4); color: rgba(74,222,128,.9); }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--row-bg); font-size: 11px; font-weight: 600; }
+  .step.active .step-num { background: rgba(249,115,22,.25); }
+  .step.done .step-num { background: rgba(74,222,128,.2); }
+  .step-line { flex: 0 0 24px; height: 1px; background: var(--input-border); }
+  .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .review-card { border: 1px solid var(--row-border); border-radius: 12px; padding: 12px; background: var(--row-bg); }
+  .review-card h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .review-card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .review-card dt { color: var(--muted); }
+  .review-card dd { margin: 0; }
+  .policy-preview { max-height: 200px; overflow: auto; font-size: 12px; margin-top: 8px; }
+  .preview-issues { display: grid; gap: 4px; margin: 6px 0; }
+  .preview-issues p { margin: 0; font-size: 12px; }
+  .enforcement-notice { padding: 8px 12px; border-radius: 8px; background: rgba(251,113,133,.1); border: 1px solid rgba(251,113,133,.25); color: #fca5a5; font-size: 13px; margin-bottom: 12px; }
+  .activate-section .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
   @media (max-width: 900px) {
     .workspace { grid-template-columns: 1fr; }
+    .review-grid { grid-template-columns: 1fr; }
   }
 </style>
