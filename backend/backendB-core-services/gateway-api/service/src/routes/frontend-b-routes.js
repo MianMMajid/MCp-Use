@@ -265,10 +265,10 @@ async function loadNormalizedSkillCatalog() {
     });
   }
 
-  // Built-in native runtime tools
+  // Built-in native runtime tools (OpenAI-powered)
   const builtinTools = [
-    { toolId: "web_search", name: "Web Search", description: "Search the web for current information. Returns titles, URLs, and snippets.", category: "web", tags: ["#web", "#search"], source: "built-in" },
-    { toolId: "web_fetch", name: "Web Fetch", description: "Fetch a web page and return its content as readable text.", category: "web", tags: ["#web", "#fetch"], source: "built-in" },
+    { toolId: "openai_web_search", name: "Web Search (OpenAI)", description: "Search the web using OpenAI for real-time information with citations.", category: "web", tags: ["#web", "#search", "#openai"], source: "built-in", schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+    { toolId: "openai_image_generation", name: "Image Generation (DALL-E)", description: "Generate images using OpenAI DALL-E 3.", category: "media", tags: ["#image", "#generation", "#openai", "#dalle"], source: "built-in", schema: { type: "object", properties: { prompt: { type: "string" }, size: { type: "string", enum: ["1024x1024", "1024x1792", "1792x1024"] }, quality: { type: "string", enum: ["standard", "hd"] } }, required: ["prompt"] } },
   ];
   for (const bt of builtinTools) {
     if (!byId.has(bt.toolId)) {
