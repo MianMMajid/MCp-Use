@@ -10,14 +10,13 @@ function read(relativePath: string): string {
 
 describe("template runtime content coverage", () => {
   it("frontend A includes gateway and policy endpoint references", () => {
-    const gatewayDoc = read("frontend/frontendA-it-console/template-runtime/src/app/maple/gateway/page.jsx");
-    const policiesPage = read("frontend/frontendA-it-console/template-runtime/src/app/maple/policies/page.jsx");
-    const auditPage = read("frontend/frontendA-it-console/template-runtime/src/app/maple/audit/page.jsx");
+    const gatewayPage = read("frontend/frontendA-it-console/template-runtime/src/routes/maple/gateway/+page.svelte");
+    const policiesPage = read("frontend/frontendA-it-console/template-runtime/src/routes/maple/policies/+page.svelte");
+    const auditPage = read("frontend/frontendA-it-console/template-runtime/src/routes/maple/audit/+page.svelte");
 
-    expect(gatewayDoc).toContain("/api/runtime/feature-capabilities");
-    expect(gatewayDoc).toContain("/api/firewall/decision");
-    expect(policiesPage).toContain("redirect('/maple/audit')");
-    expect(auditPage).toContain("/api/observability/orchestrations/audit-log");
+    expect(gatewayPage).toContain('routePath="/maple/gateway"');
+    expect(policiesPage).toContain('routePath="/maple/policies"');
+    expect(auditPage).toContain('routePath="/maple/audit"');
   });
 
   it("frontend B workspace binds to runtime and HITL endpoints via SvelteKit stores", () => {

@@ -141,6 +141,20 @@ function compileMetadata(policy = {}, context = {}) {
   };
 }
 
+export function countPolicyRules(policy) {
+  if (!policy) return 0;
+  let count = 0;
+  count += (policy.allowedTools?.length ?? 0);
+  count += (policy.dangerousTools?.length ?? 0);
+  count += (policy.blockedTargetProfiles?.length ?? 0);
+  if (policy.constraints) count += Object.keys(policy.constraints).length;
+  if (policy.inputRails) count += 1;
+  if (policy.contentSafety?.enabled) count += 1;
+  if (policy.rateLimits) count += 1;
+  if (policy.outputRails) count += 1;
+  return count;
+}
+
 export function compileFrontendBFirewallPolicy(policyText, context = {}) {
   const compiledAt = new Date().toISOString();
   const normalizedText = String(policyText ?? "");

@@ -17,7 +17,7 @@ import {
 const repoRoot = process.cwd()
 const mapleAppRoot = resolve(
   repoRoot,
-  'frontend/frontendA-it-console/template-runtime/src/app/maple',
+  'frontend/frontendA-it-console/template-runtime/src/routes/maple',
 )
 
 function collectMaplePageRoutes(dir: string, prefix = '/maple'): string[] {
@@ -32,15 +32,8 @@ function collectMaplePageRoutes(dir: string, prefix = '/maple'): string[] {
       continue
     }
 
-    const jsxPage = resolve(absolutePath, 'page.jsx')
-    const mdxPage = resolve(absolutePath, 'page.mdx')
-    const hasPageFile = [jsxPage, mdxPage].some((pageFile) => {
-      try {
-        return statSync(pageFile).isFile()
-      } catch {
-        return false
-      }
-    })
+    const sveltePage = resolve(absolutePath, '+page.svelte')
+    const hasPageFile = (() => { try { return statSync(sveltePage).isFile() } catch { return false } })()
 
     const routePath = `${prefix}/${entry}`
     const isDynamicRoute = entry.includes('[')

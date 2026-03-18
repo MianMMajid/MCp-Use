@@ -1,41 +1,48 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  filterFrontendBOrigin,
-  isFrontendBOriginRecord,
+  getAuditRecordSource,
+  filterRecordsBySource,
+  getSourceFilterIds,
 } from '../../../frontend/frontendA-it-console/template-runtime/src/lib/maple-workspace/origin-filter.js'
 
 describe('frontend A origin filter', () => {
-  it('accepts orchestration runtime records from Frontend B hints', () => {
+  it('classifies frontend-b orchestration records', () => {
     expect(
-      isFrontendBOriginRecord({
-        source: 'frontend-b/orchestrate',
-        executionId: 'exec-1',
-      }),
-    ).toBe(true)
+      getAuditRecordSource({ source: 'frontend-b/orchestrate' }),
+    ).toBe('frontend-b')
   })
 
-  it('rejects Frontend A and local/manual records', () => {
+  it('classifies frontend-a and gateway records', () => {
     expect(
-      isFrontendBOriginRecord({
-        source: 'frontend-a/it-console',
-        executionId: 'exec-2',
-      }),
-    ).toBe(false)
+      getAuditRecordSource({ source: 'frontend-a/it-console' }),
+    ).toBe('frontend-a')
     expect(
-      isFrontendBOriginRecord({
-        source: 'manual-local',
-        traceId: 'trace-1',
-      }),
-    ).toBe(false)
+      getAuditRecordSource({ source: 'gateway-api' }),
+    ).toBe('gateway-api')
   })
 
-  it('filters arrays while preserving only B-origin entries', () => {
-    const filtered = filterFrontendBOrigin([
+  it('classifies openclaw as its own source', () => {
+    expect(
+      getAuditRecordSource({ origin: 'openclaw-runtime' }),
+    ).toBe('openclaw')
+  })
+
+  it('filters arrays by source', () => {
+    const records = [
       { source: 'frontend-b', executionId: 'exec-a' },
       { source: 'frontend-a', executionId: 'exec-b' },
       { origin: 'openclaw-runtime', sessionId: 'sess-1' },
-    ])
-    expect(filtered).toHaveLength(2)
+    ]
+    expect(filterRecordsBySource(records, 'frontend-b')).toHaveLength(1)
+    expect(filterRecordsBySource(records, 'all')).toHaveLength(3)
+    expect(filterRecordsBySource(records, 'openclaw')).toHaveLength(1)
+  })
+
+  it('getSourceFilterIds returns a frozen list', () => {
+    const ids = getSourceFilterIds()
+    expect(ids).toContain('all')
+    expect(ids).toContain('frontend-b')
+    expect(ids).toContain('openclaw')
   })
 })

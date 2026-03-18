@@ -65,6 +65,7 @@
     folderName = '';
     policyText = '';
     scope = 'global';
+    selectedAgentId = '';
     enforcementLevel = 'hard-mandatory';
     description = '';
     templateId = '';
@@ -100,7 +101,12 @@
     activatePreviewResult = null;
     try {
       // postJson returns parsed JSON (not a Response object)
-      const data = await postJson('/api/firewalls/preview', { policyText });
+      const data = await postJson('/api/firewalls/preview', {
+        policyText,
+        name: entityName,
+        scope,
+        assignedAgentId: scope === 'agent' ? selectedAgentId : null,
+      });
       activatePreviewResult = {
         ok: data?.ok !== false,
         valid: data?.valid === true,
@@ -800,7 +806,7 @@
           <p class="enforcement-notice">This policy will <strong>block</strong> matching requests immediately with no operator override.</p>
         {/if}
         <div class="actions">
-          <button class="pill" on:click={() => (activateStep = 2)}>Back</button>
+          <button class="pill" on:click={() => { activatePreviewResult = null; activateStep = 2; }}>Back</button>
           <button class="pill cta" on:click={async () => { await activateFirewall(); resetActivateForm(); }} disabled={!activateStepValid[3] || (activatePreviewResult && !activatePreviewResult.valid)}>
             Deploy Firewall
           </button>

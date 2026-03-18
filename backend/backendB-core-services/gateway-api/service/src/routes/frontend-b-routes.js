@@ -24,6 +24,7 @@ import {
   buildCompiledFirewallBundle,
   buildModifierPolicyPayloadFromFirewallBundle,
   compileFrontendBFirewallPolicy,
+  countPolicyRules,
   resolveCompiledFirewallPolicy,
 } from "../core/frontend-b-firewall-policy.js";
 
@@ -930,7 +931,7 @@ export function registerFrontendBRoutes(app) {
       valid: compilation.valid,
       errors: compilation.errors,
       warnings: compilation.warnings,
-      ruleCount: compilation.policy?.rules?.length ?? 0,
+      ruleCount: countPolicyRules(compilation.policy),
       compiledAt: compilation.compiledAt,
     });
   });

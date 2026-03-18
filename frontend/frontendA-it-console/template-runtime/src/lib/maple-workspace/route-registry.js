@@ -15,6 +15,7 @@ export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
   { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
   { id: 'users', label: 'Users', description: 'User accounts, role assignments, and access governance.' },
   { id: 'compliance', label: 'Compliance', description: 'Risk posture scoring and compliance framework mapping.' },
+  { id: 'docs', label: 'Docs', description: 'Workspace documentation, runbooks, and route context.' },
 ])
 
 export const MAPLE_DOCK_GROUPS = Object.freeze([
