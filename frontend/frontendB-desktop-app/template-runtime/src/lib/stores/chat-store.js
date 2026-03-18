@@ -403,7 +403,7 @@ function createChatStore() {
       runError: '',
       busy: true,
       busyStatus: 'Sending to agent...',
-      messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
+      messages: capArray([...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }], MAX_MESSAGES)
     });
 
     try {
@@ -421,7 +421,7 @@ function createChatStore() {
       const next = get({ subscribe });
       patch({
         sessionId: state.sessionId || payload.sessionId || '',
-        messages: [
+        messages: capArray([
           ...next.messages,
           {
             id: `reply-${Date.now()}`,
@@ -430,7 +430,7 @@ function createChatStore() {
             timestamp: new Date().toISOString(),
             cost: payload.cost ?? null
           }
-        ]
+        ], MAX_MESSAGES)
       });
       invalidateCache(`/api/agents/${fallbackAgentId}/sessions`);
       await loadSessions(fallbackAgentId);
@@ -439,7 +439,7 @@ function createChatStore() {
       const next = get({ subscribe });
       patch({
         runError: message,
-        messages: [...next.messages, { id: `err-${Date.now()}`, role: 'agent', content: message, error: true, timestamp: new Date().toISOString() }]
+        messages: capArray([...next.messages, { id: `err-${Date.now()}`, role: 'agent', content: message, error: true, timestamp: new Date().toISOString() }], MAX_MESSAGES)
       });
     } finally {
       patch({ busy: false, busyStatus: '' });
