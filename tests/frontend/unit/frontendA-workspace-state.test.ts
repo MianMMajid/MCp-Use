@@ -200,22 +200,22 @@ describe('resolveWorkspaceState', () => {
     expect(state.routePath).toBe('/maple/gateway')
   })
 
-  it('resolves legacy paths to their canonical routes', () => {
+  it('resolves /maple/runtime as its own registered route', () => {
     const runtimeState = resolveWorkspaceState({
       pathname: '/maple/runtime',
       searchParams: new URLSearchParams(),
     })
-    expect(runtimeState.routePath).toBe('/maple/observability')
-    expect(runtimeState.category).toBe('observe')
+    expect(runtimeState.routePath).toBe('/maple/runtime')
+    expect(runtimeState.category).toBe('admin')
     expect(runtimeState.isCanonicalPath).toBe(false)
   })
 
-  it('resolves policies → audit legacy redirect', () => {
+  it('resolves /maple/policies as its own registered route', () => {
     const state = resolveWorkspaceState({
       pathname: '/maple/policies',
       searchParams: new URLSearchParams(),
     })
-    expect(state.routePath).toBe('/maple/audit')
+    expect(state.routePath).toBe('/maple/policies')
   })
 
   it('preserves executionId and sessionId from query', () => {

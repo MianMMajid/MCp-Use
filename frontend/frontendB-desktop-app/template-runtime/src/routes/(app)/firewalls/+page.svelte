@@ -70,32 +70,42 @@
     activatePreviewResult = null;
   }
 
+  // postJson/patchJson now return parsed JSON, not Response objects.
+  // These helpers handle both for backward compatibility.
   async function readResponsePayload(response) {
-    return typeof response?.json === 'function'
-      ? await response.json().catch(() => ({}))
-      : (response ?? {});
+    if (typeof response?.json === 'function') {
+      return await response.json().catch(() => ({}));
+    }
+    return response ?? {};
   }
 
   function isResponseOk(response, payload) {
-    return typeof response?.ok === 'boolean' ? response.ok : payload?.ok !== false;
+    // If postJson returned parsed JSON, check payload.ok directly
+    if (typeof response?.ok === 'boolean' && typeof response?.status === 'number') {
+      return response.ok; // Raw Response object
+    }
+    return payload?.ok !== false && response?.ok !== false;
   }
 
   function responseStatus(response) {
-    return typeof response?.status === 'number' ? response.status : 200;
+    if (typeof response?.status === 'number' && typeof response?.ok === 'boolean') {
+      return response.status; // Raw Response object
+    }
+    return 200; // Parsed JSON — postJson already threw if !res.ok
   }
 
   async function previewBeforeActivate() {
     activateBusy = true;
     activatePreviewResult = null;
     try {
-      const response = await postJson('/api/firewalls/preview', { policyText });
-      const payload = await readResponsePayload(response);
+      // postJson returns parsed JSON (not a Response object)
+      const data = await postJson('/api/firewalls/preview', { policyText });
       activatePreviewResult = {
-        ok: isResponseOk(response, payload) && payload?.ok !== false,
-        valid: payload?.valid !== false,
-        errors: payload?.errors || [],
-        warnings: payload?.warnings || [],
-        ruleCount: payload?.ruleCount ?? 0,
+        ok: data?.ok !== false,
+        valid: data?.valid === true,
+        errors: Array.isArray(data?.errors) ? data.errors : [],
+        warnings: Array.isArray(data?.warnings) ? data.warnings : [],
+        ruleCount: data?.ruleCount ?? 0,
       };
     } catch (err) {
       activatePreviewResult = { ok: false, valid: false, errors: [err instanceof Error ? err.message : String(err)], warnings: [], ruleCount: 0 };
@@ -181,7 +191,8 @@
   async function activateFirewall() {
     error = '';
     try {
-      const response = await postJson('/api/firewalls', {
+      // postJson returns parsed JSON (not a Response object)
+      const data = await postJson('/api/firewalls', {
         name: entityName,
         folder: folderName || 'root',
         scope,
@@ -190,14 +201,13 @@
         description,
         enforcementLevel,
       });
-      const payload = await readResponsePayload(response);
-      if (!isResponseOk(response, payload) || payload?.ok === false) {
-        throw new Error(payload?.error || `Failed to create firewall (${responseStatus(response)})`);
+      if (data?.ok === false) {
+        throw new Error(data?.error || 'Failed to create firewall');
       }
       toastStore.success(`Firewall "${entityName}" deployed`);
       invalidateCache('/api/firewalls');
       await refresh();
-      if (payload?.firewall?.id) setSelected(payload.firewall.id);
+      if (data?.firewall?.id) setSelected(data.firewall.id);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
