@@ -4,6 +4,16 @@
   const DEFAULT_MAPLE_CHAT_HREF =
     '/maple?category=chat&view=chat&route=%2Fmaple%2Fobservability'
 
+  function isSafeRedirect(url) {
+    if (!url) return false
+    try {
+      const parsed = new URL(url, window.location.origin)
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+    } catch {
+      return false
+    }
+  }
+
   let email = ''
   let password = ''
   let error = ''
@@ -77,8 +87,10 @@
   }
 
   async function handleSsoLogin() {
-    if (ssoRedirectUrl) {
+    if (ssoRedirectUrl && isSafeRedirect(ssoRedirectUrl)) {
       window.location.assign(ssoRedirectUrl)
+    } else if (ssoRedirectUrl) {
+      error = 'SSO redirect blocked: unexpected external URL.'
     }
   }
 
@@ -126,6 +138,7 @@
       error = 'Unable to connect. Please check your network and try again.'
     } finally {
       loading = false
+      if (error) password = ''
     }
   }
 
@@ -231,7 +244,7 @@
       })
       if (!response.ok) throw new Error('Google sign-in failed')
       const payload = await response.json()
-      if (payload?.redirectUrl) {
+      if (payload?.redirectUrl && isSafeRedirect(payload.redirectUrl)) {
         window.location.assign(payload.redirectUrl)
         return
       }

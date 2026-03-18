@@ -14,7 +14,7 @@
   import { buildWorkspaceHref, resolveWorkspaceState } from '../maple-workspace/workspace-state.js'
   import { filterFrontendBOrigin } from '../maple-workspace/origin-filter.js'
   import { interventionActionCatalog } from '../maple-workspace/intervention-api.js'
-  import { loadPermissions, canAccessCategory, can, onPermissionChange } from '../maple-workspace/permissions.js'
+  import { loadPermissions, canAccessCategory, can, onPermissionChange, permissionsReady } from '../maple-workspace/permissions.js'
 
   const actions = interventionActionCatalog()
   const asArray = (value) => (Array.isArray(value) ? value : [])
@@ -63,6 +63,9 @@
   let hasPrompted = false
   let selectedAnalysts = []
   let handoffPrompt = null
+  let permReady = false
+  let pollController = null
+  let mutating = false
 
   const quickPrompts = [
     'Give me a firewall status update.',
@@ -157,9 +160,9 @@
 
   $: analystOptions = (() => {
     const fromAuth = authMe ? [authMe.username, authMe.email] : []
-    const fromAudit = rawAuditEvents.flatMap((event) => extractAnalystNames(event))
-    const fromExecutions = rawExecutions.flatMap((execution) => extractAnalystNames(execution))
-    const fromApprovals = rawApprovals.flatMap((approval) => extractAnalystNames(approval))
+    const fromAudit = auditEvents.flatMap((event) => extractAnalystNames(event))
+    const fromExecutions = executions.flatMap((execution) => extractAnalystNames(execution))
+    const fromApprovals = approvals.flatMap((approval) => extractAnalystNames(approval))
     const options = Array.from(new Set([...fromAuth, ...fromAudit, ...fromExecutions, ...fromApprovals].filter(Boolean))).sort((a, b) =>
       a.localeCompare(b),
     )
@@ -280,12 +283,21 @@
   )
 
   async function loadData() {
+    // Abort any in-flight poll to prevent stale data overwriting fresh
+    if (pollController) pollController.abort()
+    const controller = new AbortController()
+    pollController = controller
+    const signal = controller.signal
+
+    const safeJson = (r) => r.ok ? r.json() : Promise.reject(new Error(`${r.url} -> ${r.status}`))
+    const safeFetch = (url, opts = {}) => fetch(url, { ...opts, signal })
+
     try {
       const orgFetches = currentOrgId
         ? [
-            fetch(`/api/org/${currentOrgId}/members`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
-            fetch(`/api/org/${currentOrgId}/invites`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
-            fetch(`/api/org/${currentOrgId}/roles`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
+            safeFetch(`/api/org/${currentOrgId}/members`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
+            safeFetch(`/api/org/${currentOrgId}/invites`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
+            safeFetch(`/api/org/${currentOrgId}/roles`, { credentials: 'same-origin' }).then((r) => r.ok ? r.json() : { items: [] }),
           ]
         : [
             Promise.resolve({ items: [] }),
@@ -311,30 +323,29 @@
         orgInvitesRes,
         orgRolesRes,
       ] = await Promise.allSettled([
-        fetch('/api/observability/orchestrations/summary').then((r) => r.json()),
-        fetch('/api/observability/orchestrations/slo').then((r) => r.json()),
-        fetch('/api/observability/orchestrations/audit-log?offset=0&limit=50').then((r) => r.json()),
-        fetch('/api/orchestrations/executions?limit=50').then((r) => r.json()),
-        fetch('/api/orchestrations/executions/approvals?status=pending&limit=50').then((r) => r.json()),
-        fetch('/api/runtime/feature-capabilities').then((r) => r.json()),
-        fetch('/api/integrations/catalog').then((r) => r.json()),
-        fetch('/api/integrations').then((r) => r.json()),
-        fetch('/api/downstream/apps').then((r) => r.json()),
-        fetch('/api/downstream/apps').then(async (r) => {
+        safeFetch('/api/observability/orchestrations/summary').then(safeJson),
+        safeFetch('/api/observability/orchestrations/slo').then(safeJson),
+        safeFetch('/api/observability/orchestrations/audit-log?offset=0&limit=50').then(safeJson),
+        safeFetch('/api/orchestrations/executions?limit=50').then(safeJson),
+        safeFetch('/api/orchestrations/executions/approvals?status=pending&limit=50').then(safeJson),
+        safeFetch('/api/runtime/feature-capabilities').then(safeJson),
+        safeFetch('/api/integrations/catalog').then(safeJson),
+        safeFetch('/api/integrations').then(safeJson),
+        safeFetch('/api/downstream/apps').then(safeJson),
+        safeFetch('/api/downstream/apps').then(async (r) => {
           if (!r.ok) return { items: [] };
           const apps = await r.json();
           const appList = apps?.apps ?? apps?.items ?? [];
           if (appList.length === 0) return { items: [] };
-          // Load tools for the first app (downstream/tools requires appId)
           const firstApp = appList[0];
           const appId = firstApp?.appId ?? firstApp?.id ?? '';
           if (!appId) return { items: [] };
-          const tr = await fetch(`/api/downstream/tools?appId=${encodeURIComponent(appId)}`);
+          const tr = await safeFetch(`/api/downstream/tools?appId=${encodeURIComponent(appId)}`);
           return tr.ok ? tr.json() : { items: [] };
         }),
-        fetch('/api/openclaw/cli/catalog').then((r) => r.json()),
-        fetch('/api/auth/me').then((r) => r.json()),
-        fetch('/api/firewall/rules/effective').then((r) => r.json()),
+        safeFetch('/api/openclaw/cli/catalog').then(safeJson),
+        safeFetch('/api/auth/me').then(safeJson),
+        safeFetch('/api/firewall/rules/effective').then(safeJson),
         ...orgFetches,
       ])
 
@@ -408,7 +419,10 @@
 
       if (!selectedExecutionId && executions.length > 0) selectedExecutionId = executions[0].executionId
       if (firewallRules.length === 0) firewallRules = defaultFirewallRules
+
+      error = '' // Clear stale error from prior failed poll
     } catch (loadError) {
+      if (loadError?.name === 'AbortError') return // poll was superseded
       error = loadError instanceof Error ? loadError.message : 'Failed loading runtime data.'
       if (firewallRules.length === 0) firewallRules = defaultFirewallRules
     }
@@ -427,42 +441,57 @@
 
   async function inviteUser(email, roleId) {
     if (!currentOrgId) return
-    const res = await fetch(`/api/org/${currentOrgId}/invites`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ email, roleId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || 'Failed to send invite')
-    await loadData()
-    return data
+    mutating = true
+    try {
+      const res = await fetch(`/api/org/${currentOrgId}/invites`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ email, roleId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to send invite')
+      await loadData()
+      return data
+    } finally {
+      mutating = false
+    }
   }
 
   async function removeMember(userId) {
     if (!currentOrgId) return
-    const res = await fetch(`/api/org/${currentOrgId}/members/${userId}`, {
-      method: 'DELETE',
-      credentials: 'same-origin',
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || 'Failed to remove member')
-    await loadData()
-    return data
+    mutating = true
+    try {
+      const res = await fetch(`/api/org/${currentOrgId}/members/${userId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to remove member')
+      await loadData()
+      return data
+    } finally {
+      mutating = false
+    }
   }
 
   async function changeRole(userId, roleId) {
     if (!currentOrgId) return
-    const res = await fetch(`/api/org/${currentOrgId}/roles/${roleId}/assign`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ userId }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || 'Failed to change role')
-    await loadData()
-    return data
+    mutating = true
+    try {
+      const res = await fetch(`/api/org/${currentOrgId}/roles/${roleId}/assign`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ userId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to change role')
+      await loadData()
+      return data
+    } finally {
+      mutating = false
+    }
   }
 
   // Reactive trigger for permission changes — increments when permissions load/change
@@ -478,16 +507,26 @@
     }
     const unsubPermissions = onPermissionChange(() => {
       permissionVersion += 1
+      permReady = permissionsReady()
     })
+    // Check in case permissions were already loaded from a prior mount
+    if (permissionsReady()) permReady = true
     loadPermissions()
     loadData()
+    // Fail-open after 10s if permissions never load (network partition)
+    const permTimeout = setTimeout(() => {
+      if (!permReady) permReady = true
+    }, 10_000)
     // Poll every 15s but skip when tab is hidden to save API calls
     const id = window.setInterval(() => {
-      if (!document.hidden) loadData()
+      if (!document.hidden && !mutating) loadData()
     }, 15000)
     return () => {
       window.clearInterval(id)
+      clearTimeout(permTimeout)
       unsubPermissions()
+      // Abort any in-flight fetches on unmount
+      if (pollController) pollController.abort()
     }
   })
 
@@ -616,8 +655,8 @@
       if (!response.ok) throw new Error(`Rule request failed (${response.status})`)
       notice = `Blocking rule created for ${target}.`
     } catch (requestError) {
+      firewallRules = firewallRules.filter((r) => r.id !== localRule.id)
       error = requestError instanceof Error ? requestError.message : 'Failed creating blocking rule.'
-      notice = `Rule kept locally for ${target}.`
     } finally {
       busy = ''
     }
@@ -630,6 +669,13 @@
 
 </script>
 
+{#if !permReady}
+  <section class="workspace product-body" data-testid="maple-workspace-loading">
+    <div class="product-shell shell" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+      <p style="opacity:0.6;">Loading workspace&hellip;</p>
+    </div>
+  </section>
+{:else}
 <section class="workspace product-body" data-testid="maple-workspace-layout">
   <div class="product-shell shell" data-testid="maple-workspace-shell">
     <MapleTopBar
@@ -743,3 +789,4 @@
     </div>
   {/if}
 </section>
+{/if}

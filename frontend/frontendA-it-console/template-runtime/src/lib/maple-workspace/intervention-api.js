@@ -50,72 +50,90 @@ function withChallengeToken(payload, challengeToken) {
   }
 }
 
+function requireId(value, name) {
+  if (!value) throw new Error(`${name} is required`)
+}
+
 export function interventionActionCatalog() {
   return {
     pauseExecution: {
       label: 'Pause',
       destructive: false,
-      execute: ({ executionId, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/pause`,
           withChallengeToken({}, challengeToken),
-        ),
+        )
+      },
     },
     resumeExecution: {
       label: 'Resume',
       destructive: false,
-      execute: ({ executionId, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/resume`,
           withChallengeToken({}, challengeToken),
-        ),
+        )
+      },
     },
     cancelExecution: {
       label: 'Cancel',
       destructive: true,
       requiresReason: true,
-      execute: ({ executionId, reason, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, reason, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/cancel`,
           withChallengeToken({ reason }, challengeToken),
-        ),
+        )
+      },
     },
     retryNode: {
       label: 'Retry Node',
       destructive: false,
-      execute: ({ executionId, nodeId, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, nodeId, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/retry-node`,
           withChallengeToken({ nodeId }, challengeToken),
-        ),
+        )
+      },
     },
     replayNode: {
       label: 'Replay Node',
       destructive: false,
-      execute: ({ executionId, nodeId, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, nodeId, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/replay-from-node`,
           withChallengeToken({ nodeId }, challengeToken),
-        ),
+        )
+      },
     },
     approveDecision: {
       label: 'Approve',
       destructive: false,
-      execute: ({ executionId, approvalId, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, approvalId, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/approvals/${encodeURIComponent(approvalId)}/decision`,
           withChallengeToken({ action: 'approve' }, challengeToken),
-        ),
+        )
+      },
     },
     rejectDecision: {
       label: 'Reject',
       destructive: true,
       requiresReason: true,
-      execute: ({ executionId, approvalId, reason, challengeToken }) =>
-        postJson(
+      execute: ({ executionId, approvalId, reason, challengeToken }) => {
+        requireId(executionId, 'executionId')
+        return postJson(
           `/api/orchestrations/executions/${encodeURIComponent(executionId)}/approvals/${encodeURIComponent(approvalId)}/decision`,
           withChallengeToken({ action: 'reject', reason }, challengeToken),
-        ),
+        )
+      },
     },
     escalate: {
       label: 'Escalate',
@@ -139,11 +157,13 @@ export function interventionActionCatalog() {
     reviewBreakGlass: {
       label: 'Review Break-glass',
       destructive: false,
-      execute: ({ breakGlassReviewId, reason, challengeToken }) =>
-        postJson(
+      execute: ({ breakGlassReviewId, reason, challengeToken }) => {
+        requireId(breakGlassReviewId, 'breakGlassReviewId')
+        return postJson(
           `/api/operations/orchestrations/break-glass/${encodeURIComponent(breakGlassReviewId)}/review`,
           withChallengeToken({ reason }, challengeToken),
-        ),
+        )
+      },
     },
     requestStepUp: {
       label: 'Step-up Challenge',
@@ -165,11 +185,13 @@ export function interventionActionCatalog() {
       label: 'Stop Session',
       destructive: true,
       requiresReason: true,
-      execute: ({ sessionId, reason, challengeToken }) =>
-        postJson(
+      execute: ({ sessionId, reason, challengeToken }) => {
+        requireId(sessionId, 'sessionId')
+        return postJson(
           `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/cancel`,
           withChallengeToken({ reason }, challengeToken),
-        ),
+        )
+      },
     },
   }
 }
