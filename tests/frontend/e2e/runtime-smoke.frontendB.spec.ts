@@ -24,9 +24,9 @@ test.describe("frontend B runtime smoke", () => {
 
     await page.goto(absoluteUrl("/login"));
 
-    await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
-    await expect(page.getByPlaceholder("Email")).toBeVisible();
-    await expect(page.getByPlaceholder("Password")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await expect(page.locator('label[for="auth-email"]')).toBeVisible();
+    await expect(page.locator('label[for="auth-password"]')).toBeVisible();
   });
 
   test("authenticated app routes still bootstrap the desktop runtime", async ({ page }) => {

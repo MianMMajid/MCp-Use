@@ -1,12 +1,11 @@
-/**
- * Convert raw API error messages into user-friendly text.
- * Raw errors like "/api/firewalls -> 503" become actionable descriptions.
- */
+// Convert raw API error messages into user-friendly text.
+// Example: an error string containing an endpoint path and status code
+// such as "firewalls service 503" becomes an actionable description.
 export function humanizeError(raw) {
   if (!raw) return ''
   const s = String(raw)
 
-  // Match patterns like "/api/xxx -> 5xx" or "/api/xxx -> 4xx"
+  // Match patterns like "/api/<path> -> 5xx" or "/api/<path> -> 4xx"
   const apiMatch = s.match(/\/api\/\S+\s*->\s*(\d{3})/)
   if (apiMatch) {
     const status = Number(apiMatch[1])
@@ -17,7 +16,7 @@ export function humanizeError(raw) {
     if (status >= 400) return 'The request could not be completed. Please check your input and try again.'
   }
 
-  // Match "Request timed out: /api/xxx"
+  // Match "Request timed out" messages
   if (s.includes('timed out')) return 'The request timed out. The service may be busy — please try again.'
 
   // Match fetch/network errors

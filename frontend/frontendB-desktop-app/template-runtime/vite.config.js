@@ -1,6 +1,13 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { createRequire } from 'module';
+import { dirname, join } from 'path';
+
+const require = createRequire(import.meta.url);
+// Resolve the svelte package root, then target the client entry directly
+// (bypassing the exports map which only exposes 'browser' condition).
+const sveltePkgDir = dirname(require.resolve('svelte/package.json'));
+const svelteClientPath = join(sveltePkgDir, 'src', 'index-client.js');
 
 export default defineConfig({
   plugins: [
@@ -39,7 +46,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.js'],
     include: ['src/**/*.test.{js,ts}'],
     alias: [
-      { find: /^svelte$/, replacement: resolve('node_modules/svelte/src/index-client.js') },
+      { find: /^svelte$/, replacement: svelteClientPath },
     ],
   },
 });

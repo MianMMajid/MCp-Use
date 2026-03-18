@@ -156,7 +156,6 @@
   }
   .create button { padding: 8px 12px; border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.2); cursor: pointer; }
   .msg { margin: 10px 0 0; color: var(--ok); font-size: 13px; }
-  .err { margin: 10px 0 0; color: var(--warn); font-size: 13px; }
   .muted { margin: 0; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--row-border); font-size: 13px; }
