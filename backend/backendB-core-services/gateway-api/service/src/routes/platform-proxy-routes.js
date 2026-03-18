@@ -5,6 +5,10 @@ import { requireApiKeyResponse } from "../auth-api-key.js";
 import { database } from "../state.js";
 import { PlatformStore } from "../core/platform-store.js";
 import { GatewayOperationsPlatformService } from "../core/operations-platform-service.js";
+import { validateOrgCreate, validateOrgUpdate } from "../contracts/org-contract.js";
+import { validateMemberInvite, validateRoleUpdate } from "../contracts/rbac-contract.js";
+import { emitAuditEvent } from "../audit-emitter.js";
+import { mapleLog } from "../logging.js";
 
 function parseIntOrUndefined(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -30,17 +34,43 @@ async function requireSession(c) {
   return { session };
 }
 
+const ROLE_RANK = { owner: 4, admin: 3, member: 2, billing: 1, viewer: 0 };
+
 async function requireOrgRole(c, orgId, userId, minRole) {
   const store = getStore();
   const org = await store.getOrganizationForUser(orgId, userId);
   if (!org) return { error: c.json({ error: "Organization not found." }, 404) };
   const memberRole = await store.getMemberRole(orgId, userId);
   if (!memberRole) return { error: c.json({ error: "Not a member." }, 403) };
-  const ROLE_RANK = { owner: 3, admin: 2, member: 1 };
   if ((ROLE_RANK[memberRole] ?? 0) < (ROLE_RANK[minRole] ?? 0)) {
     return { error: c.json({ error: `Requires ${minRole} role or higher.` }, 403) };
   }
   return { org, role: memberRole };
+}
+
+/**
+ * M2-02: Cross-tenant validation -- verifies that the authenticated tenant context
+ * matches the organization's tenant ID. Returns 403 if they differ.
+ */
+function requireTenantMatch(c, org) {
+  const headerTenantId = c.req.header("x-tenant-id") || c.req.header("x-maple-tenant-id") || "";
+  if (!headerTenantId) return null;
+  const orgTenantId = org.tenantId ?? "";
+  if (!orgTenantId) return null;
+  if (headerTenantId !== orgTenantId) {
+    return c.json({ error: "Tenant mismatch: you are not authorized for this organization's tenant." }, 403);
+  }
+  return null;
+}
+
+/**
+ * M2-03: Invite expiry -- default 7 days from now.
+ */
+function defaultInviteExpiresAt(expiresAt) {
+  if (expiresAt) return expiresAt;
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString();
 }
 
 function normalizeOrgSummary(org) {
@@ -64,6 +94,45 @@ function normalizeOrgSummary(org) {
   };
 }
 
+/**
+ * M2-06: Business-API proxy helper. Forwards to business-api with context headers.
+ * Returns null when business-api is not configured (graceful degradation).
+ */
+const BUSINESS_API_BASE_URL = (process.env.MAPLE_BUSINESS_API_URL ?? "").trim();
+const BUSINESS_API_REQUIRED = (process.env.MAPLE_BUSINESS_API_REQUIRED ?? "").trim().toLowerCase() === "true";
+
+async function proxyToBusinessApi(c, method, path, { body, session } = {}) {
+  if (!BUSINESS_API_BASE_URL) {
+    return null;
+  }
+  const url = `${BUSINESS_API_BASE_URL}${path}`;
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Maple-Tenant-Id": c.req.header("x-tenant-id") || c.req.header("x-maple-tenant-id") || "",
+    "X-Maple-Org-Id": c.req.header("x-org-id") || c.req.header("x-maple-org-id") || "",
+    "X-Maple-User-Id": session?.user?.id ?? "",
+  };
+  try {
+    const fetchOptions = { method, headers };
+    if (body && method !== "GET" && method !== "HEAD") {
+      fetchOptions.body = JSON.stringify(body);
+    }
+    const resp = await fetch(url, fetchOptions);
+    const data = await resp.json().catch(() => ({}));
+    return c.json(data, resp.status);
+  } catch (err) {
+    mapleLog("warn", "gateway_api.business_api_proxy_error", {
+      method,
+      path,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    if (BUSINESS_API_REQUIRED) {
+      return c.json({ error: "Business API is unavailable." }, 503);
+    }
+    return null;
+  }
+}
+
 let _store;
 let _operationsService;
 function getStore() {
@@ -81,7 +150,7 @@ function getOperationsService() {
 }
 
 export function registerPlatformProxyRoutes(app) {
-  // ── Organization routes ──────────────────────────────────────────────────
+  // -- Organization routes --------------------------------------------------------
   app.get("/api/org", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) {
@@ -98,13 +167,19 @@ export function registerPlatformProxyRoutes(app) {
       return auth.error;
     }
     const body = await readJsonBody(c);
+    // M2-01: Validate with org-contract
+    const validation = validateOrgCreate(body);
+    if (!validation.valid) {
+      return c.json({ error: validation.errors.join("; ") }, 400);
+    }
     const result = await getOperationsService().createOrganization(
       {
         userId: auth.session.user.id,
         role: auth.session.user.role ?? "user",
       },
       {
-        name: asString(body.name) ?? `Org ${auth.session.user.username}`,
+        name: validation.sanitized.name || `Org ${auth.session.user.username}`,
+        slug: validation.sanitized.slug,
         tenantId: body.tenantId,
         parentOrgId: body.parentOrgId,
         orgType: body.orgType,
@@ -136,7 +211,15 @@ export function registerPlatformProxyRoutes(app) {
     if (!existing) {
       return c.json({ error: "Organization not found." }, 404);
     }
+    // M2-02: Cross-tenant validation
+    const tenantError = requireTenantMatch(c, existing);
+    if (tenantError) return tenantError;
     const body = await readJsonBody(c);
+    // M2-01: Validate with org-contract
+    const validation = validateOrgUpdate(body);
+    if (!validation.valid) {
+      return c.json({ error: validation.errors.join("; ") }, 400);
+    }
     const updated = await getOperationsService().updateOrganization(
       {
         userId: auth.session.user.id,
@@ -144,7 +227,7 @@ export function registerPlatformProxyRoutes(app) {
       },
       orgId,
       {
-        name: body.name !== undefined ? asString(body.name) : existing.name,
+        name: validation.sanitized.name !== undefined ? validation.sanitized.name : existing.name,
         bio: body.bio,
         email: body.email,
         email_is_public: body.email_is_public,
@@ -175,6 +258,9 @@ export function registerPlatformProxyRoutes(app) {
     if (!org) {
       return c.json({ error: "Organization not found." }, 404);
     }
+    // M2-02: Cross-tenant validation
+    const tenantError = requireTenantMatch(c, org);
+    if (tenantError) return tenantError;
     const items = await store.listOrganizationMembers(org.orgId);
     return c.json({ ok: true, items });
   });
@@ -190,6 +276,9 @@ export function registerPlatformProxyRoutes(app) {
     if (!org) {
       return c.json({ error: "Organization not found." }, 404);
     }
+    // M2-02: Cross-tenant validation
+    const tenantError = requireTenantMatch(c, org);
+    if (tenantError) return tenantError;
     const items = await store.listOrganizationInvites(org.orgId);
     return c.json({ ok: true, items });
   });
@@ -204,13 +293,27 @@ export function registerPlatformProxyRoutes(app) {
     if (roleCheck.error) {
       return roleCheck.error;
     }
+    // M2-02: Cross-tenant validation
+    const tenantError = requireTenantMatch(c, roleCheck.org);
+    if (tenantError) return tenantError;
     const store = getStore();
     const body = await readJsonBody(c);
+    // M2-01: Validate invite with rbac-contract
+    const inviteValidation = validateMemberInvite(body);
+    if (!inviteValidation.valid) {
+      return c.json({ error: inviteValidation.errors.join("; ") }, 400);
+    }
+    // M2-05: Role escalation prevention -- cannot invite with a role higher than your own
+    if ((ROLE_RANK[inviteValidation.sanitized.role] ?? 0) > (ROLE_RANK[roleCheck.role] ?? 0)) {
+      return c.json({ error: "Cannot invite with a role higher than your own." }, 403);
+    }
     const invite = await store.createOrganizationInvite({
       orgId: roleCheck.org.orgId,
       issuedBy: auth.session.user.id,
-      roleId: asString(body.roleId) ?? "member",
-      email: asString(body.email) ?? "",
+      roleId: inviteValidation.sanitized.role,
+      email: inviteValidation.sanitized.email,
+      // M2-03: Invite expiry -- default 7 days
+      expiresAt: defaultInviteExpiresAt(asString(body.expiresAt)),
     });
     return c.json({ ok: true, invite }, 201);
   });
@@ -224,6 +327,16 @@ export function registerPlatformProxyRoutes(app) {
     const inviteId = asString(c.req.param("inviteId"));
     if (!inviteId) {
       return c.json({ error: "inviteId is required." }, 400);
+    }
+    // M2-03: Check invite expiry before accepting
+    if (typeof store.getOrganizationInvite === "function") {
+      const pendingInvite = await store.getOrganizationInvite(inviteId);
+      if (pendingInvite?.expiresAt) {
+        const expiryDate = new Date(pendingInvite.expiresAt);
+        if (expiryDate < new Date()) {
+          return c.json({ error: "Invite has expired." }, 410);
+        }
+      }
     }
     const invite = await store.acceptOrganizationInvite(inviteId, auth.session.user.id, auth.session.user.email);
     if (!invite) {
@@ -247,10 +360,17 @@ export function registerPlatformProxyRoutes(app) {
     if (roleCheck.error) {
       return roleCheck.error;
     }
+    // M2-02: Cross-tenant validation
+    const tenantError = requireTenantMatch(c, roleCheck.org);
+    if (tenantError) return tenantError;
     const store = getStore();
     const userId = asString(c.req.param("userId"));
     if (!userId) {
       return c.json({ error: "userId is required." }, 400);
+    }
+    // M2-04: Owner cannot remove self
+    if (roleCheck.org.ownerUserId === userId && userId === auth.session.user.id) {
+      return c.json({ error: "Owner cannot remove themselves." }, 400);
     }
     if (roleCheck.org.ownerUserId === userId) {
       return c.json({ error: "Cannot remove organization owner." }, 409);
@@ -283,10 +403,13 @@ export function registerPlatformProxyRoutes(app) {
       return auth.error;
     }
     const orgId = asString(c.req.param("orgId"));
-    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "owner");
+    const roleCheck = await requireOrgRole(c, orgId, auth.session.user.id, "admin");
     if (roleCheck.error) {
       return roleCheck.error;
     }
+    // M2-02: Cross-tenant validation
+    const tenantError = requireTenantMatch(c, roleCheck.org);
+    if (tenantError) return tenantError;
     const store = getStore();
     const roleId = asString(c.req.param("roleId")) ?? "member";
     const body = await readJsonBody(c);
@@ -294,9 +417,18 @@ export function registerPlatformProxyRoutes(app) {
     if (!userId) {
       return c.json({ error: "userId is required." }, 400);
     }
-    const ROLE_RANK = { owner: 3, admin: 2, member: 1 };
+    // M2-01: Validate with rbac-contract
+    const roleValidation = validateRoleUpdate({ role: roleId });
+    if (!roleValidation.valid) {
+      return c.json({ error: roleValidation.errors.join("; ") }, 400);
+    }
+    // M2-05: Role escalation prevention -- cannot assign a role higher than your own
     if ((ROLE_RANK[roleId] ?? 0) > (ROLE_RANK[roleCheck.role] ?? 0)) {
       return c.json({ error: "Cannot assign a role higher than your own." }, 403);
+    }
+    // M2-05: Non-owner members cannot assign admin or owner roles
+    if (roleCheck.role !== "owner" && (roleId === "admin" || roleId === "owner")) {
+      return c.json({ error: "Only owners can assign admin or owner roles." }, 403);
     }
     if (userId === auth.session.user.id) {
       return c.json({ error: "Cannot reassign your own role." }, 403);
@@ -310,7 +442,7 @@ export function registerPlatformProxyRoutes(app) {
     return c.json({ ok: true, ...assigned });
   });
 
-  // ── User API keys ────────────────────────────────────────────────────────
+  // -- User API keys --------------------------------------------------------------
   app.get("/api/user/api-keys", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) {
@@ -349,7 +481,7 @@ export function registerPlatformProxyRoutes(app) {
     return c.json({ ok: true, keyId });
   });
 
-  // ── Service accounts ─────────────────────────────────────────────────────
+  // -- Service accounts -----------------------------------------------------------
   app.get("/api/org/:orgId/service-accounts", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) {
@@ -439,7 +571,7 @@ export function registerPlatformProxyRoutes(app) {
     return c.json({ ok: true, keyId });
   });
 
-  // ── Entitlements, usage & limits ─────────────────────────────────────────
+  // -- Entitlements, usage & limits -----------------------------------------------
   app.get("/api/entitlements", async (c) => {
     const auth = await requireSession(c);
     if (auth.error) {
@@ -482,10 +614,8 @@ export function registerPlatformProxyRoutes(app) {
   });
 
   app.post("/api/limits/override", async (c) => {
-    // Allow both API key and session auth — then require session for the override
     const unauthorized = await requireApiKeyResponse(c, database, { requireApiKey: false, allowSession: true });
     if (unauthorized) return unauthorized;
-    // Require session auth with admin role — API key alone is insufficient for limits override
     const ctx = authContextStorage.getStore();
     if (ctx?.method !== "session") {
       return c.json({ ok: false, error: "Limits override requires admin session auth." }, 403);
@@ -505,5 +635,45 @@ export function registerPlatformProxyRoutes(app) {
       maxConcurrentLongform: positiveIntOrUndefined(body.maxConcurrentLongform),
     });
     return c.json({ ok: true, limits });
+  });
+
+  // -- M2-06: Gateway proxy layer for /api/orgs/* ---------------------------------
+  // These routes forward to business-api with context header propagation
+  // (X-Maple-Tenant-Id, X-Maple-Org-Id, X-Maple-User-Id).
+  // If business-api is unavailable and MAPLE_BUSINESS_API_REQUIRED=true, returns 503.
+  // Otherwise, the request falls through to the local org routes via redirect.
+
+  app.all("/api/orgs/*", async (c) => {
+    const auth = await requireSession(c);
+    if (auth.error) {
+      return auth.error;
+    }
+    const method = c.req.method.toUpperCase();
+    const path = c.req.path;
+    let body = undefined;
+    if (method !== "GET" && method !== "HEAD" && method !== "DELETE") {
+      try {
+        body = await readJsonBody(c);
+      } catch {
+        // no body is fine for some requests
+      }
+    }
+    const proxyResult = await proxyToBusinessApi(c, method, path, {
+      body,
+      session: auth.session,
+    });
+    if (proxyResult) {
+      return proxyResult;
+    }
+    // Business-api not configured or unavailable (non-required mode).
+    // Rewrite /api/orgs/:orgId/... to /api/org/:orgId/... and let the
+    // local handlers above serve the request.
+    const rewrittenPath = path.replace(/^\/api\/orgs\//, "/api/org/");
+    if (rewrittenPath !== path) {
+      const url = new URL(c.req.url);
+      url.pathname = rewrittenPath;
+      return c.redirect(url.toString(), 307);
+    }
+    return c.json({ error: "Not found." }, 404);
   });
 }

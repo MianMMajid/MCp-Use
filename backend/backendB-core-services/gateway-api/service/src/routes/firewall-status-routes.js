@@ -4,6 +4,7 @@ import { asString } from "../helpers.js";
 import { buildFirewallChatContext, buildYcMetrics, } from "../trace-helpers.js";
 import { buildYcAppBrief } from "../strategy/yc-narrative.js";
 import { grpcUnary } from "../grpc-clients.js";
+import { mapleLog } from "../logging.js";
 export function registerFirewallStatusRoutes() {
     // ── GET /api/yc/brief ──────────────────────────────────────────────────────
     server.get("/api/yc/brief", async (c) => {
@@ -52,6 +53,8 @@ export function registerFirewallStatusRoutes() {
         if (unauthorized) {
             return unauthorized;
         }
+        const agentId = asString(c.req.query("agentId"));
+        const env = asString(c.req.query("env"));
         const grpcClients = getGrpcClients();
         if (!grpcClients?.contextWall) {
             return c.json({
@@ -62,12 +65,56 @@ export function registerFirewallStatusRoutes() {
         }
         try {
             const response = await grpcUnary(grpcClients.contextWall, "listPolicyRules", {});
-            const rules = Array.isArray(response?.rules) ? response.rules : [];
+            let rules = Array.isArray(response?.rules) ? response.rules : [];
+            // M1-17: Filter by agentId — wildcard scope rules always included
+            if (agentId) {
+                rules = rules.filter((rule) => {
+                    const scope = rule.scope ?? rule.metadata?.scope;
+                    if (!scope) return true; // global rules always apply
+                    if (scope === "*") return true;
+                    if (scope === agentId) return true;
+                    return false;
+                });
+            }
+            // M1-17: Filter by env — rules without metadata.env always included
+            if (env) {
+                rules = rules.filter((rule) => {
+                    const ruleEnv = rule.metadata?.env;
+                    if (!ruleEnv) return true; // no env restriction means global
+                    return ruleEnv === env;
+                });
+            }
+            // M1-17: Try to fetch tenant policy from database for enrichment
+            let tenantPolicy = null;
+            try {
+                const authContext = (await import("../auth.js")).authContextStorage.getStore();
+                const tenantId = authContext?.tenantId ?? "default";
+                const orgId = authContext?.orgId ?? "default";
+                const policyResult = await database.pool.query(
+                    `SELECT * FROM gateway_modifier_tenant_policies WHERE tenant_id = $1 AND org_id = $2 AND is_active = TRUE LIMIT 1`,
+                    [tenantId, orgId]
+                );
+                if (policyResult.rows.length > 0) {
+                    const row = policyResult.rows[0];
+                    tenantPolicy = {
+                        tenantId: row.tenant_id,
+                        orgId: row.org_id,
+                        version: row.version,
+                        policy: JSON.parse(row.policy_json || "{}"),
+                        activatedAt: row.activated_at,
+                    };
+                }
+            } catch {
+                // Tenant policy lookup is optional enrichment
+            }
             return c.json({
                 ok: true,
                 source: "context-wall",
-                ruleCount: Number(response?.ruleCount ?? rules.length),
+                agentId: agentId || null,
+                env: env || null,
+                ruleCount: rules.length,
                 rules,
+                tenantPolicy,
             });
         }
         catch (error) {

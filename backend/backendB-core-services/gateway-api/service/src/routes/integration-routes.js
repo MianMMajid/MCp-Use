@@ -836,6 +836,20 @@ export function registerIntegrationRoutes(app, options) {
       disconnectedAt: null,
     });
 
+    // M4-08: Audit coverage — integration connect is a credential mutation
+    auditEmitter({
+      eventType: "AUDIT_EVENT_TYPE_INTEGRATION_CONNECTED",
+      severity: "RISK_SEVERITY_MEDIUM",
+      summary: `integration connected: ${provider}`,
+      context: requestContextFromHeaders(c),
+      payload: {
+        action: "integrations.connect",
+        provider,
+        userId: auth.session.user.id,
+        authType: asString(body.authType) || definition.defaultAuthType,
+      },
+    });
+
     return c.json(
       {
         ok: true,

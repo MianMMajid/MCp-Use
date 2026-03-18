@@ -176,12 +176,27 @@ export function registerFirewallDecisionRoutes() {
             return unauthorized;
         }
         const body = await readJsonBody(c);
+        // M1-16: Max body size guard (1 MB)
+        const bodyStr = JSON.stringify(body ?? {});
+        if (bodyStr.length > 1_048_576) {
+            return c.json({ ok: false, error: "Request body too large" }, 413);
+        }
+        // M1-16: Input validation — require at least tool or action
+        if (!body.tool && !body.action) {
+            return c.json({ ok: false, error: "tool or action is required" }, 400);
+        }
         const scan = await buildFirewallPayloadScan(body);
         const candidateStep = buildCandidateStep(body, Number(body.stepIndex ?? 0), {
             actor: "agent",
             type: "tool_call",
         });
-        const decision = await evaluateFirewallStepViaGrpc(candidateStep);
+        let decision;
+        try {
+            decision = await evaluateFirewallStepViaGrpc(candidateStep);
+        } catch (err) {
+            // M1-16: context-wall gRPC failure returns 503
+            return c.json({ ok: false, error: "Policy engine unavailable" }, 503);
+        }
         return c.json({
             ok: true,
             mode: "preview",

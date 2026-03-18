@@ -1,0 +1,54 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../
+replacements:
+  - source:
+      kind: ConfigMap
+      name: ingress-vars
+      fieldPath: data.MAPLE_GATEWAY_HOST
+    targets:
+      - select:
+          kind: Ingress
+          name: maple-gateway
+        fieldPaths:
+          - spec.tls.0.hosts.0
+          - spec.rules.0.host
+  - source:
+      kind: ConfigMap
+      name: ingress-vars
+      fieldPath: data.MAPLE_GATEWAY_TLS_SECRET
+    targets:
+      - select:
+          kind: Ingress
+          name: maple-gateway
+        fieldPaths:
+          - spec.tls.0.secretName
+  - source:
+      kind: ConfigMap
+      name: ingress-vars
+      fieldPath: data.MAPLE_CONSOLE_HOST
+    targets:
+      - select:
+          kind: Ingress
+          name: maple-console
+        fieldPaths:
+          - spec.tls.0.hosts.0
+          - spec.rules.0.host
+  - source:
+      kind: ConfigMap
+      name: ingress-vars
+      fieldPath: data.MAPLE_CONSOLE_TLS_SECRET
+    targets:
+      - select:
+          kind: Ingress
+          name: maple-console
+        fieldPaths:
+          - spec.tls.0.secretName
+configMapGenerator:
+  - name: ingress-vars
+    literals:
+      - MAPLE_GATEWAY_HOST=staging.maple.example.com
+      - MAPLE_GATEWAY_TLS_SECRET=maple-gateway-tls-staging
+      - MAPLE_CONSOLE_HOST=console.staging.maple.example.com
+      - MAPLE_CONSOLE_TLS_SECRET=maple-console-tls-staging

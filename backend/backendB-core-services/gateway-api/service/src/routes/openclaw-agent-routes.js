@@ -24,7 +24,7 @@ function asBoundedInteger(value, fallback, min, max) {
 }
 
 function toSseEvent(name, payload) {
-  return `event: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
+  return `id: ${payload.cursor ?? payload.sequence ?? ""}\nevent: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
 function isTerminalSessionStatus(status) {
@@ -51,7 +51,9 @@ server.app.get("/api/openclaw/agent/sessions", async (c) => {
   }
   const limit = asBoundedInteger(c.req.query("limit"), 20, 1, 100);
   const cursor = asString(c.req.query("cursor")) ?? "";
-  const listed = await listOpenClawSessions({ limit, cursor });
+  const status = asString(c.req.query("status")) ?? undefined;
+  const agentId = asString(c.req.query("agentId")) ?? undefined;
+  const listed = await listOpenClawSessions({ limit, cursor, status, agentId });
   return c.json({
     ok: true,
     items: listed.items,
@@ -72,6 +74,21 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId", async (c) => {
   if (!session) {
     return c.json({ ok: false, error: "Session not found." }, 404);
   }
+  const includeParam = asString(c.req.query("include")) ?? "";
+  const includes = includeParam.split(",").map((s) => s.trim()).filter(Boolean);
+  if (includes.includes("steps")) {
+    const MAX_EVENTS = 500;
+    const eventsResult = await listOpenClawSessionEvents(sessionId, { afterCursor: "0" });
+    if (eventsResult.items.length > MAX_EVENTS) {
+      session.events = eventsResult.items.slice(0, MAX_EVENTS);
+      session.truncated = true;
+    } else {
+      session.events = eventsResult.items;
+    }
+  }
+  if (!includes.includes("runs")) {
+    delete session.runs;
+  }
   return c.json({
     ok: true,
     session,
@@ -90,6 +107,13 @@ server.app.post("/api/openclaw/agent/sessions/:sessionId/cancel", async (c) => {
   const canceled = await cancelOpenClawSession(sessionId);
   if (!canceled) {
     return c.json({ ok: false, error: "Session not found." }, 404);
+  }
+  if (canceled.alreadyTerminal) {
+    return c.json({
+      ok: true,
+      session: canceled,
+      alreadyTerminal: true,
+    });
   }
   return c.json({
     ok: true,
@@ -111,11 +135,12 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
   }
 
   const encoder = new TextEncoder();
-  const startedCursor = asString(c.req.query("cursor")) ?? "0";
+  const startedCursor = asString(c.req.query("cursor")) ?? asString(c.req.header("Last-Event-ID")) ?? "0";
   const timeoutMs = asBoundedInteger(c.req.query("timeoutMs"), 25000, 1000, 120000);
 
   let closed = false;
   let timeout;
+  let keepaliveInterval;
   let unsubscribe = () => {};
   const stream = new ReadableStream({
     async start(controller) {
@@ -143,6 +168,10 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
           clearTimeout(timeout);
           timeout = undefined;
         }
+        if (keepaliveInterval) {
+          clearInterval(keepaliveInterval);
+          keepaliveInterval = undefined;
+        }
         try {
           unsubscribe();
         } catch {
@@ -157,6 +186,9 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
 
       const flushBacklog = async () => {
         const events = await listOpenClawSessionEvents(sessionId, { afterCursor: cursor });
+        if (events.items.length === 0 && cursor !== "0") {
+          writeEvent("gap", { sessionId, missedCursor: cursor, resumedAt: events.latestCursor });
+        }
         for (const event of events.items) {
           if (!writeEvent(event.eventType, event)) {
             break;
@@ -165,6 +197,17 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
         cursor = events.latestCursor;
         return events;
       };
+
+      keepaliveInterval = setInterval(() => {
+        if (closed) {
+          return;
+        }
+        try {
+          controller.enqueue(encoder.encode(`:keepalive\n\n`));
+        } catch {
+          closed = true;
+        }
+      }, 15000);
 
       writeEvent("ready", { sessionId, cursor });
       void flushBacklog();
@@ -214,6 +257,10 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
         clearTimeout(timeout);
         timeout = undefined;
       }
+      if (keepaliveInterval) {
+        clearInterval(keepaliveInterval);
+        keepaliveInterval = undefined;
+      }
       try {
         unsubscribe();
       } catch {
@@ -245,9 +292,29 @@ server.app.get("/api/openclaw/agent/runs/:runId/artifacts", async (c) => {
   if (!run) {
     return c.json({ ok: false, error: "Run not found." }, 404);
   }
+  const artifacts = run.artifacts ?? [];
+  const totalSize = artifacts.reduce((sum, a) => sum + (a.size ?? a.length ?? 0), 0);
+  const artifactCount = artifacts.length;
+  const acceptHeader = asString(c.req.header("Accept")) ?? "";
+  if (acceptHeader === "application/octet-stream" && artifactCount === 1) {
+    const artifact = artifacts[0];
+    const body = artifact.content ?? artifact.data ?? "";
+    const buffer = typeof body === "string" ? Buffer.from(body, artifact.encoding === "base64" ? "base64" : "utf-8") : body;
+    return new Response(buffer, {
+      headers: {
+        "content-type": artifact.mimeType ?? "application/octet-stream",
+        "content-disposition": `attachment; filename="${artifact.name ?? "artifact"}"`,
+      },
+    });
+  }
   return c.json({
     ok: true,
-    run,
+    run: {
+      ...run,
+      artifacts,
+      artifactCount,
+      totalSize,
+    },
   });
 });
 

@@ -23,6 +23,11 @@ import { registerPolicyVersionRoutes } from "./policy-version-routes.js";
 import { registerDashboardRoutes } from "./dashboard-routes.js";
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSsoRoutes } from "./sso-routes.js";
+import { registerTraceSearchRoutes } from "./trace-search-routes.js";
+import { registerTraceExportRoutes } from "./trace-export-routes.js";
+import { registerRunRoutes } from "./run-routes.js";
+import { registerRuntimeDiagnosticsRoutes } from "./runtime-diagnostics-routes.js";
+import { registerToolGovernanceRoutes } from "./tool-governance-routes.js";
 import { database } from "../state.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { adminApiKeys, adminAllowNoAuth, auditWriterHttpOrigin } from "../config.js";
@@ -105,6 +110,13 @@ export async function registerGatewayRoutes(app) {
   // Phase 4: SCIM 2.0 provisioning
   registerScimRoutes(app);
 
+  // Phase 3 (M3): Observability + Compliance — trace search, export, runs, diagnostics, tool governance
+  registerTraceSearchRoutes(app);
+  registerTraceExportRoutes(app);
+  registerRunRoutes(app);
+  registerRuntimeDiagnosticsRoutes(app);
+  registerToolGovernanceRoutes(app);
+
   // Alias for frontend path mismatch: /api/orchestrations/executions/approvals
   app.get("/api/orchestrations/executions/approvals", async (c) => {
     // Proxy to the existing operations route
@@ -122,6 +134,11 @@ export async function registerGatewayRoutes(app) {
   } catch (err) {
     mapleLog("warn", "gateway_api.rbac_init_failed", { error: err instanceof Error ? err.message : String(err) });
   }
+
+  // M4-09: TODO — OpenAPI spec generation from route definitions. The versioned
+  // API docs endpoint should introspect registered routes and produce a complete
+  // OpenAPI 3.1 spec at /api/docs/openapi.json with per-route schemas, auth
+  // requirements, and example payloads.
 
   registerGatewayFallbackRoutes(app);
 }

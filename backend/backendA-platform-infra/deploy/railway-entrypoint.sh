@@ -30,10 +30,28 @@ start_health_sidecar() {
   " &
 }
 
+# ── Production startup validation ─────────────────────────────────────────────
+# When NODE_ENV=production, fail fast if critical env vars are still defaults.
+validate_production_env() {
+  local has_error=0
+  for var_name in DATABASE_URL MAPLE_TENANT_CLAIM_SIGNING_KEY MAPLE_CREDENTIAL_SIGNING_KEY; do
+    local val="${!var_name:-}"
+    if [ -z "${val}" ] || [ "${val}" = "not-configured" ] || [ "${val}" = "sk_test_not_configured" ]; then
+      echo "[railway-entrypoint] CRITICAL: ${var_name} is not configured for production." >&2
+      has_error=1
+    fi
+  done
+  if [ "${has_error}" -eq 1 ]; then
+    echo "[railway-entrypoint] Aborting: one or more critical env vars are not configured." >&2
+    exit 1
+  fi
+}
+
 # ── Retired service compatibility shim ────────────────────────────────────────
 # Some Railway services may still reference retired MAPLE_SERVICE values
 # (model-router, secrets-broker). Keep those deployments healthy while the
 # services are removed from Railway topology.
+# Deprecation: these stubs are scheduled for removal after 2026-06-01.
 run_retired_service_stub() {
   local service_name="${1}"
   local replacement_hint="${2}"
@@ -146,6 +164,11 @@ export MAPLE_SECRETS_BROKER_RETIRED="${MAPLE_SECRETS_BROKER_RETIRED:-true}"
 # SERVICE DISPATCH
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Validate critical env vars in production before starting any service
+if [ "${NODE_ENV}" = "production" ]; then
+  validate_production_env
+fi
+
 case "${MAPLE_SERVICE}" in
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -159,10 +182,16 @@ case "${MAPLE_SERVICE}" in
     export MAPLE_RUNTIME_STRICT_DEPENDENCIES="${MAPLE_RUNTIME_STRICT_DEPENDENCIES:-false}"
     export MAPLE_ENFORCE_STARTUP_DEPENDENCIES="${MAPLE_ENFORCE_STARTUP_DEPENDENCIES:-false}"
 
-    # Admin bootstrap
+    # Admin bootstrap — MAPLE_ADMIN_PASSWORD must be set explicitly in production
     export MAPLE_ADMIN_USERNAME="${MAPLE_ADMIN_USERNAME:-admin}"
-    export MAPLE_ADMIN_PASSWORD="${MAPLE_ADMIN_PASSWORD:-maple-live-2026}"
+    export MAPLE_ADMIN_PASSWORD="${MAPLE_ADMIN_PASSWORD:-}"
     export MAPLE_ADMIN_EMAIL="${MAPLE_ADMIN_EMAIL:-admin@mayple.cloud}"
+
+    # Production guard: MAPLE_ADMIN_PASSWORD must be set explicitly
+    if [ "${NODE_ENV}" = "production" ] && [ -z "${MAPLE_ADMIN_PASSWORD}" ]; then
+      echo "[railway-entrypoint] CRITICAL: MAPLE_ADMIN_PASSWORD must be explicitly set in production." >&2
+      exit 1
+    fi
 
     # Auth / Session
     export MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}"
@@ -270,7 +299,7 @@ case "${MAPLE_SERVICE}" in
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
-  admin-console-api)
+  admin-console-api) # Deprecated 2025-12 — remove after 2026-06-01
   # ────────────────────────────────────────────────────────────────────────────
     run_retired_service_stub "admin-console-api" "gateway-api /admin/api/* routes"
     ;;
@@ -316,7 +345,7 @@ case "${MAPLE_SERVICE}" in
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
-  tool-runner)
+  tool-runner) # Deprecated 2025-11 — remove after 2026-06-01
   # ────────────────────────────────────────────────────────────────────────────
     run_retired_service_stub "tool-runner" "mcp-proxy inlined tool execution"
     ;;
@@ -354,7 +383,7 @@ case "${MAPLE_SERVICE}" in
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
-  business-api)
+  business-api) # Deprecated 2025-12 — remove after 2026-06-01
   # ────────────────────────────────────────────────────────────────────────────
     run_retired_service_stub "business-api" "gateway-api direct database logic"
     ;;
@@ -433,13 +462,13 @@ case "${MAPLE_SERVICE}" in
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
-  model-router)
+  model-router) # Deprecated 2025-10 — remove after 2026-06-01
   # ────────────────────────────────────────────────────────────────────────────
     run_retired_service_stub "model-router" "context-wall"
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────
-  secrets-broker)
+  secrets-broker) # Deprecated 2025-10 — remove after 2026-06-01
   # ────────────────────────────────────────────────────────────────────────────
     run_retired_service_stub "secrets-broker" "gateway-managed secret flows"
     ;;

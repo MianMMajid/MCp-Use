@@ -268,32 +268,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443
-    - to:
-        - podSelector:
-            matchLabels:
-              app: audit-writer
-      ports:
-        - protocol: TCP
-          port: 9400
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

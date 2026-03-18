@@ -24,6 +24,7 @@ import {
   openclawAgentRequired,
 } from "../config.js";
 import { asString } from "../helpers.js";
+import { emitAuditEvent } from "../audit-emitter.js";
 import { mapleLog } from "../logging.js";
 import { database } from "../state.js";
 import { OpenClawModifierStore } from "./openclaw-modifier-store.js";
@@ -1166,20 +1167,50 @@ function toPublicRun(run) {
   };
 }
 
+const VALID_SESSION_STATUSES = new Set(["idle", "running", "completed", "failed", "canceled", "cancel_requested"]);
+
 export async function listOpenClawSessions(options = {}) {
+  const filterStatus = typeof options.status === "string" && VALID_SESSION_STATUSES.has(options.status) ? options.status : undefined;
+  const filterAgentId = typeof options.agentId === "string" && options.agentId.trim() ? options.agentId.trim() : undefined;
+
   if (hasPersistentDatabase()) {
     return (async () => {
       await ensureOpenClawPersistence();
       const limit = clampInt(options.limit, 1, 100, 20);
       const offset = parseCursorOffset(options.cursor);
+      const params = [];
+      const conditions = [];
+      let paramIdx = 0;
+
+      if (filterStatus) {
+        paramIdx++;
+        conditions.push(`s.status = $${paramIdx}`);
+        params.push(filterStatus);
+      }
+      if (filterAgentId) {
+        paramIdx++;
+        const escapedAgentId = filterAgentId.replace(/[\\%_]/g, "\\$&");
+        conditions.push(`EXISTS (SELECT 1 FROM openclaw_agent_runs ar WHERE ar.session_id = s.session_id AND COALESCE(ar.input_json, '{}')::text ILIKE $${paramIdx} ESCAPE '\\')`);
+        params.push(`%"agentId":"${escapedAgentId}"%`);
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      paramIdx++;
+      const limitParam = paramIdx;
+      params.push(limit);
+      paramIdx++;
+      const offsetParam = paramIdx;
+      params.push(offset);
+
       const result = await database.pool.query(
         `SELECT s.*,
                 r.input_json AS last_input_json
            FROM openclaw_agent_sessions s
       LEFT JOIN openclaw_agent_runs r ON r.run_id = s.last_run_id
+          ${whereClause}
        ORDER BY s.updated_at DESC
-          LIMIT $1 OFFSET $2`,
-        [limit, offset],
+          LIMIT $${limitParam} OFFSET $${offsetParam}`,
+        params,
       );
       const items = result.rows.map((row) => {
         const input = parseJson(row.last_input_json, {});
@@ -1193,9 +1224,20 @@ export async function listOpenClawSessions(options = {}) {
   }
   const limit = clampInt(options.limit, 1, 100, 20);
   const offset = parseCursorOffset(options.cursor);
-  const all = [...sessionStore.values()].sort((a, b) =>
+  let all = [...sessionStore.values()].sort((a, b) =>
     String(b.updatedAt).localeCompare(String(a.updatedAt))
   );
+  if (filterStatus) {
+    all = all.filter((s) => s.status === filterStatus);
+  }
+  if (filterAgentId) {
+    all = all.filter((s) =>
+      s.runIds.some((runId) => {
+        const run = runStore.get(runId);
+        return run && String(run.input?.agentId ?? "") === filterAgentId;
+      })
+    );
+  }
   const items = all.slice(offset, offset + limit).map(toPublicSession);
   const nextCursor = offset + limit < all.length ? String(offset + limit) : "";
   return { items, nextCursor };
@@ -1253,9 +1295,19 @@ export async function getOpenClawSession(sessionId) {
 }
 
 export async function cancelOpenClawSession(sessionId) {
+  const TERMINAL_STATUSES = new Set(["completed", "failed", "canceled"]);
   if (hasPersistentDatabase()) {
     return (async () => {
       await ensureOpenClawPersistence();
+      // First, read the current status before updating
+      const preCheck = await database.pool.query(
+        `SELECT status FROM openclaw_agent_sessions WHERE session_id = $1 LIMIT 1`,
+        [String(sessionId ?? "")],
+      );
+      if (preCheck.rows.length === 0) return null;
+      const previousStatus = preCheck.rows[0].status;
+      const wasAlreadyTerminal = TERMINAL_STATUSES.has(previousStatus);
+
       const updatedAt = nowIso();
       const result = await database.pool.query(`
         UPDATE openclaw_agent_sessions
@@ -1271,13 +1323,26 @@ export async function cancelOpenClawSession(sessionId) {
       session.status = result.rows[0].status;
       session.updatedAt = updatedAt;
       emitSessionEvent(session.sessionId, "cancel_requested", { sessionId: session.sessionId });
-      return toPublicSessionFromRow(result.rows[0]);
+      if (!wasAlreadyTerminal) {
+        emitAuditEvent({
+          eventType: "AUDIT_EVENT_TYPE_SESSION_CANCELED",
+          sourceService: "openclaw-agent-runtime",
+          summary: `OpenClaw session ${session.sessionId} canceled`,
+          payload: { sessionId: session.sessionId },
+        });
+      }
+      const publicSession = toPublicSessionFromRow(result.rows[0]);
+      if (wasAlreadyTerminal) {
+        publicSession.alreadyTerminal = true;
+      }
+      return publicSession;
     })();
   }
   const session = sessionStore.get(String(sessionId ?? ""));
   if (!session) {
     return null;
   }
+  const wasAlreadyTerminal = TERMINAL_STATUSES.has(session.status);
   session.cancelRequested = true;
   if (session.status === "running") {
     session.status = "cancel_requested";
@@ -1289,7 +1354,19 @@ export async function cancelOpenClawSession(sessionId) {
   emitSessionEvent(session.sessionId, "cancel_requested", {
     sessionId: session.sessionId,
   });
-  return toPublicSession(session);
+  if (!wasAlreadyTerminal) {
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_SESSION_CANCELED",
+      sourceService: "openclaw-agent-runtime",
+      summary: `OpenClaw session ${session.sessionId} canceled`,
+      payload: { sessionId: session.sessionId },
+    });
+  }
+  const publicSession = toPublicSession(session);
+  if (wasAlreadyTerminal) {
+    publicSession.alreadyTerminal = true;
+  }
+  return publicSession;
 }
 
 export async function getOpenClawRunArtifacts(runId) {
@@ -1574,13 +1651,14 @@ export async function listSessionsForAgent(agentId) {
   if (hasPersistentDatabase()) {
     return (async () => {
       await ensureOpenClawPersistence();
+      const escapedAgentId = String(agentId ?? "").trim().replace(/[\\%_]/g, "\\$&");
       const result = await database.pool.query(
         `SELECT DISTINCT s.*
            FROM openclaw_agent_sessions s
            JOIN openclaw_agent_runs r ON r.session_id = s.session_id
-          WHERE COALESCE(r.input_json, '{}')::text ILIKE $1
+          WHERE COALESCE(r.input_json, '{}')::text ILIKE $1 ESCAPE '\\'
           ORDER BY s.updated_at DESC`,
-        [`%\"agentId\":\"${String(agentId ?? "").trim()}\"%`],
+        [`%"agentId":"${escapedAgentId}"%`],
       );
       return result.rows.map((row) => toPublicSessionFromRow(row));
     })();

@@ -237,7 +237,11 @@ export function registerGptOAuthRoutes(app) {
             return c.json({ error: "invalid_grant", error_description: "redirect_uri mismatch" }, 400);
         }
 
-        // PKCE S256 verification
+        // M4-02: PKCE S256 verification — contract test assertion:
+        //   ASSERT: when code_challenge was provided at /gpt/oauth/authorize,
+        //   the token endpoint MUST reject requests missing code_verifier (400),
+        //   and MUST reject requests with incorrect code_verifier (400).
+        //   Only S256 is supported (checked at authorization endpoint).
         if (codeEntry.codeChallenge) {
             if (!codeVerifier) {
                 return c.json({ error: "invalid_grant", error_description: "code_verifier is required when code_challenge was provided" }, 400);

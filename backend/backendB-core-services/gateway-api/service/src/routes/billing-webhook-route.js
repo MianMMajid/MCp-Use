@@ -1,6 +1,31 @@
 import { database } from "../state.js";
 import { stripeWebhookSecret, STRIPE_PRICE_TO_PLAN } from "../config.js";
 import { stripe } from "./billing-stripe.js";
+import { emitAuditEvent } from "../audit-emitter.js";
+import { mapleLog } from "../logging.js";
+
+/**
+ * M2-14: Track the last processed event.created timestamp per customer to
+ * prevent out-of-order webhook processing from causing race conditions.
+ * In-memory map; acceptable because Stripe guarantees at-least-once delivery
+ * and we use event.created for ordering rather than arrival time.
+ */
+const _lastEventTimestampByCustomer = new Map();
+
+function shouldProcessEvent(customerId, eventCreated) {
+    if (!customerId || !Number.isFinite(eventCreated)) return true;
+    const last = _lastEventTimestampByCustomer.get(customerId);
+    if (last && eventCreated < last) {
+        mapleLog("info", "billing_webhook.out_of_order_skipped", {
+            customerId,
+            eventCreated,
+            lastProcessed: last,
+        });
+        return false;
+    }
+    _lastEventTimestampByCustomer.set(customerId, eventCreated);
+    return true;
+}
 
 export function registerBillingWebhookRoute(app) {
     app.post("/api/billing/webhook", async (c) => {
@@ -39,6 +64,10 @@ export function registerBillingWebhookRoute(app) {
                 typeof checkoutSession.subscription === "string"
                     ? checkoutSession.subscription
                     : checkoutSession.subscription?.id;
+            // M2-14: Use event.created timestamp for ordering
+            if (!shouldProcessEvent(customerId, event.created)) {
+                return c.json({ received: true, skipped: true });
+            }
             if (userId && plan && customerId) {
                 await database.upsertSubscription({
                     userId,
@@ -47,6 +76,15 @@ export function registerBillingWebhookRoute(app) {
                     plan,
                     status: "active",
                 });
+                // M2-14: Emit audit event for billing mutation
+                emitAuditEvent({
+                    eventType: "AUDIT_EVENT_TYPE_SUBSCRIPTION_ACTIVATED",
+                    sourceService: "gateway-api",
+                    userId,
+                    severity: "RISK_SEVERITY_LOW",
+                    summary: `Subscription activated: plan=${plan} for user ${userId}`,
+                    payload: { plan, customerId, subscriptionId },
+                });
             }
         } else if (event.type === "customer.subscription.updated") {
             const subscription = event.data.object;
@@ -54,20 +92,34 @@ export function registerBillingWebhookRoute(app) {
                 typeof subscription.customer === "string"
                     ? subscription.customer
                     : subscription.customer?.id;
+            // M2-14: Use event.created timestamp for ordering
+            if (!shouldProcessEvent(customerId, event.created)) {
+                return c.json({ received: true, skipped: true });
+            }
             if (customerId) {
                 const sub = await database.findSubscriptionByStripeCustomerId(customerId);
                 if (sub) {
                     const priceId = subscription.items.data[0]?.price?.id;
                     const plan = priceId ? STRIPE_PRICE_TO_PLAN[priceId] || sub.plan : sub.plan;
+                    const currentPeriodEnd = subscription.current_period_end
+                        ? new Date(subscription.current_period_end * 1000).toISOString()
+                        : null;
                     await database.upsertSubscription({
                         userId: sub.userId,
                         stripeCustomerId: customerId,
                         stripeSubscriptionId: subscription.id,
                         plan,
                         status: subscription.status,
-                        currentPeriodEnd: subscription.current_period_end
-                            ? new Date(subscription.current_period_end * 1000).toISOString()
-                            : null,
+                        currentPeriodEnd,
+                    });
+                    // M2-14: Emit audit event for billing mutation
+                    emitAuditEvent({
+                        eventType: "AUDIT_EVENT_TYPE_SUBSCRIPTION_UPDATED",
+                        sourceService: "gateway-api",
+                        userId: sub.userId,
+                        severity: "RISK_SEVERITY_LOW",
+                        summary: `Subscription updated: plan=${plan}, status=${subscription.status}`,
+                        payload: { plan, status: subscription.status, customerId, currentPeriodEnd },
                     });
                 }
             }
@@ -77,15 +129,36 @@ export function registerBillingWebhookRoute(app) {
                 typeof subscription.customer === "string"
                     ? subscription.customer
                     : subscription.customer?.id;
+            // M2-14: Use event.created timestamp for ordering
+            if (!shouldProcessEvent(customerId, event.created)) {
+                return c.json({ received: true, skipped: true });
+            }
             if (customerId) {
                 const sub = await database.findSubscriptionByStripeCustomerId(customerId);
                 if (sub) {
+                    // M2-13: For deleted subscriptions, check if there is remaining period.
+                    // Even after deletion event, the subscription may still be valid until
+                    // current_period_end (cancel_at_period_end scenario).
+                    const currentPeriodEnd = subscription.current_period_end
+                        ? new Date(subscription.current_period_end * 1000).toISOString()
+                        : null;
+                    const stillWithinPeriod = currentPeriodEnd && new Date(currentPeriodEnd) > new Date();
                     await database.upsertSubscription({
                         userId: sub.userId,
                         stripeCustomerId: customerId,
                         stripeSubscriptionId: subscription.id,
-                        plan: "free",
-                        status: "canceled",
+                        plan: stillWithinPeriod ? sub.plan : "free",
+                        status: stillWithinPeriod ? "canceling" : "canceled",
+                        currentPeriodEnd,
+                    });
+                    // M2-14: Emit audit event for billing mutation
+                    emitAuditEvent({
+                        eventType: "AUDIT_EVENT_TYPE_SUBSCRIPTION_CANCELED",
+                        sourceService: "gateway-api",
+                        userId: sub.userId,
+                        severity: "RISK_SEVERITY_LOW",
+                        summary: `Subscription canceled for user ${sub.userId}${stillWithinPeriod ? " (valid until period end)" : ""}`,
+                        payload: { customerId, currentPeriodEnd, stillWithinPeriod },
                     });
                 }
             }

@@ -3,7 +3,7 @@ import { extractApiKeyFromHeaders, verifyApiKey } from "@maple/security";
 import { loadApiKeysFromEnv } from "@maple/security";
 import { mapleLog } from "../logging.js";
 import { apiErrorPayload, apiErrorResponse } from "../api-error.js";
-import { getGrpcClients } from "../state.js";
+import { getGrpcClients, database as adminDatabase } from "../state.js";
 import { grpcUnary } from "../grpc-clients.js";
 
 // ── Admin auth helpers ──────────────────────────────────────────────────────
@@ -218,22 +218,52 @@ export function registerAdminConsoleRoutes(app, options = {}) {
   app.get("/admin/api/policies/versions", async (c) => {
     const grpcClients = getGrpcClients();
     const contextWall = grpcClients?.contextWall;
+    // M1-18: Try PostgreSQL first, fall back to in-memory store
     try {
-      const versions = await syncPolicyVersionState(contextWall);
+      const db = adminDatabase;
+      const dbResult = await db.pool.query(
+        `SELECT id, policy_id, version_number, created_by, created_at FROM policy_versions ORDER BY created_at DESC LIMIT 50`
+      );
+      const items = dbResult.rows.map((row) => ({
+        versionId: row.id,
+        policyId: row.policy_id,
+        versionNumber: row.version_number,
+        createdBy: row.created_by ?? "system",
+        createdAt: row.created_at,
+        active: String(row.id) === activePolicyVersionId,
+      }));
       return c.json({
         ok: true,
-        ...versions,
+        source: "database",
+        activeVersionId: activePolicyVersionId,
+        total: items.length,
+        items,
       });
-    } catch (err) {
-      return c.json(
-        {
-          error: "Failed to read policy versions.",
-          details: err.message,
-          activeVersionId: activePolicyVersionId,
-          items: [...policyVersionStore.values()],
-        },
-        502
-      );
+    } catch (dbErr) {
+      mapleLog("warn", "admin_console_policy_versions_db_fallback", {
+        error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+      });
+      // M1-18: Fall back to in-memory syncPolicyVersionState
+      try {
+        const versions = await syncPolicyVersionState(contextWall);
+        return c.json({
+          ok: true,
+          source: "in-memory",
+          total: versions.items.length,
+          ...versions,
+        });
+      } catch (err) {
+        return c.json(
+          {
+            error: "Failed to read policy versions.",
+            details: err.message,
+            activeVersionId: activePolicyVersionId,
+            total: [...policyVersionStore.values()].length,
+            items: [...policyVersionStore.values()],
+          },
+          502
+        );
+      }
     }
   });
 
@@ -250,15 +280,35 @@ export function registerAdminConsoleRoutes(app, options = {}) {
     if (!found) {
       return apiErrorResponse(c, 404, "NOT_FOUND", "Policy version not found.");
     }
+    // M1-19: Idempotent activation — if already active, return early
+    if (found.active === true) {
+      return c.json({
+        ok: true,
+        activeVersionId: activePolicyVersionId,
+        activatedVersion: found,
+        alreadyActive: true,
+      });
+    }
     activePolicyVersionId = versionId;
     for (const version of policyVersionStore.values()) {
       version.active = version.versionId === versionId;
     }
+    // M1-19: Correct audit event type for activation
     emitAuditEvent(auditWriter, {
-      eventType: "AUDIT_EVENT_TYPE_POLICY_EVALUATED",
+      eventType: "AUDIT_EVENT_TYPE_POLICY_ACTIVATED",
       summary: "admin-console: activated policy version",
       payload: { versionId },
     });
+    // M1-19: Propagate to context-wall via gRPC (fire and forget)
+    if (contextWall) {
+      try {
+        grpcUnary(contextWall, "upsertPolicyRules", { versionId }).catch((err) => {
+          mapleLog("warn", "admin_console_activate_propagation_failed", { error: err.message });
+        });
+      } catch {
+        // fire-and-forget — do not block response
+      }
+    }
     return c.json({
       ok: true,
       activeVersionId: activePolicyVersionId,
@@ -278,6 +328,21 @@ export function registerAdminConsoleRoutes(app, options = {}) {
     if (!Array.isArray(rules) || rules.length === 0) {
       warnings.push("No policy rules supplied; validation ran with empty set.");
     }
+    // M1-20: Enforce max rule count
+    if (rules.length > 1000) {
+      errors.push(`Rule count ${rules.length} exceeds maximum of 1000.`);
+      return c.json(
+        {
+          ok: false,
+          valid: false,
+          errors,
+          warnings,
+        },
+        400
+      );
+    }
+    const VALID_ACTIONS = new Set(["allow", "block", "warn", "pending"]);
+    const matchActionMap = new Map();
     for (let index = 0; index < rules.length; index += 1) {
       const rule = rules[index];
       if (!rule || typeof rule !== "object") {
@@ -287,11 +352,33 @@ export function registerAdminConsoleRoutes(app, options = {}) {
       if (!String(rule.id || "").trim()) {
         errors.push(`Rule ${index} is missing id.`);
       }
-      if (!String(rule.action || "").trim()) {
+      const actionStr = String(rule.action || "").trim();
+      if (!actionStr) {
         warnings.push(`Rule ${index} is missing action.`);
+      } else if (!VALID_ACTIONS.has(actionStr)) {
+        // M1-20: Validate action against enum
+        errors.push(`Rule ${index} has invalid action "${actionStr}"; must be one of: allow, block, warn, pending.`);
       }
-      if (!String(rule.match || rule.selector || "").trim()) {
+      const matchStr = String(rule.match || rule.selector || "").trim();
+      if (!matchStr) {
         warnings.push(`Rule ${index} is missing match selector.`);
+      } else {
+        // M1-20: Validate match as regex
+        try {
+          new RegExp(matchStr);
+        } catch (regexErr) {
+          errors.push(`Rule ${index} has invalid match regex "${matchStr}": ${regexErr.message}`);
+        }
+        // M1-20: Check for conflicting rules (same match, different action)
+        if (actionStr && matchActionMap.has(matchStr)) {
+          const prevAction = matchActionMap.get(matchStr);
+          if (prevAction !== actionStr) {
+            warnings.push(`Rule ${index} conflicts: match "${matchStr}" has action "${actionStr}" but a previous rule uses "${prevAction}".`);
+          }
+        }
+        if (actionStr) {
+          matchActionMap.set(matchStr, actionStr);
+        }
       }
     }
     return c.json(
@@ -368,26 +455,62 @@ export function registerAdminConsoleRoutes(app, options = {}) {
     const sessionId = String(body?.sessionId || body?.session_id || "").trim();
     const since = String(body?.since || "").trim();
     const until = String(body?.until || "").trim();
+    const eventType = String(body?.eventType || "").trim();
     const limit = Number.parseInt(String(body?.limit || "1000"), 10);
+
+    // M3-07: Validate format — support csv alongside json/jsonl
+    if (format !== "json" && format !== "jsonl" && format !== "csv") {
+      return apiErrorResponse(c, 400, "INVALID_FORMAT", "format must be json, jsonl, or csv.");
+    }
+
+    // M3-08: Build eventTypes filter from body
+    const eventTypes = eventType
+      ? [eventType]
+      : Array.isArray(body?.eventTypes) ? body.eventTypes.map((t) => String(t).trim()).filter(Boolean) : [];
+
     try {
       const response = await grpcUnary(auditWriter, "queryEvents", {
         traceId,
         sessionId,
         sourceService: "",
-        eventTypes: [],
+        eventTypes,
         since,
         until,
         minSeverity: 0,
         limit: Number.isFinite(limit) ? Math.max(1, Math.min(limit, 5000)) : 1000,
         cursor: "",
       });
-      const events = Array.isArray(response?.events) ? response.events : [];
+      let events = Array.isArray(response?.events) ? response.events : [];
+
+      // M3-08: Client-side eventType filter (in case upstream does not support it)
+      if (eventType && events.length > 0) {
+        events = events.filter((ev) => String(ev?.eventType || "") === eventType);
+      }
+
       if (format === "jsonl") {
         const content = events.map((event) => JSON.stringify(event)).join("\n");
         return c.text(content, 200, {
           "content-type": "application/x-ndjson",
         });
       }
+
+      // M3-07: CSV format support
+      if (format === "csv") {
+        const csvFields = ["eventId", "eventType", "timestamp", "sourceService", "severity", "summary"];
+        const header = csvFields.join(",");
+        const rows = events.map((event) =>
+          csvFields.map((field) => {
+            const value = String(event?.[field] ?? "").replace(/"/g, '""');
+            return `"${value}"`;
+          }).join(",")
+        );
+        const csvContent = [header, ...rows].join("\n");
+        return c.text(csvContent, 200, {
+          "content-type": "text/csv",
+          "content-disposition": "attachment; filename=audit-export.csv",
+        });
+      }
+
       return c.json({
         ok: true,
         format: "json",
@@ -406,11 +529,31 @@ export function registerAdminConsoleRoutes(app, options = {}) {
   });
 
   app.get("/admin/api/audit/schemas", async (c) => {
+    // M3-09: Return full JSON Schema per event type
     return c.json({
       ok: true,
       schemas: [
         {
           id: "audit_event_v1",
+          type: "object",
+          description: "Base audit event schema used for all event types.",
+          required: ["eventId", "eventType", "timestamp"],
+          properties: {
+            eventId: { type: "string", description: "Unique event identifier (UUID)." },
+            eventType: { type: "string", description: "Event type enum (e.g. AUDIT_EVENT_TYPE_POLICY_EVALUATED)." },
+            timestamp: { type: "string", format: "date-time", description: "ISO 8601 timestamp." },
+            sourceService: { type: "string", description: "Service that emitted the event." },
+            severity: { type: "string", enum: ["RISK_SEVERITY_LOW", "RISK_SEVERITY_MEDIUM", "RISK_SEVERITY_HIGH", "RISK_SEVERITY_CRITICAL"], description: "Risk severity level." },
+            summary: { type: "string", description: "Human-readable event summary." },
+            context: {
+              type: "object",
+              properties: {
+                traceId: { type: "string", description: "Distributed trace identifier." },
+                sessionId: { type: "string", description: "Session identifier." },
+              },
+            },
+            payloadJson: { type: "string", description: "JSON-encoded event payload." },
+          },
           fields: [
             "eventId",
             "eventType",
@@ -422,6 +565,30 @@ export function registerAdminConsoleRoutes(app, options = {}) {
             "context.sessionId",
             "payloadJson",
           ],
+        },
+        {
+          id: "audit_event_policy_activated",
+          type: "object",
+          description: "Schema for policy activation events.",
+          allOf: [{ "$ref": "#/schemas/audit_event_v1" }],
+          properties: {
+            payloadJson: {
+              type: "string",
+              description: "JSON containing { versionId: string }.",
+            },
+          },
+        },
+        {
+          id: "audit_event_hitl_decision",
+          type: "object",
+          description: "Schema for human-in-the-loop approval/rejection events.",
+          allOf: [{ "$ref": "#/schemas/audit_event_v1" }],
+          properties: {
+            payloadJson: {
+              type: "string",
+              description: "JSON containing { traceId, stepIndex, action, reason, approverId, accepted }.",
+            },
+          },
         },
       ],
     });
@@ -449,6 +616,53 @@ export function registerAdminConsoleRoutes(app, options = {}) {
           String(event?.severity || "").includes("HIGH") ||
           String(event?.severity || "").includes("CRITICAL")
       );
+
+      // M3-09: Per-control evidence and framework scoring
+      const controls = [
+        { id: "AC-1", name: "Access Control Policy", framework: "NIST-800-53" },
+        { id: "AC-2", name: "Account Management", framework: "NIST-800-53" },
+        { id: "AU-2", name: "Audit Events", framework: "NIST-800-53" },
+        { id: "AU-3", name: "Content of Audit Records", framework: "NIST-800-53" },
+        { id: "AU-6", name: "Audit Review", framework: "NIST-800-53" },
+        { id: "CM-2", name: "Baseline Configuration", framework: "NIST-800-53" },
+        { id: "IA-2", name: "Identification and Authentication", framework: "NIST-800-53" },
+        { id: "IR-4", name: "Incident Handling", framework: "NIST-800-53" },
+        { id: "RA-5", name: "Vulnerability Scanning", framework: "NIST-800-53" },
+        { id: "SC-7", name: "Boundary Protection", framework: "NIST-800-53" },
+        { id: "SC-13", name: "Cryptographic Protection", framework: "NIST-800-53" },
+        { id: "SI-4", name: "Information System Monitoring", framework: "NIST-800-53" },
+      ];
+
+      const controlResults = controls.map((control) => {
+        // Derive evidence from audit events matching control-related event types
+        const relatedEvents = events.filter((ev) => {
+          const evType = String(ev?.eventType || "");
+          if (control.id === "AC-1" || control.id === "AC-2") return evType.includes("POLICY");
+          if (control.id === "AU-2" || control.id === "AU-3" || control.id === "AU-6") return evType.includes("AUDIT");
+          if (control.id === "IA-2") return evType.includes("AUTH") || evType.includes("HITL");
+          if (control.id === "IR-4") return evType.includes("INCIDENT") || evType.includes("CRITICAL");
+          if (control.id === "SI-4") return evType.includes("MONITOR") || evType.includes("SCAN");
+          return false;
+        });
+        const controlFindings = relatedEvents.filter(
+          (ev) =>
+            String(ev?.severity || "").includes("HIGH") ||
+            String(ev?.severity || "").includes("CRITICAL")
+        );
+        return {
+          controlId: control.id,
+          controlName: control.name,
+          framework: control.framework,
+          status: controlFindings.length > 0 ? "finding" : relatedEvents.length > 0 ? "pass" : "no-evidence",
+          evidenceCount: relatedEvents.length,
+          findingCount: controlFindings.length,
+        };
+      });
+
+      const passedControls = controlResults.filter((cr) => cr.status === "pass").length;
+      const totalControls = controlResults.length;
+      const frameworkScore = totalControls > 0 ? Math.round((passedControls / totalControls) * 100) : 0;
+
       return c.json({
         ok: true,
         reports: [
@@ -456,10 +670,13 @@ export function registerAdminConsoleRoutes(app, options = {}) {
             id: "compliance-baseline",
             generatedAt: new Date().toISOString(),
             status: findings.length > 0 ? "warn" : "pass",
-            controlsEvaluated: 12,
+            controlsEvaluated: totalControls,
             findings: findings.length,
             evidenceWindowStart: since,
             eventCount: events.length,
+            frameworkScore,
+            frameworkScoreLabel: `${frameworkScore}% controls passing`,
+            controls: controlResults,
           },
         ],
       });

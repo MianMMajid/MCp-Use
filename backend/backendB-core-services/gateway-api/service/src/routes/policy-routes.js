@@ -63,6 +63,9 @@ export function registerPolicyRoutes() {
                 // Tenant policy lookup is optional
             }
 
+            // M1-17: Deprecation headers — successor is /api/firewall/rules/effective
+            c.header("Deprecation", "true");
+            c.header("Link", '</api/firewall/rules/effective>; rel="successor-version"');
             return c.json({
                 ok: true,
                 agentId: agentId || null,

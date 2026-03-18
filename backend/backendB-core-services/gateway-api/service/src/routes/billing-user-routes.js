@@ -2,6 +2,7 @@ import { database } from "../state.js";
 import { findRequestSession } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { verifyPassword, hashPassword } from "@maple/security";
+import { emitAuditEvent } from "../audit-emitter.js";
 
 function profileResponse(user, subscription) {
     return {
@@ -56,6 +57,17 @@ export function registerBillingUserRoutes(app) {
             return c.json({ error: "Current password is incorrect." }, 401);
         }
         await database.updatePasswordByUserId(user.id, hashPassword(newPassword));
+
+        // M4-08: Audit coverage — password change is a security-sensitive mutation
+        emitAuditEvent({
+          eventType: "AUDIT_EVENT_TYPE_PASSWORD_CHANGED",
+          sourceService: "gateway-api",
+          userId: session.user.id,
+          severity: "RISK_SEVERITY_HIGH",
+          summary: `Password changed by user ${session.user.id}`,
+          payload: { userId: session.user.id },
+        });
+
         return c.json({ ok: true });
     }
 

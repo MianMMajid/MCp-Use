@@ -7,6 +7,7 @@ import {
   getCachedSubscription,
   setCachedSubscription,
 } from "../core/billing-cache.js";
+import { emitAuditEvent } from "../audit-emitter.js";
 
 function buildPathWithQuery(basePath, c) {
   const url = new URL(c.req.url);
@@ -64,14 +65,29 @@ export function registerBillingSubscriptionRoutes(app) {
     }
 
     const subscription = await database.ensureFreeSubscription(session.user.id);
+    // M2-13: Verify that canceled subscriptions are still valid until period end.
+    // If status is "canceled" or "canceling" but currentPeriodEnd is in the future,
+    // present the subscription as still active (with a flag) so the user retains
+    // access to their paid features until the billing period expires.
+    let effectiveStatus = subscription.status;
+    let validUntilPeriodEnd = false;
+    if (
+      (subscription.status === "canceled" || subscription.status === "canceling") &&
+      subscription.currentPeriodEnd &&
+      new Date(subscription.currentPeriodEnd) > new Date()
+    ) {
+      effectiveStatus = "active";
+      validUntilPeriodEnd = true;
+    }
     const payload = {
       ok: true,
       billingEnabled,
       billingMode: stripe ? "stripe" : "disabled",
       subscription: {
         plan: subscription.plan,
-        status: subscription.status,
+        status: effectiveStatus,
         currentPeriodEnd: subscription.currentPeriodEnd,
+        ...(validUntilPeriodEnd ? { canceledButValidUntilPeriodEnd: true } : {}),
       },
     };
     const userId = getUserId(c);
@@ -125,6 +141,15 @@ export function registerBillingSubscriptionRoutes(app) {
       cancel_url: `${billingBaseUrl()}/?billing=cancel`,
       metadata: { mapleUserId: session.user.id, maplePlan: plan },
     });
+    // M2-14: Emit audit event for billing mutation
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_CHECKOUT_SESSION_CREATED",
+      sourceService: "gateway-api",
+      userId: session.user.id,
+      severity: "RISK_SEVERITY_LOW",
+      summary: `Checkout session created for plan=${plan} by user ${session.user.id}`,
+      payload: { plan, customerId },
+    });
     return c.json({ ok: true, url: checkoutSession.url });
   });
 
@@ -148,6 +173,17 @@ export function registerBillingSubscriptionRoutes(app) {
       customer: sub.stripeCustomerId,
       return_url: `${billingBaseUrl()}/`,
     });
+
+    // M4-08: Audit coverage — billing portal session creation
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_BILLING_PORTAL_SESSION_CREATED",
+      sourceService: "gateway-api",
+      userId: session.user.id,
+      severity: "RISK_SEVERITY_LOW",
+      summary: `Billing portal session created by user ${session.user.id}`,
+      payload: { customerId: sub.stripeCustomerId },
+    });
+
     return c.json({ ok: true, url: portalSession.url });
   });
 
@@ -237,6 +273,16 @@ export function registerBillingSubscriptionRoutes(app) {
       currentPeriodEnd,
     });
 
+    // M2-14: Emit audit event for billing mutation
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_SUBSCRIPTION_CANCEL_REQUESTED",
+      sourceService: "gateway-api",
+      userId: session.user.id,
+      severity: "RISK_SEVERITY_LOW",
+      summary: `Subscription cancellation requested by user ${session.user.id} (atPeriodEnd=${atPeriodEnd})`,
+      payload: { plan: subscription.plan, atPeriodEnd, status, currentPeriodEnd },
+    });
+
     return c.json({
       ok: true,
       status,
@@ -284,6 +330,16 @@ export function registerBillingSubscriptionRoutes(app) {
       plan: subscription.plan,
       status,
       currentPeriodEnd,
+    });
+
+    // M2-14: Emit audit event for billing mutation
+    emitAuditEvent({
+      eventType: "AUDIT_EVENT_TYPE_SUBSCRIPTION_RESUMED",
+      sourceService: "gateway-api",
+      userId: session.user.id,
+      severity: "RISK_SEVERITY_LOW",
+      summary: `Subscription resumed by user ${session.user.id}`,
+      payload: { plan: subscription.plan, status, currentPeriodEnd },
     });
 
     return c.json({

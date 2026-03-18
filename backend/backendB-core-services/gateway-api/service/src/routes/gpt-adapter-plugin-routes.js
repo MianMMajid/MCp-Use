@@ -5,6 +5,11 @@ let gptOpenApiSpecCache = null;
 export function registerGptPluginRoutes(app) {
     app.get("/.well-known/ai-plugin.json", async (c) => {
         const baseUrl = gptAdapterBaseUrl();
+        // M4-01: Plugin manifest includes all required fields per OpenAI plugin spec:
+        //   schema_version, name_for_human, name_for_model, description_for_human,
+        //   description_for_model, auth (type, client_url, scope, authorization_url,
+        //   token_url, authorization_content_type), api (type, url),
+        //   logo_url, contact_email, legal_info_url
         return c.json({
             schema_version: "v1",
             name_for_human: "Maple MCP Tools",
@@ -13,8 +18,12 @@ export function registerGptPluginRoutes(app) {
             description_for_model: "Maple MCP gateway providing web_search, web_fetch, wikipedia_summary, github_repo_info, weather_forecast, hn_search, arxiv_search, openlibrary_search tools. Each tool is dispatched through Maple's firewall and tracing layer.",
             auth: {
                 type: "oauth",
+                client_url: `${baseUrl}/gpt/oauth/authorize`,
+                scope: "",
                 authorization_url: `${baseUrl}/gpt/oauth/authorize`,
+                authorization_content_type: "application/json",
                 token_url: `${baseUrl}/gpt/oauth/token`,
+                verification_tokens: {},
             },
             api: {
                 type: "openapi",

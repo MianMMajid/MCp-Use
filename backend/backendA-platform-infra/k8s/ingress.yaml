@@ -1,6 +1,7 @@
 # Ingress resources for Maple MCP Firewall
-# Hosts are placeholders — replace per environment.
+# Hosts use substitution vars — set via Kustomize overlays per environment.
 # TLS is managed by cert-manager when available.
+# Required ingress controller: nginx (ingress-nginx)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -17,10 +18,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - maple.example.com
-      secretName: maple-gateway-tls
+        - $(MAPLE_GATEWAY_HOST)
+      secretName: $(MAPLE_GATEWAY_TLS_SECRET)
   rules:
-    - host: maple.example.com
+    - host: $(MAPLE_GATEWAY_HOST)
       http:
         paths:
           - path: /
@@ -45,10 +46,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - console.maple.example.com
-      secretName: maple-console-tls
+        - $(MAPLE_CONSOLE_HOST)
+      secretName: $(MAPLE_CONSOLE_TLS_SECRET)
   rules:
-    - host: console.maple.example.com
+    - host: $(MAPLE_CONSOLE_HOST)
       http:
         paths:
           - path: /
