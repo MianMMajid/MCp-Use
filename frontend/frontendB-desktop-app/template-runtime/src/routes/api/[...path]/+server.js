@@ -64,6 +64,7 @@ async function proxy(request, path) {
   const proxiedHeaders = new Headers(response.headers);
   proxiedHeaders.delete('content-encoding');
   proxiedHeaders.delete('content-length');
+  proxiedHeaders.delete('transfer-encoding');
 
   return new Response(response.body, {
     status: response.status,
