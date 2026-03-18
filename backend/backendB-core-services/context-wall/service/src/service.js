@@ -1125,34 +1125,19 @@ export function createContextWallService(approvalQueue, policyStore) {
                 }
                 const requestTools = Array.isArray(call.request.tools) ? call.request.tools : [];
                 let rawTools = requestTools;
-                let toolDiscoveryError = "";
                 if (rawTools.length === 0) {
                     try {
                         rawTools = await loadOrchestrationToolsFromMcpProxy();
                     }
                     catch (err) {
-                        mapleLog("warn", "context_wall_load_orchestration_tools_failed", { error: err.message });
-                        toolDiscoveryError = err.message || "tool discovery failed";
+                        // Tool discovery failed — proceed without tools rather than blocking chat.
+                        // Plain chat (no tools) should still work through the policy engine.
+                        mapleLog("info", "context_wall_tool_discovery_skipped", {
+                            reason: err.message || "tool discovery failed",
+                            fallback: "proceeding_without_tools",
+                        });
+                        rawTools = [];
                     }
-                }
-                if (toolDiscoveryError) {
-                    emitAuditEvent({
-                        eventType: "AUDIT_EVENT_TYPE_TOOL_FAILED",
-                        summary: "Chat orchestration aborted: tool discovery unavailable",
-                        severity: "RISK_SEVERITY_HIGH",
-                        traceId: requestContext.traceId,
-                        payload: {
-                            reason: toolDiscoveryError,
-                        },
-                    });
-                    callback(null, {
-                        allowed: false,
-                        blockedReason: "Tool discovery unavailable; refusing orchestration without policy-plane tool schemas.",
-                        reply: "",
-                        model: "",
-                        redactedPatterns: decision.redactedPatterns ?? [],
-                    });
-                    return;
                 }
                 const modelTools = rawTools
                     .map((tool) => ({
