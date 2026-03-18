@@ -153,6 +153,8 @@
     try {
       await postJson('/api/auth/logout', {}).catch(() => {});
     } finally {
+      // Clear API cache to prevent data leaking between sessions
+      invalidateCache();
       // Clear stored session data
       window.localStorage.removeItem('mayple_chat_mode');
       window.localStorage.removeItem('mayple_stack_mode');

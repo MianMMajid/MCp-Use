@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
   import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
   import { formatDate } from '@/lib/format';
@@ -11,6 +11,20 @@
   let newKeyName = '';
   let creating = false;
   let newKeySecret = '';
+  let secretTimer = null;
+  let secretInterval = null;
+  let secondsLeft = 60;
+
+  function dismissSecret() {
+    newKeySecret = '';
+    clearTimeout(secretTimer);
+    clearInterval(secretInterval);
+  }
+
+  onDestroy(() => {
+    clearTimeout(secretTimer);
+    clearInterval(secretInterval);
+  });
 
   async function fetchKeys() {
     loading = true;
@@ -39,6 +53,13 @@
         newKeyName = '';
         newKeySecret = payload?.key?.token || payload?.token || payload?.secret || '';
         message = newKeySecret ? '' : 'API key created.';
+        if (newKeySecret) {
+          secondsLeft = 60;
+          clearTimeout(secretTimer);
+          clearInterval(secretInterval);
+          secretInterval = setInterval(() => { secondsLeft -= 1; }, 1000);
+          secretTimer = setTimeout(dismissSecret, 60_000);
+        }
         invalidateCache('/api/user/api-keys');
         await fetchKeys();
       } else {
@@ -70,11 +91,11 @@
       </form>
       {#if newKeySecret}
         <div class="secret-banner">
-          <p class="secret-label">Copy your API key now — it will not be shown again:</p>
+          <p class="secret-label">Copy your API key now — it will not be shown again (auto-hides in {secondsLeft}s):</p>
           <div class="secret-row">
             <code class="secret-value">{newKeySecret}</code>
             <button class="pill" on:click={() => { navigator.clipboard?.writeText(newKeySecret); message = 'Copied to clipboard.'; }}>Copy</button>
-            <button class="pill" on:click={() => { newKeySecret = ''; }}>Dismiss</button>
+            <button class="pill" on:click={dismissSecret}>Dismiss</button>
           </div>
         </div>
       {/if}

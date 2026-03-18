@@ -1,5 +1,6 @@
 <script>
   import { goto } from '$app/navigation';
+  import { invalidateCache } from '@/lib/api';
   export let mode = 'login';
 
   let email = '';
@@ -43,6 +44,7 @@
       }
       message = 'Success';
       if (mode === 'login' || mode === 'register' || mode === 'verify') {
+        invalidateCache();
         await goto('/');
       }
     } catch (error) {

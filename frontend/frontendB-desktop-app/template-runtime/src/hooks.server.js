@@ -55,5 +55,28 @@ export async function handle({ event, resolve }) {
     throw redirect(307, '/login');
   }
 
-  return resolve(event);
+  const response = await resolve(event);
+
+  // Security headers
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  if (event.url.protocol === 'https:') {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
+  // Skip CSP and frame options on streaming/SSE paths to avoid buffering issues
+  const isStreaming = pathname.startsWith('/api/') && (
+    pathname.includes('/stream') || pathname.includes('/sse') || pathname.includes('/events')
+  );
+  if (!isStreaming) {
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    response.headers.set(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'self'"
+    );
+  }
+
+  return response;
 }

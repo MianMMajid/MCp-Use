@@ -623,9 +623,21 @@ function createChatStore() {
     }
   }
 
+  function destroy() {
+    if (typeof window !== 'undefined') {
+      if (_popstateHandler) {
+        window.removeEventListener('popstate', _popstateHandler);
+        _popstateHandler = null;
+      }
+      delete window.__mayple_popstate_bound;
+    }
+    set(initial);
+  }
+
   return {
     subscribe,
     initialize,
+    destroy,
     selectAgent,
     restoreSelectedAgent,
     selectOrchestration,
