@@ -404,12 +404,12 @@ case "${MAPLE_SERVICE}" in
       echo "[railway-entrypoint] MAPLE_GATEWAY_ORIGIN defaulted to ${MAPLE_GATEWAY_ORIGIN}"
     fi
     cd /app/frontend/frontendA-it-console/template-runtime
-    if [ ! -f ".svelte-kit/output/server/index.js" ]; then
+    if [ ! -f "build/index.js" ]; then
       echo "[railway-entrypoint] SvelteKit server bundle missing — running vite build..."
       npm run build
     fi
     echo "[railway-entrypoint] Starting frontendA (IT Console) on port ${FRONTEND_PORT}..."
-    exec npm run start -- --host 0.0.0.0 --port "${FRONTEND_PORT}"
+    exec node build/index.js
     ;;
 
   # ────────────────────────────────────────────────────────────────────────────

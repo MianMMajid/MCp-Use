@@ -364,7 +364,7 @@
                 </label>
 
                 <div class="menu-wrap">
-                  <button class="menu-btn pill" on:click={() => (openMenuTaskId = openMenuTaskId === task.id ? '' : task.id)}>⋯</button>
+                  <button class="menu-btn pill" on:click|stopPropagation={() => (openMenuTaskId = openMenuTaskId === task.id ? '' : task.id)}>⋯</button>
                   {#if openMenuTaskId === task.id}
                     <div class="menu">
                       <button on:click={() => {

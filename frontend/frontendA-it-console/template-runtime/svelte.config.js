@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-auto'
+import adapter from '@sveltejs/adapter-node'
 import { mdsvex } from 'mdsvex'
 import remarkGfm from 'remark-gfm'
 
@@ -15,6 +15,19 @@ const config = {
     adapter: adapter(),
     alias: {
       '@': './src',
+    },
+    files: { assets: 'public' },
+    csp: {
+      mode: 'auto',
+      directives: {
+        'default-src': ['self'],
+        'script-src': ['self', 'https://accounts.google.com'],
+        'style-src': ['self', 'unsafe-inline'],
+        'img-src': ['self', 'data:'],
+        'connect-src': ['self'],
+        'frame-src': ['self', 'https://accounts.google.com'],
+        'frame-ancestors': ['none'],
+      },
     },
   },
 }

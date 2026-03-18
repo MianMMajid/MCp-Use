@@ -7,8 +7,7 @@
   function isSafeRedirect(url) {
     if (!url) return false
     try {
-      const parsed = new URL(url, window.location.origin)
-      return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+      return new URL(url, window.location.origin).protocol === 'https:'
     } catch {
       return false
     }

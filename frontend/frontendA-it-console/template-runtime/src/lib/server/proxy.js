@@ -64,8 +64,16 @@ async function proxyRequest({ request, fetch, targetUrl }) {
     })
   }
 
-  // Streaming request — no timeout
-  const response = await fetch(targetUrl, init)
+  // Streaming request — no timeout, but catch network errors
+  let response
+  try {
+    response = await fetch(targetUrl, init)
+  } catch {
+    return new Response(JSON.stringify({ error: 'Bad gateway' }), {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
   const proxiedHeaders = new Headers(response.headers)
   proxiedHeaders.delete('content-encoding')
   proxiedHeaders.delete('content-length')

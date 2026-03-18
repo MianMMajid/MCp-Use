@@ -705,28 +705,31 @@ spec:
           image: maple-local:dev
           imagePullPolicy: IfNotPresent
           command:
-            [
-              "npm",
-              "--prefix",
-              "frontend/frontendA-it-console/template-runtime",
-              "run",
-              "start",
-              "--",
-              "--hostname",
-              "0.0.0.0",
-              "--port",
-              "8080"
-            ]
+            ["node", "frontend/frontendA-it-console/template-runtime/build/index.js"]
+          env:
+            - name: PORT
+              value: "8080"
+            - name: HOST
+              value: "0.0.0.0"
           ports:
             - name: http
               containerPort: 8080
           readinessProbe:
             httpGet:
-              path: /
+              path: /health
               port: http
-            initialDelaySeconds: 20
-            timeoutSeconds: 5
+            initialDelaySeconds: 5
+            timeoutSeconds: 3
             periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            timeoutSeconds: 3
+            periodSeconds: 30
+            failureThreshold: 3
           resources:
             requests:
               cpu: 25m

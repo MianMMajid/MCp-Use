@@ -14,21 +14,15 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 }
 
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' https://accounts.google.com",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "connect-src 'self'",
-  "frame-ancestors 'none'",
-].join('; ')
+// CSP is now managed by SvelteKit's built-in csp config in svelte.config.js,
+// which auto-generates nonces for inline hydration scripts. Do NOT set a manual
+// Content-Security-Policy header here — it would override SvelteKit's nonces.
 
 async function resolveWithHeaders(event, resolve, authStatus) {
   const response = await resolve(event)
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(key, value)
   }
-  response.headers.set('Content-Security-Policy', CSP)
   response.headers.set('X-Maple-Auth-Status', authStatus)
   if (event.url.protocol === 'https:') {
     response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
