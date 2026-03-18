@@ -59,7 +59,7 @@
     <article class="panel">
       <div class="panel-head">
         <h3 class="panel-title">Intervention Command Bar</h3>
-        <span class="source-badge">Source: Frontend B orchestration runtime</span>
+        <span class="source-badge">Source: Maple security control plane</span>
       </div>
       <p>{activeExecution ? `Target: ${activeExecution.executionId}` : 'No trace/session target selected'}</p>
       <label>

@@ -4,15 +4,15 @@ export const docsByPath = Object.freeze({
     summary:
       'Operate Mayple policy, HITL approvals, audit, and runtime health from a single IT console.',
     ctas: [
-      { label: 'Open Policy Center', href: '/maple?category=admin&view=policy&route=%2Fmaple%2Faudit' },
-      { label: 'Review HITL Queue', href: '/maple?category=analyze&view=control&route=%2Fmaple%2Fhitl' },
+      { label: 'Open Policy Center', href: '/maple/audit' },
+      { label: 'Review HITL Queue', href: '/maple/hitl' },
     ],
     sections: [
       {
         id: 'control-plane',
         title: 'Control Plane',
         body:
-          'Frontend A is the monitoring and intervention console. Frontend B remains orchestration authoring and execution. Use Frontend A to observe B-origin runtime state and issue stop/intervention actions.',
+          'Frontend A is the canonical Maple monitoring, intervention, and security console. Frontend B remains the user-facing initiation surface for orchestration and agent prompts.',
       },
       {
         id: 'workflow',
@@ -64,7 +64,7 @@ composer require protocol/sdk`,
         bullets: [
           'Review Conversations and Messages references for payload shape.',
           'Configure Authentication and Webhooks.',
-          'Use /maple for live runtime interventions.',
+          'Use /maple/observability for live runtime interventions.',
         ],
       },
     ],

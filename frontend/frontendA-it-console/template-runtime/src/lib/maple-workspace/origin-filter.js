@@ -1,5 +1,21 @@
-const B_ORIGIN_HINTS = ['frontend-b', 'frontendb', 'orchestrate', 'orchestration', 'openclaw', 'runtime']
-const EXCLUDED_HINTS = ['frontend-a', 'frontenda', 'it-console', 'manual', 'local', 'docs']
+const SOURCE_FILTER_IDS = Object.freeze([
+  'all',
+  'frontend-b',
+  'frontend-a',
+  'gateway-api',
+  'context-wall',
+  'cyber-proxy',
+  'openclaw',
+])
+
+const SOURCE_HINTS = Object.freeze({
+  'frontend-b': ['frontend-b', 'frontendb', 'orchestrate', 'orchestration'],
+  'frontend-a': ['frontend-a', 'frontenda', 'it-console'],
+  'gateway-api': ['gateway-api', 'gateway api', 'gateway'],
+  'context-wall': ['context-wall', 'context wall'],
+  'cyber-proxy': ['cyber-proxy', 'cyber proxy'],
+  openclaw: ['openclaw', 'agent-runtime', 'agent runtime'],
+})
 
 function hasHint(value, hints) {
   const normalized = String(value ?? '').toLowerCase()
@@ -29,24 +45,7 @@ function collectOriginCandidates(record) {
 
 export function isFrontendBOriginRecord(record) {
   const candidates = collectOriginCandidates(record)
-  if (candidates.some((value) => hasHint(value, EXCLUDED_HINTS))) {
-    return false
-  }
-
-  if (candidates.some((value) => hasHint(value, B_ORIGIN_HINTS))) {
-    return true
-  }
-
-  if (record && typeof record === 'object') {
-    const hasOrchestrationIdentity =
-      typeof record.executionId === 'string' ||
-      typeof record.orchestrationId === 'string' ||
-      typeof record.traceId === 'string' ||
-      typeof record.sessionId === 'string'
-    return Boolean(hasOrchestrationIdentity)
-  }
-
-  return false
+  return candidates.some((value) => hasHint(value, SOURCE_HINTS['frontend-b']))
 }
 
 export function filterFrontendBOrigin(records) {
@@ -58,7 +57,7 @@ export function filterFrontendBOrigin(records) {
 
 export function getAuditRecordSource(record) {
   const event = record?.event && typeof record.event === 'object' ? record.event : null
-  return String(
+  const rawSource = String(
     event?.sourceService ||
     record?.sourceService ||
     record?.source ||
@@ -67,6 +66,16 @@ export function getAuditRecordSource(record) {
     record?.client ||
     ''
   ).trim()
+  if (!rawSource) {
+    return 'unknown'
+  }
+  const normalized = rawSource.toLowerCase()
+  for (const [sourceId, hints] of Object.entries(SOURCE_HINTS)) {
+    if (hints.some((hint) => normalized.includes(hint))) {
+      return sourceId
+    }
+  }
+  return rawSource
 }
 
 export function filterRecordsBySource(records, source = 'all') {
@@ -77,4 +86,8 @@ export function filterRecordsBySource(records, source = 'all') {
     return records
   }
   return records.filter((record) => getAuditRecordSource(record) === source)
+}
+
+export function getSourceFilterIds() {
+  return SOURCE_FILTER_IDS
 }

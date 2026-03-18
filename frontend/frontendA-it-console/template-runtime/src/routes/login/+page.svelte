@@ -1,8 +1,7 @@
 <script>
   import { onMount } from 'svelte'
 
-  const DEFAULT_MAPLE_CHAT_HREF =
-    '/maple?category=chat&view=chat&route=%2Fmaple%2Fobservability'
+  const DEFAULT_MAPLE_CHAT_HREF = '/maple/observability'
 
   let email = ''
   let password = ''

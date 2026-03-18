@@ -37,8 +37,8 @@ function uniqueList(values) {
 }
 
 export const FRONTEND_A_CANONICAL_SURFACE = Object.freeze({
-  frontendRouteEntry: 'src/routes/maple/+page.svelte',
-  workspaceShell: 'src/lib/svelte-workspace/MapleShell.svelte',
+  frontendRouteEntry: 'src/routes/maple/+layout.svelte',
+  workspaceShell: 'src/lib/svelte-workspace/MapleLayoutShell.svelte',
   workspaceRouteRegistry: 'src/lib/maple-workspace/route-registry.js',
   workspaceComponentsRoot: 'src/lib/svelte-workspace',
   canonicalPathPrefix: '/maple',
@@ -50,10 +50,10 @@ export const FRONTEND_A_CANONICAL_SURFACE = Object.freeze({
 })
 
 export const FRONTEND_A_PARITY_CRITICAL_SVELTE_SURFACES = Object.freeze([
-  'src/lib/svelte-workspace/MapleShell.svelte',
+  'src/lib/svelte-workspace/MapleLayoutShell.svelte',
   'src/lib/svelte-workspace/MapleTopBar.svelte',
   'src/lib/svelte-workspace/MapleViewTabs.svelte',
-  'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+  'src/lib/svelte-workspace/MapleRoutePage.svelte',
   'src/lib/svelte-workspace/InterventionControlPanel.svelte',
   'src/lib/svelte-workspace/TopologyView.svelte',
   'src/lib/svelte-workspace/DocsViews.svelte',
@@ -65,7 +65,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Canonical Maple shell, top bar, category pills, and tab discoverability',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/observability',
-    svelteSurface: 'src/lib/svelte-workspace/MapleShell.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleLayoutShell.svelte',
     backendApis: ['/api/runtime/feature-capabilities'],
     cliCommands: [],
     legacySource: 'public/judges.html#a1-shell-and-topology',
@@ -103,7 +103,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Observability summary, SLOs, audit log, and alert webhook operations',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/observability',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/observability/orchestrations/summary',
       '/api/observability/orchestrations/slo',
@@ -146,7 +146,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Audit chain, retention, and dead-letter review and replay',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/audit',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/observability/orchestrations/audit-log',
       '/api/observability/orchestrations/audit-chain',
@@ -173,7 +173,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Context firewall status, effective rules, preview, and decision review',
     securityDomain: 'context_firewall',
     frontendRoute: '/maple/gateway',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/firewall/rules/effective',
       '/api/firewall/state',
@@ -196,7 +196,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Firewall-mediated chat guidance and contextual recommendations',
     securityDomain: 'context_firewall',
     frontendRoute: '/maple/gateway',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/firewall/chat',
       '/api/chat/stream',
@@ -213,7 +213,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Filesystem mutation queue, detail inspection, and fork bundle review',
     securityDomain: 'filesystem_intervention',
     frontendRoute: '/maple/interventions',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/firewall/filesystem/status',
       '/api/firewall/filesystem/preflight',
@@ -255,7 +255,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Filesystem mutation approve, deny, promote, and restore operations',
     securityDomain: 'filesystem_intervention',
     frontendRoute: '/maple/interventions',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/firewall/filesystem/mutations/:planId/decision',
       '/api/firewall/filesystem/mutations/:planId/promote',
@@ -275,7 +275,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Cyber incident queue, incident detail, and analyst workflow',
     securityDomain: 'incident_ops',
     frontendRoute: '/maple/cyber',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/cyber/status',
       '/api/cyber/policies',
@@ -307,7 +307,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Quarantine review, release, rescan, and suppression lifecycle',
     securityDomain: 'cyber_proxy',
     frontendRoute: '/maple/cyber',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/cyber/evidence/:id',
       '/api/cyber/quarantine',
@@ -336,7 +336,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Run inventory and execution chronology',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/runs',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/runs'],
     cliCommands: [],
     status: 'partial',
@@ -349,7 +349,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Community trace and anonymized network signal review',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/community',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/community/stats', '/api/community/traces'],
     cliCommands: [],
     legacySource: 'public/judges.js#trace-community-panels',
@@ -363,7 +363,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Gateway HITL approval queue and decision workflow',
     securityDomain: 'approvals_step_up',
     frontendRoute: '/maple/hitl',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/hitl/approvals',
       '/api/hitl/approvals/watch',
@@ -384,7 +384,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Modifier approval review and approval-decision workflow',
     securityDomain: 'approvals_step_up',
     frontendRoute: '/maple/modifier-approvals',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/operations/orchestrations/approvals',
       '/api/operations/orchestrations/approvals/:approvalId/decision',
@@ -402,7 +402,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Agent status, sessions, artifacts, and evidence pivots',
     securityDomain: 'agent_artifacts',
     frontendRoute: '/maple/agent',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/openclaw/agent/status',
       '/api/openclaw/agent/sessions',
@@ -440,7 +440,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Demo and deterministic guard-path scenarios',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/demo',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/demo/start', '/api/demo/full', '/api/demo/guard'],
     cliCommands: [],
     status: 'partial',
@@ -453,7 +453,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Downstream app discovery, tool inventory, and guarded dispatch',
     securityDomain: 'downstream_tooling',
     frontendRoute: '/maple/downstream',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/downstream/apps', '/api/downstream/tools', '/api/downstream/dispatch'],
     cliCommands: ['downstream apps', 'downstream tools', 'downstream dispatch'],
     status: 'implemented',
@@ -465,7 +465,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Policy center and firewall governance handoff',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/policies',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/policies', '/admin/api/policies'],
     cliCommands: ['admin policies'],
     status: 'partial',
@@ -478,7 +478,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Runtime capabilities, dependency health, diagnostics, and logs',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/runtime',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/runtime/feature-capabilities', '/api/runtime/status'],
     cliCommands: ['runtime features', 'runtime status', 'runtime dependencies'],
     status: 'partial',
@@ -491,7 +491,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Tenant bindings, org tree, and tenant-scope governance',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/tenants',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/operations/orchestrations/tenant-bindings',
       '/api/operations/orchestrations/tenant-scope',
@@ -508,7 +508,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Tools registry, policy validation, and execution inspection',
     securityDomain: 'downstream_tooling',
     frontendRoute: '/maple/tools',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/tools/registry', '/api/tools/policies', '/api/tools/executions'],
     cliCommands: [
       'tools registry',
@@ -529,7 +529,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Escalation chains, step-up, and break-glass review',
     securityDomain: 'approvals_step_up',
     frontendRoute: '/maple/escalation',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: [
       '/api/operations/orchestrations/escalation',
       '/api/operations/orchestrations/escalation/escalate',
@@ -559,7 +559,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Organization lifecycle, invites, membership, and roles',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/org',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/org', '/api/org/:orgId/invites', '/api/org/:orgId/roles'],
     cliCommands: [
       'org list',
@@ -582,7 +582,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Admin policy and audit API operations',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/admin',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/admin/api/policies', '/admin/api/audit', '/admin/api/policies/reload'],
     cliCommands: [
       'admin policies',
@@ -601,7 +601,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Authentication administration, recovery, and session visibility',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/auth-admin',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/me'],
     cliCommands: [
       'auth login',
@@ -623,7 +623,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'API key and service-account management',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/api-keys',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/user/api-keys', '/api/org/:orgId/service-accounts'],
     cliCommands: [
       'org api-keys',
@@ -644,7 +644,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Integration catalog, connection state, and OAuth lifecycle',
     securityDomain: 'downstream_tooling',
     frontendRoute: '/maple/integrations',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/integrations/catalog', '/api/integrations', '/api/integrations/:provider/oauth/start'],
     cliCommands: [
       'integrations catalog',
@@ -663,7 +663,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Usage, entitlements, billing, invoices, and limits',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/usage',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/billing/subscription', '/api/usage/summary', '/api/billing/invoices'],
     cliCommands: [
       'billing subscription',
@@ -687,7 +687,7 @@ export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
     title: 'Desktop orchestration handoff and studio notes',
     securityDomain: 'admin_governance',
     frontendRoute: '/maple/desktop',
-    svelteSurface: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleRoutePage.svelte',
     backendApis: ['/api/openclaw/agent/turn', '/api/hitl/approvals'],
     cliCommands: ['agent turn', 'admin approvals'],
     status: 'partial',

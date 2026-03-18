@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte'
 
   export let title = 'Mayple'
-  export let sourceText = 'Source: Frontend B orchestration runtime'
+  export let sourceText = 'Source: Maple security control plane'
   export let connected = false
   export let analystOptions = []
   export let selectedAnalysts = []

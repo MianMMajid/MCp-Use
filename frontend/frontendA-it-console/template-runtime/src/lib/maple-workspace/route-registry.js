@@ -52,7 +52,6 @@ const MAPLE_ROUTE_DEFINITIONS = [
       '/api/observability/orchestrations/dead-letter',
     ],
     preferredView: 'control',
-    legacyAliases: ['/maple/policies', '/maple/tenants'],
   },
   {
     path: '/maple/gateway',
@@ -188,7 +187,6 @@ const MAPLE_ROUTE_DEFINITIONS = [
     description: 'Runtime dependency and capability controls (redirects to observability).',
     apiEndpoints: ['/api/runtime/feature-capabilities', '/api/runtime/status'],
     preferredView: 'settings',
-    legacyAliases: ['/maple/runtime'],
   },
   {
     path: '/maple/tenants',
@@ -365,8 +363,8 @@ function normalizeRouteRecord(route) {
     primaryFunction: PRIMARY_FUNCTION_BY_SURFACE[`${mappedSurface.category}:${mappedSurface.view}`] ?? 'monitor-now',
     mappedSurface,
     docsContextKey: route.path,
-    compatAliasBehavior: 'canonicalize-via-query',
-    legacyAliasBehavior: 'canonicalize-via-query',
+    compatAliasBehavior: 'temporary-redirect',
+    legacyAliasBehavior: 'temporary-redirect',
     legacyAliases: Array.isArray(route.legacyAliases)
       ? uniqueList(route.legacyAliases.filter((value) => typeof value === 'string' && value.startsWith('/maple')))
       : [],
@@ -400,6 +398,27 @@ export function getMapleRoutesByCategory(category) {
 
 export function getMapleRoute(path) {
   return MAPLE_ROUTE_REGISTRY_BY_PATH.get(path) ?? null
+}
+
+export function getClosestMapleRoute(path) {
+  const direct = getMapleRoute(path)
+  if (direct) {
+    return direct
+  }
+  return (
+    MAPLE_ROUTE_REGISTRY
+      .filter((route) => path === route.path || path.startsWith(`${route.path}/`))
+      .sort((left, right) => right.path.length - left.path.length)[0] ?? null
+  )
+}
+
+export function getMaplePrimaryRouteForCategory(category) {
+  return getMapleRoutesByCategory(category)[0] ?? null
+}
+
+export function getMapleRouteForLegacyPath(path) {
+  const route = MAPLE_ROUTE_REGISTRY.find((entry) => entry.legacyAliases.includes(path))
+  return route ?? null
 }
 
 export const MAPLE_WORKSPACE_ROUTE_PATHS = Object.freeze(

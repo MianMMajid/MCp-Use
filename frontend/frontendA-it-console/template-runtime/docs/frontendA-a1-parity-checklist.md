@@ -4,7 +4,7 @@ This checklist now feeds the broader frontend A security-vision parity program. 
 
 ## JSX to Svelte mapping
 
-- MapleWorkspaceShell.jsx -> src/lib/svelte-workspace/MapleShell.svelte
+- MapleWorkspaceShell.jsx -> src/lib/svelte-workspace/MapleLayoutShell.svelte
   - Acceptance: top bar + welcome + category pills + sub-tabs + context panel sequence matches a1 cadence and remains route-reachable through canonical `/maple`.
 - MapleTopBar.jsx -> src/lib/svelte-workspace/MapleTopBar.svelte
   - Acceptance: connected chrome style and source status badge match a1 hierarchy and preserve security-status framing.
@@ -12,13 +12,13 @@ This checklist now feeds the broader frontend A security-vision parity program. 
   - Acceptance: segmented control with animated indicator, active/hover states.
 - MapleViewTabs.jsx -> src/lib/svelte-workspace/MapleViewTabs.svelte
   - Acceptance: pill tabs with active gradient, compact geometry, and route-state persistence.
-- WorkspaceViewHost.jsx -> src/lib/svelte-workspace/WorkspaceViewHost.svelte
+- WorkspaceViewHost.jsx -> src/lib/svelte-workspace/MapleRoutePage.svelte
   - Acceptance: panel body layout, heading contracts, and operator workflow affordances preserved.
 - InterventionCommandBar.jsx -> src/lib/svelte-workspace/InterventionControlPanel.svelte
   - Acceptance: traces+sessions left; single target + reason + pause/resume/stop right; filesystem intervention actions remain discoverable.
-- MonitoringContextExplainer.jsx -> src/lib/svelte-workspace/WorkspaceViewHost.svelte (observe/live section)
+- MonitoringContextExplainer.jsx -> src/lib/svelte-workspace/MapleRoutePage.svelte (observe/live section)
   - Acceptance: monitoring explainer copy and observability cards visible.
-- MapleChatDock.jsx -> src/lib/svelte-workspace/MapleShell.svelte (composer area)
+- MapleChatDock.jsx -> src/lib/svelte-workspace/MapleLayoutShell.svelte (composer area)
   - Acceptance: center-first chat prompt flow and bottom composer visuals.
 - MapleDocsPanel.jsx -> src/lib/svelte-workspace/DocsViews.svelte
   - Acceptance: docs functionality stays in docs pills with overview/api/runbooks/route-help.

@@ -25,7 +25,7 @@
   <section class="view-panel docs-view">
     <header class="mw-view-header">
       <h1>Docs: Overview</h1>
-      <p>Frontend B authors/executes orchestrations. Frontend A is the monitoring and intervention command center.</p>
+      <p>Frontend A is the canonical monitoring, intervention, and evidence console. Frontend B is the user-facing initiation surface.</p>
     </header>
     <div class="docs-grid">
       <article class="panel docs-panel">
@@ -34,9 +34,9 @@
           <span class="chip">core model</span>
         </div>
         <ul class="mw-simple-list">
-          <li><strong>Frontend B</strong>: authoring, agent chats, orchestration execution.</li>
-          <li><strong>Frontend A</strong>: monitoring, triage, pause/resume/stop intervention.</li>
-          <li><strong>Boundary</strong>: monitoring context is B-origin runtime only.</li>
+          <li><strong>Frontend B</strong>: authoring, agent chats, orchestration initiation.</li>
+          <li><strong>Frontend A</strong>: monitoring, triage, cyber operations, HITL, and interventions.</li>
+          <li><strong>Boundary</strong>: Frontend A shows Maple service evidence by default; source filtering is explicit.</li>
         </ul>
       </article>
       <article class="panel docs-panel">
