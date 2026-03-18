@@ -826,6 +826,45 @@
   }
 }
 
+@media (max-width: 900px) {
+  .mw-main-grid,
+  .mw-shell.mw-docs-open .mw-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mw-navigation-column {
+    border-right: 0;
+    border-bottom: 1px solid var(--mw-line);
+    padding: 0.75rem;
+  }
+
+  .mw-category-rail {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  .mw-view-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+
+  .mw-view-tab {
+    flex: 0 0 auto;
+    min-width: 140px;
+  }
+
+  .mw-docs-panel {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 80;
+    border-left: 0;
+    border-radius: 0;
+  }
+}
+
 /* a1-parity React shell overrides */
 .mayple-shell-root {
   position: relative;

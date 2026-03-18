@@ -1148,6 +1148,25 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   .mw-chat-bubble-assistant { margin-right: 10%; }
 }
 
+@media (max-width: 640px) {
+  .product-shell {
+    padding: 8px 8px 0;
+  }
+
+  .top-bar {
+    border-radius: var(--radius-lg);
+    padding: 0 12px;
+  }
+
+  .welcome-heading {
+    font-size: var(--text-xl);
+  }
+
+  .bottom-nav-stack {
+    bottom: 12px;
+  }
+}
+
 /* a1 parity: live/timeline/topology/marketplace */
 .live-view .tree-panel {
   padding: 8px;

@@ -102,13 +102,26 @@
         message = payload?.error || `Failed to create key (${response.status})`;
         return;
       }
+      const createdKey = payload?.key || payload?.item || null;
       newKeySecret = payload?.key?.token || payload?.token || payload?.secret || '';
       if (!newKeySecret) message = 'Key created (token unavailable).';
       invalidateCache(`/api/org/${orgId}/service-accounts`);
-      // Reload keys list with fresh data
-      expandedId = '';
-      keys = [];
-      await toggleManage(accountId);
+      accounts = accounts.map((account) =>
+        String(account.id) === String(accountId)
+          ? { ...account, keyCount: Math.max(1, Number(account.keyCount || 0) + 1) }
+          : account
+      );
+      if (createdKey && (createdKey.id || createdKey.keyId)) {
+        expandedId = accountId;
+        keys = [
+          createdKey,
+          ...keys.filter((key) => String(key.id || key.keyId) !== String(createdKey.id || createdKey.keyId)),
+        ];
+      } else {
+        expandedId = '';
+        keys = [];
+        await toggleManage(accountId);
+      }
     } catch (err) {
       message = err instanceof Error ? err.message : 'Key creation failed.';
     }
