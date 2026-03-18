@@ -13,6 +13,12 @@ const ORCH_ID_KEY = 'mayple_orchestration_id';
 const AGENT_ID_KEY = 'selectedAgentId';
 const ORCH_PANEL_KEY = 'mayple_orchestration_dock_tab';
 const VALID_PANELS = new Set(['controls', 'tasks', 'timeline', 'approvals', 'advanced']);
+const MAX_MESSAGES = 500;
+
+function capArray(arr, max) {
+  if (arr.length <= max) return arr;
+  return arr.slice(arr.length - max);
+}
 
 function normalizeMode(value) {
   return value === 'orchestration' ? 'orchestration' : 'agent';
@@ -95,6 +101,8 @@ function createChatStore() {
   };
 
   const { subscribe, update, set } = writable(initial);
+
+  let _popstateHandler = null;
 
   function patch(partial) {
     update((state) => ({ ...state, ...partial }));
@@ -222,10 +230,11 @@ function createChatStore() {
         panel: mode === 'orchestration' ? orchestrationPanelTab : ''
       });
 
-      // Guard against duplicate listeners on re-init
-      if (!window.__mayple_popstate_bound) {
-        window.__mayple_popstate_bound = true;
-        window.addEventListener('popstate', () => {
+      // Clean up any existing listener before attaching a new one
+      if (_popstateHandler) {
+        window.removeEventListener('popstate', _popstateHandler);
+      }
+      _popstateHandler = () => {
         const current = get({ subscribe });
         const query = readWorkspaceQuery();
         const nextMode = query.mode ? normalizeMode(query.mode) : current.mode;
@@ -240,8 +249,8 @@ function createChatStore() {
           selectedOrchestrationId: nextOrchestrationId,
           selectedOrchestration: (current.orchestrations || []).find((item) => String(item.id) === String(nextOrchestrationId)) || null
         });
-        });
-      }
+      };
+      window.addEventListener('popstate', _popstateHandler);
     }
 
     await Promise.all([
