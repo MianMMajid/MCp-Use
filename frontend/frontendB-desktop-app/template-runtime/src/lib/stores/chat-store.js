@@ -455,7 +455,7 @@ function createChatStore() {
       runError: '',
       busy: true,
       busyStatus: 'Connecting...',
-      messages: [...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }]
+      messages: capArray([...state.messages, { id: `local-${Date.now()}`, role: 'user', content, timestamp: new Date().toISOString() }], MAX_MESSAGES)
     });
 
     try {
@@ -536,7 +536,7 @@ function createChatStore() {
       const next = get({ subscribe });
       patch({
         runError: message,
-        messages: [...next.messages, { id: `err-${Date.now()}`, role: 'assistant', content: message, error: true, timestamp: new Date().toISOString() }]
+        messages: capArray([...next.messages, { id: `err-${Date.now()}`, role: 'assistant', content: message, error: true, timestamp: new Date().toISOString() }], MAX_MESSAGES)
       });
     } finally {
       patch({ busy: false, busyStatus: '' });
