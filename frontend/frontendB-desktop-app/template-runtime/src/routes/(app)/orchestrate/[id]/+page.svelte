@@ -19,6 +19,7 @@
   let loading = true;
   let saving = false;
   let runtimeBusy = false;
+  let runtimeBusyCount = 0;
   let error = '';
   let mounted = false;
 
@@ -51,6 +52,7 @@
   $: selectedNodeFirewall = selectedNode?.config?.firewallId
     ? (firewallLibrary || []).find((fw) => String(fw.id) === String(selectedNode.config.firewallId)) || null
     : null;
+  $: runtimeBusy = runtimeBusyCount > 0;
   $: runtimeLive = ['running', 'live', 'in_progress', 'active'].some((token) => String(runtimeStatus || '').toLowerCase().includes(token));
   $: agentCount = flowNodes.filter((n) => !n.data?.isInstruction).length;
 
@@ -269,13 +271,16 @@
   }
 
   async function runAction(path, body = {}) {
-    runtimeBusy = true; error = '';
+    runtimeBusyCount += 1;
+    error = '';
     try {
       const r = await postJson(path, body);
       const p = await r.json().catch(() => ({}));
       if (!r.ok || p?.ok === false) throw new Error(p?.error || `Request failed (${r.status})`);
       return p;
-    } finally { runtimeBusy = false; }
+    } finally {
+      runtimeBusyCount = Math.max(0, runtimeBusyCount - 1);
+    }
   }
 
   async function validateDefinition() {
@@ -296,21 +301,22 @@
     const objective = taskInput.trim() || orchestrationInstructions.trim() || orchestration?.name || data.id;
     if (!objective) { error = 'Enter a task first'; return; }
 
-    // Auto-save before executing
-    await saveDefinition();
-    if (error) return;
-
-    if (mode === 'live') {
-      await runAction(`/api/orchestrations/${data.id}/validate`, definitionPayload());
-      await runAction(`/api/orchestrations/${data.id}/publish`, definitionPayload());
-    }
-
-    outputLog = [];
-    showOutput = true;
-    runtimeStatus = 'running';
-    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    outputLog = [{ ts, type: mode === 'dry-run' ? 'dry_run_started' : 'execution_started', nodeId: '', preview: objective }];
+    runtimeBusyCount += 1;
     try {
+      // Auto-save before executing
+      await saveDefinition();
+      if (error) return;
+
+      if (mode === 'live') {
+        await runAction(`/api/orchestrations/${data.id}/validate`, definitionPayload());
+        await runAction(`/api/orchestrations/${data.id}/publish`, definitionPayload());
+      }
+
+      outputLog = [];
+      showOutput = true;
+      runtimeStatus = 'running';
+      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      outputLog = [{ ts, type: mode === 'dry-run' ? 'dry_run_started' : 'execution_started', nodeId: '', preview: objective }];
       const p = await runAction(`/api/orchestrations/${data.id}/execute`, {
         mode,
         objectivePackage: { goal: objective, successCriteria: 'Complete delegated subtasks', runtimeLimitMinutes: 60, budgetUsd: 100, riskCeiling: 'medium', contextUrls: [], outputContract: 'Structured summary', escalationPolicy: 'Escalate on repeated failure' },
@@ -329,6 +335,8 @@
       runtimeStatus = 'failed';
       const ts2 = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       outputLog = [...outputLog, { ts: ts2, type: 'execution_failed', nodeId: '', preview: err instanceof Error ? err.message : String(err) }];
+    } finally {
+      runtimeBusyCount = Math.max(0, runtimeBusyCount - 1);
     }
   }
 
