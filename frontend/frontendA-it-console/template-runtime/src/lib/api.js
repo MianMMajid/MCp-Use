@@ -5,8 +5,8 @@ const RETRY_BASE_MS = 500
 const RETRY_CAP_MS = 5_000
 
 class ApiError extends Error {
-  constructor(path, status) {
-    super(`${path} -> ${status}`)
+  constructor(path, status, detail) {
+    super(detail ? `${path} -> ${status}: ${detail}` : `${path} -> ${status}`)
     this.name = 'ApiError'
     this.status = status
     this.path = path
@@ -59,6 +59,18 @@ async function withRetry(fn, retries = MAX_RETRIES) {
   throw lastErr
 }
 
+async function safeJson(res, path) {
+  const contentType = res.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    throw new ApiError(path, res.status, `Expected JSON but got ${contentType || 'no content-type'}`)
+  }
+  try {
+    return await res.json()
+  } catch {
+    throw new ApiError(path, res.status, 'Response body is not valid JSON')
+  }
+}
+
 export async function loadJson(path, { signal } = {}) {
   return withRetry(async () => {
     const res = await fetchWithTimeout(path, {
@@ -67,7 +79,7 @@ export async function loadJson(path, { signal } = {}) {
       signal,
     })
     if (!res.ok) throw new ApiError(path, res.status)
-    return res.json()
+    return safeJson(res, path)
   })
 }
 
@@ -82,7 +94,7 @@ export async function postJson(path, body, { retry = false } = {}) {
       body: JSON.stringify(body),
     }, MUTATE_TIMEOUT_MS)
     if (!res.ok) throw new ApiError(path, res.status)
-    return res.json()
+    return safeJson(res, path)
   }
   return retry ? withRetry(doFetch) : doFetch()
 }
@@ -96,7 +108,7 @@ export async function patchJson(path, body, { retry = false } = {}) {
       body: JSON.stringify(body),
     }, MUTATE_TIMEOUT_MS)
     if (!res.ok) throw new ApiError(path, res.status)
-    return res.json()
+    return safeJson(res, path)
   }
   return retry ? withRetry(doFetch) : doFetch()
 }
@@ -108,7 +120,7 @@ export async function deleteJson(path, { retry = true } = {}) {
       credentials: 'same-origin',
     }, MUTATE_TIMEOUT_MS)
     if (!res.ok) throw new ApiError(path, res.status)
-    return res.json()
+    return safeJson(res, path)
   }
   return retry ? withRetry(doFetch) : doFetch()
 }

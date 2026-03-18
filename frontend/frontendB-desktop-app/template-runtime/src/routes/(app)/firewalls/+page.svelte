@@ -44,6 +44,9 @@
     { id: 'restrictive', label: 'Restrictive', desc: 'Block by default, allow only safe tools', yaml: `version: 1\nrules:\n  defaultAction: block\n  allowedTools:\n    - status\n    - health\n  blockedTargetProfiles:\n    - root\n    - system\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30\n    maxBufferMb: 4` },
     { id: 'permissive', label: 'Permissive', desc: 'Allow by default, block dangerous operations', yaml: `version: 1\nrules:\n  defaultAction: allow\n  blockedTools:\n    - setup\n    - reset\n    - uninstall\n    - daemon\n  blockedTargetProfiles:\n    - root\n  constraints:\n    allowDevProfile: true\n    maxTimeoutSeconds: 120` },
     { id: 'audit-only', label: 'Audit Only', desc: 'Log everything, block nothing', yaml: `version: 1\nrules:\n  defaultAction: allow\n  auditAll: true\n  constraints:\n    allowDevProfile: true\n    maxTimeoutSeconds: 120` },
+    { id: 'dlp-basic', label: 'DLP (Basic)', desc: 'Block data-export tools and sensitive-data profiles', yaml: `version: 1\n# Data Loss Prevention (Basic)\n# Blocks profiles that handle sensitive data and prevents\n# data-export tools from running.\nrules:\n  defaultAction: block\n  allowedTools:\n    - status\n    - health\n    - list\n    - info\n    - check\n  dangerousTools:\n    - export\n    - download\n    - sync\n    - backup\n    - replicate\n    - dump\n    - extract\n    - migrate\n  blockedTargetProfiles:\n    - data-exporter\n    - etl-pipeline\n    - backup-agent\n    - reporting\n    - analytics\n    - root\n    - system\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 30\n    maxBufferMb: 2\n    approvalTtlSeconds: 300` },
+    { id: 'topical-boundary', label: 'Topical Boundary', desc: 'Restrict agent to a single domain (e.g. customer support)', yaml: `version: 1\n# Topical Boundary — Customer Support\n# Restricts agent to customer-support tools only.\n# Duplicate and edit allowedTools for other domains.\nrules:\n  defaultAction: block\n  allowedTools:\n    - tickets\n    - contacts\n    - messages\n    - knowledge-base\n    - status\n    - health\n  dangerousTools:\n    - billing\n    - refund\n    - account-delete\n    - escalate\n    - transfer\n  blockedTargetProfiles:\n    - admin\n    - root\n    - system\n    - finance\n    - engineering\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 60\n    maxBufferMb: 4` },
+    { id: 'zero-trust', label: 'Zero Trust', desc: 'Maximum lockdown — smallest allowlist, shortest timeouts', yaml: `version: 1\n# Zero Trust Agent\n# Maximum lockdown: smallest possible allowlist,\n# shortest timeouts, tightest constraints.\nrules:\n  defaultAction: block\n  allowedTools:\n    - status\n    - health\n  dangerousTools:\n    - setup\n    - reset\n    - uninstall\n    - daemon\n    - deploy\n    - execute\n    - run\n    - install\n    - skills\n    - plugins\n    - config\n    - system\n  blockedTargetProfiles:\n    - root\n    - system\n    - admin\n    - operator\n    - service\n    - default\n  constraints:\n    allowDevProfile: false\n    maxTimeoutSeconds: 10\n    maxBufferMb: 1\n    approvalTtlSeconds: 120` },
   ];
 
   function applyTemplate() {
@@ -191,6 +194,8 @@
         folder: selectedObject.folder,
         scope: selectedObject.scope,
         assignedAgentId: selectedObject.scope === 'agent' ? selectedObject.assignedAgentId : null,
+        description: selectedObject.description ?? '',
+        enforcementLevel: selectedObject.enforcementLevel ?? 'hard-mandatory',
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
@@ -472,6 +477,15 @@
                 {/if}
               </label>
             {/if}
+            <label><span>Description</span><input bind:value={selectedObject.description} placeholder="What this firewall protects" /></label>
+            <label>
+              <span>Enforcement</span>
+              <select bind:value={selectedObject.enforcementLevel}>
+                {#each ENFORCEMENT_LEVELS as level}
+                  <option value={level.id}>{level.label}</option>
+                {/each}
+              </select>
+            </label>
             <label class="full"><span>Active Policy YAML</span><textarea rows="6" bind:value={selectedObject.policyText} readonly></textarea></label>
           </div>
 

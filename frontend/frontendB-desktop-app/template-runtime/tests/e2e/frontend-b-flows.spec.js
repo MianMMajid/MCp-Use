@@ -51,6 +51,9 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
     if (method === 'GET' && path === '/api/firewalls') {
       return route.fulfill(json({ ok: true, items: state.firewalls }));
     }
+    if (method === 'POST' && path === '/api/firewalls/preview') {
+      return route.fulfill(json({ ok: true, valid: true, errors: [], warnings: [], ruleCount: 2, compiledAt: '2026-03-13T12:00:00.000Z' }));
+    }
     if (method === 'POST' && path === '/api/firewalls') {
       const firewall = {
         id: 'fw-1',
@@ -58,6 +61,8 @@ test('creates and activates a firewall, schedules a task, runs it now, and deep-
         folder: body.folder || 'root',
         scope: body.scope,
         assignedAgentId: body.assignedAgentId || null,
+        description: body.description || '',
+        enforcementLevel: body.enforcementLevel || 'hard-mandatory',
         policyText: body.policyText,
         archived: false,
         status: 'monitoring',

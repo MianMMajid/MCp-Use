@@ -22,13 +22,21 @@ function _evict() {
   _cache.delete(_cache.keys().next().value)
 }
 
+function safeJson(res, path) {
+  try {
+    return res.json()
+  } catch {
+    throw new Error(`${path} -> ${res.status}: response is not valid JSON`)
+  }
+}
+
 async function _fetchAndCache(path) {
   const res = await fetchWithTimeout(path, {
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
   })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  const data = await res.json()
+  const data = await safeJson(res, path)
   _cache.set(path, { data, ts: Date.now() })
   _evict()
   return data
@@ -81,7 +89,8 @@ export async function postJson(path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }, timeoutForPath(path))
-  return res
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+  return safeJson(res, path)
 }
 
 export async function patchJson(path, body) {
@@ -91,7 +100,8 @@ export async function patchJson(path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  return res
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+  return safeJson(res, path)
 }
 
 export async function postForm(path, formData) {
@@ -106,7 +116,7 @@ export async function postForm(path, formData) {
 export async function deleteJson(path) {
   const res = await fetchWithTimeout(path, { method: 'DELETE', credentials: 'same-origin' })
   if (!res.ok) throw new Error(`${path} -> ${res.status}`)
-  return res.json()
+  return safeJson(res, path)
 }
 
 export function connectSSE(url, { onEvent, onError, onDone }) {

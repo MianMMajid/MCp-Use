@@ -24,6 +24,10 @@
       <a href="/agents">Agents</a>
       <a href="/settings">Settings</a>
     </nav>
+  {:else if status === 429}
+    <h1>Too many requests</h1>
+    <p>You've been rate-limited. Wait a moment and try again.</p>
+    <button type="button" class="retry-btn" on:click={retry}>Retry</button>
   {:else if status >= 500}
     <h1>Something went wrong</h1>
     <p>{message}</p>

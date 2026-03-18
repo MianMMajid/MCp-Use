@@ -1,5 +1,14 @@
 import { redirect } from '@sveltejs/kit';
 
+/** @type {import('@sveltejs/kit').HandleServerError} */
+export function handleError({ error, event, status, message }) {
+  const id = crypto.randomUUID();
+  if (status !== 404) {
+    console.error(`[error:${id}] ${event.request.method} ${event.url.pathname} -> ${status}`, error);
+  }
+  return { message, id };
+}
+
 const AUTH_ROUTES = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']);
 const PUBLIC_PREFIXES = ['/api/', '/admin/api/', '/health'];
 
