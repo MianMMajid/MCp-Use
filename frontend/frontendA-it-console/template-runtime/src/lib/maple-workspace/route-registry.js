@@ -6,7 +6,7 @@ import {
 import { getFrontendAParityForRoute } from './frontendA-parity-spec.js'
 
 export const MAPLE_WORKSPACE_PATH_PREFIX = '/maple'
-export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/observability'
+export const MAPLE_WORKSPACE_DEFAULT_ROUTE = '/maple/chat'
 
 export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
   { id: 'chat', label: 'Chat', description: 'Monitoring agent conversation and live recommendations.' },
@@ -15,7 +15,13 @@ export const MAPLE_WORKSPACE_CATEGORIES = Object.freeze([
   { id: 'firewalls', label: 'Firewalls', description: 'Firewall rules, protections, and context leakage controls.' },
   { id: 'users', label: 'Users', description: 'User accounts, role assignments, and access governance.' },
   { id: 'compliance', label: 'Compliance', description: 'Risk posture scoring and compliance framework mapping.' },
-  { id: 'docs', label: 'Docs', description: 'Workspace documentation, runbooks, and route context.' },
+])
+
+export const MAPLE_DOCK_GROUPS = Object.freeze([
+  { id: 'chat', label: 'Chat', icon: 'chat', primaryHref: '/maple/chat' },
+  { id: 'monitor', label: 'Monitor', icon: 'monitor', primaryHref: '/maple/observability' },
+  { id: 'firewalls', label: 'Firewalls', icon: 'firewalls', primaryHref: '/maple/gateway' },
+  { id: 'agents', label: 'Agents', icon: 'agents', primaryHref: '/maple/agent' },
 ])
 
 const LEGACY_DOC_LINKS = Object.freeze([
@@ -27,6 +33,15 @@ const LEGACY_DOC_LINKS = Object.freeze([
 ])
 
 const MAPLE_ROUTE_DEFINITIONS = [
+  {
+    path: '/maple/chat',
+    title: 'Operator Chat',
+    category: 'chat',
+    tabLabel: 'Operator Chat',
+    description: 'Investigate agent activity, ask operator questions, and hand off into governed evidence flows.',
+    apiEndpoints: ['/api/chat/stream', '/api/openclaw/agent/turn'],
+    preferredView: 'chat',
+  },
   {
     path: '/maple/observability',
     title: 'Observability',
@@ -157,10 +172,10 @@ const MAPLE_ROUTE_DEFINITIONS = [
   },
   {
     path: '/maple/demo',
-    title: 'Demo Playground',
+    title: 'Operational Scenarios',
     category: 'admin',
-    tabLabel: 'Demo Playground',
-    description: 'Run deterministic demos for trace, audit, block, and fork paths.',
+    tabLabel: 'Operational Scenarios',
+    description: 'Exercise governed operator scenarios for trace, audit, block, and fork paths.',
     apiEndpoints: ['/api/demo/start', '/api/demo/full', '/api/demo/guard'],
     preferredView: 'control',
   },
@@ -302,13 +317,13 @@ function toAnchors(path) {
 }
 
 const ROUTE_SURFACE_BY_PATH = Object.freeze({
+  '/maple/chat': { category: 'chat', view: 'chat' },
   '/maple/observability': { category: 'observe', view: 'live' },
   '/maple/gateway': { category: 'firewalls', view: 'cybersecurity' },
   '/maple/interventions': { category: 'firewalls', view: 'cybersecurity' },
   '/maple/cyber': { category: 'firewalls', view: 'cybersecurity' },
   '/maple/runs': { category: 'observe', view: 'timeline' },
   '/maple/community': { category: 'observe', view: 'timeline' },
-  '/maple/chat': { category: 'chat', view: 'chat' },
   '/maple/audit': { category: 'admin', view: 'control' },
   '/maple/hitl': { category: 'admin', view: 'control' },
   '/maple/modifier-approvals': { category: 'admin', view: 'control' },
@@ -327,6 +342,234 @@ const ROUTE_SURFACE_BY_PATH = Object.freeze({
   '/maple/integrations': { category: 'admin', view: 'marketplace' },
   '/maple/usage': { category: 'admin', view: 'control' },
   '/maple/desktop': { category: 'admin', view: 'control' },
+})
+
+const ROUTE_NAV_METADATA_BY_PATH = Object.freeze({
+  '/maple/chat': {
+    navTier: 'primary',
+    navGroup: 'chat',
+    navOrder: 1,
+    purpose: 'Operator investigation and governed chat handoff into evidence workflows.',
+    operatorTask: 'operator-investigation',
+    topologyContext: 'chat',
+    proofPriority: 1,
+  },
+  '/maple/observability': {
+    navTier: 'secondary',
+    navGroup: 'monitor',
+    navOrder: 1,
+    purpose: 'Monitor runtime health, alerts, and control-plane posture.',
+    operatorTask: 'runtime-observability',
+    topologyContext: 'observability',
+    proofPriority: 2,
+  },
+  '/maple/runs': {
+    navTier: 'secondary',
+    navGroup: 'monitor',
+    navOrder: 2,
+    purpose: 'Inspect governed run inventory and execution outcomes.',
+    operatorTask: 'run-inventory',
+    topologyContext: 'runs',
+    proofPriority: 3,
+  },
+  '/maple/gateway': {
+    navTier: 'secondary',
+    navGroup: 'firewalls',
+    navOrder: 1,
+    purpose: 'Establish live protection state across context-wall, MCP mediation, cyber scanning, and filesystem guard.',
+    operatorTask: 'firewall-dashboard',
+    topologyContext: 'gateway',
+    proofPriority: 1,
+  },
+  '/maple/interventions': {
+    navTier: 'secondary',
+    navGroup: 'firewalls',
+    navOrder: 2,
+    purpose: 'Review file mutation plans, fork requirements, approvals, and promotion state.',
+    operatorTask: 'filesystem-interventions',
+    topologyContext: 'interventions',
+    proofPriority: 4,
+  },
+  '/maple/cyber': {
+    navTier: 'secondary',
+    navGroup: 'firewalls',
+    navOrder: 3,
+    purpose: 'Operate cyber verdicts, quarantine, incidents, and suppressions.',
+    operatorTask: 'cyber-operations',
+    topologyContext: 'cyber',
+    proofPriority: 4,
+  },
+  '/maple/policies': {
+    navTier: 'secondary',
+    navGroup: 'firewalls',
+    navOrder: 4,
+    purpose: 'Manage context-leakage policy, protected entities, and rewrite or block evidence.',
+    operatorTask: 'policy-enforcement',
+    topologyContext: 'policies',
+    proofPriority: 1,
+  },
+  '/maple/agent': {
+    navTier: 'secondary',
+    navGroup: 'agents',
+    navOrder: 1,
+    purpose: 'Inspect agent sessions, runs, artifacts, and mediated execution evidence.',
+    operatorTask: 'agent-management',
+    topologyContext: 'agent',
+    proofPriority: 1,
+  },
+  '/maple/hitl': {
+    navTier: 'secondary',
+    navGroup: 'agents',
+    navOrder: 2,
+    purpose: 'Process human approval gates for governed actions.',
+    operatorTask: 'hitl-queue',
+    topologyContext: 'hitl',
+    proofPriority: 3,
+  },
+  '/maple/modifier-approvals': {
+    navTier: 'secondary',
+    navGroup: 'agents',
+    navOrder: 3,
+    purpose: 'Review modifier actions that require explicit approval.',
+    operatorTask: 'modifier-approvals',
+    topologyContext: 'modifier-approvals',
+    proofPriority: 3,
+  },
+  '/maple/demo': {
+    navTier: 'secondary',
+    navGroup: 'agents',
+    navOrder: 4,
+    purpose: 'Run operator scenarios that exercise governed flows end to end.',
+    operatorTask: 'operational-scenarios',
+    topologyContext: 'scenarios',
+    proofPriority: 4,
+  },
+  '/maple/audit': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 1,
+    purpose: 'Investigate immutable audit chains, retention state, and dead-letter replay.',
+    operatorTask: 'audit-review',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/downstream': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 2,
+    purpose: 'Operate connected downstream apps, tools, and mediated dispatch.',
+    operatorTask: 'downstream-control',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/auth-admin': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 3,
+    purpose: 'Operate account access, session security, and credential recovery settings.',
+    operatorTask: 'auth-operations',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/api-keys': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 4,
+    purpose: 'Manage user API keys and organization service accounts.',
+    operatorTask: 'credential-lifecycle',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/org': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 5,
+    purpose: 'Manage organizations, memberships, invites, and roles.',
+    operatorTask: 'organization-admin',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/integrations': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 6,
+    purpose: 'Operate third-party provider connections and OAuth lifecycle.',
+    operatorTask: 'integration-operations',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/runtime': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 90,
+    purpose: 'Merged into Observability.',
+    operatorTask: 'merged-runtime',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/admin': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 91,
+    purpose: 'Not a standalone product surface.',
+    operatorTask: 'admin-endpoints',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/tools': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 92,
+    purpose: 'Merged into Downstream MCP if retained.',
+    operatorTask: 'tool-registry',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/escalation': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 93,
+    purpose: 'Merged into Organizations or HITL if retained.',
+    operatorTask: 'escalation-admin',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/desktop': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 94,
+    purpose: 'Merged into Workflow Studio if retained.',
+    operatorTask: 'desktop-workflow',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/community': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 95,
+    purpose: 'Not surfaced without a distinct operator workflow.',
+    operatorTask: 'community-signals',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/usage': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 96,
+    purpose: 'Conditional utility surface only.',
+    operatorTask: 'usage-billing',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
+  '/maple/tenants': {
+    navTier: 'hidden',
+    navGroup: 'utility',
+    navOrder: 97,
+    purpose: 'Conditional utility surface only.',
+    operatorTask: 'tenant-scope',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  },
 })
 
 const PRIMARY_FUNCTION_BY_SURFACE = Object.freeze({
@@ -352,6 +595,15 @@ const PRIMARY_FUNCTION_BY_SURFACE = Object.freeze({
 function normalizeRouteRecord(route) {
   const category = isMapleWorkspaceCategory(route.category) ? route.category : 'observe'
   const mappedSurface = ROUTE_SURFACE_BY_PATH[route.path] ?? { category, view: 'live' }
+  const navMeta = ROUTE_NAV_METADATA_BY_PATH[route.path] ?? {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 99,
+    purpose: route.description,
+    operatorTask: 'utility-operations',
+    topologyContext: 'utility',
+    proofPriority: 99,
+  }
   const docsViews = ['overview', 'api', 'runbooks', 'route-help']
   const endpoints = uniqueList(
     Array.isArray(route.apiEndpoints)
@@ -385,6 +637,13 @@ function normalizeRouteRecord(route) {
     legacySource: parity?.legacySource ?? [],
     parityStatus: parity?.parityStatus ?? 'missing',
     svelteSurfaces: parity?.svelteSurfaces ?? [],
+    navTier: navMeta.navTier,
+    navGroup: navMeta.navGroup,
+    navOrder: navMeta.navOrder,
+    purpose: navMeta.purpose,
+    operatorTask: navMeta.operatorTask,
+    topologyContext: navMeta.topologyContext,
+    proofPriority: navMeta.proofPriority,
   }
 }
 
@@ -424,6 +683,26 @@ export function getClosestMapleRoute(path) {
 
 export function getMaplePrimaryRouteForCategory(category) {
   return getMapleRoutesByCategory(category)[0] ?? null
+}
+
+export function getMapleDockGroupForPath(path) {
+  const route = getClosestMapleRoute(path)
+  if (route && ['primary', 'secondary'].includes(route.navTier)) {
+    return route.navGroup
+  }
+  return null
+}
+
+export function getMapleRoutesByDockGroup(groupId) {
+  return MAPLE_ROUTE_REGISTRY
+    .filter((route) => route.navGroup === groupId && route.navTier !== 'utility' && route.navTier !== 'hidden')
+    .sort((left, right) => (left.navOrder ?? 99) - (right.navOrder ?? 99))
+}
+
+export function getMapleUtilityRoutes() {
+  return MAPLE_ROUTE_REGISTRY
+    .filter((route) => route.navTier === 'utility')
+    .sort((left, right) => (left.navOrder ?? 99) - (right.navOrder ?? 99))
 }
 
 export function getMapleRouteForLegacyPath(path) {

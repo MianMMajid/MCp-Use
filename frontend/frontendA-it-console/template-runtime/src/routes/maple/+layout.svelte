@@ -1,7 +1,7 @@
 <script>
-  import MapleLayoutShell from '../../lib/svelte-workspace/MapleLayoutShell.svelte'
+  import MapleShell from '../../lib/svelte-workspace/MapleShell.svelte'
 </script>
 
-<MapleLayoutShell>
+<MapleShell>
   <slot />
-</MapleLayoutShell>
+</MapleShell>

@@ -1,4 +1,5 @@
 <script>
+  import { goto } from '$app/navigation'
   import { tick, onMount } from 'svelte'
 
   export let categories = []
@@ -28,6 +29,12 @@
     ready = true
   }
 
+  function handleNavigate(event, href) {
+    if (!href || href === '#') return
+    event.preventDefault()
+    goto(href)
+  }
+
   onMount(() => {
     measureActivePill()
     // Re-measure on resize
@@ -53,6 +60,7 @@
         href={hrefByCategory[category.id] ?? '#'}
         role="tab"
         aria-selected={activeCategory === category.id}
+        on:click={(event) => handleNavigate(event, hrefByCategory[category.id] ?? '#')}
       >
         {category.label}
       </a>

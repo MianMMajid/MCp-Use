@@ -38,7 +38,7 @@ function uniqueList(values) {
 
 export const FRONTEND_A_CANONICAL_SURFACE = Object.freeze({
   frontendRouteEntry: 'src/routes/maple/+layout.svelte',
-  workspaceShell: 'src/lib/svelte-workspace/MapleLayoutShell.svelte',
+  workspaceShell: 'src/lib/svelte-workspace/MapleShell.svelte',
   workspaceRouteRegistry: 'src/lib/maple-workspace/route-registry.js',
   workspaceComponentsRoot: 'src/lib/svelte-workspace',
   canonicalPathPrefix: '/maple',
@@ -50,7 +50,7 @@ export const FRONTEND_A_CANONICAL_SURFACE = Object.freeze({
 })
 
 export const FRONTEND_A_PARITY_CRITICAL_SVELTE_SURFACES = Object.freeze([
-  'src/lib/svelte-workspace/MapleLayoutShell.svelte',
+  'src/lib/svelte-workspace/MapleShell.svelte',
   'src/lib/svelte-workspace/MapleTopBar.svelte',
   'src/lib/svelte-workspace/MapleViewTabs.svelte',
   'src/lib/svelte-workspace/MapleRoutePage.svelte',
@@ -61,11 +61,24 @@ export const FRONTEND_A_PARITY_CRITICAL_SVELTE_SURFACES = Object.freeze([
 
 export const FRONTEND_A_PARITY_CAPABILITIES = Object.freeze([
   capability({
+    capabilityId: 'workspace.operator_chat',
+    title: 'Operator chat entrypoint for governed investigation and evidence handoff',
+    securityDomain: 'agent_artifacts',
+    frontendRoute: '/maple/chat',
+    svelteSurface: 'src/lib/svelte-workspace/ChatView.svelte',
+    backendApis: ['/api/chat/stream', '/api/openclaw/agent/turn'],
+    cliCommands: [],
+    legacySource: 'src/lib/svelte-workspace/WorkspaceViewHost.svelte#monitoring-chat',
+    status: 'implemented',
+    actionability: 'operator_action',
+    cliParityMode: 'frontend_only',
+  }),
+  capability({
     capabilityId: 'workspace.shell_navigation',
     title: 'Canonical Maple shell, top bar, category pills, and tab discoverability',
     securityDomain: 'audit_observability',
     frontendRoute: '/maple/observability',
-    svelteSurface: 'src/lib/svelte-workspace/MapleLayoutShell.svelte',
+    svelteSurface: 'src/lib/svelte-workspace/MapleShell.svelte',
     backendApis: ['/api/runtime/feature-capabilities'],
     cliCommands: [],
     legacySource: 'public/judges.html#a1-shell-and-topology',

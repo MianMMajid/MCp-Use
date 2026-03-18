@@ -31,9 +31,9 @@
     <p>The page you requested does not exist in this workspace.</p>
     <nav class="error-links">
       <a href="/maple">Workspace Home</a>
-      <a href="/maple?category=observe&view=topology">Observe</a>
-      <a href="/maple?category=admin&view=control">Admin</a>
-      <a href="/maple?category=docs&view=overview">Docs</a>
+      <a href="/maple/observability">Monitor</a>
+      <a href="/maple/agent">Agent</a>
+      <a href="/maple/policies">Policies</a>
     </nav>
   {:else if status >= 500}
     <h1>Backend unreachable</h1>

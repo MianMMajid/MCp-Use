@@ -1,7 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte'
 
-  const DEFAULT_MAPLE_CHAT_HREF = '/maple/observability'
+  const DEFAULT_MAPLE_CHAT_HREF = '/maple/chat'
 
   function isSafeRedirect(url) {
     if (!url) return false

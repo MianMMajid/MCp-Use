@@ -240,7 +240,6 @@ export const CATEGORY_PERMISSIONS = Object.freeze({
   firewalls: [["firewall", "read"]],
   users: [["user", "read"]],
   compliance: [["compliance", "read"]],
-  docs: null, // always visible
 });
 
 /**

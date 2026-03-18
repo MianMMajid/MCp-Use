@@ -6,12 +6,19 @@
   import { scanColor, scanLabel, incidentColor, degradedSecurityMessage, mutationLaneColor, mutationLaneLabel, mutationStatusLabel } from '../maple-workspace/cyber-view-model.js'
   import { getSourceFilterIds, filterRecordsBySource, getAuditRecordSource } from '../maple-workspace/origin-filter.js'
   import { getMapleRoute } from '../maple-workspace/route-registry.js'
+  import ChatView from './ChatView.svelte'
+  import CyberOpsPanel from './CyberOpsPanel.svelte'
+  import MapleTopologySection from './MapleTopologySection.svelte'
+  import WorkspaceViewHost from './WorkspaceViewHost.svelte'
 
   export let routePath
+  export let embedded = false
 
   const SOURCE_FILTERS = getSourceFilterIds()
   const POLL_INTERVALS = Object.freeze({
+    '/maple/chat': 30000,
     '/maple/observability': 30000,
+    '/maple/runs': 30000,
     '/maple/audit': 30000,
     '/maple/gateway': 30000,
     '/maple/interventions': 20000,
@@ -23,6 +30,10 @@
   })
 
   const ROUTE_REQUESTS = Object.freeze({
+    '/maple/chat': [
+      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['leakageEntities', '/api/firewall/context-leakage/entities?activeOnly=true'],
+    ],
     '/maple/observability': [
       ['summary', '/api/observability/orchestrations/summary'],
       ['slo', '/api/observability/orchestrations/slo'],
@@ -70,8 +81,31 @@
       ['agentStatus', '/api/openclaw/agent/status'],
       ['agentSessions', '/api/openclaw/agent/sessions'],
     ],
+    '/maple/runs': [
+      ['runs', '/api/runs'],
+      ['agentSessions', '/api/openclaw/agent/sessions'],
+    ],
     '/maple/downstream': [
       ['downstreamApps', '/api/downstream/apps'],
+    ],
+    '/maple/auth-admin': [
+      ['authMe', '/api/auth/me'],
+      ['userProfile', '/api/user/profile'],
+      ['mfaStatus', '/api/auth/mfa/status'],
+      ['ssoConfig', '/api/auth/sso/config'],
+      ['googleClient', '/api/auth/google/client-id'],
+    ],
+    '/maple/api-keys': [
+      ['authMe', '/api/auth/me'],
+      ['organizations', '/api/org'],
+      ['userApiKeys', '/api/user/api-keys'],
+    ],
+    '/maple/org': [
+      ['organizations', '/api/org'],
+    ],
+    '/maple/integrations': [
+      ['integrationCatalog', '/api/integrations/catalog'],
+      ['integrations', '/api/integrations'],
     ],
     '/maple/policies': [
       ['leakageDocuments', '/api/firewall/context-leakage/documents'],
@@ -121,8 +155,21 @@
   let agentMode = 'turn'
   let agentPrompt = ''
   let agentReply = null
+  let selectedOrgId = ''
+  let selectedServiceAccountId = ''
+  let selectedMemberId = ''
+  let currentPassword = ''
+  let newPassword = ''
+  let newApiKeyName = ''
+  let newApiKeyExpiry = ''
+  let newServiceAccountName = ''
+  let inviteEmail = ''
+  let inviteRole = 'member'
+  let integrationActionResult = null
 
   $: routeRecord = getMapleRoute(routePath)
+  $: routeCategoryLabel = humanizeSlug(routeRecord?.navGroup ?? routeRecord?.category ?? 'workspace')
+  $: pollIntervalMs = POLL_INTERVALS[routePath] ?? 0
   $: auditLog = filterRecordsBySource(pickItems(state.auditLog?.value), sourceFilter)
   $: observabilityAudit = filterRecordsBySource(pickItems(state.auditLog?.value), sourceFilter)
   $: cyberEvents = filterRecordsBySource(pickItems(state.cyberEvents?.value), sourceFilter)
@@ -136,16 +183,38 @@
   $: modifierApprovals = pickItems(state.modifierApprovals?.value)
   $: interventionPlans = pickItems(state.filesystemMutations?.value)
   $: agentSessions = pickItems(state.agentSessions?.value, ['sessions', 'items'])
+  $: runInventory = pickItems(state.runs?.value, ['runs', 'items'])
   $: downstreamApps = pickItems(state.downstreamApps?.value, ['apps', 'items'])
+  $: organizations = pickItems(state.organizations?.value)
+  $: userApiKeys = pickItems(state.userApiKeys?.value)
+  $: serviceAccounts = pickItems(state.serviceAccounts?.value)
+  $: serviceAccountKeys = pickItems(state.serviceAccountKeys?.value)
+  $: orgMembers = pickItems(state.orgMembers?.value)
+  $: orgInvites = pickItems(state.orgInvites?.value)
+  $: orgRoles = pickItems(state.orgRoles?.value)
+  $: integrationsList = pickItems(state.integrations?.value)
+  $: integrationProviders = pickItems(state.integrationCatalog?.value, ['providers', 'items'])
   $: leakageDocuments = pickItems(state.leakageDocuments?.value)
   $: leakageEntities = pickItems(state.leakageEntities?.value)
   $: leakageEvents = pickItems(state.leakageEvents?.value)
+  $: selectedOrg = organizations.find((item) => (item.orgId ?? item.id) === selectedOrgId) ?? null
+  $: selectedServiceAccount = serviceAccounts.find((item) => (item.id ?? item.serviceAccountId) === selectedServiceAccountId) ?? null
+  $: selectedMember = orgMembers.find((item) => (item.userId ?? item.id) === selectedMemberId) ?? null
   $: selectedPlan = interventionPlans.find((item) => item.planId === selectedPlanId) ?? selectedPlan
   $: if (!selectedPlanId && interventionPlans.length > 0) {
     selectedPlanId = interventionPlans[0].planId
   }
   $: if (!selectedSessionId && agentSessions.length > 0) {
     selectedSessionId = agentSessions[0].sessionId ?? agentSessions[0].id ?? ''
+  }
+  $: if (!selectedOrgId && organizations.length > 0) {
+    selectedOrgId = organizations[0].orgId ?? organizations[0].id ?? ''
+  }
+  $: if (!selectedServiceAccountId && serviceAccounts.length > 0) {
+    selectedServiceAccountId = serviceAccounts[0].id ?? serviceAccounts[0].serviceAccountId ?? ''
+  }
+  $: if (!selectedMemberId && orgMembers.length > 0) {
+    selectedMemberId = orgMembers[0].userId ?? orgMembers[0].id ?? ''
   }
   $: sourceFilterLabel = sourceFilter === 'all' ? 'All sources' : sourceFilter
   $: severityOpenIncidents = cyberIncidents.filter((item) => {
@@ -202,6 +271,42 @@
           }
           if (!downstreamDispatch.appId) {
             downstreamDispatch = { ...downstreamDispatch, appId }
+          }
+        }
+      }
+
+      if (routePath === '/maple/api-keys' || routePath === '/maple/org') {
+        const orgs = pickItems(nextState.organizations?.value)
+        const activeOrgId = selectedOrgId || orgs[0]?.orgId || orgs[0]?.id || ''
+        if (activeOrgId) {
+          if (routePath === '/maple/api-keys') {
+            nextState.serviceAccounts = {
+              ok: true,
+              value: await loadJson(fetch, `/api/org/${encodeURIComponent(activeOrgId)}/service-accounts`),
+            }
+            const accounts = pickItems(nextState.serviceAccounts?.value)
+            const activeAccountId = selectedServiceAccountId || accounts[0]?.id || accounts[0]?.serviceAccountId || ''
+            if (activeAccountId) {
+              nextState.serviceAccountKeys = {
+                ok: true,
+                value: await loadJson(fetch, `/api/org/${encodeURIComponent(activeOrgId)}/service-accounts/${encodeURIComponent(activeAccountId)}/keys`),
+              }
+            }
+          }
+
+          if (routePath === '/maple/org') {
+            nextState.orgMembers = {
+              ok: true,
+              value: await loadJson(fetch, `/api/org/${encodeURIComponent(activeOrgId)}/members`),
+            }
+            nextState.orgInvites = {
+              ok: true,
+              value: await loadJson(fetch, `/api/org/${encodeURIComponent(activeOrgId)}/invites`),
+            }
+            nextState.orgRoles = {
+              ok: true,
+              value: await loadJson(fetch, `/api/org/${encodeURIComponent(activeOrgId)}/roles`),
+            }
           }
         }
       }
@@ -445,6 +550,154 @@
     )
   }
 
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword) {
+      error = 'Current password and a new password are required.'
+      return
+    }
+    await runAction('auth:change-password', async () => {
+      await sendJson(fetch, '/api/auth/change-password', { currentPassword, newPassword })
+      currentPassword = ''
+      newPassword = ''
+      notice = 'Password changed successfully.'
+    })
+  }
+
+  async function handleCreateApiKey() {
+    if (!newApiKeyName.trim()) {
+      error = 'API key name is required.'
+      return
+    }
+    await runAction('apikey:create', async () => {
+      await sendJson(fetch, '/api/user/api-keys', {
+        name: newApiKeyName.trim(),
+        ...(newApiKeyExpiry ? { expiresAt: newApiKeyExpiry } : {}),
+      })
+      newApiKeyName = ''
+      newApiKeyExpiry = ''
+      notice = 'API key created.'
+    })
+  }
+
+  async function handleDeleteApiKey(keyId) {
+    await runAction(`apikey:${keyId}:delete`, async () => {
+      await sendJson(fetch, `/api/user/api-keys/${encodeURIComponent(keyId)}`, {}, { method: 'DELETE' })
+      notice = 'API key deleted.'
+    })
+  }
+
+  async function handleCreateServiceAccount() {
+    if (!selectedOrgId || !newServiceAccountName.trim()) {
+      error = 'Select an organization and provide a service account name.'
+      return
+    }
+    await runAction('service-account:create', async () => {
+      await sendJson(fetch, `/api/org/${encodeURIComponent(selectedOrgId)}/service-accounts`, {
+        name: newServiceAccountName.trim(),
+      })
+      newServiceAccountName = ''
+      notice = 'Service account created.'
+    })
+  }
+
+  async function handleCreateServiceAccountKey(accountId) {
+    if (!selectedOrgId || !accountId) return
+    await runAction(`service-account:${accountId}:key-create`, async () => {
+      await sendJson(fetch, `/api/org/${encodeURIComponent(selectedOrgId)}/service-accounts/${encodeURIComponent(accountId)}/keys`, {})
+      notice = 'Service account key created.'
+    })
+  }
+
+  async function handleDeleteServiceAccountKey(accountId, keyId) {
+    if (!selectedOrgId || !accountId || !keyId) return
+    await runAction(`service-account:${accountId}:key:${keyId}:delete`, async () => {
+      await sendJson(
+        fetch,
+        `/api/org/${encodeURIComponent(selectedOrgId)}/service-accounts/${encodeURIComponent(accountId)}/keys/${encodeURIComponent(keyId)}`,
+        {},
+        { method: 'DELETE' },
+      )
+      notice = 'Service account key revoked.'
+    })
+  }
+
+  async function handleCreateOrg() {
+    const name = window.prompt('Organization name')
+    if (!name) return
+    await runAction('org:create', async () => {
+      await sendJson(fetch, '/api/org', { name })
+      notice = 'Organization created.'
+    })
+  }
+
+  async function handleSaveOrgSettings() {
+    if (!selectedOrgId || !selectedOrg) return
+    const name = window.prompt('Organization name', selectedOrg.name ?? '') ?? ''
+    const email = window.prompt('Organization email', selectedOrg.email ?? '') ?? ''
+    const bio = window.prompt('Organization bio', selectedOrg.bio ?? '') ?? ''
+    await runAction(`org:${selectedOrgId}:update`, async () => {
+      await sendJson(fetch, `/api/org/${encodeURIComponent(selectedOrgId)}`, { name, email, bio }, { method: 'PATCH' })
+      notice = 'Organization settings updated.'
+    })
+  }
+
+  async function handleInviteOrgMember() {
+    if (!selectedOrgId || !inviteEmail.trim()) {
+      error = 'Select an organization and provide an invite email.'
+      return
+    }
+    await runAction(`org:${selectedOrgId}:invite`, async () => {
+      await sendJson(fetch, `/api/org/${encodeURIComponent(selectedOrgId)}/invites`, {
+        email: inviteEmail.trim(),
+        role: inviteRole,
+      })
+      inviteEmail = ''
+      inviteRole = 'member'
+      notice = 'Invitation sent.'
+    })
+  }
+
+  async function handleChangeOrgRole(member, roleId) {
+    if (!selectedOrgId || !member || !roleId) return
+    await runAction(`org:${selectedOrgId}:role:${member.userId}:${roleId}`, async () => {
+      await sendJson(fetch, `/api/org/${encodeURIComponent(selectedOrgId)}/roles/${encodeURIComponent(roleId)}/assign`, {
+        userId: member.userId,
+      })
+      notice = 'Role updated.'
+    })
+  }
+
+  async function handleRemoveOrgMember(member) {
+    if (!selectedOrgId || !member?.userId) return
+    await runAction(`org:${selectedOrgId}:member:${member.userId}:remove`, async () => {
+      await sendJson(fetch, `/api/org/${encodeURIComponent(selectedOrgId)}/members/${encodeURIComponent(member.userId)}`, {}, { method: 'DELETE' })
+      notice = 'Member removed.'
+    })
+  }
+
+  async function handleIntegrationAction(item, action) {
+    const provider = item?.provider ?? item?.id
+    if (!provider) return
+
+    if (action === 'oauth') {
+      const returnTo = window.location.pathname
+      window.location.assign(`/api/integrations/${encodeURIComponent(provider)}/oauth/start?redirect=1&returnTo=${encodeURIComponent(returnTo)}`)
+      return
+    }
+
+    await runAction(`integration:${provider}:${action}`, async () => {
+      let payload = {}
+      let path = `/api/integrations/${encodeURIComponent(provider)}/${action}`
+      if (action === 'refresh') {
+        path = `/api/integrations/${encodeURIComponent(provider)}/oauth/refresh`
+      } else if (action === 'revoke') {
+        path = `/api/integrations/${encodeURIComponent(provider)}/oauth/revoke`
+      }
+      integrationActionResult = await sendJson(fetch, path, payload)
+      notice = `Integration ${action} completed for ${provider}.`
+    })
+  }
+
   async function handleLeakageUpload() {
     busy = 'leakage:upload'
     error = ''
@@ -529,26 +782,64 @@
         : []
   }
 
+  function humanizeSlug(value) {
+    return String(value ?? '--')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+
   onMount(() => {
     refresh()
+    const onShellRefresh = () => {
+      refresh()
+    }
+    window.addEventListener('maple:shell-refresh', onShellRefresh)
     const intervalMs = POLL_INTERVALS[routePath]
     if (!intervalMs) {
-      return undefined
+      return () => {
+        window.removeEventListener('maple:shell-refresh', onShellRefresh)
+      }
     }
     const intervalId = window.setInterval(refresh, intervalMs)
-    return () => window.clearInterval(intervalId)
+    return () => {
+      window.removeEventListener('maple:shell-refresh', onShellRefresh)
+      window.clearInterval(intervalId)
+    }
   })
 </script>
 
-<header class="mw-view-header">
-  <h1>{routeRecord?.title ?? 'Maple'}</h1>
-  <p>{routeRecord?.description ?? 'Operate Maple control-plane workflows from the canonical Svelte runtime.'}</p>
-</header>
+<section class="fa-route-page" class:fa-route-page-embedded={embedded}>
+  {#if !embedded}
+  <header class="mw-view-header fa-page-header">
+    <div class="fa-page-title">
+      <span class="fa-page-kicker">{routeCategoryLabel}</span>
+      <h1>{routeRecord?.title ?? 'Maple'}</h1>
+      <p>{routeRecord?.purpose ?? routeRecord?.description ?? 'Operate Maple control-plane workflows from the canonical Svelte runtime.'}</p>
+    </div>
+    <div class="fa-page-stats">
+      <article class="route-overview-card">
+        <span class="route-overview-label">Operator task</span>
+        <strong>{humanizeSlug(routeRecord?.operatorTask ?? 'workspace')}</strong>
+      </article>
+      <article class="route-overview-card">
+        <span class="route-overview-label">Topology context</span>
+        <strong>{humanizeSlug(routeRecord?.topologyContext ?? routeRecord?.preferredView ?? 'control')}</strong>
+      </article>
+      <article class="route-overview-card">
+        <span class="route-overview-label">Refresh cadence</span>
+        <strong>{pollIntervalMs ? `${Math.round(pollIntervalMs / 1000)}s` : 'manual'}</strong>
+      </article>
+    </div>
+  </header>
 
-<div class="panel-head">
-  <h2 class="panel-title">Route Context</h2>
-  <span class="chip">{routePath}</span>
-</div>
+  <MapleTopologySection
+    {routeRecord}
+    {routePath}
+    {state}
+    {selectedSessionId}
+    {selectedPlan}
+  />
+  {/if}
 
 {#if error}
   <p class="mw-chat-error">{humanizeError(error)}</p>
@@ -557,65 +848,84 @@
   <p class="empty-row">{notice}</p>
 {/if}
 
-<div class="actions">
-  <button type="button" class="action-btn primary" disabled={loading || Boolean(busy)} on:click={refresh}>
-    {loading ? 'Refreshing...' : 'Refresh'}
-  </button>
-  {#if routePath === '/maple/cyber' || routePath === '/maple/audit' || routePath === '/maple/observability'}
-    <label class="settings-chip-row">
-      <span>Source</span>
-      <select class="select" bind:value={sourceFilter} style="max-width: 220px;">
-        {#each SOURCE_FILTERS as filterId}
-          <option value={filterId}>{filterId}</option>
-        {/each}
-      </select>
-    </label>
-  {/if}
-</div>
+{#if !embedded}
+<section class="fa-secondary-actions-bar">
+  <div class="fa-secondary-actions">
+    <button type="button" class="action-btn primary" disabled={loading || Boolean(busy)} on:click={refresh}>
+      {loading ? 'Refreshing...' : 'Refresh'}
+    </button>
+    {#if routePath === '/maple/cyber' || routePath === '/maple/audit' || routePath === '/maple/observability'}
+      <label class="settings-chip-row">
+        <span>Source</span>
+        <select class="select" bind:value={sourceFilter} style="max-width: 220px;">
+          {#each SOURCE_FILTERS as filterId}
+            <option value={filterId}>{filterId}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+  </div>
+</section>
+{/if}
 
-{#if routePath === '/maple/observability'}
+{#if routePath === '/maple/chat'}
+  <section class="docs-grid">
+    <article class="panel fa-chat-panel">
+      <ChatView routeTitle={routeRecord?.title ?? 'Operator Chat'} />
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Evidence Handoff</h2>
+        <span class="chip">{agentSessions.length} active session(s)</span>
+      </div>
+      <div class="stack-list">
+        <a class="list-card" href="/maple/agent">
+          <strong>Agent Management</strong>
+          <span>Inspect sessions, runs, and governed artifacts.</span>
+        </a>
+        <a class="list-card" href="/maple/policies">
+          <strong>Policy Center</strong>
+          <span>Review protected entities and rewrite or block events.</span>
+        </a>
+        <a class="list-card" href="/maple/gateway">
+          <strong>Firewall Dashboard</strong>
+          <span>Confirm protection state before or after a governed turn.</span>
+        </a>
+      </div>
+    </article>
+  </section>
+{:else if routePath === '/maple/observability'}
+  <WorkspaceViewHost
+    panelOpen={true}
+    state={{ category: 'observe', view: 'live', routePath, routeRecord }}
+    {routeRecord}
+    summary={state.summary?.value ?? {}}
+    slo={state.slo?.value ?? {}}
+    auditEvents={observabilityAudit}
+    runtimeCapabilities={pickItems(state.runtimeCapabilities?.value)}
+  />
+{:else if routePath === '/maple/runs'}
   <section class="docs-grid">
     <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Summary</h2>
-        <span class="chip">{sourceFilterLabel}</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.summary?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">SLO</h2>
-        <span class="chip">live</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.slo?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Alert Webhooks</h2>
-        <span class="chip">{pickItems(state.alertWebhooks?.value).length}</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.alertWebhooks?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Recent Audit</h2>
-        <span class="chip">{observabilityAudit.length}</span>
+        <h2 class="panel-title">Run Inventory</h2>
+        <span class="chip">{runInventory.length}</span>
       </div>
       <div class="table-wrap">
         <table class="timeline-table">
           <thead>
-            <tr><th>Time</th><th>Source</th><th>Event</th><th>Trace</th></tr>
+            <tr><th>Run</th><th>Session</th><th>Status</th><th>Updated</th></tr>
           </thead>
           <tbody>
-            {#if observabilityAudit.length === 0}
-              <tr><td colspan="4" class="empty-row">No events for this source filter. Try changing the filter or refreshing.</td></tr>
+            {#if runInventory.length === 0}
+              <tr><td colspan="4" class="empty-row">No runs recorded yet. Runs appear here once governed agent work begins.</td></tr>
             {:else}
-              {#each observabilityAudit.slice(0, 20) as item}
+              {#each runInventory as item}
                 <tr>
-                  <td>{formatDate(item.createdAt ?? item.timestamp)}</td>
-                  <td>{getAuditRecordSource(item)}</td>
-                  <td>{item.eventType ?? item.type ?? item.action ?? 'event'}</td>
-                  <td class="mono">{item.traceId ?? item.executionId ?? item.sessionId ?? '--'}</td>
+                  <td class="mono">{item.runId ?? item.id ?? '--'}</td>
+                  <td class="mono">{item.sessionId ?? item.executionId ?? '--'}</td>
+                  <td>{item.status ?? item.state ?? '--'}</td>
+                  <td>{formatDate(item.updatedAt ?? item.completedAt ?? item.createdAt)}</td>
                 </tr>
               {/each}
             {/if}
@@ -623,13 +933,37 @@
         </table>
       </div>
     </article>
-  </section>
-{:else if routePath === '/maple/audit'}
-  <section class="docs-grid">
     <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Audit Events</h2>
+        <h2 class="panel-title">Session Correlation</h2>
+        <span class="chip">{agentSessions.length} active session(s)</span>
+      </div>
+      <pre class="mono panel-json">{JSON.stringify({
+        runs: state.runs?.value ?? {},
+        sessions: state.agentSessions?.value ?? {},
+      }, null, 2)}</pre>
+    </article>
+  </section>
+{:else if routePath === '/maple/audit'}
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Audit + Trace Stream</h2>
         <span class="chip">{auditLog.length}</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Integrity</span>
+          <strong>{state.auditVerify?.value?.verified ? 'Verified' : 'Check required'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Retention</span>
+          <strong>{state.retention?.value?.enabled === false ? 'Paused' : 'Active'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Dead letters</span>
+          <strong>{pickItems(state.deadLetter?.value).length}</strong>
+        </article>
       </div>
       <div class="table-wrap">
         <table class="timeline-table">
@@ -655,24 +989,12 @@
     </article>
     <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Audit Chain</h2>
-        <span class="chip">{pickItems(state.auditChain?.value, ['items', 'chain']).length}</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.auditChain?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Chain Verification</h2>
-        <span class="chip">{state.auditVerify?.value?.verified ? 'verified' : 'unverified'}</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.auditVerify?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Retention & Dead Letter</h2>
-        <span class="chip">authoritative</span>
+        <h2 class="panel-title">Forensic Detail</h2>
+        <span class="chip">chain + replay</span>
       </div>
       <pre class="mono panel-json">{JSON.stringify({
+        auditChain: state.auditChain?.value ?? {},
+        auditVerify: state.auditVerify?.value ?? {},
         retention: state.retention?.value ?? {},
         deadLetter: state.deadLetter?.value ?? {},
       }, null, 2)}</pre>
@@ -770,90 +1092,15 @@
     </article>
   </section>
 {:else if routePath === '/maple/cyber'}
-  <section class="docs-grid">
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Status</h2>
-        <span class="chip">{state.cyberStatus?.value?.scanning?.provider ?? '--'}</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.cyberStatus?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Policies</h2>
-        <span class="chip">effective</span>
-      </div>
-      <pre class="mono panel-json">{JSON.stringify(state.cyberPolicies?.value ?? {}, null, 2)}</pre>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Incident Queue</h2>
-        <span class="chip">{cyberIncidents.length}</span>
-      </div>
-      <div class="stack-list">
-        {#each cyberIncidents as incident}
-          <div class="list-card static">
-            <strong>{incident.title || incident.incidentId}</strong>
-            <span>{incident.state || 'new'} · {incident.severity || 'low'} · {incidentColor(incident)}</span>
-            <div class="actions">
-              <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleIncidentAction(incident, 'assign')}>Assign</button>
-              <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleIncidentAction(incident, 'state')}>State</button>
-              <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleIncidentAction(incident, 'note')}>Note</button>
-            </div>
-          </div>
-        {/each}
-        {#if cyberIncidents.length === 0}
-          <p class="empty-row">No incidents in current scope. Security incidents appear when threats are detected.</p>
-        {/if}
-      </div>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Downloads + Quarantine</h2>
-        <span class="chip">{cyberDownloads.length} downloads · {cyberQuarantine.length} quarantine</span>
-      </div>
-      <div class="stack-list">
-        {#each cyberDownloads.slice(0, 10) as item}
-          <div class="list-card static">
-            <strong>{getCyberDownloadLabel(item)}</strong>
-            <span>{scanLabel(getNestedCyberScan(item))} · {scanColor(getNestedCyberScan(item))} · trace={getCyberDownloadTrace(item)}</span>
-          </div>
-        {/each}
-      </div>
-      <div class="stack-list">
-        {#each cyberQuarantine.slice(0, 10) as item}
-          <div class="list-card static">
-            <strong>{item.fileName ?? item.quarantineId}</strong>
-            <span>{item.status ?? item.reviewStatus ?? 'quarantined'}</span>
-            <div class="actions">
-              <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleQuarantineAction(item, 'review')}>Review</button>
-              <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleQuarantineAction(item, 'release')}>Release</button>
-              <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleQuarantineAction(item, 'rescan')}>Rescan</button>
-            </div>
-          </div>
-        {/each}
-      </div>
-    </article>
-    <article class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">Suppressions</h2>
-        <span class="chip">{cyberSuppressions.length}</span>
-      </div>
-      <div class="actions">
-        <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={createSuppression}>Create suppression</button>
-      </div>
-      <div class="stack-list">
-        {#each cyberSuppressions as item}
-          <div class="list-card static">
-            <strong>{item.scopeType}:{item.scopeValue}</strong>
-            <span>{item.status ?? 'active'} · expires={item.expiresAt ?? '--'}</span>
-            <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => revokeSuppression(item)}>Revoke</button>
-          </div>
-        {/each}
-      </div>
-      <p class="empty-row">{degradedSecurityMessage(state.cyberStatus?.value) || `Severe open incidents: ${severityOpenIncidents.length}`}</p>
-    </article>
-  </section>
+  <CyberOpsPanel
+    status={state.cyberStatus?.value ?? null}
+    policies={state.cyberPolicies?.value ?? null}
+    incidents={cyberIncidents}
+    downloads={cyberDownloads}
+    quarantine={cyberQuarantine}
+    suppressions={cyberSuppressions}
+    refresh={refresh}
+  />
 {:else if routePath === '/maple/hitl'}
   <section class="docs-grid">
     <article class="panel">
@@ -977,23 +1224,51 @@
     </article>
   </section>
 {:else if routePath === '/maple/downstream'}
-  <section class="docs-grid">
+  <section class="docs-grid utility-grid">
     <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Apps + Tools</h2>
+        <h2 class="panel-title">App Inventory</h2>
         <span class="chip">{downstreamApps.length}</span>
       </div>
-      <pre class="mono panel-json">{JSON.stringify({
-        apps: state.downstreamApps?.value ?? {},
-        tools: state.downstreamTools?.value ?? {},
-      }, null, 2)}</pre>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Apps</span>
+          <strong>{downstreamApps.length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Selected app</span>
+          <strong>{downstreamDispatch.appId || '--'}</strong>
+        </article>
+      </div>
+      <div class="stack-list">
+        {#if downstreamApps.length === 0}
+          <p class="empty-row">No downstream applications are registered.</p>
+        {:else}
+          {#each downstreamApps as item}
+            <button type="button" class="list-card" on:click={async () => {
+              downstreamDispatch = { ...downstreamDispatch, appId: item.appId ?? item.id ?? '' }
+              state = {
+                ...state,
+                downstreamTools: {
+                  ok: true,
+                  value: await loadJson(fetch, `/api/downstream/tools?appId=${encodeURIComponent(item.appId ?? item.id ?? '')}`),
+                },
+              }
+            }}>
+              <strong>{item.label ?? item.name ?? item.appId ?? item.id}</strong>
+              <span>appId={item.appId ?? item.id ?? '--'}</span>
+            </button>
+          {/each}
+        {/if}
+      </div>
     </article>
     <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Dispatch</h2>
-        <span class="chip">mediated</span>
+        <h2 class="panel-title">Tool Dispatch</h2>
+        <span class="chip">{pickItems(state.downstreamTools?.value, ['tools', 'items']).length} tool(s)</span>
       </div>
-      <div class="docs-grid">
+      <pre class="mono panel-json">{JSON.stringify(state.downstreamTools?.value ?? {}, null, 2)}</pre>
+      <div class="docs-grid compact-grid">
         <label>
           <span class="mono">App ID</span>
           <input class="input" bind:value={downstreamDispatch.appId} />
@@ -1009,6 +1284,292 @@
           Dispatch
         </button>
       </div>
+    </article>
+  </section>
+{:else if routePath === '/maple/auth-admin'}
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Auth Health</h2>
+        <span class="chip">{state.authMe?.value?.authenticated ? 'authenticated' : 'not authenticated'}</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">MFA</span>
+          <strong>{state.mfaStatus?.value?.enabled ? 'Enabled' : 'Disabled'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">SSO</span>
+          <strong>{state.ssoConfig?.value?.configured ? 'Configured' : 'Local'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Google</span>
+          <strong>{state.googleClient?.value?.configured ? 'Configured' : 'Unavailable'}</strong>
+        </article>
+      </div>
+      <pre class="mono panel-json">{JSON.stringify({
+        auth: state.authMe?.value ?? {},
+        profile: state.userProfile?.value ?? {},
+        mfa: state.mfaStatus?.value ?? {},
+      }, null, 2)}</pre>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Credential Actions</h2>
+        <span class="chip">operator action</span>
+      </div>
+      <label>
+        <span class="mono">Current password</span>
+        <input class="input" type="password" bind:value={currentPassword} />
+      </label>
+      <label>
+        <span class="mono">New password</span>
+        <input class="input" type="password" bind:value={newPassword} />
+      </label>
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !currentPassword || !newPassword} on:click={handleChangePassword}>
+          Change password
+        </button>
+      </div>
+      <p class="empty-row">Use this page for account security posture, MFA visibility, and password rotation.</p>
+    </article>
+  </section>
+{:else if routePath === '/maple/api-keys'}
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">User API Keys</h2>
+        <span class="chip">{userApiKeys.length}</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Active keys</span>
+          <strong>{userApiKeys.length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Organizations</span>
+          <strong>{organizations.length}</strong>
+        </article>
+      </div>
+      <div class="stack-list">
+        {#if userApiKeys.length === 0}
+          <p class="empty-row">No user API keys created yet.</p>
+        {:else}
+          {#each userApiKeys as item}
+            <div class="list-card static">
+              <strong>{item.name ?? item.keyId ?? 'API key'}</strong>
+              <span>created={formatDate(item.createdAt)} · expires={item.expiresAt ?? '--'}</span>
+              <div class="actions">
+                <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleDeleteApiKey(item.keyId ?? item.id)}>
+                  Revoke
+                </button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+      <div class="docs-grid compact-grid">
+        <label>
+          <span class="mono">Key name</span>
+          <input class="input" bind:value={newApiKeyName} placeholder="Operator CLI key" />
+        </label>
+        <label>
+          <span class="mono">Expires at</span>
+          <input class="input" bind:value={newApiKeyExpiry} placeholder="2026-12-31T00:00:00.000Z" />
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !newApiKeyName.trim()} on:click={handleCreateApiKey}>
+          Create key
+        </button>
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Service Accounts</h2>
+        <span class="chip">{selectedOrg?.name ?? 'no org selected'}</span>
+      </div>
+      <label>
+        <span class="mono">Organization</span>
+        <select class="select" bind:value={selectedOrgId} on:change={refresh}>
+          {#each organizations as org}
+            <option value={org.orgId ?? org.id}>{org.name ?? org.slug ?? org.orgId}</option>
+          {/each}
+        </select>
+      </label>
+      <div class="stack-list">
+        {#if serviceAccounts.length === 0}
+          <p class="empty-row">No service accounts for the selected organization.</p>
+        {:else}
+          {#each serviceAccounts as item}
+            <button type="button" class="list-card" on:click={() => { selectedServiceAccountId = item.id ?? item.serviceAccountId ?? ''; refresh() }}>
+              <strong>{item.name ?? item.id}</strong>
+              <span>account={item.id ?? item.serviceAccountId ?? '--'}</span>
+            </button>
+          {/each}
+        {/if}
+      </div>
+      <label>
+        <span class="mono">New service account</span>
+        <input class="input" bind:value={newServiceAccountName} placeholder="automation-bot" />
+      </label>
+      <div class="actions">
+        <button type="button" class="action-btn" disabled={Boolean(busy) || !selectedOrgId || !newServiceAccountName.trim()} on:click={handleCreateServiceAccount}>
+          Create service account
+        </button>
+        {#if selectedServiceAccount}
+          <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={() => handleCreateServiceAccountKey(selectedServiceAccount.id ?? selectedServiceAccount.serviceAccountId)}>
+            Generate key
+          </button>
+        {/if}
+      </div>
+      {#if selectedServiceAccount}
+        <pre class="mono panel-json">{JSON.stringify({
+          account: selectedServiceAccount,
+          keys: state.serviceAccountKeys?.value ?? {},
+        }, null, 2)}</pre>
+        <div class="stack-list">
+          {#each serviceAccountKeys as item}
+            <div class="list-card static">
+              <strong>{item.keyId ?? item.id ?? 'service account key'}</strong>
+              <span>created={formatDate(item.createdAt)} · expires={item.expiresAt ?? '--'}</span>
+              <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleDeleteServiceAccountKey(selectedServiceAccount.id ?? selectedServiceAccount.serviceAccountId, item.keyId ?? item.id)}>
+                Revoke
+              </button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </article>
+  </section>
+{:else if routePath === '/maple/org'}
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Organizations</h2>
+        <span class="chip">{organizations.length}</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Members</span>
+          <strong>{orgMembers.length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Invites</span>
+          <strong>{orgInvites.length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Roles</span>
+          <strong>{orgRoles.length}</strong>
+        </article>
+      </div>
+      <label>
+        <span class="mono">Organization</span>
+        <select class="select" bind:value={selectedOrgId} on:change={refresh}>
+          {#each organizations as org}
+            <option value={org.orgId ?? org.id}>{org.name ?? org.slug ?? org.orgId}</option>
+          {/each}
+        </select>
+      </label>
+      <div class="actions">
+        <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={handleCreateOrg}>Create organization</button>
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !selectedOrgId} on:click={handleSaveOrgSettings}>Save settings</button>
+      </div>
+      {#if selectedOrg}
+        <pre class="mono panel-json">{JSON.stringify(selectedOrg, null, 2)}</pre>
+      {/if}
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Members and Invites</h2>
+        <span class="chip">{selectedOrg?.name ?? '--'}</span>
+      </div>
+      <div class="docs-grid compact-grid">
+        <label>
+          <span class="mono">Invite email</span>
+          <input class="input" bind:value={inviteEmail} placeholder="operator@company.com" />
+        </label>
+        <label>
+          <span class="mono">Invite role</span>
+          <select class="select" bind:value={inviteRole}>
+            <option value="member">member</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !selectedOrgId || !inviteEmail.trim()} on:click={handleInviteOrgMember}>
+          Send invite
+        </button>
+      </div>
+      <div class="stack-list">
+        {#each orgMembers as member}
+          <div class="list-card static">
+            <strong>{member.email ?? member.userId ?? 'member'}</strong>
+            <span>{member.roleId ?? member.role ?? 'member'}</span>
+            <div class="actions">
+              <select class="select" on:change={(event) => handleChangeOrgRole(member, event.currentTarget.value)}>
+                {#each orgRoles as role}
+                  <option value={role.roleId ?? role.id} selected={(role.roleId ?? role.id) === (member.roleId ?? member.role)}>{role.label ?? role.roleId ?? role.id}</option>
+                {/each}
+              </select>
+              <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleRemoveOrgMember(member)}>
+                Remove
+              </button>
+            </div>
+          </div>
+        {/each}
+        {#each orgInvites as invite}
+          <div class="list-card static">
+            <strong>{invite.email ?? invite.inviteId ?? 'invite'}</strong>
+            <span>role={invite.roleId ?? invite.role ?? '--'} · expires={formatDate(invite.expiresAt)}</span>
+          </div>
+        {/each}
+      </div>
+    </article>
+  </section>
+{:else if routePath === '/maple/integrations'}
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Provider Catalog</h2>
+        <span class="chip">{integrationProviders.length}</span>
+      </div>
+      <div class="stack-list">
+        {#each integrationProviders as provider}
+          <div class="list-card static">
+            <strong>{provider.displayName ?? provider.provider ?? provider.id}</strong>
+            <span>auth={provider.defaultAuthType ?? '--'} · oauth={provider.oauth?.configured ? 'configured' : 'not configured'}</span>
+          </div>
+        {/each}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Connected Integrations</h2>
+        <span class="chip">{integrationsList.length}</span>
+      </div>
+      <div class="stack-list">
+        {#each integrationsList as item}
+          <div class="list-card static">
+            <strong>{item.displayName ?? item.provider ?? item.id}</strong>
+            <span>{item.status ?? 'unknown'} · auth={item.authType ?? '--'}</span>
+            <div class="actions">
+              {#if item.authType === 'oauth2'}
+                <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleIntegrationAction(item, 'oauth')}>Connect</button>
+                <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleIntegrationAction(item, 'refresh')}>Refresh</button>
+                <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleIntegrationAction(item, 'revoke')}>Revoke</button>
+              {:else}
+                <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleIntegrationAction(item, 'connect')}>Connect</button>
+                <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleIntegrationAction(item, 'disconnect')}>Disconnect</button>
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+      {#if integrationActionResult}
+        <pre class="mono panel-json">{JSON.stringify(integrationActionResult, null, 2)}</pre>
+      {/if}
     </article>
   </section>
 {:else if routePath === '/maple/policies'}
@@ -1131,7 +1692,7 @@
   <section class="docs-grid">
     <article class="panel">
       <div class="panel-head">
-        <h2 class="panel-title">Deterministic Demo Paths</h2>
+        <h2 class="panel-title">Operational Scenarios</h2>
         <span class="chip">operator ready</span>
       </div>
       <div class="actions">
@@ -1158,8 +1719,76 @@
     </article>
   </section>
 {/if}
+</section>
 
 <style>
+  .fa-route-page {
+    display: grid;
+    gap: 16px;
+  }
+
+  .fa-route-page-embedded {
+    gap: 0;
+  }
+
+  .fa-page-header {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    margin-bottom: 0;
+  }
+
+  .fa-page-title h1 {
+    margin: 0;
+  }
+
+  .fa-page-kicker {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  .fa-page-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .fa-secondary-actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 18px;
+  }
+
+  .fa-secondary-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .route-overview-card {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 248, 239, 0.92));
+    padding: 12px 14px;
+    box-shadow: 0 10px 24px rgba(89, 46, 9, 0.05);
+  }
+
+  .route-overview-label {
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
   .panel-json {
     max-height: 28rem;
     overflow: auto;
@@ -1191,8 +1820,37 @@
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   }
 
+  .utility-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+    align-items: start;
+  }
+
+  .utility-stat-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .compact-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
   @media (max-width: 960px) {
+    .fa-page-header {
+      grid-template-columns: 1fr;
+    }
+
+    .fa-page-stats {
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
     .interventions-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .utility-grid {
       grid-template-columns: 1fr;
     }
   }

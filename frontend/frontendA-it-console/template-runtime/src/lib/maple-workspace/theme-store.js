@@ -1,14 +1,14 @@
 /**
  * theme-store.js
  *
- * localStorage-backed theme state with system preference detection.
- * Supports "light", "dark", and "system" (auto) modes.
+ * localStorage-backed theme state with light-first defaults.
+ * Supports "light", "dark", and "system" modes.
  */
 
 const STORAGE_KEY = "maple-theme";
 
 /** @type {"light" | "dark" | "system"} */
-let _preference = "system";
+let _preference = "light";
 
 /** @type {"light" | "dark"} */
 let _resolved = "light";
@@ -17,7 +17,7 @@ let _resolved = "light";
 const _subscribers = [];
 
 /**
- * Initialize theme from localStorage or system preference.
+ * Initialize theme from localStorage, defaulting to light for Frontend A.
  * Must be called early (before first paint ideally).
  */
 export function initTheme() {
