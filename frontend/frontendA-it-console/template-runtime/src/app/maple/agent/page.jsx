@@ -76,6 +76,17 @@ function scanColor(scan) {
   return 'orange'
 }
 
+function mediationPayload(artifact) {
+  const content = artifact?.content
+  if (content && typeof content === 'object' && content.mediation && typeof content.mediation === 'object') {
+    return content.mediation
+  }
+  if (content && typeof content === 'object' && typeof content.kind === 'string') {
+    return content
+  }
+  return null
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -298,7 +309,13 @@ export default function AgentManagementPage() {
               <div className="mt-4 rounded-xl border border-zinc-950/10 bg-white p-4 dark:border-white/10 dark:bg-zinc-900">
                 <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">Artifacts</h3>
                 <div className="mt-3 space-y-3">
-                  {artifacts.map((artifact, index) => (
+                  {artifacts.map((artifact, index) => {
+                    const mediation = mediationPayload(artifact)
+                    const planId = mediation?.item?.planId || ''
+                    const mediationTraceId = mediation?.traceId || artifact?.traceId || ''
+                    const mediationSessionId = mediation?.sessionId || detail?.session?.sessionId || ''
+
+                    return (
                     <div key={`${artifact.artifactType || 'artifact'}-${index}`} className="rounded-xl border border-zinc-950/10 p-3 dark:border-white/10">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-zinc-950 dark:text-white">{artifact.artifactType || `Artifact ${index + 1}`}</span>
@@ -320,17 +337,28 @@ export default function AgentManagementPage() {
                             <p>
                               <a
                                 className="underline"
-                                href={`/maple/cyber?runId=${encodeURIComponent(artifactsRunId || '')}&sessionId=${encodeURIComponent(detail?.session?.sessionId || '')}`}
+                                href={`/maple/cyber?runId=${encodeURIComponent(artifactsRunId || '')}&sessionId=${encodeURIComponent(mediationSessionId || '')}&traceId=${encodeURIComponent(mediationTraceId || '')}`}
                               >
                                 Open in Cyber Operations
                               </a>
                             </p>
                           )}
+                          {planId ? (
+                            <p>
+                              <a
+                                className="underline"
+                                href={`/maple/interventions?planId=${encodeURIComponent(planId)}`}
+                              >
+                                Open in Filesystem Interventions
+                              </a>
+                            </p>
+                          ) : null}
                         </div>
                       )}
                       <pre className="mt-3 overflow-auto rounded-lg bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{JSON.stringify(artifact, null, 2)}</pre>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}

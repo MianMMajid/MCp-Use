@@ -115,13 +115,20 @@ set_default MAPLE_TENANT_CLAIM_SIGNING_KEY local-dev-tenant-signing-key
 
 set_default CONTEXT_WALL_HITL_TIMEOUT_MS 120000
 set_default DEFAULT_MODEL gpt-4o
-set_default CYBER_ALLOWED_DOMAINS example.com,localhost,127.0.0.1
+set_default CYBER_ALLOWED_DOMAINS secure.eicar.org,example.com,localhost,127.0.0.1
 set_default CYBER_BLOCKED_DOMAINS evil.com
 set_default CYBER_TOOL_ALLOWED_DOMAINS_JSON "{}"
 set_default CYBER_ALLOW_LOCAL_TARGETS 1
 set_default CYBER_ALLOWED_LOCAL_HOSTS localhost,127.0.0.1
 set_default CYBER_MAX_RESPONSE_BYTES 10485760
 set_default CYBER_QUARANTINE_ENABLED 1
+set_default MAPLE_OPENCLAW_AGENT_MEDIATION_ENABLED 1
+set_default MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL 0
+if [ -n "${MAPLE_VIRUSTOTAL_API_KEY:-}" ] && [ -z "${MAPLE_DOWNLOAD_SCAN_PROVIDER:-}" ]; then
+  export MAPLE_DOWNLOAD_SCAN_PROVIDER=virustotal
+else
+  set_default MAPLE_DOWNLOAD_SCAN_PROVIDER local
+fi
 
 set_default STRIPE_SECRET_KEY sk_test_ci_placeholder
 set_default STRIPE_WEBHOOK_SECRET whsec_ci_test

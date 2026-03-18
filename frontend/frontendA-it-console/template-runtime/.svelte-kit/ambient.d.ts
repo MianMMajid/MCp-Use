@@ -85,6 +85,7 @@ declare module '$env/static/private' {
 	export const MAPLE_SESSION_POLL_MS: string;
 	export const NO_COLOR: string;
 	export const npm_config_noproxy: string;
+	export const MAPLE_DOWNLOAD_SCAN_PROVIDER: string;
 	export const MAPLE_OTLP_TIMEOUT_MS: string;
 	export const MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID: string;
 	export const MAPLE_SESSION_COOKIE_DOMAIN: string;
@@ -233,6 +234,7 @@ declare module '$env/static/private' {
 	export const MAPLE_LOG_LEVEL: string;
 	export const npm_config_user_agent: string;
 	export const MAPLE_RECOVERY_SMS_FROM: string;
+	export const MAPLE_OPENCLAW_AGENT_MEDIATION_ENABLED: string;
 	export const MAPLE_DISABLE_HITL_BROKER: string;
 	export const MAPLE_FIREWALL_CHAT_PRIMARY: string;
 	export const MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_INTERVAL_MS: string;
@@ -263,6 +265,7 @@ declare module '$env/static/private' {
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const TWILIO_AUTH_TOKEN: string;
+	export const MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL: string;
 	export const MAPLE_OPENCLAW_MODIFIER_MAX_BUFFER_MB: string;
 	export const GOOGLE_CLIENT_ID: string;
 	export const COLORTERM: string;
@@ -400,6 +403,7 @@ declare module '$env/dynamic/private' {
 		MAPLE_SESSION_POLL_MS: string;
 		NO_COLOR: string;
 		npm_config_noproxy: string;
+		MAPLE_DOWNLOAD_SCAN_PROVIDER: string;
 		MAPLE_OTLP_TIMEOUT_MS: string;
 		MAPLE_OPENCLAW_AGENT_DEFAULT_SESSION_ID: string;
 		MAPLE_SESSION_COOKIE_DOMAIN: string;
@@ -548,6 +552,7 @@ declare module '$env/dynamic/private' {
 		MAPLE_LOG_LEVEL: string;
 		npm_config_user_agent: string;
 		MAPLE_RECOVERY_SMS_FROM: string;
+		MAPLE_OPENCLAW_AGENT_MEDIATION_ENABLED: string;
 		MAPLE_DISABLE_HITL_BROKER: string;
 		MAPLE_FIREWALL_CHAT_PRIMARY: string;
 		MAPLE_OPENCLAW_MODIFIER_AUDIT_OUTBOX_INTERVAL_MS: string;
@@ -578,6 +583,7 @@ declare module '$env/dynamic/private' {
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		TWILIO_AUTH_TOKEN: string;
+		MAPLE_OPENCLAW_AGENT_REQUIRE_VIRUSTOTAL: string;
 		MAPLE_OPENCLAW_MODIFIER_MAX_BUFFER_MB: string;
 		GOOGLE_CLIENT_ID: string;
 		COLORTERM: string;

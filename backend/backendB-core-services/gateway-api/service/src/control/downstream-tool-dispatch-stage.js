@@ -23,8 +23,10 @@ export async function dispatchDownstreamAndLogStage(options) {
         invocationSummary,
         origin: options.origin,
         tenantId: options.tenantId,
+        orgId: options.orgId,
         userId: options.userId,
         deviceId: options.deviceId,
+        runId: options.runId,
     });
     const filesystemMutation = await preflightFilesystemMutation({
         toolName: options.toolName,
@@ -33,6 +35,7 @@ export async function dispatchDownstreamAndLogStage(options) {
         sourceType: "tool_call",
         traceId: options.traceId,
         sessionId: options.sessionId,
+        runId: options.runId,
         taskText: invocationSummary,
     }, {
         database,
@@ -41,6 +44,7 @@ export async function dispatchDownstreamAndLogStage(options) {
         traceId: options.traceId,
         sessionId: options.sessionId,
         actorUserId: options.userId || "",
+        runId: options.runId,
     });
     if (filesystemMutation && filesystemMutation.lane !== "direct_allow") {
         trace.status = filesystemMutation.lane === "hard_deny" ? "quarantined" : "pending_approval";
@@ -137,8 +141,10 @@ export async function dispatchDownstreamAndLogStage(options) {
             preExecutionDecision,
             payload,
             tenantId: options.tenantId,
+            orgId: options.orgId,
             userId: options.userId,
             deviceId: options.deviceId,
+            runId: options.runId,
         });
         const decision = await evaluateFirewallStepViaGrpc(candidateStep);
         const loggedStep = {
@@ -166,6 +172,7 @@ export async function dispatchDownstreamAndLogStage(options) {
             sessionId: trace.sessionId,
             traceId: trace.id,
             tenantId: options.tenantId,
+            orgId: options.orgId,
             userId: options.userId,
             deviceId: options.deviceId,
         });

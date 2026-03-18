@@ -65,6 +65,22 @@ const cyberProxyPool = loadServiceClientPooled("maple/cyber/v1/cyber_proxy.proto
 const auditWriterPool = loadServiceClientPooled("maple/audit/v1/audit_writer.proto", "maple.audit.v1.AuditWriterService", config.auditWriterAddress);
 const cyberProxyBreaker = new CircuitBreaker("mcp-proxy->cyber-proxy", { failureThreshold: 5, resetTimeoutMs: 30000 });
 const auditWriterBreaker = new CircuitBreaker("mcp-proxy->audit-writer", { failureThreshold: 5, resetTimeoutMs: 30000 });
+function extractScopeTargetHost(targetUrl, toolArgs) {
+    const candidateKeys = ["url", "uri", "href", "downloadUrl", "targetUrl"];
+    for (const key of candidateKeys) {
+        const candidate = toolArgs?.[key];
+        if (typeof candidate !== "string" || candidate.trim().length === 0) {
+            continue;
+        }
+        try {
+            return new URL(candidate).hostname;
+        }
+        catch {
+            // Ignore malformed candidate URLs and continue.
+        }
+    }
+    return new URL(targetUrl).hostname;
+}
 function getCyberProxy() {
     return cyberProxyPool.getClient();
 }
@@ -543,7 +559,7 @@ export function createMcpProxyService(registry, dispatcher) {
                     const scope = requestedScope;
                     if (scope.allowedDomains && scope.allowedDomains.length > 0) {
                         try {
-                            const targetHost = new URL(target.url).hostname;
+                            const targetHost = extractScopeTargetHost(target.url, toolArgs);
                             const domainAllowed = scope.allowedDomains.some((d) => targetHost === d || targetHost.endsWith(`.${d}`));
                             if (!domainAllowed) {
                                 callback({ code: grpc.status.PERMISSION_DENIED, message: `Target domain ${targetHost} is not in allowed scope: ${scope.allowedDomains.join(", ")}` });

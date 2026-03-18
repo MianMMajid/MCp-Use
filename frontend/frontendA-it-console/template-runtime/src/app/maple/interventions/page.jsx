@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/Button'
 import { Tag } from '@/components/Tag'
@@ -53,6 +54,8 @@ function DetailRow({ label, value }) {
 }
 
 export default function FilesystemInterventionsPage() {
+  const searchParams = useSearchParams()
+  const requestedPlanId = searchParams.get('planId') || ''
   const [status, setStatus] = useState(null)
   const [items, setItems] = useState([])
   const [selectedId, setSelectedId] = useState('')
@@ -66,7 +69,7 @@ export default function FilesystemInterventionsPage() {
     return items.find((item) => item.planId === selectedId) || null
   }, [items, selected, selectedId])
 
-  const fetchData = useCallback(async (focusId = selectedId) => {
+  const fetchData = useCallback(async (focusId = selectedId || requestedPlanId) => {
     setLoading(true)
     setError('')
     try {
@@ -75,7 +78,7 @@ export default function FilesystemInterventionsPage() {
         loadJson('/api/firewall/filesystem/mutations?limit=100'),
       ])
       const nextItems = Array.isArray(listRes?.items) ? listRes.items : []
-      const nextSelectedId = focusId || nextItems[0]?.planId || ''
+      const nextSelectedId = focusId || requestedPlanId || nextItems[0]?.planId || ''
       setStatus(statusRes)
       setItems(nextItems)
       setSelectedId(nextSelectedId)
@@ -90,7 +93,7 @@ export default function FilesystemInterventionsPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedId])
+  }, [requestedPlanId, selectedId])
 
   useEffect(() => {
     fetchData()
@@ -143,6 +146,11 @@ export default function FilesystemInterventionsPage() {
               <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                 Review candidate mutations, approve fork-required bundles, and restore archived content when promotion needs to be rolled back.
               </p>
+              {requestedPlanId ? (
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Focused on intervention plan <code>{requestedPlanId}</code>.
+                </p>
+              ) : null}
             </div>
             <Button variant="filled" onClick={() => fetchData()} disabled={loading || Boolean(busyId)}>
               {loading ? 'Refreshing...' : 'Refresh'}

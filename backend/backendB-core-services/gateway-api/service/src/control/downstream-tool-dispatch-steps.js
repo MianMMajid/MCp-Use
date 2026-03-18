@@ -26,6 +26,8 @@ export function createPreExecutionCandidateStep(options) {
         externalUrl: extractFirstUrl(options.invocationSummary),
         metadata: {
             tenantId: options.tenantId,
+            orgId: options.orgId,
+            runId: options.runId,
             userId: options.userId,
             deviceId: options.deviceId,
             downstream: {
@@ -35,6 +37,7 @@ export function createPreExecutionCandidateStep(options) {
                 origin: options.origin,
                 stage: "pre_execution",
                 mcpUrl: options.app.mcpUrl,
+                runId: options.runId,
             },
         },
         riskScore: 0,
@@ -61,6 +64,7 @@ export function createPreExecutionLoggedStep(options) {
                 origin: options.origin,
                 stage: "pre_execution",
                 mcpUrl: options.app.mcpUrl,
+                runId: options.runId,
                 policy: toPolicySnapshot(options.decision),
             },
         },
@@ -84,6 +88,8 @@ export function createPostExecutionCandidateStep(options) {
         externalUrl: extractFirstUrl(summary),
         metadata: {
             tenantId: options.tenantId,
+            orgId: options.orgId,
+            runId: options.runId,
             userId: options.userId,
             deviceId: options.deviceId,
             downstream: {
@@ -97,6 +103,7 @@ export function createPostExecutionCandidateStep(options) {
                 failed: options.payload.failed === true,
                 mcpUrl: options.app.mcpUrl,
                 stage: options.payload.stage,
+                runId: options.runId,
                 preExecutionStepIndex: options.preExecutionStepIndex,
                 preExecutionPolicy: toPolicySnapshot(options.preExecutionDecision),
             },
