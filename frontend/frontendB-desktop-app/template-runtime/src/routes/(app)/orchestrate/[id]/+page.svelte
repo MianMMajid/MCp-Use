@@ -259,8 +259,10 @@
       if (!r.ok) throw new Error(`Save failed (${r.status})`);
       orchestration = await r.json().catch(() => orchestration);
       invalidateCache('/api/orchestrations');
-    } catch (err) { error = err instanceof Error ? err.message : String(err); }
-    finally { saving = false; }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      toastStore.error(humanizeError(error));
+    } finally { saving = false; }
   }
 
   function definitionPayload() {
@@ -335,6 +337,7 @@
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       runtimeStatus = 'failed';
+      toastStore.error(humanizeError(error));
       const ts2 = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       outputLog = [...outputLog, { ts: ts2, type: 'execution_failed', nodeId: '', preview: err instanceof Error ? err.message : String(err) }];
     } finally {
