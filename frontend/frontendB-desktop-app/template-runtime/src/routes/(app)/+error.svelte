@@ -6,6 +6,7 @@
 
   $: status = $page.status ?? 500;
   $: message = $page.error?.message ?? 'An unexpected error occurred.';
+  $: errorId = $page.error?.id ?? '';
 
   $: if (browser && (status === 401 || status === 403)) {
     goto('/login', { replaceState: true });
@@ -13,6 +14,15 @@
 
   function retry() {
     if (browser) window.location.reload();
+  }
+
+  let copied = false;
+  function copyErrorId() {
+    if (!errorId || !browser) return;
+    navigator.clipboard?.writeText(errorId).then(() => {
+      copied = true;
+      setTimeout(() => { copied = false; }, 2000);
+    });
   }
 </script>
 
@@ -40,6 +50,12 @@
       <h1>Error {status}</h1>
       <p>{message}</p>
       <button type="button" class="retry-btn" on:click={retry}>Retry</button>
+    {/if}
+    {#if errorId}
+      <div class="error-id">
+        <span>Error ID: {errorId}</span>
+        <button type="button" class="copy-btn" on:click={copyErrorId}>{copied ? 'Copied' : 'Copy'}</button>
+      </div>
     {/if}
   </section>
 </AppShell>
@@ -70,4 +86,23 @@
     color: var(--fg, #1a1a1a); font-size: 0.8rem; cursor: pointer; transition: background 0.15s;
   }
   .retry-btn:hover { background: var(--panel, #eeeeec); }
+  .error-id {
+    margin-top: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--muted, #6b7280);
+  }
+  .copy-btn {
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border, #e5e7eb);
+    background: var(--glass, #f5f5f4);
+    color: var(--fg, #1a1a1a);
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .copy-btn:hover { background: var(--panel, #eeeeec); }
 </style>
