@@ -181,7 +181,7 @@
 .mw-view-tab {
   border: 1px solid transparent;
   background: var(--bg-soft, #f4f4f5);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
   color: var(--mw-muted);
   text-decoration: none;
@@ -201,12 +201,12 @@
 }
 
 .mw-view-tab-label {
-  font-size: 0.83rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .mw-view-tab-caption {
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   opacity: 0.82;
 }
 
@@ -231,14 +231,14 @@
 
 .mw-view-stack h1 {
   margin: 0;
-  font-size: 1.18rem;
+  font-size: var(--text-xl);
   color: var(--mw-ink);
 }
 
 .mw-view-stack p {
   margin: 0.2rem 0 0;
   color: var(--mw-muted);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 .mw-view-card {

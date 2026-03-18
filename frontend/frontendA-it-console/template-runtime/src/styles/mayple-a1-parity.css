@@ -393,7 +393,7 @@ body {
 
 .panel {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: var(--shadow-soft);
   padding: 12px;
@@ -435,7 +435,7 @@ body {
 
 .mw-view-header h1 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: var(--text-xl);
   color: var(--ink);
 }
 
@@ -457,7 +457,7 @@ body {
 
 .card {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   padding: 12px;
 }
@@ -476,12 +476,12 @@ body {
 .chip {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--bg-soft);
   color: var(--muted);
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
