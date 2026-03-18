@@ -4,6 +4,7 @@
   import TopologyView from './TopologyView.svelte'
   import DocsViews from './DocsViews.svelte'
   import DashboardGrid from './DashboardGrid.svelte'
+  import CyberOpsPanel from './CyberOpsPanel.svelte'
   import {
     buildMonitoringQuickPrompts,
     requestMonitoringChat,
@@ -26,6 +27,13 @@
   export let downstreamTools = []
   export let openclawCatalog = []
   export let firewallRules = []
+  export let cyberStatus = null
+  export let cyberPolicies = null
+  export let cyberIncidents = []
+  export let cyberDownloads = []
+  export let cyberQuarantine = []
+  export let cyberSuppressions = []
+  export let cyberRefresh = () => {}
   export let authMe = null
   export let orgMembers = []
   export let orgInvites = []
@@ -907,7 +915,18 @@
 {/if}
 
 {#if panelOpen && state.category === 'firewalls' && state.view === 'cybersecurity'}
-  <section data-view-panel="firewalls-cybersecurity" class="view-panel panel">
+  <CyberOpsPanel
+    status={cyberStatus}
+    policies={cyberPolicies}
+    incidents={cyberIncidents}
+    downloads={cyberDownloads}
+    quarantine={cyberQuarantine}
+    suppressions={cyberSuppressions}
+    refresh={cyberRefresh}
+    {authMe}
+  />
+
+  <section data-view-panel="firewalls-cybersecurity" class="view-panel panel" style="margin-top: 1.5rem;">
     <header class="mw-view-header">
       <h1>Firewall Rules</h1>
       <p>Set cybersecurity rule packs in JSON format for runtime enforcement.</p>

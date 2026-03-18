@@ -696,7 +696,7 @@
   .mp-item { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-elevated); padding: 8px 10px; display: grid; gap: 4px; }
   .mp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .mp-name { margin: 0; font-size: 12px; font-weight: 600; }
-  .mp-desc { margin: 0; font-size: 11px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mp-desc { margin: 0; font-size: 11px; line-height: 1.4; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .mp-auth { display: grid; gap: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
   .mp-auth-desc { margin: 0; font-size: 10px; }
   .mp-auth-row { display: flex; gap: 6px; }

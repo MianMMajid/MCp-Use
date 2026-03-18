@@ -81,7 +81,7 @@ export const Header = forwardRef(function Header({ className, ...props }, ref) {
           <ThemeToggle />
         </div>
         <div className="hidden min-[416px]:contents">
-          <Button href="http://localhost:4102">Open Desktop</Button>
+          <Button href="/maple">Open Desktop</Button>
         </div>
       </div>
     </motion.div>

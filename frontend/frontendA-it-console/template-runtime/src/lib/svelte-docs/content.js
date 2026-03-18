@@ -55,7 +55,7 @@ composer require protocol/sdk`,
         id: 'first-request',
         title: 'First Request',
         body: 'Request initial runtime visibility from observability endpoints.',
-        code: `curl -G http://localhost:4101/api/observability/orchestrations/summary \\
+        code: `curl -G https://your-maple-host/api/observability/orchestrations/summary \\
   -H "Authorization: Bearer {token}"`,
       },
       {

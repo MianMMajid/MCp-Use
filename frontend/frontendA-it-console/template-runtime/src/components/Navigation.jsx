@@ -267,7 +267,7 @@ export const navigation = [
     title: 'References',
     links: [
       { title: 'Admin API', href: '/maple/admin' },
-      { title: 'Desktop Studio', href: 'http://localhost:4102' },
+      { title: 'Desktop Studio', href: '/maple' },
     ],
   },
 ]
@@ -287,7 +287,7 @@ export function Navigation(props) {
           />
         ))}
         <li className="sticky bottom-0 z-10 mt-6 min-[416px]:hidden">
-          <Button href="http://localhost:4102/login" variant="filled" className="w-full">
+          <Button href="/login" variant="filled" className="w-full">
             Sign in
           </Button>
         </li>

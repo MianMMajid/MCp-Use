@@ -8,13 +8,29 @@ function json(body, status = 200) {
   };
 }
 
-test('creates and activates an agent firewall, schedules a task, runs it now, and deep-links back to the firewall', async ({ page }) => {
+function resolvedBaseUrl() {
+  return String(test.info().project.use.baseURL || 'http://127.0.0.1:4173');
+}
+
+async function authenticate(page) {
+  await page.context().addCookies([
+    { name: 'maple_session', value: 'playwright-session', url: resolvedBaseUrl() },
+  ]);
+}
+
+function selectForLabel(page, label) {
+  return page.locator(`xpath=//label[./span[normalize-space()="${label}"]]//select`);
+}
+
+test('creates and activates a firewall, schedules a task, runs it now, and deep-links back to the firewall', async ({ page }) => {
   const state = {
     agents: [{ agentId: 'agent-1', id: 'agent-1', name: 'Ops Agent' }],
-    orchestrations: [],
+    orchestrations: [{ id: 'orch-1', name: 'Ops Flow' }],
     firewalls: [],
     tasks: [],
   };
+
+  await authenticate(page);
 
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -23,6 +39,9 @@ test('creates and activates an agent firewall, schedules a task, runs it now, an
     const method = request.method().toUpperCase();
     const body = request.postDataJSON?.() ?? {};
 
+    if (method === 'GET' && path === '/api/auth/me') {
+      return route.fulfill(json({ user: { id: 'user-1', email: 'owner@example.com' } }));
+    }
     if (method === 'GET' && path === '/api/agents') {
       return route.fulfill(json({ items: state.agents }));
     }
@@ -91,13 +110,16 @@ test('creates and activates an agent firewall, schedules a task, runs it now, an
       return route.fulfill(json({ ok: true, items: state.tasks }));
     }
     if (method === 'POST' && path === '/api/tasks') {
+      const assignment = body.assignment?.agentId
+        ? { type: 'agent', agentId: body.assignment.agentId }
+        : { type: 'orchestration', orchestrationId: body.assignment?.orchestrationId || 'orch-1' };
       const task = {
         id: 'task-1',
         title: body.title,
         prompt: body.prompt,
         status: 'scheduled',
         schedule: body.schedule,
-        assignment: { type: 'agent', agentId: body.assignment.agentId },
+        assignment,
         createdAt: '2026-03-13T12:10:00.000Z',
         updatedAt: '2026-03-13T12:10:00.000Z',
         lastRunAt: null,
@@ -123,26 +145,23 @@ test('creates and activates an agent firewall, schedules a task, runs it now, an
   await page.goto('/firewalls');
   await page.getByPlaceholder('Payroll Policy').fill('Ops Agent Firewall');
   await page.getByPlaceholder('Finance').fill('Operations');
-  await page.locator('select').first().selectOption('agent');
-  await page.locator('select').nth(1).selectOption('agent-1');
   await page.getByPlaceholder(/version: 1/).fill(
     'version: 1\nrules:\n  allowedTools:\n    - status\n  blockedTargetProfiles:\n    - root'
   );
   await page.getByRole('button', { name: 'Activate Firewall' }).click();
 
   await expect(page.getByRole('heading', { name: 'Ops Agent Firewall' })).toBeVisible();
+  await page.getByRole('button', { name: 'Versions' }).click();
   await page.getByPlaceholder('Write a new YAML policy revision...').fill(
     'version: 1\nrules:\n  allowedTools:\n    - status\n    - skills\n  blockedTargetProfiles:\n    - root'
   );
   await page.getByRole('button', { name: 'Save Revision' }).click();
-  await page.getByRole('button', { name: 'Activate' }).click();
-  await expect(page.getByText('Compiled')).toBeVisible();
+  await page.locator('.version-list').getByRole('button', { name: 'Activate' }).click();
+  await expect(page.locator('.version-list').getByText('Compiled').first()).toBeVisible();
 
   await page.goto('/tasks');
   await page.getByPlaceholder('Weekly governance summary').fill('Nightly task');
   await page.getByPlaceholder(/Describe the full task objective/).fill('Generate a nightly status report.');
-  await page.locator('select').nth(0).selectOption('agent');
-  await page.locator('select').nth(1).selectOption('agent-1');
   await page.getByRole('button', { name: 'Schedule Task' }).click();
 
   await expect(page.getByText('Nightly task')).toBeVisible();
@@ -156,9 +175,11 @@ test('creates and activates an agent firewall, schedules a task, runs it now, an
   await expect(page.getByRole('heading', { name: 'Ops Agent Firewall' })).toBeVisible();
 });
 
-test('switches orgs, manages service-account keys, saves org profile fields, and reloads address/account state', async ({ page }) => {
+test('switches orgs, manages service-account keys, follows the unified settings redirect, and saves notification preferences', async ({ page }) => {
   const state = {
-    user: { email: 'owner@example.com', username: 'owner' },
+    user: { email: 'owner@example.com', username: 'owner', createdAt: '2026-03-01T12:00:00.000Z' },
+    subscription: { plan: 'Pro' },
+    usage: { runs: 12, toolExecutions: 48, modelTokens: 2048 },
     orgs: [
       {
         orgId: 'org-1',
@@ -187,9 +208,24 @@ test('switches orgs, manages service-account keys, saves org profile fields, and
         country: 'United States',
       },
     ],
-    serviceAccounts: { 'org-2': [] },
+    notifications: {
+      categories: {
+        approvals: false,
+        escalations: false,
+        run_failures: true,
+        system_alerts: false,
+      },
+      channels: {
+        email: false,
+        inApp: true,
+      },
+    },
+    apiKeys: [],
+    serviceAccounts: { 'org-1': [], 'org-2': [] },
     serviceAccountKeys: {},
   };
+
+  await authenticate(page);
 
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -198,13 +234,34 @@ test('switches orgs, manages service-account keys, saves org profile fields, and
     const method = request.method().toUpperCase();
     const body = request.postDataJSON?.() ?? {};
 
+    if (method === 'GET' && path === '/api/auth/me') {
+      return route.fulfill(json({ user: { id: 'user-1', email: state.user.email } }));
+    }
     if (method === 'GET' && path === '/api/org') {
       return route.fulfill(json({ ok: true, items: state.orgs }));
     }
     if (method === 'GET' && path === '/api/user/profile') {
-      return route.fulfill(json({ ok: true, user: state.user }));
+      return route.fulfill(json({ ok: true, user: state.user, subscription: state.subscription }));
     }
-    if (method === 'POST' && path === '/api/org/org-2/service-accounts') {
+    if (method === 'GET' && path === '/api/usage/summary') {
+      return route.fulfill(json({ summary: state.usage }));
+    }
+    if (method === 'GET' && path === '/api/user/api-keys') {
+      return route.fulfill(json({ items: state.apiKeys }));
+    }
+    if (method === 'GET' && path === '/api/notifications/preferences') {
+      return route.fulfill(json(state.notifications));
+    }
+    if (method === 'POST' && path === '/api/notifications/preferences') {
+      state.notifications = {
+        categories: { ...body.categories },
+        channels: { ...body.channels },
+      };
+      return route.fulfill(json({ ok: true }));
+    }
+    const orgAccountsMatch = path.match(/^\/api\/org\/([^/]+)\/service-accounts$/);
+    if (method === 'POST' && orgAccountsMatch) {
+      const orgId = orgAccountsMatch[1];
       const account = {
         id: 'svc-1',
         name: body.name,
@@ -212,36 +269,38 @@ test('switches orgs, manages service-account keys, saves org profile fields, and
         createdAt: '2026-03-13T12:20:00.000Z',
         keyCount: 0,
       };
-      state.serviceAccounts['org-2'] = [account];
+      state.serviceAccounts[orgId] = [account];
       state.serviceAccountKeys['svc-1'] = [];
       return route.fulfill(json({ ok: true, account }, 201));
     }
-    if (method === 'GET' && path === '/api/org/org-2/service-accounts') {
-      return route.fulfill(json({ items: state.serviceAccounts['org-2'] || [] }));
+    if (method === 'GET' && orgAccountsMatch) {
+      return route.fulfill(json({ items: state.serviceAccounts[orgAccountsMatch[1]] || [] }));
     }
-    if (method === 'GET' && path === '/api/org/org-2/service-accounts/svc-1/keys') {
-      return route.fulfill(json({ items: state.serviceAccountKeys['svc-1'] || [] }));
+    const keyListMatch = path.match(/^\/api\/org\/([^/]+)\/service-accounts\/([^/]+)\/keys$/);
+    if (method === 'GET' && keyListMatch) {
+      return route.fulfill(json({ items: state.serviceAccountKeys[keyListMatch[2]] || [] }));
     }
-    if (method === 'POST' && path === '/api/org/org-2/service-accounts/svc-1/keys') {
+    if (method === 'POST' && keyListMatch) {
+      const [, orgId, accountId] = keyListMatch;
       const key = { keyId: 'key-1', id: 'key-1' };
-      state.serviceAccountKeys['svc-1'] = [key];
-      state.serviceAccounts['org-2'][0].keyCount = 1;
+      state.serviceAccountKeys[accountId] = [key];
+      state.serviceAccounts[orgId][0].keyCount = 1;
       return route.fulfill(json({ ok: true, key }, 201));
     }
-    if (method === 'DELETE' && path === '/api/org/org-2/service-accounts/svc-1/keys/key-1') {
-      state.serviceAccountKeys['svc-1'] = [];
-      state.serviceAccounts['org-2'][0].keyCount = 0;
+    const deleteKeyMatch = path.match(/^\/api\/org\/([^/]+)\/service-accounts\/([^/]+)\/keys\/([^/]+)$/);
+    if (method === 'DELETE' && deleteKeyMatch) {
+      const [, orgId, accountId] = deleteKeyMatch;
+      state.serviceAccountKeys[accountId] = [];
+      state.serviceAccounts[orgId][0].keyCount = 0;
       return route.fulfill(json({ ok: true }));
-    }
-    if (method === 'PATCH' && path === '/api/org/org-2') {
-      state.orgs[1] = { ...state.orgs[1], ...body };
-      return route.fulfill(json({ ok: true, org: state.orgs[1] }));
     }
 
     return route.fulfill(json({ ok: true }));
   });
 
   await page.goto('/service-accounts');
+  await expect(page.getByRole('heading', { name: 'Service Accounts' })).toBeVisible();
+  await expect(page.getByRole('combobox')).toHaveValue('org-1');
   await page.getByRole('combobox').selectOption('org-2');
   await page.getByRole('button', { name: 'New Service Account' }).click();
   await page.getByPlaceholder('Name').fill('Deploy Bot');
@@ -255,28 +314,25 @@ test('switches orgs, manages service-account keys, saves org profile fields, and
   await page.getByRole('button', { name: 'Revoke' }).click();
   await expect(page.getByText('No keys found.')).toBeVisible();
 
-  await page.goto('/settings/account');
-  await page.getByRole('combobox').selectOption('org-2');
-  await page.getByLabel('Organization Name').fill('Beta Org Updated');
-  await page.getByLabel('Organization Bio').fill('Updated from Playwright.');
-  await page.getByLabel('Organization Email').fill('security@beta.example.com');
-  await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(page.getByText('Settings saved successfully.')).toBeVisible();
-
-  await page.goto('/settings/address');
-  await expect(page.getByRole('combobox').first()).toHaveValue('org-2');
-  await page.getByLabel('Street Address').fill('77 Firewall Road');
-  await page.getByLabel('City').fill('San Francisco');
-  await page.getByLabel('Postal Code').fill('94105');
-  await page.getByRole('button', { name: 'Save address' }).click();
-  await expect(page.getByText('Address saved.')).toBeVisible();
-
   await page.reload();
-  await expect(page.getByRole('combobox').first()).toHaveValue('org-2');
-  await expect(page.getByLabel('Street Address')).toHaveValue('77 Firewall Road');
+  await expect(page.getByRole('combobox')).toHaveValue('org-2');
+  await expect(page.getByText('Deploy Bot')).toBeVisible();
 
   await page.goto('/settings/account');
-  await expect(page.getByRole('combobox').first()).toHaveValue('org-2');
-  await expect(page.getByLabel('Organization Name')).toHaveValue('Beta Org Updated');
-  await expect(page.getByLabel('Organization Email')).toHaveValue('security@beta.example.com');
+  await page.waitForURL(/\/profile\?tab=account/);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
+  await expect(page.locator('header').getByText('owner@example.com')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Notifications' }).click();
+  await expect(page.getByRole('heading', { name: 'Notification Preferences' })).toBeVisible();
+  await page.locator('label:has-text("Approvals") input[type="checkbox"]').check();
+  await page.locator('label:has-text("Email") input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Save Preferences' }).click();
+  await expect.poll(() => state.notifications.categories.approvals).toBe(true);
+  await expect.poll(() => state.notifications.channels.email).toBe(true);
+
+  await page.goto('/profile?tab=notifications');
+  await expect(page.locator('label:has-text("Approvals") input[type="checkbox"]')).toBeChecked();
+  await expect(page.locator('label:has-text("Email") input[type="checkbox"]')).toBeChecked();
 });
