@@ -184,7 +184,8 @@ test.describe("frontend A monitoring + intervention workspace", () => {
     await page.getByRole("button", { name: "Resume" }).click();
 
     await page.getByLabel(/Reason/i).fill("unsafe output in runtime");
-    await page.getByRole("button", { name: "Cancel" }).first().click();
+    // "Stop" opens the confirm dialog; "Confirm" dispatches the cancel API call
+    await page.getByRole("button", { name: "Stop" }).click();
     await page.getByRole("button", { name: "Confirm" }).click();
 
     expect(hits.has("POST /api/orchestrations/executions/exec-parent-1/pause")).toBeTruthy();

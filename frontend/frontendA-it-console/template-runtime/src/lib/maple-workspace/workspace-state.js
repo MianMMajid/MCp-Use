@@ -12,7 +12,7 @@ export const MAPLE_WORKSPACE_CATEGORY_VIEWS = Object.freeze({
   chat: Object.freeze(['chat']),
   admin: Object.freeze(['control', 'marketplace']),
   firewalls: Object.freeze(['cybersecurity', 'rules', 'context-leakage']),
-  users: Object.freeze(['access']),
+  users: Object.freeze(['members', 'invites', 'access']),
   compliance: Object.freeze(['risk', 'frameworks']),
   docs: Object.freeze(['overview', 'api', 'runbooks', 'route-help']),
 })
