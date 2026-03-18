@@ -284,6 +284,7 @@ export async function runSecureChatTurn(options = {}) {
     blocked: false,
     policyChecks,
     toolCalls: llmResult.toolCalls,
+    attachments: llmResult.attachments,
     usage: llmResult.usage,
   };
 }

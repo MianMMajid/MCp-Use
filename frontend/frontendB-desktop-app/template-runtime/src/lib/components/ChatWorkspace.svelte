@@ -61,15 +61,20 @@
     return agentDisplayName();
   }
 
-  function renderMessage(text) {
+  function renderMessage(text, stripImages = false) {
     // Escape HTML first to prevent XSS
     let safe = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-    // Render markdown images: ![alt](url) — supports both absolute and relative URLs
-    safe = safe.replace(/!\[([^\]]*)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g,
-      '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;" loading="lazy" />');
+    // Render or strip markdown images: ![alt](url)
+    if (stripImages) {
+      // Strip markdown images when attachments render them separately
+      safe = safe.replace(/!\[([^\]]*)\]\([^\s)]+\)/g, '');
+    } else {
+      safe = safe.replace(/!\[([^\]]*)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g,
+        '<img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;" loading="lazy" />');
+    }
     // Render markdown links: [text](url)
     safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">$1</a>');
@@ -271,7 +276,15 @@
               {#if isUser}
                 <p>{text}</p>
               {:else}
-                <p>{@html renderMessage(text)}</p>
+                {@const hasImageAttachments = item.attachments?.some(a => a.type === 'image')}
+                <p>{@html renderMessage(text, hasImageAttachments)}</p>
+                {#if item.attachments}
+                  {#each item.attachments as att}
+                    {#if att.type === 'image' && att.url}
+                      <img src={att.url} alt="Generated image" style="max-width:100%;border-radius:8px;margin:8px 0;" loading="lazy" />
+                    {/if}
+                  {/each}
+                {/if}
               {/if}
               <div class="msg-meta">
                 {#if item.timestamp || item.createdAt}

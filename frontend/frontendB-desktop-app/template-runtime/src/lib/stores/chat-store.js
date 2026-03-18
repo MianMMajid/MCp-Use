@@ -428,7 +428,8 @@ function createChatStore() {
             role: 'agent',
             content: payload.reply ?? payload.output ?? '',
             timestamp: new Date().toISOString(),
-            cost: payload.cost ?? null
+            cost: payload.cost ?? null,
+            attachments: payload.attachments ?? null
           }
         ], MAX_MESSAGES)
       });
