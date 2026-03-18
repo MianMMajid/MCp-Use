@@ -236,69 +236,6 @@
     </section>
 
     <section class="card section">
-      <form class="builder" on:submit={createTask}>
-        <div class="column intent">
-          <h2>Intent</h2>
-          <label>
-            <span>Objective Title</span>
-            <input bind:value={title} required placeholder="Weekly governance summary" />
-          </label>
-          <label>
-            <span>Prompt / Objective</span>
-            <textarea rows="7" bind:value={prompt} placeholder="Describe the full task objective, output format, and constraints..."></textarea>
-          </label>
-        </div>
-
-        <div class="column schedule">
-          <h2>Schedule</h2>
-          <label>
-            <span>🗓 Start At</span>
-            <input type="datetime-local" bind:value={startAt} />
-          </label>
-          <label>
-            <span>🗓 End At (optional)</span>
-            <input type="datetime-local" bind:value={endAt} />
-          </label>
-          <label>
-            <span>🕒 Timezone</span>
-            <input bind:value={timezone} />
-          </label>
-          <div class="inline-2">
-            <label>
-              <span>⏱ Interval (min)</span>
-              <input type="number" min="1" bind:value={intervalMinutes} required />
-            </label>
-            <label>
-              <span>🔁 Max Repeats</span>
-              <input type="number" min="1" bind:value={maxRepeats} required />
-            </label>
-          </div>
-          <div class="inline-2">
-            <label>
-              <span>Assign Type</span>
-              <select bind:value={assignmentType}>
-                <option value="orchestration">Orchestration</option>
-                <option value="agent">Agent</option>
-              </select>
-            </label>
-            <label>
-              <span>Assign Target</span>
-              <select bind:value={assignmentId}>
-                {#each assignmentOptions as option}
-                  <option value={option.value}>{option.label}</option>
-                {/each}
-              </select>
-            </label>
-          </div>
-          <button class="pill cta" type="submit" disabled={creating || !title.trim() || !assignmentId}>
-            {creating ? 'Scheduling...' : 'Schedule Task'}
-          </button>
-        </div>
-      </form>
-      {#if error}<p class="error">{error}</p>{/if}
-    </section>
-
-    <section class="card section">
       <h2>Scheduled Tasks</h2>
       {#if loading}
         <p class="muted">Loading tasks...</p>
@@ -388,6 +325,69 @@
         </div>
       {/if}
     </section>
+
+    <section class="card section">
+      <form class="builder" on:submit={createTask}>
+        <div class="column schedule">
+          <h2>Schedule</h2>
+          <label>
+            <span>🗓 Start At</span>
+            <input type="datetime-local" bind:value={startAt} />
+          </label>
+          <label>
+            <span>🗓 End At (optional)</span>
+            <input type="datetime-local" bind:value={endAt} />
+          </label>
+          <label>
+            <span>🕒 Timezone</span>
+            <input bind:value={timezone} />
+          </label>
+          <div class="inline-2">
+            <label>
+              <span>⏱ Interval (min)</span>
+              <input type="number" min="1" bind:value={intervalMinutes} required />
+            </label>
+            <label>
+              <span>🔁 Max Repeats</span>
+              <input type="number" min="1" bind:value={maxRepeats} required />
+            </label>
+          </div>
+          <div class="inline-2">
+            <label>
+              <span>Assign Type</span>
+              <select bind:value={assignmentType}>
+                <option value="orchestration">Orchestration</option>
+                <option value="agent">Agent</option>
+              </select>
+            </label>
+            <label>
+              <span>Assign Target</span>
+              <select bind:value={assignmentId}>
+                {#each assignmentOptions as option}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="column intent">
+          <h2>Intent</h2>
+          <label>
+            <span>Objective Title</span>
+            <input bind:value={title} required placeholder="Weekly governance summary" />
+          </label>
+          <label>
+            <span>Prompt / Objective</span>
+            <textarea rows="7" bind:value={prompt} placeholder="Describe the full task objective, output format, and constraints..."></textarea>
+          </label>
+          <button class="pill cta" type="submit" disabled={creating || !title.trim() || !assignmentId}>
+            {creating ? 'Scheduling...' : 'Schedule Task'}
+          </button>
+        </div>
+      </form>
+      {#if error}<p class="error">{error}</p>{/if}
+    </section>
   </section>
 </AppShell>
 
@@ -403,7 +403,7 @@
 <svelte:window on:click={() => { if (openMenuTaskId) openMenuTaskId = ''; }} on:keydown={(e) => { if (e.key === 'Escape') openMenuTaskId = ''; }} />
 
 <style>
-  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content max-content 1fr; }
+  .page { min-height: calc(100svh - 92px); display: grid; gap: 10px; align-content: start; grid-template-rows: max-content 1fr max-content; }
   .section { padding: 13px; display: grid; gap: 10px; }
   .header {
     padding: 8px 11px;
@@ -416,7 +416,7 @@
   h2 { font-size: 0.98rem; }
   .muted { margin: 0; color: var(--muted); font-size: 12px; }
 
-  .builder { display: grid; gap: 12px; grid-template-columns: 1.2fr 1fr; }
+  .builder { display: grid; gap: 12px; grid-template-columns: 1fr 1.2fr; }
   .column { border: 1px solid var(--row-border); border-radius: 14px; background: var(--row-bg); padding: 10px; display: grid; gap: 8px; align-content: start; }
   label span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; }
   input, textarea, select {

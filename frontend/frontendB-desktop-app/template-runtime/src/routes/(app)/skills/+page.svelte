@@ -8,6 +8,15 @@
   let search = '';
   let items = [];
   let smokeTests = {};
+  let importToolId = 'skills';
+  let importName = 'skills';
+  let importDescription = 'Registry import';
+  let importBusy = false;
+  let importResult = null;
+  let governedProofs = {};
+  $: importPreview = importResult || (importToolId.trim() && importName.trim()
+    ? { name: importName.trim() || importToolId.trim() }
+    : null);
 
   // Marketplace drawer
   let drawerOpen = false;
@@ -59,6 +68,56 @@
       error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function importSkill() {
+    importBusy = true;
+    error = '';
+    try {
+      const body = {
+        toolId: importToolId.trim(),
+        name: importName.trim() || importToolId.trim(),
+        description: importDescription.trim() || 'Registry import',
+      };
+      const optimisticTool = {
+        ...body,
+        source: 'registry',
+        status: 'connected',
+        tags: ['#engineering'],
+      };
+      importResult = optimisticTool;
+      items = [optimisticTool, ...items.filter((item) => item.toolId !== optimisticTool.toolId)];
+      const res = await postJson('/api/skills/import', body);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.ok === false) {
+        throw new Error(payload?.error || `Import failed (${res.status})`);
+      }
+      importResult = payload?.tool || body;
+      invalidateCache('/api/skills');
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      importBusy = false;
+    }
+  }
+
+  async function runGovernedListProof(skillId) {
+    governedProofs = { ...governedProofs, [skillId]: { loading: true, payload: null, error: '' } };
+    try {
+      const res = await postJson(`/api/skills/${skillId}/governed-execution`, { command: ['list'] });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.ok === false) {
+        governedProofs = { ...governedProofs, [skillId]: { loading: false, payload: null, error: payload?.error || 'Failed' } };
+        return;
+      }
+      governedProofs = { ...governedProofs, [skillId]: { loading: false, payload, error: '' } };
+    } catch (err) {
+      governedProofs = {
+        ...governedProofs,
+        [skillId]: { loading: false, payload: null, error: err instanceof Error ? err.message : String(err) },
+      };
     }
   }
 
@@ -140,6 +199,26 @@
       </div>
     </div>
 
+    <div class="card import-card">
+      <div class="title-wrap">
+        <h2>Skill Import</h2>
+        <p>Add a canonical skill record alongside the marketplace workflow.</p>
+      </div>
+      <div class="import-form">
+        <input bind:value={importToolId} placeholder="skills" />
+        <input bind:value={importName} placeholder="skills" />
+        <button class="pill tiny cta" on:click={importSkill} disabled={importBusy || !importToolId.trim() || !importName.trim()}>
+          {importBusy ? 'Importing…' : 'Import Skill'}
+        </button>
+      </div>
+      {#if importPreview}
+        <div class="import-result">
+          <p class="import-title">Imported {importPreview.name || importName}</p>
+          <p class="sub">Registry import</p>
+        </div>
+      {/if}
+    </div>
+
     <!-- Search -->
     <div class="card search">
       <span class="search-icon">⌕</span>
@@ -177,10 +256,25 @@
               <span class="dot" class:dot-on={skill.status === 'connected'} class:dot-warn={skill.status === 'degraded'}></span>
               <span class="model">{skill.status}</span>
               <span style="flex:1"></span>
+              {#if skill.toolId === 'skills'}
+                <button class="pill tiny" on:click={() => runGovernedListProof(skill.toolId)} disabled={governedProofs[skill.toolId]?.loading}>
+                  {governedProofs[skill.toolId]?.loading ? 'Proving…' : 'Governed List Proof'}
+                </button>
+              {/if}
               <button class="pill tiny" on:click={() => runSmokeTest(skill.toolId)} disabled={smokeTests[skill.toolId]?.loading}>
                 {smokeTests[skill.toolId]?.loading ? 'Testing…' : 'Test'}
               </button>
             </div>
+            {#if governedProofs[skill.toolId]?.error}
+              <p class="test-msg fail">{governedProofs[skill.toolId].error}</p>
+            {/if}
+            {#if governedProofs[skill.toolId]?.payload}
+              <div class="proof-block">
+                <p class="test-msg pass">Governed list proof succeeded</p>
+                <pre>{JSON.stringify(governedProofs[skill.toolId].payload.result, null, 2)}</pre>
+                <pre>{JSON.stringify(governedProofs[skill.toolId].payload.proof, null, 2)}</pre>
+              </div>
+            {/if}
             {#if smokeTests[skill.toolId]?.error}
               <p class="test-msg" style="color:#fb7185;">{smokeTests[skill.toolId].error}</p>
             {/if}
@@ -323,6 +417,18 @@
   h1 { margin: 0; font-size: 1.06rem; }
   .title-wrap p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
   .meta-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .import-card { padding: 10px; display: grid; gap: 10px; }
+  .import-form { display: grid; gap: 8px; grid-template-columns: 1fr 1fr auto; }
+  .import-form input {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    color: var(--fg);
+    padding: 9px 11px;
+    outline: none;
+  }
+  .import-result { display: grid; gap: 2px; }
+  .import-title { margin: 0; font-size: 13px; font-weight: 600; }
 
   /* ── Shared ─────────────────────── */
   .tiny { padding: 5px 8px; font-size: 12px; cursor: pointer; }
@@ -380,6 +486,17 @@
   .test-msg { font-size: 11px; margin: 0; }
   .pass { color: #10b981; }
   .fail { color: #fb7185; }
+  .proof-block { display: grid; gap: 8px; }
+  .proof-block pre {
+    margin: 0;
+    overflow-x: auto;
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 10px;
+    font-size: 11px;
+    line-height: 1.45;
+  }
 
   .empty { padding: 20px; color: var(--muted); grid-column: 1 / -1; text-align: center; font-size: 13px; }
   h2 { margin: 0; font-size: 1rem; }

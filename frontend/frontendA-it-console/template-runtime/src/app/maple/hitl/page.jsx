@@ -145,6 +145,11 @@ export default function HITLQueuePage() {
   /* -- SSE watch -- */
   useEffect(() => {
     let es
+    let attempts = 0
+    let reconnectTimer = null
+    const MAX_SSE_RETRIES = 10
+    const SSE_BASE_DELAY = 1000
+    const SSE_MAX_DELAY = 30_000
 
     function connect() {
       setSseStatus('reconnecting')
@@ -152,7 +157,10 @@ export default function HITLQueuePage() {
         withCredentials: true,
       })
 
-      es.onopen = () => setSseStatus('connected')
+      es.onopen = () => {
+        attempts = 0
+        setSseStatus('connected')
+      }
 
       es.onmessage = (event) => {
         try {
@@ -192,9 +200,15 @@ export default function HITLQueuePage() {
       }
 
       es.onerror = () => {
-        setSseStatus('reconnecting')
         es.close()
-        setTimeout(connect, 5000)
+        attempts++
+        if (attempts > MAX_SSE_RETRIES) {
+          setSseStatus('disconnected')
+          return
+        }
+        setSseStatus('reconnecting')
+        const delay = Math.min(SSE_BASE_DELAY * 2 ** (attempts - 1), SSE_MAX_DELAY)
+        reconnectTimer = setTimeout(connect, delay)
       }
 
       eventSourceRef.current = es
@@ -203,6 +217,7 @@ export default function HITLQueuePage() {
     connect()
 
     return () => {
+      clearTimeout(reconnectTimer)
       if (eventSourceRef.current) eventSourceRef.current.close()
     }
   }, [])
@@ -247,10 +262,15 @@ export default function HITLQueuePage() {
   /* -- Gateway HITL SSE watch -- */
   useEffect(() => {
     let es
+    let gwAttempts = 0
+    const MAX_SSE_RETRIES = 10
+    const SSE_BASE_DELAY = 1000
+    const SSE_MAX_DELAY = 30_000
+
     function connectGw() {
       setGwSseStatus('reconnecting')
       es = new EventSource('/api/hitl/approvals/watch', { withCredentials: true })
-      es.onopen = () => setGwSseStatus('connected')
+      es.onopen = () => { gwAttempts = 0; setGwSseStatus('connected') }
       es.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data)
@@ -271,7 +291,14 @@ export default function HITLQueuePage() {
           }
         } catch { /* keepalive */ }
       }
-      es.onerror = () => { setGwSseStatus('reconnecting'); es.close(); setTimeout(connectGw, 5000) }
+      es.onerror = () => {
+        es.close()
+        gwAttempts++
+        if (gwAttempts > MAX_SSE_RETRIES) { setGwSseStatus('disconnected'); return }
+        setGwSseStatus('reconnecting')
+        const delay = Math.min(SSE_BASE_DELAY * 2 ** (gwAttempts - 1), SSE_MAX_DELAY)
+        setTimeout(connectGw, delay)
+      }
       gwEventSourceRef.current = es
     }
     connectGw()

@@ -107,10 +107,15 @@ export default function ModifierApprovalsPage() {
   // SSE watch
   useEffect(() => {
     let es
+    let attempts = 0
+    const MAX_SSE_RETRIES = 10
+    const SSE_BASE_DELAY = 1000
+    const SSE_MAX_DELAY = 30_000
+
     function connect() {
       setSseStatus('reconnecting')
       es = new EventSource(`${APPROVALS_API_BASE}/stream`, { withCredentials: true })
-      es.onopen = () => setSseStatus('connected')
+      es.onopen = () => { attempts = 0; setSseStatus('connected') }
       es.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data)
@@ -126,7 +131,14 @@ export default function ModifierApprovalsPage() {
           }
         } catch { /* keepalive */ }
       }
-      es.onerror = () => { setSseStatus('reconnecting'); es.close(); setTimeout(connect, 5000) }
+      es.onerror = () => {
+        es.close()
+        attempts++
+        if (attempts > MAX_SSE_RETRIES) { setSseStatus('disconnected'); return }
+        setSseStatus('reconnecting')
+        const delay = Math.min(SSE_BASE_DELAY * 2 ** (attempts - 1), SSE_MAX_DELAY)
+        setTimeout(connect, delay)
+      }
       eventSourceRef.current = es
     }
     connect()

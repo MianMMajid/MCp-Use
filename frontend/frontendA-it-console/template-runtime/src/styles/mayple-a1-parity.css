@@ -28,6 +28,39 @@
   --top-bar-h: 56px;
   --ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1);
   --dur-spring: 0.4s;
+
+  /* ── Type scale ── */
+  --text-2xs: 0.625rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.1875rem;
+  --text-2xl: 1.5rem;
+
+  /* ── Radius scale ── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* ── Semantic surfaces ── */
+  --surface-warm: rgba(255, 252, 248, 0.95);
+  --surface-overlay: rgba(29, 18, 11, 0.46);
+  --border-warm: rgba(229, 215, 199, 0.6);
+  --border-warm-strong: rgba(229, 215, 199, 0.95);
+  --brand-ring: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  --brand-tint: rgba(215, 104, 25, 0.14);
+  --brand-tint-strong: rgba(215, 104, 25, 0.28);
+  --brand-tint-border: rgba(215, 104, 25, 0.45);
+  --danger-tint: rgba(166, 62, 45, 0.45);
+  --danger-tint-bg: rgba(255, 236, 233, 0.9);
+
+  /* ── Animation ── */
+  --dur-dropdown: 0.14s;
+  --ease-dropdown: cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 * { box-sizing: border-box; }
@@ -43,8 +76,8 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
   outline: none;
-  border-color: var(--brand) !important;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  border-color: var(--brand);
+  box-shadow: var(--brand-ring);
 }
 
 html, body {
@@ -1597,4 +1630,30 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .marketplace-tools-table {
   font-size: 0.78rem;
+}
+
+/* ── Reduced-motion (global) ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Scrollbar (global) ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--radius-xs);
 }

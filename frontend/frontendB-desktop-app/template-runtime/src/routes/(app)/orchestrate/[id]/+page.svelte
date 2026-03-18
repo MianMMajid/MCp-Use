@@ -37,6 +37,7 @@
   let runtimeLoop = null;
   let executionStream = null;
   let streamBoundExecutionId = '';
+  let controlPlaneNote = '';
 
   // Prompt & output
   let taskInput = '';
@@ -170,6 +171,11 @@
   async function loadExecutionHistory() {
     const p = await loadJson(`/api/orchestrations/executions?orchestrationId=${data.id}&limit=20`).catch(() => ({ items: [] }));
     executionHistory = p?.items || [];
+    const latestExecutionId = String(executionHistory[0]?.executionId || executionHistory[0]?.id || '');
+    if (!currentExecutionId && latestExecutionId) {
+      currentExecutionId = latestExecutionId;
+      await loadExecutionSnapshot(latestExecutionId);
+    }
   }
 
   async function loadExecutionSnapshot(executionId) {
@@ -248,6 +254,15 @@
     finally { saving = false; }
   }
 
+  function definitionPayload() {
+    return {
+      name: orchestrationName.trim() || data.id,
+      description: orchestrationInstructions,
+      nodes: persistentFlowNodes(flowNodes).map(toApiNode),
+      edges: persistentFlowEdges(flowEdges).map(toApiEdge),
+    };
+  }
+
   async function runAction(path, body = {}) {
     runtimeBusy = true; error = '';
     try {
@@ -258,7 +273,21 @@
     } finally { runtimeBusy = false; }
   }
 
-  async function execute() {
+  async function validateDefinition() {
+    const p = await runAction(`/api/orchestrations/${data.id}/validate`, definitionPayload());
+    const errorCount = Array.isArray(p?.errors) ? p.errors.length : 0;
+    const warningCount = Array.isArray(p?.warnings) ? p.warnings.length : 0;
+    controlPlaneNote = errorCount > 0
+      ? `Validation failed with ${errorCount} error${errorCount === 1 ? '' : 's'}.`
+      : `Validation passed${warningCount > 0 ? ` with ${warningCount} warning${warningCount === 1 ? '' : 's'}` : ''}.`;
+  }
+
+  async function publishVersion() {
+    const p = await runAction(`/api/orchestrations/${data.id}/publish`, definitionPayload());
+    controlPlaneNote = `Published ${p?.publishedVersion || 'latest version'}.`;
+  }
+
+  async function execute(mode = 'live') {
     const objective = taskInput.trim() || orchestrationInstructions.trim() || orchestration?.name || data.id;
     if (!objective) { error = 'Enter a task first'; return; }
 
@@ -266,18 +295,24 @@
     await saveDefinition();
     if (error) return;
 
+    if (mode === 'live') {
+      await runAction(`/api/orchestrations/${data.id}/validate`, definitionPayload());
+      await runAction(`/api/orchestrations/${data.id}/publish`, definitionPayload());
+    }
+
     outputLog = [];
     showOutput = true;
     runtimeStatus = 'running';
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    outputLog = [{ ts, type: 'execution_started', nodeId: '', preview: objective }];
+    outputLog = [{ ts, type: mode === 'dry-run' ? 'dry_run_started' : 'execution_started', nodeId: '', preview: objective }];
     try {
       const p = await runAction(`/api/orchestrations/${data.id}/execute`, {
-        mode: 'live',
+        mode,
         objectivePackage: { goal: objective, successCriteria: 'Complete delegated subtasks', runtimeLimitMinutes: 60, budgetUsd: 100, riskCeiling: 'medium', contextUrls: [], outputContract: 'Structured summary', escalationPolicy: 'Escalate on repeated failure' },
         conversationContext: [{ role: 'user', content: objective }],
       });
       currentExecutionId = String(p?.executionId || '');
+      controlPlaneNote = mode === 'dry-run' ? 'Dry run requested.' : 'Live execution started.';
       await loadExecutionHistory();
       if (currentExecutionId) {
         await loadExecutionSnapshot(currentExecutionId);
@@ -290,6 +325,20 @@
       const ts2 = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       outputLog = [...outputLog, { ts: ts2, type: 'execution_failed', nodeId: '', preview: err instanceof Error ? err.message : String(err) }];
     }
+  }
+
+  async function pauseExecution() {
+    if (!currentExecutionId) return;
+    const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/pause`, {});
+    runtimeStatus = p?.execution?.status || 'paused';
+    controlPlaneNote = 'Execution paused.';
+  }
+
+  async function resumeExecution() {
+    if (!currentExecutionId) return;
+    const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/resume`, {});
+    runtimeStatus = p?.execution?.status || 'running';
+    controlPlaneNote = 'Execution resumed.';
   }
 
   async function pollForResult(executionId) {
@@ -353,8 +402,22 @@
 
   async function cancelExecution() {
     if (!currentExecutionId) return;
-    await runAction(`/api/orchestrations/executions/${currentExecutionId}/cancel`, {});
-    runtimeStatus = 'canceled';
+    const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/cancel`, {});
+    runtimeStatus = p?.execution?.status || 'canceled';
+    controlPlaneNote = 'Execution canceled.';
+  }
+
+  async function addDynamicNode() {
+    if (!currentExecutionId) return;
+    const p = await runAction(`/api/orchestrations/executions/${currentExecutionId}/mutate`, {
+      type: 'add-node',
+      orchestrationId: data.id,
+      node: {
+        label: `Dynamic Node ${flowNodes.length}`,
+        role: 'runtime',
+      },
+    });
+    controlPlaneNote = `Dynamic node queued${p?.mutationId ? ` (${p.mutationId})` : ''}.`;
   }
 
   // ── Flow interactions ──────────────────
@@ -416,6 +479,39 @@
         {/if}
       </div>
     </header>
+
+    <section class="card control-plane">
+      <div class="control-head">
+        <div>
+          <h2>Runtime Control Plane</h2>
+          <p class="muted">Validate, publish, execute, and observe the canonical orchestration runtime.</p>
+        </div>
+        <div class="control-links">
+          <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}`}>Open Observability</a>
+          <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}#audit`}>Open Audit</a>
+        </div>
+      </div>
+
+      <div class="control-actions">
+        <button class="pill tiny" on:click={validateDefinition} disabled={runtimeBusy}>Validate</button>
+        <button class="pill tiny" on:click={publishVersion} disabled={runtimeBusy}>Publish Version</button>
+        <button class="pill tiny" on:click={() => execute('dry-run')} disabled={runtimeBusy || runtimeLive}>Dry Run</button>
+        <button class="pill tiny cta" on:click={() => execute('live')} disabled={runtimeBusy || runtimeLive}>Execute Live</button>
+        {#if currentExecutionId}
+          {#if runtimeStatus === 'paused'}
+            <button class="pill tiny" on:click={resumeExecution} disabled={runtimeBusy}>Resume</button>
+          {:else}
+            <button class="pill tiny" on:click={pauseExecution} disabled={runtimeBusy || !runtimeLive}>Pause</button>
+          {/if}
+          <button class="pill tiny danger" on:click={cancelExecution} disabled={runtimeBusy}>Cancel</button>
+          <button class="pill tiny" on:click={addDynamicNode} disabled={runtimeBusy}>Add Dynamic Node</button>
+        {/if}
+      </div>
+
+      {#if controlPlaneNote}
+        <p class="muted">{controlPlaneNote}</p>
+      {/if}
+    </section>
 
     <!-- Main area: palette + canvas + output -->
     <div class="workspace card" class:has-output={showOutput}>
@@ -530,6 +626,14 @@
     align-content: start;
     grid-template-rows: auto 1fr;
   }
+
+  .control-plane { padding: 10px 12px; display: grid; gap: 10px; }
+  .control-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; flex-wrap: wrap; }
+  .control-head h2 { margin: 0; font-size: 0.98rem; }
+  .control-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .control-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .control-plane .pill { cursor: pointer; }
+  .control-plane a.pill { text-decoration: none; display: inline-flex; align-items: center; }
 
   /* ── Top bar ────────────────────── */
   .topbar { padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }

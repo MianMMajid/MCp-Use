@@ -43,6 +43,18 @@
   --mw-glass: rgba(24, 24, 27, 0.78);
   --mw-surface: rgba(18, 18, 21, 0.9);
   --mw-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* Semantic surface overrides */
+  --surface-warm: rgba(24, 24, 27, 0.95);
+  --surface-overlay: rgba(0, 0, 0, 0.6);
+  --border-warm: rgba(63, 63, 70, 0.6);
+  --border-warm-strong: rgba(63, 63, 70, 0.95);
+  --brand-ring: 0 0 0 2px rgba(251, 146, 60, 0.25);
+  --brand-tint: rgba(251, 146, 60, 0.12);
+  --brand-tint-strong: rgba(251, 146, 60, 0.22);
+  --brand-tint-border: rgba(251, 146, 60, 0.40);
+  --danger-tint: rgba(248, 113, 113, 0.35);
+  --danger-tint-bg: rgba(248, 113, 113, 0.12);
 }
 
 [data-theme="dark"] body {
@@ -108,20 +120,7 @@
   color: var(--muted);
 }
 
-/* Scrollbar */
-[data-theme="dark"] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-track {
-  background: var(--bg);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 4px;
-}
+/* Scrollbar: now global in mayple-a1-parity.css */
 
 /* Monitor nodes */
 [data-theme="dark"] .monitor-step-node {
@@ -182,13 +181,4 @@
   }
 }
 
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  [data-theme="dark"] *,
-  [data-theme="dark"] *::before,
-  [data-theme="dark"] *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+/* Reduced motion: now global in mayple-a1-parity.css */

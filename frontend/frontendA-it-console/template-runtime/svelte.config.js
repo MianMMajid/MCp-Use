@@ -16,7 +16,6 @@ const config = {
     alias: {
       '@': './src',
     },
-    files: { assets: 'public' },
     csp: {
       mode: 'auto',
       directives: {
@@ -24,8 +23,11 @@ const config = {
         'script-src': ['self', 'https://accounts.google.com'],
         'style-src': ['self', 'unsafe-inline'],
         'img-src': ['self', 'data:'],
+        'font-src': ['self'],
         'connect-src': ['self'],
         'frame-src': ['self', 'https://accounts.google.com'],
+        'object-src': ['none'],
+        'base-uri': ['self'],
         'frame-ancestors': ['none'],
       },
     },

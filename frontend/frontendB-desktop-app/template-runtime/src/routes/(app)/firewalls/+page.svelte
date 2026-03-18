@@ -36,6 +36,10 @@
   $: if (scope === 'agent' && !agentOptions.find((item) => item.id === selectedAgentId)) {
     selectedAgentId = agentOptions[0]?.id || '';
   }
+  $: agentScopeDisabled = agentOptions.length === 0;
+  $: if (agentScopeDisabled && scope === 'agent') {
+    scope = 'global';
+  }
 
   function formatTime(value) {
     if (!value) return '--';
@@ -344,7 +348,12 @@
             {#each visibleObjects as item}
               <button class:selected={selectedObject?.id === item.id} class="firewall-row" on:click={() => setSelected(item.id)}>
                 <strong>{item.name}</strong>
-                <span>{item.scope === 'agent' ? 'Agent' : 'Global'} · {item.status}</span>
+                <span>
+                  {item.scope === 'agent' ? 'Agent' : 'Global'} · {item.status}
+                  {#if item.scope === 'agent' && !item.assignedAgentId}
+                    <span class="dead-badge" title="No agent assigned — this firewall is not evaluated by the runtime">dead</span>
+                  {/if}
+                </span>
                 <small>{item.folder || 'root'}</small>
               </button>
             {/each}
@@ -359,7 +368,16 @@
           <div class="detail-head">
             <div>
               <h2>{selectedObject.name}</h2>
-              <p class="muted">{selectedObject.scope === 'agent' ? `Agent-scoped to ${selectedObject.assignedAgentId || 'unassigned'}` : 'Global policy'} · {selectedObject.status}</p>
+              <p class="muted">
+                {selectedObject.scope === 'agent'
+                  ? selectedObject.assignedAgentId
+                    ? `Agent-scoped to ${selectedObject.assignedAgentId}`
+                    : 'Agent-scoped — no agent assigned'
+                  : 'Global policy'} · {selectedObject.status}
+              </p>
+              {#if selectedObject.scope === 'agent' && !selectedObject.assignedAgentId}
+                <p class="warn" style="font-size: 12px; margin: 4px 0 0;">This firewall has no assigned agent and will not be evaluated by the runtime. Assign an agent or change scope to Global.</p>
+              {/if}
             </div>
             <div class="row-actions">
               <button class="pill" on:click={saveMetadata}>Save Metadata</button>
@@ -380,11 +398,15 @@
             {#if selectedObject.scope === 'agent'}
               <label>
                 <span>Agent</span>
-                <select bind:value={selectedObject.assignedAgentId}>
-                  {#each agentOptions as option}
-                    <option value={option.id}>{option.name}</option>
-                  {/each}
-                </select>
+                {#if agentOptions.length === 0}
+                  <p class="warn" style="font-size: 12px; margin: 0;">No agents available. Create an agent first or change scope to Global.</p>
+                {:else}
+                  <select bind:value={selectedObject.assignedAgentId}>
+                    {#each agentOptions as option}
+                      <option value={option.id}>{option.name}</option>
+                    {/each}
+                  </select>
+                {/if}
               </label>
             {/if}
             <label class="full"><span>Active Policy YAML</span><textarea rows="6" bind:value={selectedObject.policyText} readonly></textarea></label>
@@ -422,6 +444,14 @@
                   <p class:warn={simulatorResult.blocked} class:safe={!simulatorResult.blocked}>
                     {simulatorResult.blocked ? 'Blocked' : 'Allowed'}: {(simulatorResult.reasons || []).join(', ') || 'No blocking reasons.'}
                   </p>
+                  {#if simulatorResult.resolvedScope}
+                    <p class="muted" style="font-size: 12px;">
+                      Evaluated against: <strong>{simulatorResult.resolvedScope}</strong> bundle
+                      {#if simulatorResult.resolvedScope === 'default' && selectedObject?.scope === 'agent'}
+                        <span class="warn"> — your agent firewall was NOT used (no agent assigned or agent not matched)</span>
+                      {/if}
+                    </p>
+                  {/if}
                   {#if (simulatorResult.warnings || []).length > 0}
                     <pre>{simulatorResult.warnings.join('\n')}</pre>
                   {/if}
@@ -532,17 +562,21 @@
           <span>Scope</span>
           <select bind:value={scope}>
             <option value="global">Global</option>
-            <option value="agent">Agent</option>
+            <option value="agent" disabled={agentScopeDisabled}>Agent{agentScopeDisabled ? ' (no agents)' : ''}</option>
           </select>
         </label>
         {#if scope === 'agent'}
           <label>
             <span>Agent</span>
-            <select bind:value={selectedAgentId}>
-              {#each agentOptions as option}
-                <option value={option.id}>{option.name}</option>
-              {/each}
-            </select>
+            {#if agentOptions.length === 0}
+              <p class="muted">No agents available. Create an agent first.</p>
+            {:else}
+              <select bind:value={selectedAgentId}>
+                {#each agentOptions as option}
+                  <option value={option.id}>{option.name}</option>
+                {/each}
+              </select>
+            {/if}
           </label>
         {/if}
         <label class="full">
@@ -552,7 +586,7 @@
       </div>
 
       <div class="actions">
-        <button class="pill cta" on:click={activateFirewall} disabled={!entityName.trim() || !policyText.trim()}>Activate Firewall</button>
+        <button class="pill cta" on:click={activateFirewall} disabled={!entityName.trim() || !policyText.trim() || (scope === 'agent' && !selectedAgentId)}>Activate Firewall</button>
       </div>
       {#if error}<p class="err">{error}</p>{/if}
     </section>
@@ -580,6 +614,7 @@
   .list { display: grid; gap: 8px; }
   .firewall-row { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--row-border); background: var(--row-bg); color: var(--fg); }
   .firewall-row.selected { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.12); }
+  .dead-badge { display: inline-block; padding: 1px 5px; border-radius: 999px; font-size: 10px; background: rgba(251,113,133,.18); color: #fca5a5; border: 1px solid rgba(251,113,133,.35); margin-left: 4px; vertical-align: middle; }
   .tabs { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
   .tabs button, .toggle button, .actions button, .row-actions button, .upload {
     padding: 8px 12px; border-radius: 999px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--fg); cursor: pointer;
