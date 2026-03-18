@@ -405,7 +405,6 @@ body {
 }
 
 .panel:hover {
-  transform: translateY(-1px);
   box-shadow: var(--shadow-strong);
 }
 
@@ -432,20 +431,21 @@ body {
   padding: 0;
 }
 
-/* Inner panels and sections inside view-panel should stretch to fill available space */
+/* Inner panels and sections inside view-panel should stack naturally.
+   flex: none lets each panel take its content height instead of splitting
+   the viewport equally (which caused overlap when content exceeded the
+   allocated fraction). The parent .view-panel handles scrolling. */
 .view-panel > .panel,
 .view-panel > section {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
 }
 
-/* Grids inside view sections should also stretch */
+/* Grids inside view sections should also stretch within their natural height */
 .view-panel > section > .control-grid,
 .view-panel > section > .card-grid {
-  flex: 1;
-  min-height: 0;
+  flex: none;
 }
 
 .mw-view-header h1 {
