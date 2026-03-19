@@ -167,8 +167,18 @@
 }
 
 [data-theme="dark"] .category-track {
+  background: var(--panel);
   border-color: var(--line);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .context-sub-tabs {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .context-sub-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Dark mode skeleton shimmer */

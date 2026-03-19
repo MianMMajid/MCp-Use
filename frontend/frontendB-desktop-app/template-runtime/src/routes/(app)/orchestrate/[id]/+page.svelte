@@ -48,6 +48,9 @@
   let taskInput = '';
   let outputLog = [];
   let showOutput = false;
+  $: succeededEntries = outputLog.filter((e) => e.type === 'node_succeeded' && e.preview)
+  $: finalOutput = succeededEntries[succeededEntries.length - 1] || null
+  $: allAttachments = succeededEntries.flatMap((e) => e.attachments || [])
   let showSteps = false;
 
   function escapeAttr(s) {
@@ -621,9 +624,6 @@
 
       <!-- Output panel -->
       {#if showOutput}
-        {@const succeededEntries = outputLog.filter((e) => e.type === 'node_succeeded' && e.preview)}
-        {@const finalOutput = succeededEntries[succeededEntries.length - 1] || null}
-        {@const allAttachments = succeededEntries.flatMap((e) => e.attachments || [])}
         <aside class="output-panel">
           <div class="output-header">
             <h3>Output</h3>

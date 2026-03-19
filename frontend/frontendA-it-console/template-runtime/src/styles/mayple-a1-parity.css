@@ -133,8 +133,7 @@ body {
 }
 
 .workspace.product-body {
-  height: calc(100vh - 2px);
-  min-height: 100dvh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -142,7 +141,7 @@ body {
   max-width: 1720px;
   height: 100%;
   margin: 0 auto;
-  padding: var(--space-3) var(--space-3) 0;
+  padding: 0 var(--space-3);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
@@ -193,7 +192,7 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding-bottom: 72px; /* space for fixed bottom category bar */
+  padding-bottom: 80px; /* space for fixed bottom dock */
 }
 
 .chat-full-panel {
@@ -258,10 +257,11 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
-  padding: var(--space-1);
+  height: 44px;
+  padding: 3px;
   background: var(--panel, rgba(255, 255, 255, 0.97));
   border: 1px solid var(--line-strong, #d4d4d8);
-  border-radius: var(--radius-xl);
+  border-radius: 22px;
   backdrop-filter: blur(16px) saturate(160%);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
@@ -271,9 +271,9 @@ body {
   top: 3px;
   bottom: 3px;
   /* left and width set by JS via inline style */
-  border-radius: var(--radius-xl);
+  border-radius: 19px;
   background: var(--brand);
-  box-shadow: 0 1px 4px rgba(242, 101, 34, 0.25);
+  box-shadow: 0 2px 8px rgba(242, 101, 34, 0.3);
   opacity: 0;
   transition: left var(--dur-spring) var(--ease-spring),
               width var(--dur-spring) var(--ease-spring),
@@ -286,25 +286,63 @@ body {
 .category-pill {
   position: relative;
   z-index: 1;
-  height: 34px;
-  min-width: 0;
-  padding: 0 var(--space-4);
+  height: 38px;
+  min-width: 72px;
+  padding: 0 14px;
   border: none;
-  border-radius: var(--radius-xl);
+  border-radius: 19px;
   background: transparent;
   color: var(--muted);
   text-decoration: none;
-  font-size: var(--text-base);
+  font-size: 13px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 150ms;
+  cursor: pointer;
+  transition: color 0.2s;
+  white-space: nowrap;
 }
 
 .category-pill:hover { color: var(--ink); }
 
-.category-pill.is-active { color: #1c1917; }
+.category-pill.is-active { color: #fff; }
+
+/* ── Sub-view tabs (matches Frontend B pill style) ── */
+.context-sub-tabs {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 3px;
+  background: var(--bg-soft, #f4f4f5);
+  border: 1px solid var(--line, #e4e4e7);
+  border-radius: 18px;
+  gap: 2px;
+}
+
+.context-sub-tab {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 15px;
+  background: transparent;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.context-sub-tab:hover { color: var(--ink); background: rgba(0, 0, 0, 0.04); }
+
+.context-sub-tab.is-active {
+  background: var(--brand);
+  color: #fff !important;
+  box-shadow: 0 1px 4px rgba(242, 101, 34, 0.25);
+}
 
 .context-panel {
   flex: 0 0 0;
@@ -802,13 +840,18 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .mw-chat-form button {
-  border: 1px solid var(--brand-tint-border);
-  background: linear-gradient(160deg, var(--brand), var(--brand-strong));
-  color: #1c1917;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
   border-radius: var(--radius-lg);
   font-weight: 700;
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
+  transition: background 150ms, transform 100ms;
+}
+
+.mw-chat-form button:hover {
+  background: var(--brand-strong);
 }
 
 .mw-chat-form button:disabled {
@@ -1206,7 +1249,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 @media (max-width: 640px) {
   .product-shell {
-    padding: var(--space-2) var(--space-2) 0;
+    padding: 0 var(--space-2);
   }
 
   .top-bar {
@@ -1451,7 +1494,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 .zoom-btn {
   min-width: 42px;
   height: 30px;
-  border: 1px solid #d7c9bc;
+  border: 1px solid var(--line-strong, #d4d4d8);
   border-radius: var(--radius-pill);
   background: var(--panel);
   color: var(--ink);
@@ -1461,7 +1504,9 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 }
 
 .zoom-btn:hover {
-  border-color: var(--brand-strong);
+  border-color: var(--brand);
+  background: rgba(242, 101, 34, 0.08);
+  color: var(--brand-strong);
 }
 
 .canvas-zoom-layer {
@@ -1846,6 +1891,80 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+}
+
+/* ── Buttons — Frontend B parity ── */
+.action-btn {
+  border: 1px solid var(--line-strong, #d4d4d8);
+  border-radius: var(--radius-lg);
+  background: var(--panel, #fff);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms, color 150ms, transform 100ms;
+}
+
+.action-btn:hover {
+  border-color: var(--brand);
+  background: var(--brand-tint, rgba(242, 101, 34, 0.10));
+  color: var(--brand-strong);
+}
+
+.action-btn:active {
+  transform: scale(0.97);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.action-btn.primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.action-btn.primary:hover {
+  background: var(--brand-strong);
+  border-color: var(--brand-strong);
+  color: #fff;
+}
+
+.action-btn.danger {
+  border-color: var(--warn-border, rgba(220, 38, 38, 0.25));
+  background: var(--warn-soft, rgba(220, 38, 38, 0.08));
+  color: var(--warn);
+}
+
+.action-btn.danger:hover {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+
+.settings-pill {
+  border: 1px solid var(--line-strong, #d4d4d8);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: 0 var(--space-4);
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 150ms, color 150ms, background 150ms;
+}
+
+.settings-pill:hover {
+  border-color: var(--brand);
+  color: var(--ink);
+  background: var(--brand-tint, rgba(242, 101, 34, 0.10));
 }
 
 ::-webkit-scrollbar-track {

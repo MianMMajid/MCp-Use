@@ -6,7 +6,7 @@
 
   const REQUESTS = Object.freeze([
     ['agentStatus', '/api/openclaw/agent/status'],
-    ['agentSessions', '/api/openclaw/agent/sessions'],
+    ['agentSessions', '/api/agents/sessions/registry'],
   ])
 
   let loading = true
@@ -47,7 +47,8 @@
   async function loadSession(sessionId) {
     if (!sessionId) return
     try {
-      selectedAgentDetail = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}?include=runs`)
+      const runtime = selectedSession?.runtime ? `?runtime=${encodeURIComponent(selectedSession.runtime)}` : ''
+      selectedAgentDetail = await loadJson(fetch, `/api/agents/sessions/registry/${encodeURIComponent(sessionId)}${runtime}`)
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
       selectedAgentDetail = null
@@ -95,7 +96,7 @@
   }
 
   async function handleCancel(sessionId) {
-    if (!sessionId) return
+    if (!sessionId || selectedSession?.runtime !== 'openclaw') return
     await runAction(`cancel:${sessionId}`, () =>
       sendJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/cancel`, {}),
     )
@@ -115,6 +116,10 @@
     selectedArtifacts = []
     selectedArtifactsRunId = ''
     loadSession(sessionId)
+  }
+
+  function runtimeLabel(session) {
+    return session?.runtime === 'native' ? 'native' : 'openclaw'
   }
 
   onMount(() => {
@@ -164,7 +169,7 @@
           {#each sessions as session}
             <button type="button" class="session-card" class:active={(session.sessionId ?? session.id) === selectedSessionId} on:click={() => selectSession(session.sessionId ?? session.id ?? '')}>
               <strong>{session.sessionId ?? session.id ?? '--'}</strong>
-              <span>{session.status ?? 'unknown'} · {formatDate(session.updatedAt ?? session.createdAt)}</span>
+              <span>{runtimeLabel(session)} · {session.status ?? 'unknown'} · {formatDate(session.updatedAt ?? session.createdAt)}</span>
             </button>
           {/each}
         {/if}
@@ -202,13 +207,13 @@
                   <strong>{run.runId ?? run.id ?? 'run'}</strong>
                   <span>{run.status ?? run.state ?? '--'}</span>
                 </div>
-                <button type="button" class="action-btn" on:click={() => loadArtifacts(run.runId ?? run.id)} disabled={Boolean(busy)}>Load artifacts</button>
-              </article>
-            {/each}
-          {:else}
-            <p class="empty-row">No runs recorded for this session.</p>
-          {/if}
-        </div>
+              <button type="button" class="action-btn" on:click={() => loadArtifacts(run.runId ?? run.id)} disabled={Boolean(busy)}>Load artifacts</button>
+            </article>
+          {/each}
+        {:else}
+          <p class="empty-row">No runs recorded for this session.</p>
+        {/if}
+      </div>
       {/if}
     </article>
 
@@ -226,7 +231,7 @@
       {:else}
         <p class="empty-row">Run artifacts and session evidence render here.</p>
       {/if}
-      {#if selectedSessionId}
+      {#if selectedSessionId && selectedSession?.runtime === 'openclaw'}
         <button type="button" class="action-btn danger" on:click={() => handleCancel(selectedSessionId)} disabled={Boolean(busy)}>Cancel session</button>
       {/if}
     </article>
@@ -234,39 +239,39 @@
 </section>
 
 <style>
-  .agent-page { display:grid; gap:24px; }
+  .agent-page { display:grid; gap:var(--space-4, 16px); }
   .surface-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
-  .surface-kicker { display:block; text-transform:uppercase; letter-spacing:0.16em; font-size:0.72rem; color:#7a6f67; margin-bottom:8px; }
-  .surface-header h1 { margin:0; font-size:2rem; }
-  .surface-header p { margin:8px 0 0; color:#6f6b67; max-width:780px; }
-  .surface-refresh { border:1px solid #e4d8cd; background:#fff; border-radius:999px; padding:0.8rem 1.2rem; font:inherit; }
+  .surface-kicker { display:block; text-transform:uppercase; letter-spacing:0.16em; font-size:0.72rem; color:var(--muted); margin-bottom:8px; }
+  .surface-header h1 { margin:0; font-size:1.25rem; }
+  .surface-header p { margin:8px 0 0; color:var(--muted); max-width:780px; }
+  .surface-refresh { border:1px solid var(--line-strong, #d4d4d8); background:#fff; border-radius:999px; padding:0.8rem 1.2rem; font:inherit; }
   .surface-error,.surface-notice { margin:0; }
   .surface-error { color:#b74b4b; }
   .surface-notice { color:#99620d; }
-  .prompt-bar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:start; background:#fff; border:1px solid #eadfd5; border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
+  .prompt-bar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:start; background:#fff; border:1px solid var(--line, #e4e4e7); border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
   .mode-tabs { display:flex; gap:8px; }
-  .mode-tabs button, .action-btn { border:1px solid #e4d8cd; background:#fff; border-radius:999px; padding:0.7rem 1rem; font:inherit; }
-  .mode-tabs button.active { background:#fff4e8; border-color:#ef9f38; }
-  .prompt-bar textarea { min-height:92px; border:1px solid #eadfd5; background:#fffaf7; border-radius:20px; padding:0.95rem; font:inherit; resize:vertical; }
-  .action-btn.primary { background:#ef9f38; color:#fff; border-color:#ef9f38; }
+  .mode-tabs button, .action-btn { border:1px solid var(--line-strong, #d4d4d8); background:#fff; border-radius:999px; padding:0.7rem 1rem; font:inherit; }
+  .mode-tabs button.active { background:rgba(242, 101, 34, 0.12); border-color:var(--brand, #f26522); }
+  .prompt-bar textarea { min-height:92px; border:1px solid var(--line, #e4e4e7); background:var(--panel, #fff); border-radius:20px; padding:0.95rem; font:inherit; resize:vertical; }
+  .action-btn.primary { background:var(--brand, #f26522); color:#fff; border-color:var(--brand, #f26522); }
   .action-btn.danger { background:#fff0ef; color:#9f443a; border-color:#f1cec9; }
   .agent-grid { display:grid; grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.1fr) minmax(320px, 0.95fr); gap:20px; }
-  .surface-panel { background:#fff; border:1px solid #eadfd5; border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
+  .surface-panel { background:#fff; border:1px solid var(--line, #e4e4e7); border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
   .panel-head { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:1rem; }
   .panel-head h2 { margin:0; font-size:1.15rem; }
-  .chip { border:1px solid #e4d8cd; border-radius:999px; padding:0.3rem 0.7rem; font-size:0.8rem; background:#fffaf5; color:#7a6f67; }
+  .chip { border:1px solid var(--line-strong, #d4d4d8); border-radius:999px; padding:0.3rem 0.7rem; font-size:0.8rem; background:var(--bg-soft, #f4f4f5); color:var(--muted); }
   .session-list, .run-stack { display:grid; gap:10px; }
-  .session-card, .run-card { border:1px solid #eadfd5; background:#fffaf7; border-radius:20px; padding:0.95rem; font:inherit; }
+  .session-card, .run-card { border:1px solid var(--line, #e4e4e7); background:var(--panel, #fff); border-radius:20px; padding:0.95rem; font:inherit; }
   .session-card { text-align:left; display:grid; gap:6px; }
-  .session-card.active { border-color:#ef9f38; box-shadow:0 0 0 3px rgba(239,159,56,0.16); background:#fff4e8; }
-  .session-card span, .run-card span { color:#6f6b67; }
+  .session-card.active { border-color:var(--brand, #f26522); box-shadow:0 0 0 3px rgba(239,159,56,0.16); background:rgba(242, 101, 34, 0.12); }
+  .session-card span, .run-card span { color:var(--muted); }
   .chain-strip { display:flex; align-items:center; gap:12px; overflow:auto; padding-bottom:4px; margin-bottom:14px; }
-  .chain-node { min-width:150px; border:1px solid #eadfd5; border-radius:20px; background:#fffaf7; padding:0.9rem; }
-  .chain-node span { display:block; text-transform:uppercase; letter-spacing:0.12em; font-size:0.72rem; color:#8a7b70; margin-bottom:6px; }
-  .chain-link { color:#d28b3f; font-size:1.2rem; }
+  .chain-node { min-width:150px; border:1px solid var(--line, #e4e4e7); border-radius:20px; background:var(--panel, #fff); padding:0.9rem; }
+  .chain-node span { display:block; text-transform:uppercase; letter-spacing:0.12em; font-size:0.72rem; color:var(--muted); margin-bottom:6px; }
+  .chain-link { color:var(--brand, #f26522); font-size:1.2rem; }
   .run-card { display:flex; justify-content:space-between; gap:12px; align-items:center; }
   .evidence-panel pre { margin:0 0 12px; max-height:520px; overflow:auto; background:#1f1914; color:#f9f3ec; border-radius:20px; padding:1rem; font-size:0.82rem; }
-  .empty-row { margin:0; color:#6f6b67; }
+  .empty-row { margin:0; color:var(--muted); }
   @media (max-width: 1180px) {
     .agent-grid { grid-template-columns:1fr; }
     .prompt-bar { grid-template-columns:1fr; }

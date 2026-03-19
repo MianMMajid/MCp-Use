@@ -440,7 +440,10 @@
   }
 
   function trimWorkspacePath(value) {
-    return truncateText(String(value ?? '').replace('/Users/omarramadan/Desktop/mcp_firewall/', ''), 54)
+    const raw = String(value ?? '')
+    const wsRoot = currentForkPlan?.workspaceRoot ?? ''
+    const trimmed = wsRoot && raw.startsWith(wsRoot) ? raw.slice(wsRoot.length).replace(/^\//, '') : raw
+    return truncateText(trimmed || raw, 54)
   }
 
   function currentForkRisk(plan) {
@@ -450,69 +453,128 @@
   }
 
   $: currentForkPlan = Array.isArray(filesystemMutations) ? filesystemMutations[0] ?? null : null
-  $: forkMainNodes = currentForkPlan
-    ? [
-        {
-          id: 'main-0',
-          title: `#0 ${currentForkPlan.sourceType ?? 'agent_prompt'} · ${currentForkPlan.sourceSurface ?? 'frontendB'}`,
-          command: truncateText(currentForkPlan.taskText ?? currentForkPlan.planId, 66),
-          risk: currentForkRisk(currentForkPlan),
-          tone: 'main',
-          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
-        },
-        {
-          id: 'main-1',
-          title: `#1 ${currentForkPlan.plan?.toolName ?? 'filesystem'} · mayple`,
-          command: trimWorkspacePath(currentForkPlan.plan?.operations?.[0]?.path ?? currentForkPlan.workspaceRoot),
-          risk: truncateText(currentForkPlan.plan?.laneMessage ?? 'Mayple isolated the mutation path for review.', 62),
-          tone: 'main',
-          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
-        },
-        {
-          id: 'main-2',
-          title: `#2 ${currentForkPlan.lane ?? 'fork_required'} · mayple`,
-          command:
-            String(currentForkPlan.status ?? '').includes('pending')
-              ? 'Fork created and held for operator review.'
-              : truncateText(currentForkPlan.status ?? currentForkPlan.lane ?? 'fork review', 62),
-          risk: `${currentForkPlan.status ?? 'pending_review'} · ${truncateText(currentForkPlan.traceId || currentForkPlan.runId || '--', 28)}`,
-          tone: 'fork',
-          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
-        },
-        {
-          id: 'main-3',
-          title: `#3 ${currentForkPlan.status ?? 'pending_review'} · operator`,
-          command:
-            String(currentForkPlan.status ?? '').includes('pending')
-              ? 'Awaiting operator decision before promotion.'
-              : truncateText(currentForkPlan.status ?? 'review complete', 62),
-          risk: `session ${truncateText(currentForkPlan.sessionId || '--', 24)}`,
-          tone: String(currentForkPlan.status ?? '').includes('restore') || String(currentForkPlan.status ?? '').includes('deny') ? 'blocked' : 'main',
-          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
-        },
-      ]
-    : []
-  $: forkBranchNodes = currentForkPlan
-    ? [
-        {
-          id: 'fork-2',
-          title: `Fork #2 ${currentForkPlan.plan?.toolName ?? 'filesystem'} · mayple`,
-          command: trimWorkspacePath(currentForkPlan.plan?.operations?.[0]?.path ?? currentForkPlan.workspaceRoot),
-          risk: `${currentForkPlan.sourceSurface ?? 'frontendB'} · isolated branch`,
-          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
-        },
-        {
-          id: 'fork-3',
-          title: 'Fork #3 operator review · system',
-          command:
-            String(currentForkPlan.status ?? '').includes('pending')
-              ? 'Pending review before promotion.'
-              : truncateText(currentForkPlan.status ?? 'review complete', 62),
-          risk: truncateText(currentForkPlan.traceId || currentForkPlan.runId || currentForkPlan.planId, 30),
-          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
-        },
-      ]
-    : []
+
+  function buildForkMainNodes(plan) {
+    if (!plan) return []
+    const sid = plan.sessionId ?? plan.runId ?? plan.planId
+    const ops = Array.isArray(plan.plan?.operations) ? plan.plan.operations : []
+    const pcs = Array.isArray(plan.plan?.pathClassifications) ? plan.plan.pathClassifications : []
+    const ma = plan.modelAssessment ?? {}
+    const signals = Array.isArray(ma.suspiciousSignals) ? ma.suspiciousSignals : []
+    const isDenied = String(plan.status ?? '').includes('deny') || plan.lane === 'hard_deny'
+    const isPending = String(plan.status ?? '').includes('pending')
+    const nodes = []
+
+    // Node 0: Agent action origin
+    nodes.push({
+      id: 'main-0', tone: 'main', sessionId: sid,
+      title: `#0 ${plan.sourceType ?? 'agent'} · ${plan.sourceSurface ?? 'agent'}`,
+      command: truncateText(plan.taskText ?? plan.planId, 66),
+      risk: currentForkRisk(plan),
+    })
+
+    // Nodes for each operation
+    ops.forEach((op, i) => {
+      const pc = pcs.find((p) => p.path === op.path) ?? {}
+      nodes.push({
+        id: `main-op-${i}`, tone: pc.classification === 'protected' ? 'blocked' : 'main', sessionId: sid,
+        title: `#${nodes.length} ${op.op} · ${plan.plan?.toolName ?? 'filesystem'}`,
+        command: trimWorkspacePath(op.path) + (op.to ? ` → ${trimWorkspacePath(op.to)}` : ''),
+        risk: `${pc.classification ?? 'unknown'} · ${op.sizeBytes ? op.sizeBytes + 'B' : ''} ${op.recursive ? '· recursive' : ''}`.trim(),
+      })
+    })
+
+    // Node: Model assessment
+    if (ma.available) {
+      nodes.push({
+        id: 'main-model', tone: ma.intentClass === 'malicious' ? 'blocked' : 'fork', sessionId: sid,
+        title: `#${nodes.length} ${ma.model ?? 'classifier'} · assessment`,
+        command: `intent=${ma.intentClass ?? '?'} · risk=${ma.userAuthoredRisk ?? '?'} · rebuild=${ma.rebuildability ?? '?'}`,
+        risk: `blast=${ma.blastRadiusAssessment ?? '?'} · recommended=${ma.recommendedLane ?? '?'}`,
+      })
+    }
+
+    // Nodes for each suspicious signal
+    signals.forEach((sig, i) => {
+      nodes.push({
+        id: `main-signal-${i}`, tone: 'blocked', sessionId: sid,
+        title: `#${nodes.length} signal · detection`,
+        command: sig,
+        risk: `flagged by ${ma.model ?? 'classifier'}`,
+      })
+    })
+
+    // Node: Path classification summary (one per unique classification)
+    const classGroups = {}
+    pcs.forEach((pc) => { classGroups[pc.classification] = (classGroups[pc.classification] || []).concat(pc) })
+    Object.entries(classGroups).forEach(([cls, items]) => {
+      nodes.push({
+        id: `main-class-${cls}`, tone: cls === 'protected' ? 'blocked' : 'main', sessionId: sid,
+        title: `#${nodes.length} ${cls} · ${items.length} path${items.length > 1 ? 's' : ''}`,
+        command: items.map((p) => trimWorkspacePath(p.path)).join(', '),
+        risk: items[0]?.reasons?.[0] ?? cls,
+      })
+    })
+
+    // Node: Lane decision
+    nodes.push({
+      id: 'main-lane', tone: isDenied ? 'blocked' : 'fork', sessionId: sid,
+      title: `#${nodes.length} ${plan.lane ?? 'fork_required'} · mayple`,
+      command: truncateText(plan.plan?.laneMessage ?? plan.lane ?? 'fork review', 62),
+      risk: `${plan.status ?? 'pending_review'} · trace=${truncateText(plan.traceId || '--', 24)}`,
+    })
+
+    // Node: Operator outcome
+    nodes.push({
+      id: 'main-operator', tone: isDenied ? 'blocked' : 'main', sessionId: sid,
+      title: `#${nodes.length} ${plan.status ?? 'pending_review'} · operator`,
+      command: isPending ? 'Awaiting operator decision before promotion.' : truncateText(plan.status ?? 'review complete', 62),
+      risk: `session=${truncateText(plan.sessionId || '--', 20)} · run=${truncateText(plan.runId || '--', 20)}`,
+    })
+
+    return nodes
+  }
+
+  function buildForkBranchNodes(plan) {
+    if (!plan) return []
+    const sid = plan.sessionId ?? plan.runId ?? plan.planId
+    const ops = Array.isArray(plan.plan?.operations) ? plan.plan.operations : []
+    const ma = plan.modelAssessment ?? {}
+    const isDenied = String(plan.status ?? '').includes('deny') || plan.lane === 'hard_deny'
+    const isPending = String(plan.status ?? '').includes('pending')
+    const nodes = []
+
+    // Branch node for each operation (isolated copy)
+    ops.forEach((op, i) => {
+      nodes.push({
+        id: `fork-op-${i}`, sessionId: sid,
+        title: `Fork ${op.op} · ${plan.plan?.toolName ?? 'filesystem'}`,
+        command: trimWorkspacePath(op.path) + (op.to ? ` → ${trimWorkspacePath(op.to)}` : ''),
+        risk: `${plan.sourceSurface ?? 'agent'} · isolated branch`,
+      })
+    })
+
+    // Branch: containment verdict
+    nodes.push({
+      id: 'fork-verdict', sessionId: sid,
+      title: `Fork verdict · ${ma.intentClass ?? 'unknown'}`,
+      command: isDenied ? 'Blocked — mutation never executed.' : isPending ? 'Held in containment fork.' : truncateText(plan.status ?? 'resolved', 50),
+      risk: `blast=${ma.blastRadiusAssessment ?? '?'} · risk=${ma.userAuthoredRisk ?? '?'}`,
+    })
+
+    // Branch: operator review
+    nodes.push({
+      id: 'fork-review', sessionId: sid,
+      title: 'Fork operator review · system',
+      command: isPending ? 'Pending review before promotion.' : truncateText(plan.status ?? 'review complete', 50),
+      risk: truncateText(plan.traceId || plan.runId || plan.planId, 30),
+    })
+
+    return nodes
+  }
+
+  $: forkMainNodes = buildForkMainNodes(currentForkPlan)
+  $: forkBranchNodes = buildForkBranchNodes(currentForkPlan)
 
   function formatDateTime(value) {
     if (!value) return '--'

@@ -71,16 +71,13 @@
 <style>
   .mw-topbar {
     position: sticky;
-    top: var(--space-3);
+    top: 0;
     z-index: 60;
-    width: min(1440px, calc(100vw - var(--space-6)));
-    margin: 0 auto;
+    width: 100%;
     height: 48px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-xl);
-    background: var(--panel);
+    border-bottom: 1px solid var(--line, #e4e4e7);
+    background: var(--panel, rgba(255, 255, 255, 0.97));
     backdrop-filter: blur(16px) saturate(160%);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     display: flex;
     align-items: center;
     justify-content: space-between;

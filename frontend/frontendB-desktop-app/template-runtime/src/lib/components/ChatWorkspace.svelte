@@ -28,6 +28,10 @@
     { value: 'agent', label: 'Agent' },
     { value: 'orchestration', label: 'Orchestration' }
   ];
+  $: runtimeOptions = [
+    { value: 'native', label: 'Native' },
+    { value: 'openclaw', label: 'OpenClaw' }
+  ];
 
   $: isOrchestration = $chatStore.chatTarget === 'orchestration';
   $: showModelSelector = false;
@@ -36,6 +40,7 @@
   $: isStreaming = $chatStore.streaming || $chatStore.busy;
   $: busyStatus = $chatStore.busyStatus || '';
   $: hasAgents = ($chatStore.agents || []).length > 0;
+  $: selectedRuntime = $chatStore.selectedAgent?.config?.useOpenClaw === true ? 'openclaw' : 'native';
 
   function formatCost(cost) {
     if (!cost) return null;
@@ -192,6 +197,14 @@
                 options={agentOptionsWithNone}
                 on:change={(e) => chatStore.selectAgent(e.detail)}
               />
+              <SelectorPill
+                label="Runtime"
+                icon="spark"
+                value={selectedRuntime}
+                options={runtimeOptions}
+                disabled={!$chatStore.selectedAgentId}
+                on:change={(e) => chatStore.setSelectedAgentRuntime(e.detail)}
+              />
             {/if}
             <SelectorPill
               label="Mode"
@@ -239,6 +252,14 @@
               value={$chatStore.selectedAgentId}
               options={agentOptionsWithNone}
               on:change={(e) => chatStore.selectAgent(e.detail)}
+            />
+            <SelectorPill
+              label="Runtime"
+              icon="spark"
+              value={selectedRuntime}
+              options={runtimeOptions}
+              disabled={!$chatStore.selectedAgentId}
+              on:change={(e) => chatStore.setSelectedAgentRuntime(e.detail)}
             />
           {/if}
           <SelectorPill

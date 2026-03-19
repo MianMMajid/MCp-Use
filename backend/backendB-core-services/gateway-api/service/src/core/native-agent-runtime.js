@@ -36,10 +36,17 @@ const CONVERSATION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 function getConversation(sessionId) {
   const conv = conversationStore.get(sessionId);
   if (conv && Date.now() - conv.updatedAt < CONVERSATION_TTL_MS) {
+    if (!conv.createdAt) conv.createdAt = conv.updatedAt;
+    if (!Array.isArray(conv.runs)) conv.runs = [];
     conv.updatedAt = Date.now();
     return conv;
   }
-  const fresh = { messages: [], updatedAt: Date.now() };
+  const fresh = {
+    messages: [],
+    runs: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
   conversationStore.set(sessionId, fresh);
   return fresh;
 }
@@ -55,6 +62,91 @@ const _conversationEvictionTimer = setInterval(() => {
 export function shutdownNativeAgentRuntime() {
   clearInterval(_conversationEvictionTimer);
   conversationStore.clear();
+}
+
+function stringifyMessageContent(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item.text === "string") return item.text;
+        if (item && typeof item.content === "string") return item.content;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (content && typeof content.text === "string") return content.text;
+  return "";
+}
+
+function buildNativeSessionSummary(sessionId, conv) {
+  const transcript = Array.isArray(conv?.messages)
+    ? conv.messages
+        .filter((message) => message && (message.role === "user" || message.role === "assistant"))
+        .map((message, index) => ({
+          id: message.id || `${sessionId}-${index}`,
+          role: message.role,
+          content: stringifyMessageContent(message.content),
+          timestamp: message.timestamp || new Date(conv.updatedAt).toISOString(),
+        }))
+        .filter((message) => message.content)
+    : [];
+  const runs = Array.isArray(conv?.runs) ? conv.runs : [];
+  const lastUserMessage = [...transcript].reverse().find((message) => message.role === "user");
+  const lastRun = runs[runs.length - 1] || null;
+  return {
+    sessionId,
+    runtime: "native",
+    source: "secure-chat",
+    status: "completed",
+    createdAt: new Date(conv.createdAt || conv.updatedAt || Date.now()).toISOString(),
+    updatedAt: new Date(conv.updatedAt || conv.createdAt || Date.now()).toISOString(),
+    lastRunId: lastRun?.runId || null,
+    lastInputPreview: lastUserMessage?.content?.slice(0, 96) || "",
+    runCount: runs.length,
+    messageCount: transcript.length,
+    agentId: lastRun?.agentId || null,
+  };
+}
+
+export function listNativeChatSessions(options = {}) {
+  const limit = Math.max(1, Number.parseInt(String(options.limit ?? 20), 10) || 20);
+  return [...conversationStore.entries()]
+    .map(([sessionId, conv]) => buildNativeSessionSummary(sessionId, conv))
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    .slice(0, limit);
+}
+
+export function getNativeChatSession(sessionId) {
+  const normalizedSessionId = String(sessionId ?? "").trim();
+  if (!normalizedSessionId) return null;
+  const conv = conversationStore.get(normalizedSessionId);
+  if (!conv) return null;
+  const summary = buildNativeSessionSummary(normalizedSessionId, conv);
+  const messages = Array.isArray(conv.messages)
+    ? conv.messages
+        .filter((message) => message && (message.role === "user" || message.role === "assistant"))
+        .map((message, index) => ({
+          id: message.id || `${normalizedSessionId}-${index}`,
+          role: message.role,
+          content: stringifyMessageContent(message.content),
+          timestamp: message.timestamp || new Date(conv.updatedAt).toISOString(),
+        }))
+        .filter((message) => message.content)
+    : [];
+  const runs = Array.isArray(conv.runs)
+    ? conv.runs.map((run) => ({ ...run }))
+    : [];
+  return {
+    ok: true,
+    session: {
+      ...summary,
+      messages,
+      runs,
+    },
+  };
 }
 
 // ── Direct MCP HTTP calls (bypasses cyber-proxy) ────
@@ -750,7 +842,13 @@ export async function runNativeAgentTurn(options = {}) {
   const conv = getConversation(sessionId);
 
   // Add user message
-  conv.messages.push({ role: "user", content: message });
+  conv.messages.push({
+    id: `msg-user-${runId}`,
+    role: "user",
+    content: message,
+    timestamp: new Date().toISOString(),
+  });
+  conv.updatedAt = Date.now();
 
   // Tool call loop
   let allToolCalls = [];
@@ -781,7 +879,28 @@ export async function runNativeAgentTurn(options = {}) {
     // No tool calls — we have the final response
     if (!llmResult.toolCalls || llmResult.toolCalls.length === 0) {
       const reply = llmResult.content || "";
-      conv.messages.push({ role: "assistant", content: reply });
+      conv.messages.push({
+        id: `msg-assistant-${runId}`,
+        role: "assistant",
+        content: reply,
+        timestamp: new Date().toISOString(),
+      });
+      conv.runs.push({
+        runId,
+        sessionId,
+        agentId: options.agentId || null,
+        provider,
+        model: modelOverride || resolveModelName(provider),
+        status: "completed",
+        type: "native",
+        createdAt: new Date(conv.createdAt || Date.now()).toISOString(),
+        updatedAt: new Date().toISOString(),
+        input: { message },
+        output: { reply },
+        toolCalls: llmResult.toolCalls || [],
+        usage: totalUsage,
+      });
+      conv.updatedAt = Date.now();
 
       mapleLog("info", "native_agent.turn_complete", {
         runId,
@@ -888,6 +1007,8 @@ export async function runNativeAgentTurn(options = {}) {
 export function agentRequiresNativeRuntime(agent) {
   if (!agent) return true; // No agent record → use native (safer default)
   const config = agent.config || {};
+  // Explicit runtime toggle should win over inferred routing.
+  if (config.useOpenClaw === false) return true;
   // Explicit OpenClaw opt-in: agent has a configured OpenClaw agent ID
   if (config.useOpenClaw === true) return false;
   if (config.openclawAgentId || config.targetAgentId || config.runtimeAgentId) return false;

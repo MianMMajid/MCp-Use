@@ -3,8 +3,9 @@ import { requireApiKeyResponse, authContextStorage } from "../auth.js";
 import { asString, readJsonBody } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { runOpenClawTurn, runOpenClawLongform, listSessionsForAgent } from "../core/openclaw-agent-runtime.js";
-import { runNativeAgentTurn, agentRequiresNativeRuntime } from "../core/native-agent-runtime.js";
+import { runNativeAgentTurn, agentRequiresNativeRuntime, getNativeChatSession, listNativeChatSessions } from "../core/native-agent-runtime.js";
 import { runSecureChatTurn } from "../core/secure-chat-runtime.js";
+import { getOpenClawSession, listOpenClawSessions } from "../core/openclaw-agent-runtime.js";
 
 function resolveOpenClawTargetFromAgent(agent) {
     const config = agent && typeof agent.config === "object" ? agent.config : {};
@@ -18,6 +19,58 @@ function resolveOpenClawTargetFromAgent(agent) {
 }
 
 export function registerAgentManagementRoutes(app) {
+    app.get("/api/agents/sessions/registry", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) return unauthorized;
+
+        const limit = Math.max(1, Math.min(100, Number.parseInt(String(c.req.query("limit") ?? "50"), 10) || 50));
+        const nativeSessions = listNativeChatSessions({ limit });
+        const openclaw = await listOpenClawSessions({ limit, cursor: "", status: undefined, agentId: undefined });
+        const openclawSessions = (openclaw.items || []).map((session) => ({
+            ...session,
+            runtime: "openclaw",
+            source: session.source || "openclaw",
+        }));
+        const items = [...nativeSessions, ...openclawSessions]
+            .sort((left, right) => new Date(right.updatedAt || right.createdAt || 0).getTime() - new Date(left.updatedAt || left.createdAt || 0).getTime())
+            .slice(0, limit);
+
+        return c.json({ ok: true, items });
+    });
+
+    app.get("/api/agents/sessions/registry/:sessionId", async (c) => {
+        const unauthorized = await requireApiKeyResponse(c, database);
+        if (unauthorized) return unauthorized;
+
+        const sessionId = asString(c.req.param("sessionId"));
+        const runtime = asString(c.req.query("runtime")) || "";
+        if (!sessionId) {
+            return c.json({ ok: false, error: "Missing sessionId." }, 400);
+        }
+
+        if (runtime === "native") {
+            const nativeSession = getNativeChatSession(sessionId);
+            if (!nativeSession) return c.json({ ok: false, error: "Session not found." }, 404);
+            return c.json(nativeSession);
+        }
+
+        if (runtime === "openclaw") {
+            const session = await getOpenClawSession(sessionId);
+            if (!session) return c.json({ ok: false, error: "Session not found." }, 404);
+            return c.json({ ok: true, session: { ...session, runtime: "openclaw", source: session.source || "openclaw" } });
+        }
+
+        const nativeSession = getNativeChatSession(sessionId);
+        if (nativeSession) return c.json(nativeSession);
+
+        const openclawSession = await getOpenClawSession(sessionId);
+        if (openclawSession) {
+            return c.json({ ok: true, session: { ...openclawSession, runtime: "openclaw", source: openclawSession.source || "openclaw" } });
+        }
+
+        return c.json({ ok: false, error: "Session not found." }, 404);
+    });
+
     // POST /api/agents — create agent definition
     app.post("/api/agents", async (c) => {
         const unauthorized = await requireApiKeyResponse(c, database);

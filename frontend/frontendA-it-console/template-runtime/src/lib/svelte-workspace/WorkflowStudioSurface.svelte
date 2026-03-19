@@ -97,28 +97,28 @@
 </section>
 
 <style>
-  .workflow-page { display:grid; gap:24px; }
-  .surface-header h1 { margin:0; font-size:2rem; }
-  .surface-kicker { display:block; text-transform:uppercase; letter-spacing:0.16em; font-size:0.72rem; color:#7a6f67; margin-bottom:8px; }
-  .surface-header p { margin:8px 0 0; color:#6f6b67; max-width:780px; }
+  .workflow-page { display:grid; gap:var(--space-4, 16px); }
+  .surface-header h1 { margin:0; font-size:1.25rem; }
+  .surface-kicker { display:block; text-transform:uppercase; letter-spacing:0.16em; font-size:0.72rem; color:var(--muted); margin-bottom:8px; }
+  .surface-header p { margin:8px 0 0; color:var(--muted); max-width:780px; }
   .surface-error,.surface-notice { margin:0; }
   .surface-error { color:#b74b4b; }
   .surface-notice { color:#99620d; }
   .workflow-grid { display:grid; grid-template-columns:minmax(320px, 0.8fr) minmax(0, 1fr); gap:20px; }
-  .surface-panel { background:#fff; border:1px solid #eadfd5; border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
+  .surface-panel { background:#fff; border:1px solid var(--line, #e4e4e7); border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
   .panel-head { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:1rem; }
   .panel-head h2 { margin:0; font-size:1.15rem; }
-  .chip { border:1px solid #e4d8cd; border-radius:999px; padding:0.3rem 0.7rem; font-size:0.8rem; background:#fffaf5; color:#7a6f67; }
+  .chip { border:1px solid var(--line-strong, #d4d4d8); border-radius:999px; padding:0.3rem 0.7rem; font-size:0.8rem; background:var(--bg-soft, #f4f4f5); color:var(--muted); }
   .workflow-list { display:grid; gap:10px; }
-  .workflow-card { text-align:left; border:1px solid #eadfd5; background:#fffaf7; border-radius:20px; padding:0.95rem; display:grid; gap:6px; font:inherit; }
-  .workflow-card.active { border-color:#ef9f38; box-shadow:0 0 0 3px rgba(239,159,56,0.16); background:#fff4e8; }
-  .workflow-card span { color:#6f6b67; }
-  .workflow-detail { border:1px solid #eadfd5; background:#fffaf7; border-radius:20px; padding:1rem; display:grid; gap:12px; }
+  .workflow-card { text-align:left; border:1px solid var(--line, #e4e4e7); background:var(--panel, #fff); border-radius:20px; padding:0.95rem; display:grid; gap:6px; font:inherit; }
+  .workflow-card.active { border-color:var(--brand, #f26522); box-shadow:0 0 0 3px rgba(239,159,56,0.16); background:rgba(242, 101, 34, 0.12); }
+  .workflow-card span { color:var(--muted); }
+  .workflow-detail { border:1px solid var(--line, #e4e4e7); background:var(--panel, #fff); border-radius:20px; padding:1rem; display:grid; gap:12px; }
   .destination-list { display:flex; flex-wrap:wrap; gap:10px; }
-  .destination-list span { border:1px solid #eadfd5; border-radius:999px; padding:0.45rem 0.9rem; background:#fff; font-size:0.84rem; }
+  .destination-list span { border:1px solid var(--line, #e4e4e7); border-radius:999px; padding:0.45rem 0.9rem; background:#fff; font-size:0.84rem; }
   .actions { display:flex; gap:10px; margin-top:12px; }
-  .action-btn { border:1px solid #e4d8cd; background:#fff; border-radius:999px; padding:0.7rem 1rem; font:inherit; }
-  .action-btn.primary { background:#ef9f38; color:#fff; border-color:#ef9f38; }
+  .action-btn { border:1px solid var(--line-strong, #d4d4d8); background:#fff; border-radius:999px; padding:0.7rem 1rem; font:inherit; }
+  .action-btn.primary { background:var(--brand, #f26522); color:#fff; border-color:var(--brand, #f26522); }
   @media (max-width: 980px) {
     .workflow-grid { grid-template-columns:1fr; }
   }
