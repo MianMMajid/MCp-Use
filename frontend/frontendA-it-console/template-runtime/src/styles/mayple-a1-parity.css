@@ -1285,7 +1285,7 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 .action-tree-canvas {
   height: 100%;
-  min-height: 240px;
+  min-height: 68vh;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   background-color: #151210;
@@ -1298,6 +1298,22 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   position: relative;
   cursor: grab;
   touch-action: none;
+}
+
+[data-view-panel="observe-forks"] .tree-panel {
+  min-height: 76vh;
+}
+
+[data-view-panel="observe-forks"] .tree-shell {
+  min-height: 72vh;
+}
+
+[data-view-panel="observe-forks"] .action-tree-wrap {
+  min-height: 0;
+}
+
+[data-view-panel="observe-forks"] .action-tree-canvas {
+  min-height: 72vh;
 }
 
 .action-tree-canvas.is-panning {
