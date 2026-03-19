@@ -320,6 +320,32 @@ const MAPLE_ROUTE_DEFINITIONS = [
     apiEndpoints: ['/api/openclaw/agent/turn', '/api/hitl/approvals'],
     preferredView: 'settings',
   },
+  {
+    path: '/maple/settings',
+    title: 'Settings',
+    category: 'admin',
+    tabLabel: 'Settings',
+    description: 'Notification preferences, alert webhooks, data retention, and account security.',
+    apiEndpoints: [
+      '/api/notifications/preferences',
+      '/api/observability/orchestrations/alert-webhooks',
+      '/api/observability/orchestrations/retention',
+      '/api/observability/orchestrations/audit-chain/verify',
+      '/api/auth/me',
+      '/api/auth/mfa/status',
+      '/api/auth/change-password',
+    ],
+    preferredView: 'settings',
+  },
+  {
+    path: '/maple/docs',
+    title: 'Documentation',
+    category: 'docs',
+    tabLabel: 'Docs',
+    description: 'Workspace documentation, runbooks, and route context.',
+    apiEndpoints: [],
+    preferredView: 'overview',
+  },
 ]
 
 function uniqueList(values) {
@@ -363,6 +389,8 @@ const ROUTE_SURFACE_BY_PATH = Object.freeze({
   '/maple/integrations': { category: 'admin', view: 'marketplace' },
   '/maple/usage': { category: 'admin', view: 'control' },
   '/maple/desktop': { category: 'admin', view: 'control' },
+  '/maple/settings': { category: 'admin', view: 'settings' },
+  '/maple/docs': { category: 'docs', view: 'overview' },
 })
 
 const ROUTE_NAV_METADATA_BY_PATH = Object.freeze({
@@ -608,6 +636,24 @@ const ROUTE_NAV_METADATA_BY_PATH = Object.freeze({
     operatorTask: 'tenant-scope',
     topologyContext: 'utility',
     proofPriority: 99,
+  },
+  '/maple/settings': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 7,
+    purpose: 'Configure notification channels, alert webhooks, data retention, and account security.',
+    operatorTask: 'workspace-settings',
+    topologyContext: 'utility',
+    proofPriority: 10,
+  },
+  '/maple/docs': {
+    navTier: 'utility',
+    navGroup: 'utility',
+    navOrder: 0,
+    purpose: 'Workspace documentation, runbooks, and operational context.',
+    operatorTask: 'docs-reference',
+    topologyContext: 'utility',
+    proofPriority: 10,
   },
 })
 

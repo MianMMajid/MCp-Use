@@ -136,6 +136,16 @@
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
       ['runtimeStatus', '/api/runtime/status'],
     ],
+    '/maple/settings': [
+      ['notifPrefs', '/api/notifications/preferences'],
+      ['notifications', '/api/notifications?limit=10'],
+      ['unreadCount', '/api/notifications/unread-count'],
+      ['alertWebhooks', '/api/observability/orchestrations/alert-webhooks'],
+      ['retention', '/api/observability/orchestrations/retention'],
+      ['auditVerify', '/api/observability/orchestrations/audit-chain/verify'],
+      ['authMe', '/api/auth/me'],
+      ['mfaStatus', '/api/auth/mfa/status'],
+    ],
     '/maple/demo': [],
   })
 
@@ -172,6 +182,9 @@
   let selectedMemberId = ''
   let currentPassword = ''
   let newPassword = ''
+  let newWebhookUrl = ''
+  let newWebhookSecret = ''
+  let deleteConfirmId = null
   let newApiKeyName = ''
   let newApiKeyExpiry = ''
   let newServiceAccountName = ''
@@ -578,6 +591,53 @@
       currentPassword = ''
       newPassword = ''
       notice = 'Password changed successfully.'
+    })
+  }
+
+  async function handleSaveNotifPrefs(category, channel) {
+    const prefs = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}
+    const key = `${category}.${channel}`
+    const current = prefs[key] ?? prefs?.[category]?.[channel] ?? false
+    const updated = { ...prefs, [key]: !current }
+    await runAction('settings:notif-prefs', async () => {
+      await sendJson(fetch, '/api/notifications/preferences', { preferences: updated })
+      notice = 'Notification preferences updated.'
+    })
+  }
+
+  async function handleAddWebhook() {
+    if (!newWebhookUrl.trim()) {
+      error = 'Webhook URL is required.'
+      return
+    }
+    await runAction('settings:add-webhook', async () => {
+      await sendJson(fetch, '/api/observability/orchestrations/alert-webhooks', {
+        url: newWebhookUrl.trim(),
+        secret: newWebhookSecret.trim() || undefined,
+      })
+      newWebhookUrl = ''
+      newWebhookSecret = ''
+      notice = 'Webhook added.'
+    })
+  }
+
+  async function handleDeleteWebhook(id) {
+    if (deleteConfirmId !== id) {
+      deleteConfirmId = id
+      return
+    }
+    deleteConfirmId = null
+    await runAction(`settings:delete-webhook:${id}`, async () => {
+      await sendJson(fetch, `/api/observability/orchestrations/alert-webhooks/${encodeURIComponent(id)}`, {}, { method: 'DELETE' })
+      notice = 'Webhook deleted.'
+    })
+  }
+
+  async function handleExport(type) {
+    const endpoint = type === 'traces' ? '/api/traces/export' : '/api/observability/orchestrations/export'
+    await runAction(`settings:export:${type}`, async () => {
+      await sendJson(fetch, endpoint, { format: 'json' })
+      notice = `${type === 'traces' ? 'Trace' : 'Orchestration'} export started.`
     })
   }
 
@@ -1722,6 +1782,153 @@
             </div>
           {/each}
         {/if}
+      </div>
+    </article>
+  </section>
+{:else if routePath === '/maple/settings'}
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Notification Preferences</h2>
+        <span class="chip">{state.unreadCount?.value?.count ?? 0} unread</span>
+      </div>
+      <div class="utility-stat-strip">
+        {#each ['approvals', 'escalations', 'run_failures', 'system_alerts'] as cat}
+          <article class="route-overview-card">
+            <span class="route-overview-label">{cat.replace(/_/g, ' ')}</span>
+            <strong>{['email', 'in_app'].filter((ch) => { const p = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}; return p[`${cat}.${ch}`] ?? p?.[cat]?.[ch] ?? false }).length} / 2</strong>
+          </article>
+        {/each}
+      </div>
+      <div class="stack-list">
+        <div class="list-card static">
+          <strong>Category</strong>
+          <div class="actions">
+            <span class="mono" style="min-width:60px;text-align:center">Email</span>
+            <span class="mono" style="min-width:60px;text-align:center">In-App</span>
+          </div>
+        </div>
+        {#each ['approvals', 'escalations', 'run_failures', 'system_alerts'] as cat}
+          {@const prefs = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}}
+          <div class="list-card static">
+            <strong>{cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</strong>
+            <div class="actions">
+              {#each ['email', 'in_app'] as channel}
+                <button type="button" class="action-btn" class:primary={prefs[`${cat}.${channel}`] ?? prefs?.[cat]?.[channel] ?? false} disabled={Boolean(busy)} on:click={() => handleSaveNotifPrefs(cat, channel)}>
+                  {(prefs[`${cat}.${channel}`] ?? prefs?.[cat]?.[channel] ?? false) ? 'On' : 'Off'}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/each}
+      </div>
+      <div class="stack-list">
+        {#each pickItems(state.notifications?.value) as notif}
+          <div class="list-card static">
+            <strong>{notif.title || 'Notification'}</strong>
+            <span>{notif.body || notif.message || '--'} · {formatDate(notif.created_at || notif.createdAt)}</span>
+          </div>
+        {:else}
+          <p class="empty-row">No recent notifications.</p>
+        {/each}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Data & Retention</h2>
+        <span class="chip">{state.retention?.value?.policy ?? 'default'}</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Retention</span>
+          <strong>{state.retention?.value?.retention_days ?? '--'} days</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Chain length</span>
+          <strong>{state.auditVerify?.value?.chain_length ?? '--'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Verified</span>
+          <strong>{(state.auditVerify?.value?.valid || state.auditVerify?.value?.verified) ? 'Yes' : 'No'}</strong>
+        </article>
+      </div>
+      <div class="actions">
+        <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleExport('orchestrations')}>Export orchestrations</button>
+        <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => handleExport('traces')}>Export traces</button>
+      </div>
+      <pre class="mono panel-json">{JSON.stringify({
+        retention: state.retention?.value ?? {},
+        auditChain: state.auditVerify?.value ?? {},
+      }, null, 2)}</pre>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Alert Webhooks</h2>
+        <span class="chip">{pickItems(state.alertWebhooks?.value).length}</span>
+      </div>
+      <div class="stack-list">
+        {#each pickItems(state.alertWebhooks?.value) as webhook}
+          <div class="list-card static">
+            <strong>{webhook.url}</strong>
+            <span>status={webhook.status ?? '--'}{webhook.alert_types?.length ? ` · types=${webhook.alert_types.join(', ')}` : ''}</span>
+            <div class="actions">
+              <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleDeleteWebhook(webhook.id)}>
+                {deleteConfirmId === webhook.id ? 'Confirm delete?' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        {:else}
+          <p class="empty-row">No webhooks configured.</p>
+        {/each}
+      </div>
+      <label>
+        <span class="mono">Webhook URL</span>
+        <input class="input" bind:value={newWebhookUrl} placeholder="https://example.com/webhook" />
+      </label>
+      <label>
+        <span class="mono">Secret (optional)</span>
+        <input class="input" type="password" bind:value={newWebhookSecret} placeholder="Signing secret" />
+      </label>
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !newWebhookUrl.trim()} on:click={handleAddWebhook}>
+          Add webhook
+        </button>
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Account Security</h2>
+        <span class="chip">{state.authMe?.value?.role ?? state.authMe?.value?.username ?? 'operator'}</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">MFA</span>
+          <strong>{state.mfaStatus?.value?.enabled ? 'Enabled' : 'Disabled'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Auth method</span>
+          <strong>{state.authMe?.value?.method ?? 'local'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Session</span>
+          <strong>{state.authMe?.value?.authenticated ? 'Active' : 'None'}</strong>
+        </article>
+      </div>
+      <label>
+        <span class="mono">Current password</span>
+        <input class="input" type="password" bind:value={currentPassword} />
+      </label>
+      <label>
+        <span class="mono">New password</span>
+        <input class="input" type="password" bind:value={newPassword} />
+      </label>
+      <div class="actions">
+        <button type="button" class="action-btn primary" disabled={Boolean(busy) || !currentPassword || !newPassword} on:click={handleChangePassword}>
+          Change password
+        </button>
+        <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => runAction('settings:signout', async () => { await sendJson(fetch, '/api/auth/logout', {}); window.location.assign('/login') })}>
+          Sign out
+        </button>
       </div>
     </article>
   </section>
