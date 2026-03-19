@@ -340,18 +340,29 @@ async function executeBuiltinTool(toolName, args) {
       const image = data.data?.[0];
       if (!image) return "No image was generated.";
 
-      // Download and cache image locally to avoid SAS token URLs triggering secret detection
+      // Download and persist image to avoid SAS token URLs triggering secret detection.
+      // Save to Postgres (persistent across deploys), fall back to local disk, then raw URL.
       let localUrl = image.url;
       try {
         const imgRes = await fetch(image.url, { signal: AbortSignal.timeout(30_000) });
         if (imgRes.ok) {
           const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
           const imgId = randomUUID();
-          const imgDir = join(process.cwd(), ".maple", "generated-images");
-          await mkdir(imgDir, { recursive: true });
-          const imgPath = join(imgDir, `${imgId}.png`);
-          await writeFile(imgPath, imgBuffer);
-          localUrl = `/api/generated-images/${imgId}.png`;
+
+          if (database?.pool) {
+            await database.pool.query(
+              `INSERT INTO generated_assets (id, mime_type, data, metadata_json) VALUES ($1, $2, $3, $4)
+               ON CONFLICT (id) DO NOTHING`,
+              [imgId, "image/png", imgBuffer, JSON.stringify({ source: "openai_image_generation" })],
+            );
+            localUrl = `/api/generated-images/${imgId}.png`;
+          } else {
+            // Fallback: save to disk (local dev without DB)
+            const imgDir = join(process.cwd(), ".maple", "generated-images");
+            await mkdir(imgDir, { recursive: true });
+            await writeFile(join(imgDir, `${imgId}.png`), imgBuffer);
+            localUrl = `/api/generated-images/${imgId}.png`;
+          }
         }
       } catch (dlErr) {
         mapleLog("warn", "native_agent.image_download_failed", { error: dlErr.message });

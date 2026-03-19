@@ -66,17 +66,42 @@ export async function registerGatewayRoutes(app) {
     await import(modulePath);
   }
 
-  // Serve AI-generated images (cached locally from any provider: DALL-E, Nano Banana Pro, etc.)
-  app.get("/api/generated-images/:filename", (c) => {
+  // Serve generated assets (images, documents, any file produced by agent tools).
+  // Reads from Postgres first (persistent across deploys), falls back to local disk.
+  app.get("/api/generated-images/:filename", async (c) => {
     const filename = c.req.param("filename").replace(/[^a-zA-Z0-9._-]/g, "");
-    const imgPath = join(process.cwd(), ".maple", "generated-images", filename);
-    if (!existsSync(imgPath)) return c.json({ error: "Image not found" }, 404);
+    const id = filename.replace(/\.[^.]+$/, ""); // strip extension to get UUID
     const ext = filename.split(".").pop()?.toLowerCase();
-    const mimeTypes = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif" };
+    const mimeTypes = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" };
+
+    // Try Postgres first
+    if (database?.pool) {
+      try {
+        const result = await database.pool.query(
+          `SELECT data, mime_type FROM generated_assets WHERE id = $1 LIMIT 1`,
+          [id],
+        );
+        if (result.rows.length > 0) {
+          const row = result.rows[0];
+          return new Response(row.data, {
+            headers: {
+              "Content-Type": row.mime_type || mimeTypes[ext] || "application/octet-stream",
+              "Cache-Control": "public, max-age=3600",
+            },
+          });
+        }
+      } catch {
+        // Fall through to disk
+      }
+    }
+
+    // Fallback: local disk (dev mode)
+    const imgPath = join(process.cwd(), ".maple", "generated-images", filename);
+    if (!existsSync(imgPath)) return c.json({ error: "Asset not found" }, 404);
     const buf = readFileSync(imgPath);
     return new Response(buf, {
       headers: {
-        "Content-Type": mimeTypes[ext] || "image/png",
+        "Content-Type": mimeTypes[ext] || "application/octet-stream",
         "Cache-Control": "public, max-age=3600",
       },
     });

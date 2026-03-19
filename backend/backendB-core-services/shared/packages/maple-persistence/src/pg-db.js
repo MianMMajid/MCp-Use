@@ -674,6 +674,14 @@ export class MaplePostgresDatabase {
         );
         CREATE INDEX IF NOT EXISTS idx_orchestration_execution_reassignments_exec
           ON orchestration_execution_reassignments(execution_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS generated_assets (
+          id TEXT PRIMARY KEY,
+          mime_type TEXT NOT NULL DEFAULT 'image/png',
+          data BYTEA NOT NULL,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
       `);
         }
         finally {
