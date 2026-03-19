@@ -60,6 +60,9 @@
 
   // ── Helpers ────────────────────────────
 
+  // Default delegation policy: no manual approval required — firewall policy evaluates automatically.
+  const DEFAULT_DELEGATION_POLICY = { riskCeiling: 'medium', requiresApproval: false };
+
   function edgeLabel(dp) {
     return dp?.requiresApproval ? 'approval' : dp?.riskCeiling || 'open';
   }
@@ -130,11 +133,11 @@
   }
 
   function fromApiEdge(e) {
-    const dp = e.delegationPolicy || { riskCeiling: 'medium', requiresApproval: true };
+    const dp = { ...DEFAULT_DELEGATION_POLICY, ...(e.delegationPolicy || {}) };
     return { id: e.id, source: e.source, target: e.target, markerEnd: { type: MarkerType.ArrowClosed }, data: { delegationPolicy: dp }, label: edgeLabel(dp) };
   }
   function toApiEdge(e) {
-    return { id: e.id, source: e.source, target: e.target, delegationPolicy: e.data?.delegationPolicy || { riskCeiling: 'medium', requiresApproval: true } };
+    return { id: e.id, source: e.source, target: e.target, delegationPolicy: { ...DEFAULT_DELEGATION_POLICY, ...(e.data?.delegationPolicy || {}) } };
   }
 
   const SPECIAL_IDS = new Set([INSTRUCTION_NODE_ID, OUTPUT_NODE_ID]);
@@ -456,7 +459,7 @@
 
   function onConnect(connection) {
     const id = `edge-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const dp = { riskCeiling: 'medium', requiresApproval: true };
+    const dp = { ...DEFAULT_DELEGATION_POLICY };
     flowEdges = addEdge({ ...connection, id, markerEnd: { type: MarkerType.ArrowClosed }, data: { delegationPolicy: dp }, label: edgeLabel(dp) }, flowEdges);
   }
 
@@ -486,7 +489,7 @@
     if (selectedNodeId === nodeId) selectedNodeId = '';
   }
   function updateEdge(e) {
-    flowEdges = flowEdges.map((i) => { if (i.id !== e.id) return i; const dp = e.delegationPolicy || { riskCeiling: 'medium', requiresApproval: true }; return { ...i, data: { ...(i.data || {}), delegationPolicy: dp }, label: edgeLabel(dp) }; });
+    flowEdges = flowEdges.map((i) => { if (i.id !== e.id) return i; const dp = { ...DEFAULT_DELEGATION_POLICY, ...(e.delegationPolicy || {}) }; return { ...i, data: { ...(i.data || {}), delegationPolicy: dp }, label: edgeLabel(dp) }; });
   }
   function removeEdge(edgeId) { flowEdges = flowEdges.filter((i) => i.id !== edgeId); if (selectedEdgeId === edgeId) selectedEdgeId = ''; }
 </script>

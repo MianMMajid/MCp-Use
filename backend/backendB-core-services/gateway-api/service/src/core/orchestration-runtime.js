@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { asString } from "../helpers.js";
 import { runOpenClawTurn } from "./openclaw-agent-runtime.js";
 import { runNativeAgentTurn, agentRequiresNativeRuntime } from "./native-agent-runtime.js";
-import { database } from "../state.js";
+import { database, getGrpcClients } from "../state.js";
+import { grpcUnaryProtected } from "../grpc-clients.js";
 
 const executionStore = new Map();
 const agentCache = new Map();
@@ -580,6 +581,51 @@ async function waitForApprovalDecision(execution, approvalId) {
   }
 }
 
+/**
+ * Evaluate a node's output through the context-wall firewall (output policy).
+ * Mirrors the output policy check in secure-chat-runtime: same gRPC evaluateStep call,
+ * same fail-open behavior.
+ *
+ * Returns { allowed, blockedReason }.
+ */
+async function evaluateNodeOutputPolicy(execution, node) {
+  const output = node.outputPreview || "";
+  if (!output) return { allowed: true };
+
+  const clients = getGrpcClients();
+  if (!clients?.contextWall) return { allowed: true }; // No context-wall → fail open
+
+  try {
+    const response = await grpcUnaryProtected(clients.contextWall, "evaluateStep", {
+      step: {
+        index: 0,
+        timestamp: new Date().toISOString(),
+        actor: "STEP_ACTOR_AGENT",
+        type: "STEP_TYPE_CHAT",
+        prompt: "",
+        output,
+        command: "",
+      },
+      context: {
+        requestId: randomUUID().slice(0, 12),
+        sessionId: execution.sessionId,
+        sourceService: "orchestration-runtime",
+        userId: execution.requestedBy || "orchestration",
+        tenantId: "default",
+        deviceId: "orchestration",
+      },
+    }, { deadlineMs: 10_000 });
+
+    const action = String(response?.decision?.action || "").replace("FIREWALL_ACTION_", "").toLowerCase();
+    if (action === "deny" || action === "block") {
+      return { allowed: false, blockedReason: response?.decision?.message || "Output blocked by firewall policy." };
+    }
+    return { allowed: true };
+  } catch {
+    return { allowed: true }; // Fail open if context-wall is unavailable
+  }
+}
+
 async function ensureApprovalsForNode(execution, node) {
   const incoming = getIncomingActiveEdges(execution, node.id).filter(
     (edge) => edge.delegationPolicy?.requiresApproval === true,
@@ -712,12 +758,29 @@ async function runNode(execution, node) {
         });
 
     node.runId = asString(result.runId) ?? "";
-    node.status = "succeeded";
-    node.completedAt = nowIso();
     node.outputPreview = asString(result.reply) ?? asString(result.output) ?? "";
     execution.lastRunId = node.runId || execution.lastRunId;
     if (node.runId) execution.runIds.push(node.runId);
 
+    // Run output through firewall policy before marking as succeeded.
+    // Mirrors the output policy check in secure-chat-runtime.
+    const outputPolicy = await evaluateNodeOutputPolicy(execution, node);
+    if (!outputPolicy.allowed) {
+      node.status = "failed";
+      node.error = `Output blocked by firewall policy: ${outputPolicy.blockedReason}`;
+      node.completedAt = nowIso();
+      emitExecutionEvent(execution, "node_failed", {
+        nodeId: node.id,
+        error: node.error,
+        reason: "output_policy_blocked",
+      });
+      execution.status = "failed";
+      markControlChanged(execution);
+      return;
+    }
+
+    node.status = "succeeded";
+    node.completedAt = nowIso();
     emitExecutionEvent(execution, "node_succeeded", {
       nodeId: node.id,
       runId: node.runId,
