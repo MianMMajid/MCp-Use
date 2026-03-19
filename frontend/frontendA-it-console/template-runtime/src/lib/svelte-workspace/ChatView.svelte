@@ -4,6 +4,16 @@
   import { humanizeError } from '../utils/error-display.js'
   import MaypleCharacter from './MaypleCharacter.svelte'
 
+  // Chat streaming fetches directly to the gateway to avoid blocking
+  // SvelteKit's single-threaded dev server during long LLM calls.
+  function getChatOrigin() {
+    if (!browser) return ''
+    // In production, same-origin proxy works fine (multi-worker).
+    // In dev, gateway runs on port 3000 while SvelteKit is on 4101.
+    if (location.port === '4101') return 'http://127.0.0.1:3000'
+    return ''
+  }
+
   export let authMe = null
   export let executionId = ''
   export let sessionId = ''
