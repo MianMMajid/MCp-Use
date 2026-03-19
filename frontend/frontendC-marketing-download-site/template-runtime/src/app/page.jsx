@@ -1,4 +1,3 @@
-import { DownloadSection } from '@/components/DownloadSection'
 import { Faqs } from '@/components/Faqs'
 import { Footer } from '@/components/Footer'
 import { Header } from '@/components/Header'
@@ -68,10 +67,7 @@ export default function Home() {
         {/* 3. Secondary features — deeper value props */}
         <SecondaryFeatures />
 
-        {/* 4. Download — OS-aware desktop download */}
-        <DownloadSection />
-
-        {/* 5. Journey — how it works */}
+        {/* 4. Journey — how it works */}
         <section id="journey" className="grain relative overflow-hidden bg-zinc-50 py-16 sm:py-24">
           <Container>
             <ScrollReveal>
