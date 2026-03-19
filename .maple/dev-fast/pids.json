@@ -1,72 +1,72 @@
 {
-  "generatedAt": "2026-03-19T08:39:19.602Z",
-  "rootDir": "/Users/omarramadan/Desktop/mcp_firewall",
+  "generatedAt": "2026-03-19T14:12:14.450Z",
+  "rootDir": "/Users/qubitmac/Documents/MCP-use/MCp-Use",
   "processes": [
     {
       "name": "audit-writer",
-      "pid": 81140,
+      "pid": 48921,
       "command": "node backend/backendB-core-services/audit-writer/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/audit-writer.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/audit-writer.log"
     },
     {
       "name": "context-wall",
-      "pid": 81153,
+      "pid": 48945,
       "command": "node backend/backendB-core-services/context-wall/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/context-wall.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/context-wall.log"
     },
     {
       "name": "mcp-proxy",
-      "pid": 81168,
+      "pid": 48969,
       "command": "node backend/backendB-core-services/mcp-proxy/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/mcp-proxy.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/mcp-proxy.log"
     },
     {
       "name": "cyber-proxy",
-      "pid": 81183,
+      "pid": 48995,
       "command": "node backend/backendB-core-services/cyber-proxy/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/cyber-proxy.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/cyber-proxy.log"
     },
     {
       "name": "toolhub",
-      "pid": 81198,
+      "pid": 49021,
       "command": "node backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/toolhub.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/toolhub.log"
     },
     {
       "name": "openclaw-gateway",
-      "pid": 81213,
+      "pid": 49045,
       "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/openclaw-gateway.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
     },
     {
       "name": "openclaw-bridge",
-      "pid": 81228,
+      "pid": 49071,
       "command": "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/openclaw-bridge.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/openclaw-bridge.log"
     },
     {
       "name": "gateway-api",
-      "pid": 81281,
+      "pid": 49132,
       "command": "node backend/backendB-core-services/gateway-api/service/src/main.js",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/gateway-api.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/gateway-api.log"
     },
     {
       "name": "frontendA",
-      "pid": 81296,
+      "pid": 49178,
       "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendA.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendA.log"
     },
     {
       "name": "frontendB",
-      "pid": 81309,
+      "pid": 49203,
       "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendB.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendB.log"
     },
     {
       "name": "frontendC",
-      "pid": 81324,
+      "pid": 49228,
       "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103",
-      "logPath": "/Users/omarramadan/Desktop/mcp_firewall/.maple/dev-fast/logs/frontendC.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendC.log"
     }
   ]
 }

@@ -54,7 +54,9 @@
   }
 
   $: if (scrollContainer && messages.length > 0) {
-    tick().then(() => { scrollContainer.scrollTop = scrollContainer.scrollHeight })
+    tick().then(() => {
+      if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight
+    })
   }
 
   onMount(() => {
@@ -64,9 +66,14 @@
     }
   })
 
+  let scrollSaveTimer
   function onScroll(event) {
     if (!browser) return
-    localStorage.setItem(CHAT_SCROLL_KEY, String(event.currentTarget.scrollTop || 0))
+    const scrollTop = event.currentTarget?.scrollTop || 0
+    clearTimeout(scrollSaveTimer)
+    scrollSaveTimer = setTimeout(() => {
+      localStorage.setItem(CHAT_SCROLL_KEY, String(scrollTop))
+    }, 300)
   }
 
   function submit() {
@@ -132,14 +139,9 @@
   async function streamResponse(prompt, signal, onChunk) {
     const requestBody = buildChatRequestBody()
 
-    // Fetch directly from gateway to avoid blocking SvelteKit's server worker.
-    // The proxy route (+server.js) works but occupies the single-threaded dev
-    // server for the entire LLM turn (10-30s), freezing the page.
-    const chatEndpoint = '/api/chat/stream'
-
     let res
     try {
-      res = await fetch(chatEndpoint, {
+      res = await fetch('/api/chat/stream', {
         method: 'POST', credentials: 'same-origin', signal,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(requestBody),
