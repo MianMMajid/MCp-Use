@@ -97,7 +97,7 @@
       await loadTrash();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(`Failed to delete: ${error}`);
+      toastStore.error(humanizeError(error));
     } finally {
       deleting = false;
     }
@@ -214,6 +214,8 @@
       const id = payload?.id || payload?.orchestrationId;
       if (!id) throw new Error('No id returned');
       invalidateCache('/api/orchestrations');
+      await chatStore.fetchOrchestrations?.();
+      chatStore.selectOrchestration?.(String(id));
       goto(`/orchestrate/${id}`);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -325,7 +327,7 @@
             <article class="card agent-card">
               <div class="agent-header">
                 <p class="agent-name">{agent.name || id}</p>
-                <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
+                <span class={badgeClass(agent.status)}>{agent.status || 'pending'}</span>
               </div>
               {#if agent.description}
                 <p class="agent-desc">{agent.description}</p>

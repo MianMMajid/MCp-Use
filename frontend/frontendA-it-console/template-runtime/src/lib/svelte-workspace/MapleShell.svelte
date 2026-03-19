@@ -5,7 +5,9 @@
 
   import ChatView from './ChatView.svelte'
   import AgentManagementSurface from './AgentManagementSurface.svelte'
+  import DocsViews from './DocsViews.svelte'
   import MapleBottomSettings from './MapleBottomSettings.svelte'
+  import MapleTopBar from './MapleTopBar.svelte'
   import GatewaySurface from './GatewaySurface.svelte'
   import HitlQueueSurface from './HitlQueueSurface.svelte'
   import InterventionsSurface from './InterventionsSurface.svelte'
@@ -33,6 +35,7 @@
   let authMe = null
   let permReady = permissionsReady()
   let permissionVersion = 0
+  let offline = false
 
   const CATEGORY_LABEL_BY_GROUP = Object.freeze({
     chat: 'Investigate',
@@ -44,7 +47,7 @@
   $: routeRecord = getClosestMapleRoute($page.url.pathname)
   $: currentPath = $page.url.pathname
   $: activeGroup = getMapleDockGroupForPath(currentPath)
-  $: exactSurfaceRoute = Boolean(routeRecord && routeRecord.path === currentPath && ['primary', 'secondary'].includes(routeRecord.navTier))
+  $: exactSurfaceRoute = Boolean(routeRecord && routeRecord.path === currentPath && ['primary', 'secondary', 'utility'].includes(routeRecord.navTier))
   $: sectionRoutes = activeGroup ? getMapleRoutesByDockGroup(activeGroup) : []
   $: visibleCategories = (permissionVersion, MAPLE_DOCK_GROUPS.filter((item) => {
     if (authMe) return true
@@ -73,6 +76,15 @@
       permReady = permissionsReady()
     })
 
+    function onConnectivity(event) {
+      const isOnline = Boolean(event.detail?.online)
+      offline = !isOnline
+      if (isOnline) {
+        window.dispatchEvent(new CustomEvent('maple:shell-refresh'))
+      }
+    }
+    document.addEventListener('maple:connectivity', onConnectivity)
+
     if (!permReady) {
       loadPermissions()
       const timeoutId = setTimeout(() => {
@@ -87,6 +99,7 @@
         cancelled = true
         clearTimeout(timeoutId)
         unsubscribe()
+        document.removeEventListener('maple:connectivity', onConnectivity)
       }
     }
 
@@ -94,6 +107,7 @@
     return () => {
       cancelled = true
       unsubscribe()
+      document.removeEventListener('maple:connectivity', onConnectivity)
     }
 
     async function loadAuthMe() {
@@ -127,6 +141,16 @@
 {:else}
   <section class="workspace product-body mayple-shell-root" data-testid="maple-workspace-layout">
     <div class="product-shell shell" data-testid="maple-workspace-shell">
+      <MapleTopBar
+        title="Mayple"
+        {sourceText}
+        connected={!offline}
+        {authMe}
+        currentRouteTitle={routeRecord?.title ?? 'Control Plane'}
+        {activeCategoryLabel}
+        on:refresh={refreshWorkspace}
+      />
+
       <div class="main-area">
         <div class:chat-home={isChatRoute} class:surface-home={!isChatRoute}>
           {#if isChatRoute}
@@ -166,6 +190,8 @@
                     <ModifierApprovalsSurface />
                   {:else if renderProductSurface('/maple/demo')}
                     <WorkflowStudioSurface />
+                  {:else if renderProductSurface('/maple/docs')}
+                    <DocsViews view="overview" routePath="/maple/docs" endpoints={[]} />
                   {:else}
                     <slot />
                   {/if}
@@ -174,23 +200,31 @@
             </div>
           {/if}
 
-          <div class="bottom-nav-stack">
-            {#if exactSurfaceRoute && viewIds.length > 1}
-              <MapleViewTabs
-                views={viewIds}
-                activeView={currentPath}
-                labels={viewLabels}
-                hrefByView={viewHrefById}
-              />
-            {/if}
+          {#if offline}
+            <div class="offline-banner" role="status" aria-live="polite">
+              You are offline. Data may be stale.
+            </div>
+          {/if}
 
-            <div class="bottom-dock-row">
+          <div class="bottom-unified-strip">
+            {#if exactSurfaceRoute && viewIds.length > 1}
+              <div class="strip-sub-tabs">
+                <MapleViewTabs
+                  views={viewIds}
+                  activeView={currentPath}
+                  labels={viewLabels}
+                  hrefByView={viewHrefById}
+                />
+              </div>
+            {/if}
+            <div class="strip-categories">
               <MapleCategoryPills
                 categories={visibleCategories}
                 activeCategory={activeGroup ?? ''}
                 hrefByCategory={categoryHrefById}
-              />
-              <MapleBottomSettings {authMe} on:refresh={refreshWorkspace} />
+              >
+                <MapleBottomSettings {authMe} on:refresh={refreshWorkspace} />
+              </MapleCategoryPills>
             </div>
           </div>
         </div>
@@ -206,13 +240,38 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-bottom: 72px;
   }
 
-  .bottom-dock-row {
+  .bottom-unified-strip {
+    flex-shrink: 0;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  .strip-sub-tabs {
     display: flex;
+    justify-content: center;
     align-items: center;
-    gap: var(--space-2);
+    padding: 8px 16px;
+    min-height: 44px;
+    border-top: 1px solid var(--line);
+  }
+
+  .strip-categories {
+    display: flex;
+    justify-content: center;
+    padding: 0 16px 8px;
+  }
+
+  .offline-banner {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 6px 16px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    background: var(--warn-soft);
+    color: var(--warn);
+    border-top: 1px solid var(--warn-border);
   }
 
   :global(.mayple-shell-root .product-shell) {

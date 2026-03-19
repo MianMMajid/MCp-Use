@@ -7,7 +7,7 @@
 <section class="panel">
   <h3>Edge Policy</h3>
   {#if !edge}
-    <p class="muted">Select an edge</p>
+    <p class="muted">Click a connection on the canvas to configure it.</p>
   {:else}
     <label>
       <span>Risk Ceiling</span>

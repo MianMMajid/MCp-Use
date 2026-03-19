@@ -65,5 +65,6 @@
         {category.label}
       </a>
     {/each}
+    <slot />
   </div>
 </nav>

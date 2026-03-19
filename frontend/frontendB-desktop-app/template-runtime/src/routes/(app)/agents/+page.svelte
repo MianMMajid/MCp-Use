@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   import { chatStore } from '@/lib/stores/chat-store';
   import { postJson, invalidateCache } from '@/lib/api';
   import { riskColor, riskLabel, statusColor } from '@/lib/format';
@@ -68,14 +69,25 @@
 
     <div class="grid">
       {#if filtered.length === 0}
-        <div class="card empty">{search ? 'No agents match your search.' : 'No agents found.'}</div>
+        <div class="card empty">
+          {#if search}
+            No agents match your search.
+          {:else}
+            <div class="empty-hero">
+              <MaypleCharacter size={48} />
+              <h3>No agents yet</h3>
+              <p>Create your first agent to get started.</p>
+              <button class="pill cta" on:click={handleCreate} disabled={creating}>{creating ? 'Creating…' : 'Create Agent'}</button>
+            </div>
+          {/if}
+        </div>
       {:else}
         {#each filtered as agent}
           {@const id = agent.agentId || agent.id}
           <article class="card agent">
             <button class="top-btn" type="button" on:click={() => goto(`/agents/${id}`)}>
               <p class="name">{agent.name || id}</p>
-              <span class={badgeClass(agent.status)}>{agent.status || 'unknown'}</span>
+              <span class={badgeClass(agent.status)}>{agent.status || 'pending'}</span>
             </button>
 
             {#if agent.description}
@@ -273,4 +285,8 @@
     grid-column: 1 / -1;
     text-align: center;
   }
+
+  .empty-hero { display: grid; gap: 8px; justify-items: center; padding: 16px; }
+  .empty-hero h3 { margin: 0; font-size: 15px; }
+  .empty-hero p { margin: 0; font-size: 12px; color: var(--muted); }
 </style>

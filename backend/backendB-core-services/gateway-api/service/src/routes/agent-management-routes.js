@@ -240,6 +240,11 @@ export function registerAgentManagementRoutes(app) {
         }
 
         const parentRunId = asString(body.parentRunId) ?? null;
+            const agentProvider = agent?.config?.provider || null;
+            const agentModel = agent?.config?.model || null;
+            const requestProvider = asString(body.provider) || agentProvider;
+            const requestModel = asString(body.model) || agentModel;
+            const useNemoClaw = requestProvider === "nemoclaw";
 
         try {
             let result;
@@ -262,6 +267,8 @@ export function registerAgentManagementRoutes(app) {
                     agentId,
                     agent,
                     requestContext,
+                    provider: useNemoClaw ? "nvidia" : requestProvider,
+                    model: requestModel,
                 });
             } else if (mode === "longform" && objective) {
                 result = await runOpenClawLongform({
@@ -271,6 +278,8 @@ export function registerAgentManagementRoutes(app) {
                     targetAgentId,
                     maxTurns: body.maxTurns,
                     parentRunId,
+                    model: requestModel,
+                    nemoclaw: useNemoClaw,
                 });
             } else {
                 result = await runOpenClawTurn({
@@ -279,6 +288,8 @@ export function registerAgentManagementRoutes(app) {
                     agentId,
                     targetAgentId,
                     parentRunId,
+                    model: requestModel,
+                    nemoclaw: useNemoClaw,
                 });
             }
             return c.json({ ...result, agentId });

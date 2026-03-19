@@ -9,6 +9,7 @@
   import { humanizeError } from '@/lib/utils/error-display';
   import { toastStore } from '@/lib/stores/toast-store';
   import { statusColor } from '@/lib/format';
+  import { CHAT_MODEL_FAMILIES, CHAT_MODEL_OPTIONS } from '@/lib/config/chat-models.js';
 
   export let data;
   let _loadedId = '';
@@ -28,6 +29,8 @@
   let selectedProfileId = '';
   let highlightedToolIds = new Set();
   let hoveredSkillId = '';
+  let agentProvider = '';
+  let agentModel = '';
 
   // ── Marketplace state ──
   let importOpen = false;
@@ -60,7 +63,7 @@
       _loadedId = '';
       await loadPage();
     } catch (err) {
-      toastStore.error(err instanceof Error ? err.message : String(err));
+      toastStore.error(humanizeError(err instanceof Error ? err.message : String(err)));
     } finally { configBusy = false; }
   }
 
@@ -265,6 +268,8 @@
         ? toolsPayload.equippedToolIds.map(String)
         : (Array.isArray(agentPayload?.equippedToolIds) ? agentPayload.equippedToolIds.map(String) : []);
       agentName = String(agentPayload?.name || agentPayload?.displayName || data.id || '');
+      agentProvider = agentPayload?.config?.provider || '';
+      agentModel = agentPayload?.config?.model || '';
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -391,6 +396,16 @@
         ? payload.equippedToolIds.map(String)
         : equippedToolIds;
       agent = { ...agent, equippedToolIds: equippedToolIds.slice() };
+      if (agentProvider || agentModel || agent?.config?.provider || agent?.config?.model) {
+        const config = { ...(agent.config || {}), provider: agentProvider || undefined, model: agentModel || undefined };
+        const configRes = await patchJson(`/api/agents/${agentId}`, { config }, { silent: true });
+        const configPayload = await configRes.json().catch(() => ({}));
+        if (configRes.ok) {
+          agent = { ...agent, config };
+        } else {
+          toastStore.error('Failed to save model configuration');
+        }
+      }
       invalidateCache('/api/agents');
       toastStore.success('Toolbelt saved');
     } catch (err) {
@@ -403,7 +418,13 @@
 
   async function createAgent() {
     await saveToolbelt();
-    if (!error) goto('/agents');
+    if (!error) {
+      invalidateCache('/api/agents');
+      await chatStore.fetchAgents();
+      await chatStore.selectAgent(String(data.id));
+      toastStore.success(`"${agentName || data.id}" is ready — opening chat`);
+      goto('/?mode=agent');
+    }
   }
 </script>
 
@@ -428,13 +449,39 @@
               <input bind:value={agentName} placeholder="Name your agent..." />
             </label>
           </div>
-          <span class={badgeClass(agent?.status || 'unknown')}>{agent?.status || 'unknown'}</span>
+          <span class={badgeClass(agent?.status || 'pending')}>{agent?.status || 'pending'}</span>
           <button class="pill cta" on:click={createAgent} disabled={saving}>{saving ? 'Creating…' : 'Create Agent'}</button>
           <button class="pill danger-pill" on:click={() => (deleteConfirmOpen = true)} disabled={deletingAgent} title="Delete agent">
             <Icon name="close" size={14} />
           </button>
         </div>
 
+      </section>
+
+      <section class="card panel model-config">
+        <h2>Model Configuration</h2>
+        <p class="muted">Override the default LLM provider and model for this agent.</p>
+        <div class="model-fields">
+          <label class="field">
+            <span>Provider</span>
+            <select bind:value={agentProvider} on:change={() => { agentModel = ''; }}>
+              <option value="">Default (env)</option>
+              <option value="openai">OpenAI</option>
+              <option value="nvidia">NVIDIA (Cloud)</option>
+              <option value="nemoclaw">NemoClaw (Local)</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Model</span>
+            <select bind:value={agentModel}>
+              <option value="">Default</option>
+              {#each CHAT_MODEL_OPTIONS.filter((o) => !agentProvider || o.provider === agentProvider) as opt}
+                <option value={opt.modelId}>{opt.modelTitle} ({opt.providerLabel})</option>
+              {/each}
+            </select>
+          </label>
+        </div>
       </section>
 
       <section class="card panel tools">
@@ -862,6 +909,22 @@
   .info { color: var(--info); background: var(--info-soft); border-color: var(--info-border); }
   .caution { color: var(--caution); background: var(--caution-soft); border-color: var(--caution-border); }
   .zinc { color: var(--muted); background: rgba(107, 107, 107, 0.08); border-color: rgba(107, 107, 107, 0.18); }
+
+  .model-config h2 { margin: 0; font-size: 1rem; }
+  .model-fields { display: flex; gap: 12px; flex-wrap: wrap; }
+  .field { display: grid; gap: 4px; min-width: 200px; flex: 1; }
+  .field span { color: var(--muted); font-size: 11px; text-transform: lowercase; }
+  .field select {
+    width: 100%;
+    border: 1px solid var(--input-border);
+    border-radius: 10px;
+    background: var(--input-bg);
+    color: var(--fg);
+    padding: 7px 9px;
+    outline: none;
+    font-size: 13px;
+    cursor: pointer;
+  }
 
   @media (max-width: 1050px) {
     .toolbelt-layout { grid-template-columns: 1fr; }

@@ -25,9 +25,9 @@
   --info: #60a5fa;
   --info-soft: rgba(96, 165, 250, 0.12);
   --info-border: rgba(96, 165, 250, 0.30);
-  --caution: #fbbf24;
-  --caution-soft: rgba(251, 191, 36, 0.12);
-  --caution-border: rgba(251, 191, 36, 0.30);
+  --caution: #eab308;
+  --caution-soft: rgba(234, 179, 8, 0.12);
+  --caution-border: rgba(234, 179, 8, 0.30);
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-strong: 0 2px 4px rgba(0, 0, 0, 0.2), 0 12px 24px rgba(0, 0, 0, 0.4);
 
@@ -55,6 +55,21 @@
   --brand-tint-border: rgba(251, 146, 60, 0.40);
   --danger-tint: rgba(248, 113, 113, 0.35);
   --danger-tint-bg: rgba(248, 113, 113, 0.12);
+
+  /* Elevation (lighter = higher) */
+  --elevated-1: rgba(255, 255, 255, 0.03);
+  --elevated-2: rgba(255, 255, 255, 0.05);
+  --elevated-border: rgba(255, 255, 255, 0.06);
+
+  /* Elevated / glass surfaces */
+  --glass-bg: rgba(24, 24, 27, 0.82);
+  --glass-bg-strong: rgba(24, 24, 27, 0.98);
+  --glass-card: rgba(39, 39, 42, 0.92);
+  --hover-overlay: rgba(255, 255, 255, 0.04);
+  --warn-hover: rgba(248, 113, 113, 0.08);
+  --ok-tint-bg: rgba(52, 211, 153, 0.12);
+  --warn-tint-bg: rgba(248, 113, 113, 0.12);
+  --panel-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="dark"] body {
@@ -101,6 +116,10 @@
   background: rgba(245, 158, 11, 0.06);
 }
 
+[data-theme="dark"] tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
 /* Buttons */
 [data-theme="dark"] .action-btn {
   border-color: var(--line);
@@ -110,7 +129,7 @@
 [data-theme="dark"] .action-btn.primary {
   background: var(--brand);
   border-color: var(--brand-strong);
-  color: #fff;
+  color: #1c1917;
 }
 
 /* Chips and badges */
@@ -118,6 +137,39 @@
   background: var(--bg-soft);
   border-color: var(--line);
   color: var(--muted);
+}
+
+/* Elevated surfaces in dark mode */
+[data-theme="dark"] .card {
+  border-color: var(--elevated-border);
+}
+
+[data-theme="dark"] .panel:hover {
+  border-color: var(--elevated-border);
+}
+
+[data-theme="dark"] .modal-card {
+  border-color: var(--elevated-border);
+  background: var(--panel);
+}
+
+[data-theme="dark"] .category-track {
+  border-color: var(--line);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode skeleton shimmer */
+[data-theme="dark"] .skeleton::after {
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.04) 50%, transparent 60%);
+}
+
+/* Dark scrollbar enhancement */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--line);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
 }
 
 /* Scrollbar: now global in mayple-a1-parity.css */
@@ -137,6 +189,13 @@
 [data-theme="dark"] .notification-dropdown {
   background: var(--panel);
   border-color: var(--line);
+}
+
+/* Settings panel */
+[data-theme="dark"] .settings-panel {
+  background: var(--glass-bg-strong);
+  border-color: var(--line);
+  box-shadow: var(--panel-shadow);
 }
 
 /* Global search */

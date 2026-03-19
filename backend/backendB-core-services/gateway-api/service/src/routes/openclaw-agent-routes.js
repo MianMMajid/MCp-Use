@@ -213,6 +213,7 @@ server.app.get("/api/openclaw/agent/sessions/:sessionId/stream", async (c) => {
       void flushBacklog();
 
       const detail = await getOpenClawSession(sessionId);
+      if (closed) return;
       if (!detail || isTerminalSessionStatus(detail.status)) {
         writeEvent("done", {
           sessionId,

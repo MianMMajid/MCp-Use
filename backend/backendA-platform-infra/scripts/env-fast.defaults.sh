@@ -167,6 +167,12 @@ set_default MAPLE_FIREWALL_CHAT_ANTHROPIC_MODEL claude-sonnet-4-6
 set_default MAPLE_FIREWALL_CHAT_TIMEOUT_MS 15000
 set_default OPENAI_API_KEY ci-test-openai-key
 set_default ANTHROPIC_API_KEY ci-test-anthropic-key
+set_default NVIDIA_API_KEY ""
+set_default MAPLE_FIREWALL_CHAT_NVIDIA_MODEL "nvidia/nemotron-3-super-120b-a12b"
+set_default MAPLE_NVIDIA_BASE_URL "https://integrate.api.nvidia.com/v1"
+set_default MAPLE_NEMOCLAW_ENABLED 0
+set_default MAPLE_NEMOCLAW_SANDBOX_NAME "maple"
+set_default MAPLE_NEMOCLAW_AUTO_ONBOARD 0
 
 set_default MAPLE_STEP_UP_REQUIRED_FOR_APPROVALS 0
 set_default MAPLE_ESCALATION_CHECK_INTERVAL_MS 30000

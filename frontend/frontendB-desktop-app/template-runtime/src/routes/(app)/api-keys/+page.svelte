@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
   import { formatDate } from '@/lib/format';
   import { humanizeError } from '@/lib/utils/error-display';
@@ -76,6 +77,7 @@
       await deleteJson(`/api/user/api-keys/${id}`);
       invalidateCache('/api/user/api-keys');
       keys = keys.filter((item) => String(item.keyId ?? item.id) !== String(id));
+      dismissSecret();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
@@ -114,7 +116,8 @@
       {#if loading}
         <p class="muted">Loading API keys...</p>
       {:else if keys.length === 0}
-        <div class="empty-state">
+        <div class="empty-state empty-hero">
+          <MaypleCharacter size={40} animate={false} />
           <p><strong>No API keys created yet</strong></p>
           <p>Generate a key above to authenticate API requests.</p>
         </div>
@@ -161,6 +164,8 @@
   th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--row-border); font-size: 13px; }
   code { font-size: 12px; color: var(--muted); }
   .danger { padding: 6px 10px; border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); cursor: pointer; }
+  .empty-hero { display: grid; gap: 8px; justify-items: center; padding: 16px; }
+  .empty-hero p { margin: 0; font-size: 12px; color: var(--muted); }
   .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid var(--caution-border); border-radius: 12px; background: var(--caution-soft); }
   .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--caution); }
   .secret-row { display: flex; gap: 8px; align-items: center; }

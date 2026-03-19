@@ -201,6 +201,8 @@ export async function runSecureChatTurn(options = {}) {
       agentName: agent?.name || "Maple Assistant",
       agentDescription: agent?.description || "",
       timeoutSeconds: 120,
+      provider: options.provider,
+      model: options.model,
     });
   } catch (err) {
     mapleLog("error", "secure_chat.execution_failed", { turnId, error: err.message });

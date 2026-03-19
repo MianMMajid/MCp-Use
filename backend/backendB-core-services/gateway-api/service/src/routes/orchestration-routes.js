@@ -1060,6 +1060,8 @@ export function registerOrchestrationRoutes(app) {
           // best effort backlog
         }
 
+        if (closed) return;
+
         const detail = getOrchestrationExecution(executionId);
         if (!detail || ["completed", "failed", "canceled"].includes(detail.status)) {
           writeEvent("done", {

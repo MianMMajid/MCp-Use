@@ -216,7 +216,11 @@ export async function postJson(path, body, { silent = false } = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }, timeoutForPath(path))
-    if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      const serverMsg = errBody?.error || errBody?.message || ''
+      throw new Error(serverMsg || `${path} -> ${res.status}`)
+    }
     recordSuccess()
     return attachResponseMeta(await safeJson(res, path), res)
   } catch (err) {
@@ -235,7 +239,11 @@ export async function patchJson(path, body, { silent = false } = {}) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      const serverMsg = errBody?.error || errBody?.message || ''
+      throw new Error(serverMsg || `${path} -> ${res.status}`)
+    }
     recordSuccess()
     return attachResponseMeta(await safeJson(res, path), res)
   } catch (err) {
@@ -253,7 +261,11 @@ export async function postForm(path, formData, { silent = false } = {}) {
       credentials: 'same-origin',
       body: formData,
     })
-    if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      const serverMsg = errBody?.error || errBody?.message || ''
+      throw new Error(serverMsg || `${path} -> ${res.status}`)
+    }
     recordSuccess()
     return attachResponseMeta(await safeJson(res, path), res)
   } catch (err) {
@@ -267,7 +279,11 @@ export async function deleteJson(path, { silent = false } = {}) {
   checkCircuit()
   try {
     const res = await fetchWithTimeout(path, { method: 'DELETE', credentials: 'same-origin' })
-    if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      const serverMsg = errBody?.error || errBody?.message || ''
+      throw new Error(serverMsg || `${path} -> ${res.status}`)
+    }
     recordSuccess()
     return safeJson(res, path)
   } catch (err) {

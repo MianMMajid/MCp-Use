@@ -34,6 +34,10 @@
     { id: 'nav-profile', label: 'Settings — Account', icon: 'agent', section: 'Navigate', href: '/profile?tab=account' },
     { id: 'nav-security', label: 'Settings — Security', icon: 'firewall', section: 'Navigate', href: '/profile?tab=security' },
     { id: 'nav-apikeys', label: 'Settings — API Keys', icon: 'skills', section: 'Navigate', href: '/profile?tab=api-keys' },
+    { id: 'nav-agents', label: 'Go to Agents', icon: 'agent', section: 'Navigate', href: '/agents' },
+    { id: 'nav-sessions', label: 'Go to Sessions', icon: 'chat', section: 'Navigate', href: '/sessions' },
+    { id: 'nav-apikeys-page', label: 'Go to API Keys', icon: 'skills', section: 'Navigate', href: '/api-keys' },
+    { id: 'nav-service-accounts', label: 'Go to Service Accounts', icon: 'agent', section: 'Navigate', href: '/service-accounts' },
   ];
 
   $: sessions = (Array.isArray($chatStore.sessions) ? $chatStore.sessions : [])

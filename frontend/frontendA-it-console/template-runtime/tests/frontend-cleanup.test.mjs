@@ -16,10 +16,6 @@ test('frontend A removes stale Next/query-era runtime residue', () => {
   const removedPaths = [
     'src/proxy.js',
     'src/lib/maple-workspace/workspace-state.js',
-    'src/lib/svelte-workspace/NotificationCenter.svelte',
-    'src/lib/svelte-workspace/UserMenu.svelte',
-    'src/lib/svelte-workspace/GlobalSearch.svelte',
-    'src/lib/svelte-workspace/MapleShell.svelte',
   ]
 
   for (const relativePath of removedPaths) {

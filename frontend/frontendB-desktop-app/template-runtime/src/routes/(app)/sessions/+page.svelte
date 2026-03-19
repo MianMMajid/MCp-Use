@@ -9,6 +9,7 @@
   import { deleteJson, invalidateCache } from '@/lib/api';
   import { toastStore } from '@/lib/stores/toast-store';
   import { humanizeError } from '@/lib/utils/error-display';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
 
   const AGENT_ID_KEY = 'selectedAgentId';
 
@@ -69,12 +70,28 @@
     {#if restoringSelectedAgent || !$chatStore.storageHydrated}
       <p class="muted">Loading sessions...</p>
     {:else if !$chatStore.selectedAgentId}
-      <p class="muted">Select an agent in chat to load sessions.</p>
-      <button class="pill cta" on:click={() => goto('/?mode=agent')}>Go to Chat</button>
+      <p class="muted">Choose an agent to view its sessions.</p>
+      {#if ($chatStore.agents || []).length === 0}
+        <p class="muted">No agents created yet.</p>
+        <button class="pill cta" on:click={() => goto('/orchestrate')}>Create Agent</button>
+      {:else}
+        <div class="agent-pick-list">
+          {#each $chatStore.agents as agent}
+            <button class="pill agent-pick" on:click={() => chatStore.selectAgent(agent.agentId || agent.id)}>
+              {agent.name || agent.agentId || agent.id}
+            </button>
+          {/each}
+        </div>
+      {/if}
     {:else if $chatStore.sessionsLoading}
       <p class="muted">Loading sessions...</p>
     {:else if ($chatStore.sessions || []).length === 0}
-      <p class="muted">No sessions found.</p>
+      <div class="empty-hero">
+        <MaypleCharacter size={48} />
+        <h3>No sessions yet</h3>
+        <p>Start a conversation to create your first session.</p>
+        <button class="pill cta" on:click={() => goto('/?mode=agent')}>Open Chat</button>
+      </div>
     {:else}
       <div class="list">
         {#each $chatStore.sessions as session}
@@ -119,4 +136,10 @@
   .del-btn:hover { color: var(--danger); border-color: var(--danger-border); background: var(--danger-soft); }
   .cta { margin-top: 8px; padding: 8px 14px; border-color: rgba(232,116,12,.5); background: rgba(232,116,12,.15); color: var(--accent); cursor: pointer; font-weight: 600; font-size: 12px; }
   .cta:hover { background: rgba(232,116,12,.25); }
+  .agent-pick-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .agent-pick { padding: 7px 12px; border-color: rgba(249,115,22,.4); background: var(--btn-secondary-bg); cursor: pointer; font-size: 12px; }
+  .agent-pick:hover { border-color: rgba(249,115,22,.6); background: rgba(249,115,22,.15); }
+  .empty-hero { display: grid; gap: 8px; justify-items: center; padding: 16px; }
+  .empty-hero h3 { margin: 0; font-size: 15px; }
+  .empty-hero p { margin: 0; font-size: 12px; color: var(--muted); }
 </style>

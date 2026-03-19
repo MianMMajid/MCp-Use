@@ -1,3 +1,33 @@
+<script context="module">
+  /**
+   * Reusable notification API functions for use by settings panel and other consumers.
+   */
+  export async function fetchNotificationPreferences() {
+    try {
+      const res = await fetch('/api/notifications/preferences', { credentials: 'same-origin' })
+      if (res.ok) {
+        const payload = await res.json()
+        return payload?.preferences ?? payload ?? {}
+      }
+    } catch { /* silent */ }
+    return {}
+  }
+
+  export async function saveNotificationPreferences(preferences) {
+    const res = await fetch('/api/notifications/preferences', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferences }),
+    })
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}))
+      throw new Error(payload?.error || `Failed (${res.status})`)
+    }
+    return res.json().catch(() => ({}))
+  }
+</script>
+
 <script>
   import { goto } from '$app/navigation'
   import { onDestroy, onMount } from 'svelte'

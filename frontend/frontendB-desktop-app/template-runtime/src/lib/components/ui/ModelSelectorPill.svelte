@@ -3,11 +3,11 @@
   import Icon from '@/lib/components/icons/Icon.svelte';
   import {
     CHAT_MODEL_OPTIONS,
-    OPENAI_CHAT_MODEL_FAMILIES,
+    CHAT_MODEL_FAMILIES,
     getChatModelOption,
     readStoredChatModelSelection,
     writeStoredChatModelSelection
-  } from '@/lib/config/openai-chat-models.js';
+  } from '@/lib/config/chat-models.js';
 
   let open = false;
   let openAbove = false;
@@ -15,6 +15,17 @@
   let root;
 
   $: selected = getChatModelOption(selection);
+
+  $: providers = (() => {
+    const map = new Map();
+    for (const family of CHAT_MODEL_FAMILIES) {
+      if (!map.has(family.provider)) {
+        map.set(family.provider, { label: family.providerLabel, families: [] });
+      }
+      map.get(family.provider).families.push(family);
+    }
+    return [...map.entries()].map(([key, val]) => ({ key, ...val }));
+  })();
 
   onMount(() => {
     if (typeof window !== 'undefined') {
@@ -39,7 +50,7 @@
   });
 
   function onSelect(option) {
-    selection = { modelId: option.modelId, reasoningEffort: option.reasoningEffort };
+    selection = { modelId: option.modelId, reasoningEffort: option.reasoningEffort, provider: option.provider };
     open = false;
     if (typeof window !== 'undefined') {
       writeStoredChatModelSelection(window.localStorage, selection);
@@ -62,22 +73,25 @@
 
   {#if open}
     <div class="menu" class:above={openAbove} role="listbox">
-      {#each OPENAI_CHAT_MODEL_FAMILIES as family, familyIndex}
-        <p class="menu-title">{family.title}</p>
-        <div class="menu-items">
-          {#each CHAT_MODEL_OPTIONS.filter((option) => option.modelId === family.modelId) as option}
-            <button class="menu-item" on:click={() => onSelect(option)}>
-              <div>
-                <p class="item-title">{option.reasoningTitle}</p>
-                <p class="item-subtitle">{option.subtitle}</p>
-              </div>
-              {#if option.id === selected.id}
-                <span class="check">✓</span>
-              {/if}
-            </button>
-          {/each}
-        </div>
-        {#if familyIndex < OPENAI_CHAT_MODEL_FAMILIES.length - 1}
+      {#each providers as providerGroup, providerIndex}
+        <p class="provider-title">{providerGroup.label}</p>
+        {#each providerGroup.families as family}
+          <p class="menu-title">{family.title}</p>
+          <div class="menu-items">
+            {#each CHAT_MODEL_OPTIONS.filter((option) => option.modelId === family.modelId && option.provider === family.provider) as option}
+              <button class="menu-item" on:click={() => onSelect(option)}>
+                <div>
+                  <p class="item-title">{option.reasoningTitle}</p>
+                  <p class="item-subtitle">{option.subtitle}</p>
+                </div>
+                {#if option.id === selected.id}
+                  <span class="check">✓</span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        {/each}
+        {#if providerIndex < providers.length - 1}
           <div class="divider"></div>
         {/if}
       {/each}
@@ -131,6 +145,16 @@
   .menu.above {
     top: auto;
     bottom: calc(100% + 8px);
+  }
+
+  .provider-title {
+    margin: 0;
+    padding: 8px 10px 2px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .menu-title {

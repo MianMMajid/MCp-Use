@@ -10,7 +10,7 @@
 <section class="panel">
   <h3>Node Config</h3>
   {#if !node}
-    <p class="muted">Select a node</p>
+    <p class="muted">Click a node on the canvas to configure it.</p>
   {:else}
     <label>
       <span>Label</span>

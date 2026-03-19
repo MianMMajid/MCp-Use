@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { postJson, invalidateCache } from '@/lib/api';
   import Icon from '@/lib/components/icons/Icon.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
 
   export let agents = [];
   export let nodes = [];
@@ -86,7 +87,7 @@
       <div class="item" draggable="true" role="listitem" on:dragstart={(event) => onDragStart(event, id)}>
         <div class="meta">
           <p><span class="drag"><Icon name="grip" size={12} /></span>{agent.name || id}</p>
-          <span>{agent.status || 'unknown'}</span>
+          <span>{agent.status || 'pending'}</span>
         </div>
         <div class="item-actions">
           {#if onCanvasIds.has(id)}
@@ -98,6 +99,7 @@
     {/each}
     {#if filtered.length === 0}
       <div class="empty">
+        <MaypleCharacter size={28} />
         <p>No agents found</p>
         {#if !createOpen}
           <button class="create-inline" on:click={() => { createOpen = true; }}>Create one →</button>

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import AppShell from '@/lib/components/AppShell.svelte';
   import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   import { loadJson, postJson, patchJson, deleteJson, invalidateCache } from '@/lib/api';
   import { toastStore } from '@/lib/stores/toast-store';
   import { humanizeError } from '@/lib/utils/error-display';
@@ -16,6 +17,9 @@
   let nowTs = Date.now();
   let timer = null;
   let openMenuTaskId = '';
+  let editTaskId = '';
+  let editTitle = '';
+  let editPrompt = '';
 
   let title = '';
   let prompt = '';
@@ -241,7 +245,7 @@
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(`Failed to delete task: ${error}`);
+      toastStore.error(humanizeError(error));
     } finally {
       deletingTask = false;
     }
@@ -261,7 +265,7 @@
         <p class="muted">Loading tasks...</p>
       {:else if tasks.length === 0}
         <div class="ghost-empty">
-          <div style="font-size: 2rem; opacity: 0.5;">&#128197;</div>
+          <MaypleCharacter size={48} />
           <p><strong>No tasks scheduled yet</strong></p>
           <p>Define an objective below to schedule your first automated task.</p>
           <button class="pill cta" style="margin-top: 8px;" on:click={() => document.querySelector('.builder')?.scrollIntoView({ behavior: 'smooth' })}>Create Task</button>
@@ -328,11 +332,9 @@
                   {#if openMenuTaskId === task.id}
                     <div class="menu">
                       <button on:click={() => {
-                        const nextTitle = window.prompt('Task title', task.title || '');
-                        if (nextTitle == null) return;
-                        const nextPrompt = window.prompt('Task prompt/objective', task.prompt || '');
-                        if (nextPrompt == null) return;
-                        updateTask(task.id, { title: nextTitle, prompt: nextPrompt }).catch((err) => (error = err.message));
+                        editTaskId = task.id;
+                        editTitle = task.title || '';
+                        editPrompt = task.prompt || '';
                         openMenuTaskId = '';
                       }}>Edit</button>
                       <button on:click={() => { commandTask(task.id, 'pause').catch((err) => (error = err.message)); openMenuTaskId = ''; }}>Pause</button>
@@ -427,6 +429,27 @@
   danger
   onConfirm={() => removeTask(confirmTaskId)}
 />
+
+{#if editTaskId}
+  <div class="edit-overlay" role="dialog" aria-modal="true" aria-label="Edit Task"
+    on:click={(e) => { if (e.target === e.currentTarget) editTaskId = ''; }}
+    on:keydown={(e) => { if (e.key === 'Escape') editTaskId = ''; }}>
+    <div class="edit-dialog card" on:click|stopPropagation>
+      <h3>Edit Task</h3>
+      <label><span>Title</span>
+        <input bind:value={editTitle} placeholder="Task title" /></label>
+      <label><span>Objective</span>
+        <textarea rows="4" bind:value={editPrompt} placeholder="Task prompt / objective"></textarea></label>
+      <div class="edit-actions">
+        <button class="pill" on:click={() => { editTaskId = ''; }}>Cancel</button>
+        <button class="pill cta" on:click={() => {
+          updateTask(editTaskId, { title: editTitle, prompt: editPrompt });
+          editTaskId = '';
+        }}>Save</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <svelte:window on:click={() => { if (openMenuTaskId) openMenuTaskId = ''; }} on:keydown={(e) => { if (e.key === 'Escape') openMenuTaskId = ''; }} />
 
@@ -563,6 +586,23 @@
   }
   .menu button:hover { background: var(--row-bg); }
   .menu .danger-item { color: #fda4af; }
+
+  .edit-overlay {
+    position: fixed; inset: 0; z-index: 150;
+    background: var(--overlay-bg); backdrop-filter: blur(4px);
+    display: flex; justify-content: center; align-items: center; padding: 16px;
+  }
+  .edit-dialog {
+    width: min(420px, 100%); padding: 20px; display: grid; gap: 12px;
+    border-radius: 16px; box-shadow: var(--shadow-strong);
+    animation: dialog-in 0.2s ease-out both;
+  }
+  @keyframes dialog-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .edit-dialog h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
   @media (max-width: 1080px) {
     .builder { grid-template-columns: 1fr; }

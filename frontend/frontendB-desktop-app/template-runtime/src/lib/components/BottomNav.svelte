@@ -10,6 +10,7 @@
   const VALID_POSITIONS = ['bottom', 'top', 'left', 'right'];
 
   let commandPaletteOpen = false;
+  let moreOpen = false;
   let dockPosition = 'bottom';  // bottom | top | left | right
   let dragging = false;
   let dragStarted = false;  // true once threshold exceeded
@@ -65,11 +66,22 @@
 
   $: path = $page.url.pathname;
 
+  const moreItems = [
+    { label: 'Agents', icon: 'agent', href: '/agents' },
+    { label: 'Sessions', icon: 'chat', href: '/sessions' },
+    { label: 'API Keys', icon: 'skills', href: '/api-keys' },
+    { label: 'Service Accounts', icon: 'agent', href: '/service-accounts' },
+    { label: 'Settings', icon: 'settings', href: '/profile' },
+  ];
+
+  const moreRoutes = moreItems.map((item) => item.href);
+
   $: activeIndex = (() => {
     if (path === '/' || path.startsWith('/?')) return 0;
-    if (path.startsWith('/orchestrate') || path.startsWith('/agents')) return 1;
+    if (path.startsWith('/orchestrate')) return 1;
     if (path.startsWith('/firewalls')) return 2;
     if (path.startsWith('/tasks')) return 3;
+    if (moreRoutes.some((r) => path.startsWith(r)) || path.startsWith('/agents')) return 4;
     return -1;
   })();
 
@@ -293,6 +305,19 @@
       {/each}
 
       <button
+        class="nav-pill"
+        class:active={activeIndex === 4}
+        bind:this={pillEls[4]}
+        on:click={() => { moreOpen = !moreOpen; }}
+        aria-label="More"
+      >
+        <Icon name="menu" size={16} />
+        {#if !isVertical}
+          <span class="nav-label">More</span>
+        {/if}
+      </button>
+
+      <button
         class="nav-pill search-pill"
         on:click={() => { commandPaletteOpen = true; }}
         aria-label="Search and actions"
@@ -324,6 +349,18 @@
     </div>
   </div>
 </nav>
+
+{#if moreOpen}
+  <div class="more-overlay" role="presentation" on:click={() => { moreOpen = false; }} on:keydown={(e) => { if (e.key === 'Escape') moreOpen = false; }}></div>
+  <div class="more-sheet">
+    {#each moreItems as item}
+      <button class="more-item" on:click={() => { moreOpen = false; goto(item.href); }}>
+        <Icon name={item.icon} size={16} />
+        <span>{item.label}</span>
+      </button>
+    {/each}
+  </div>
+{/if}
 
 {#if dragStarted}
   <div class="snap-zone snap-zone-{snapPreview}"></div>
@@ -520,6 +557,56 @@
     .nav-label { display: none; }
     .kbd { display: none; }
     .nav-pill { min-width: 48px; padding: 0 10px; }
+  }
+
+  /* ── More overflow popover ── */
+  .more-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 48;
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
+  }
+
+  .more-sheet {
+    position: fixed;
+    z-index: 51;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(320px, 90vw);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 18px;
+    padding: 8px;
+    display: grid;
+    gap: 2px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    animation: more-in 0.2s ease-out;
+  }
+
+  @keyframes more-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .more-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .more-item:hover {
+    background: var(--accent-soft);
   }
 
   /* ── Snap zone preview ── */

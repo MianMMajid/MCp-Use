@@ -50,7 +50,7 @@
       <p class="muted">Runs in this session: {runs.length}</p>
       <ul>
         {#each runs as run}
-          <li>{run.runId || run.id} · {run.status || 'unknown'}</li>
+          <li>{run.runId || run.id} · {run.status || 'pending'}</li>
         {/each}
       </ul>
     {/if}

@@ -1,72 +1,72 @@
 {
-  "generatedAt": "2026-03-18T05:28:07.376Z",
-  "rootDir": "/Users/alexnoh/Desktop/YC/MCp-Use",
+  "generatedAt": "2026-03-19T00:18:40.912Z",
+  "rootDir": "/Users/qubitmac/Documents/MCP-use/MCp-Use",
   "processes": [
     {
       "name": "audit-writer",
-      "pid": 76047,
+      "pid": 21789,
       "command": "node backend/backendB-core-services/audit-writer/service/src/main.js",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/audit-writer.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/audit-writer.log"
     },
     {
       "name": "context-wall",
-      "pid": 76054,
+      "pid": 21805,
       "command": "node backend/backendB-core-services/context-wall/service/src/main.js",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/context-wall.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/context-wall.log"
     },
     {
       "name": "mcp-proxy",
-      "pid": 76063,
+      "pid": 21823,
       "command": "node backend/backendB-core-services/mcp-proxy/service/src/main.js",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/mcp-proxy.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/mcp-proxy.log"
     },
     {
       "name": "cyber-proxy",
-      "pid": 76072,
+      "pid": 21841,
       "command": "node backend/backendB-core-services/cyber-proxy/service/src/main.js",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/cyber-proxy.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/cyber-proxy.log"
     },
     {
       "name": "toolhub",
-      "pid": 76081,
+      "pid": 21859,
       "command": "node backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/toolhub.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/toolhub.log"
     },
     {
       "name": "openclaw-gateway",
-      "pid": 76091,
+      "pid": 21878,
       "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
     },
     {
       "name": "openclaw-bridge",
-      "pid": 76099,
+      "pid": 21896,
       "command": "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-bridge.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/openclaw-bridge.log"
     },
     {
       "name": "gateway-api",
-      "pid": 76133,
+      "pid": 22050,
       "command": "node backend/backendB-core-services/gateway-api/service/src/main.js",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/gateway-api.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/gateway-api.log"
     },
     {
       "name": "frontendA",
-      "pid": 76143,
+      "pid": 22075,
       "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/frontendA.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendA.log"
     },
     {
       "name": "frontendB",
-      "pid": 76151,
+      "pid": 22091,
       "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/frontendB.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendB.log"
     },
     {
       "name": "frontendC",
-      "pid": 76159,
+      "pid": 22111,
       "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/frontendC.log"
+      "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendC.log"
     }
   ]
 }

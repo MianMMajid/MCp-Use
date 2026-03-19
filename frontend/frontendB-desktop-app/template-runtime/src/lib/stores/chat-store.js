@@ -5,7 +5,7 @@ import {
   listOrchestrations,
   postOrchestrationConversation
 } from '@/lib/orchestrations-api';
-import { readStoredChatModelSelection } from '@/lib/config/openai-chat-models.js';
+import { readStoredChatModelSelection } from '@/lib/config/chat-models.js';
 
 const CHAT_MODE_KEY = 'mayple_chat_mode';
 const STACK_MODE_KEY = 'mayple_stack_mode';
@@ -489,6 +489,7 @@ function createChatStore() {
           messages: [{ role: 'user', content }],
           model: modelSelection.modelId,
           reasoningEffort: modelSelection.reasoningEffort,
+          provider: modelSelection.provider || 'openai',
           sessionId,
         })
       });

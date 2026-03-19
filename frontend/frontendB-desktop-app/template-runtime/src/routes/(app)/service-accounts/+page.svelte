@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   import { loadJson, postJson, deleteJson, invalidateCache } from '@/lib/api';
   import { loadActiveOrgState, setActiveOrgId } from '@/lib/active-org';
   import { humanizeError } from '@/lib/utils/error-display';
@@ -54,8 +55,10 @@
     await fetchAccounts();
   }
 
+  $: hasOrg = Boolean(orgId);
+
   async function createAccount() {
-    if (!newName.trim()) return;
+    if (!newName.trim() || !orgId) return;
     creating = true;
     try {
       const response = await postJson(`/api/org/${orgId}/service-accounts`, {
@@ -155,7 +158,9 @@
             {/each}
           </select>
         {/if}
-        <button class="pill" on:click={() => (showCreate = !showCreate)}>{showCreate ? 'Close' : 'New Service Account'}</button>
+        {#if hasOrg}
+          <button class="pill" on:click={() => (showCreate = !showCreate)}>{showCreate ? 'Close' : 'New Service Account'}</button>
+        {/if}
       </div>
 
       {#if showCreate}
@@ -187,8 +192,15 @@
     <div class="card section">
       {#if loading}
         <p class="muted">Loading service accounts...</p>
+      {:else if !hasOrg}
+        <div class="empty-state empty-hero">
+          <MaypleCharacter size={40} animate={false} />
+          <p><strong>No organization selected</strong></p>
+          <p>Service accounts require an organization. Join or create one in your profile settings.</p>
+        </div>
       {:else if accounts.length === 0}
-        <div class="empty-state">
+        <div class="empty-state empty-hero">
+          <MaypleCharacter size={40} animate={false} />
           <p><strong>No service accounts found</strong></p>
           <p>Create a service account above to generate machine-to-machine credentials.</p>
         </div>
@@ -275,6 +287,8 @@
   ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
   li { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
   .danger { border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.16); }
+  .empty-hero { display: grid; gap: 8px; justify-items: center; padding: 16px; }
+  .empty-hero p { margin: 0; font-size: 12px; color: var(--muted); }
   .secret-banner { margin: 10px 0; padding: 12px; border: 1px solid var(--caution-border); border-radius: 12px; background: var(--caution-soft); }
   .secret-label { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--caution); }
   .secret-row { display: flex; gap: 8px; align-items: center; }

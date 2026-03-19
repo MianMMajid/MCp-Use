@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import AppShell from '@/lib/components/AppShell.svelte';
   import ConfirmDialog from '@/lib/components/ConfirmDialog.svelte';
+  import MaypleCharacter from '@/lib/components/MaypleCharacter.svelte';
   import { loadJson, postJson, patchJson, deleteJson, postForm, invalidateCache } from '@/lib/api';
   import { toastStore } from '@/lib/stores/toast-store';
   import { humanizeError } from '@/lib/utils/error-display';
@@ -424,7 +425,7 @@
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(`Failed to remove entry: ${error}`);
+      toastStore.error(humanizeError(error));
     } finally {
       busyAction = false;
     }
@@ -449,7 +450,7 @@
             {#if libraryView === 'archived'}
               <p>No archived firewalls.</p>
             {:else}
-              <div class="empty-icon">&#128737;</div>
+              <MaypleCharacter size={48} />
               <p><strong>No firewall policies yet</strong></p>
               <p>Create your first policy to protect agent traffic and enforce tool-level access controls.</p>
               <button class="pill cta" on:click={() => document.querySelector('.activate-section')?.scrollIntoView({ behavior: 'smooth' })}>Create Policy</button>
@@ -782,7 +783,11 @@
             <h3>Policy Preview</h3>
             {#if activatePreviewResult}
               {#if activatePreviewResult.valid}
-                <p class="safe">Valid — {activatePreviewResult.ruleCount} rule{activatePreviewResult.ruleCount === 1 ? '' : 's'} detected.</p>
+                {#if activatePreviewResult.ruleCount > 0}
+                  <p class="safe">Valid — {activatePreviewResult.ruleCount} rule{activatePreviewResult.ruleCount === 1 ? '' : 's'} detected.</p>
+                {:else}
+                  <p class="safe">Valid policy structure.{enforcementLevel === 'advisory' ? ' Advisory policies log all activity without blocking.' : ' Rules can be added after deployment.'}</p>
+                {/if}
               {:else}
                 <p class="warn">Validation issues detected.</p>
               {/if}

@@ -202,11 +202,18 @@
             />
           </div>
 
+          {#if hasAgents && !$chatStore.selectedAgentId && !isOrchestration}
+            <div class="agent-prompt-banner">
+              <Icon name="agent" size={16} />
+              <span>Select an agent above to get started, or chat globally.</span>
+            </div>
+          {/if}
+
           {#if !isOrchestration && !hasAgents}
             <div class="first-time-cta">
               <p class="cta-hint">Get started by creating your first agent</p>
-              <button class="pill cta-btn" on:click={() => goto('/orchestrate')}>
-                Open Builder →
+              <button class="pill cta-btn" on:click={() => goto('/agents')}>
+                Create Agent →
               </button>
             </div>
           {/if}
@@ -281,7 +288,7 @@
                 {#if item.attachments}
                   {#each item.attachments as att}
                     {#if att.type === 'image' && att.url}
-                      <img src={att.url} alt="Generated image" style="max-width:100%;border-radius:8px;margin:8px 0;" loading="lazy" />
+                      <img src={att.url} alt={att.alt || att.name || ''} style="max-width:100%;border-radius:8px;margin:8px 0;" loading="lazy" />
                     {/if}
                   {/each}
                 {/if}
@@ -556,6 +563,18 @@
     .stream-selectors {
       gap: 6px;
     }
+  }
+
+  .agent-prompt-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px dashed rgba(249,115,22,.5);
+    border-radius: 12px;
+    background: var(--accent-soft);
+    color: var(--muted);
+    font-size: 13px;
   }
 
   @media (max-width: 900px) {

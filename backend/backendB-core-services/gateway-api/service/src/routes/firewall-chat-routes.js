@@ -131,6 +131,8 @@ export function registerFirewallChatRoutes() {
             message,
             sessionId,
             requestContext,
+            provider: asString(body.provider) || undefined,
+            model: asString(body.model) || undefined,
         });
         if (secureChatResult.mode === "error") {
             return c.json({
@@ -194,7 +196,10 @@ export function registerFirewallChatRoutes() {
                         return;
                     }
                     if (i >= words.length) {
-                        safeEnqueue(encoder.encode("data: [DONE]\n\n"));
+                        const donePayload = secureChatResult.attachments
+                            ? JSON.stringify({ done: true, attachments: secureChatResult.attachments })
+                            : "[DONE]";
+                        safeEnqueue(encoder.encode(`data: ${donePayload}\n\n`));
                         safeClose();
                         return;
                     }

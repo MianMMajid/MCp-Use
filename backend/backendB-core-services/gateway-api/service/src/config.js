@@ -303,8 +303,8 @@ if (isProductionRuntime) {
     }
 }
 const firewallChatPrimaryProviderRaw = requireEnv("MAPLE_FIREWALL_CHAT_PRIMARY").toLowerCase();
-if (firewallChatPrimaryProviderRaw !== "openai" && firewallChatPrimaryProviderRaw !== "anthropic") {
-    throw new Error(`Invalid MAPLE_FIREWALL_CHAT_PRIMARY: "${firewallChatPrimaryProviderRaw}" (must be "openai" or "anthropic")`);
+if (firewallChatPrimaryProviderRaw !== "openai" && firewallChatPrimaryProviderRaw !== "anthropic" && firewallChatPrimaryProviderRaw !== "nvidia" && firewallChatPrimaryProviderRaw !== "nemoclaw") {
+    throw new Error(`Invalid MAPLE_FIREWALL_CHAT_PRIMARY: "${firewallChatPrimaryProviderRaw}" (must be "openai", "anthropic", "nvidia", or "nemoclaw")`);
 }
 export const firewallChatPrimaryProvider = firewallChatPrimaryProviderRaw;
 export const firewallChatOpenAiModel = requireEnv("MAPLE_FIREWALL_CHAT_OPENAI_MODEL");
@@ -316,6 +316,13 @@ function isUsableApiKey(key) {
     return !UNUSABLE_KEY_PATTERNS.some((p) => p.test(key));
 }
 export const firewallChatAiEnabled = isUsableApiKey(firewallChatOpenAiApiKey) || isUsableApiKey(firewallChatAnthropicApiKey);
+export const firewallChatNvidiaApiKey = optionalEnv("NVIDIA_API_KEY");
+export const firewallChatNvidiaModel = optionalEnv("MAPLE_FIREWALL_CHAT_NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b");
+export const firewallChatNvidiaBaseUrl = optionalEnv("MAPLE_NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1");
+export const firewallChatNvidiaEnabled = isUsableApiKey(firewallChatNvidiaApiKey);
+export const nemoClawEnabled = optionalEnvBool("MAPLE_NEMOCLAW_ENABLED", false);
+export const nemoClawSandboxName = optionalEnv("MAPLE_NEMOCLAW_SANDBOX_NAME", "maple");
+export const nemoClawAutoOnboard = optionalEnvBool("MAPLE_NEMOCLAW_AUTO_ONBOARD", false);
 export const sessionCookieDomain = (process.env.MAPLE_SESSION_COOKIE_DOMAIN ?? "").trim() || "";
 export const sessionCookieName = requireEnv("MAPLE_SESSION_COOKIE_NAME");
 export const sessionTtlSeconds = requireEnvInt("MAPLE_SESSION_TTL_SECONDS", { min: 60 });

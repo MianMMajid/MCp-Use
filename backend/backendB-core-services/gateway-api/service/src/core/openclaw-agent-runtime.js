@@ -28,6 +28,8 @@ import {
   openclawAgentGatewayPort,
   openclawAgentMode,
   openclawAgentRequired,
+  nemoClawEnabled,
+  nemoClawSandboxName,
 } from "../config.js";
 import { asString } from "../helpers.js";
 import { emitAuditEvent } from "../audit-emitter.js";
@@ -1327,6 +1329,13 @@ export function buildOpenClawAgentArgs(options = {}) {
   if (thinking) {
     args.push("--thinking", thinking);
   }
+  const modelFlag = asString(options.model);
+  if (modelFlag) {
+    if (!/^[a-zA-Z0-9\/_.\-:]+$/.test(modelFlag)) {
+      throw new Error(`Invalid model identifier: "${modelFlag}"`);
+    }
+    args.push("--model", modelFlag);
+  }
   args.push("--timeout", String(timeoutSeconds));
   // Pass equipped tools as --allowlist so the agent only sees its assigned tools
   if (Array.isArray(options.tools) && options.tools.length > 0) {
@@ -1408,6 +1417,44 @@ async function ensureCliAvailable() {
   });
 }
 
+// ── NemoClaw sandbox support ──────────────────────────
+
+function useNemoClaw(options = {}) {
+  if (!nemoClawEnabled) return false;
+  if (options.nemoclaw === false) return false;
+  if (options.nemoclaw === true) return true;
+  return nemoClawEnabled;
+}
+
+function resolveNemoClawSandbox(options = {}) {
+  return asString(options.nemoClawSandbox) || nemoClawSandboxName;
+}
+
+function resolveClawCommand(openclawArgs, options = {}) {
+  if (useNemoClaw(options) && runtimeState.nemoClawAvailable) {
+    const sandbox = resolveNemoClawSandbox(options);
+    return {
+      cmd: "nemoclaw",
+      args: [sandbox, "connect", "--", "openclaw", ...openclawArgs],
+      runtime: "nemoclaw",
+      sandbox,
+    };
+  }
+  return { cmd: "openclaw", args: openclawArgs, runtime: "openclaw", sandbox: null };
+}
+
+async function ensureNemoClawAvailable() {
+  try {
+    await execFileAsync("nemoclaw", ["--version"], {
+      timeout: 4000,
+      maxBuffer: 1024 * 1024,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function bootstrapOpenClawRuntime() {
   runtimeState.lastCheckAt = new Date().toISOString();
   if (!runtimeState.enabled) {
@@ -1430,6 +1477,18 @@ export async function bootstrapOpenClawRuntime() {
             `OpenClaw gateway did not become reachable on 127.0.0.1:${openclawAgentGatewayPort}.`
           );
         }
+      }
+    }
+    // Check NemoClaw availability if enabled
+    if (nemoClawEnabled) {
+      const nemoClawAvail = await ensureNemoClawAvailable();
+      runtimeState.nemoClawAvailable = nemoClawAvail;
+      if (nemoClawAvail) {
+        mapleLog("info", "openclaw_agent.nemoclaw_available", { sandbox: nemoClawSandboxName });
+      } else {
+        mapleLog("warn", "openclaw_agent.nemoclaw_unavailable", {
+          message: "NemoClaw CLI not found. Falling back to direct OpenClaw execution.",
+        });
       }
     }
     runtimeState.ready = true;
@@ -1600,12 +1659,15 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
       };
     }
 
+    const clawCmd = resolveClawCommand(args, options);
     mapleLog("info", "openclaw_agent.turn_begin", {
       mode: resolved.mode,
       sessionId: run.sessionId,
       deliver: options.deliver === true,
+      runtime: clawCmd.runtime,
+      sandbox: clawCmd.sandbox,
     });
-    const { stdout, stderr } = await execImpl("openclaw", args, {
+    const { stdout, stderr } = await execImpl(clawCmd.cmd, clawCmd.args, {
       timeout: timeoutSeconds * 1000 + 3000,
       maxBuffer: 8 * 1024 * 1024,
     });
@@ -2243,6 +2305,9 @@ export function getOpenClawRuntimeStatus() {
     gatewayAutoStarted: runtimeState.gatewayAutoStarted,
     lastError: runtimeState.lastError,
     lastCheckAt: runtimeState.lastCheckAt,
+    nemoClawEnabled,
+    nemoClawAvailable: runtimeState.nemoClawAvailable || false,
+    nemoClawSandbox: nemoClawEnabled ? nemoClawSandboxName : null,
   };
 }
 
@@ -2321,6 +2386,7 @@ export async function listSessionsForAgent(agentId) {
 }
 
 export async function shutdownOpenClawRuntime() {
+  clearInterval(_evictionTimer);
   if (gatewayProcess && gatewayProcess.exitCode == null) {
     gatewayProcess.kill("SIGTERM");
   }

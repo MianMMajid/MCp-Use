@@ -217,6 +217,7 @@
 
 .mw-view-tab:hover {
   border-color: var(--mw-line);
+  background: var(--bg-soft);
 }
 
 .mw-view-tab-active {
@@ -343,7 +344,8 @@
 }
 
 .mw-context-explainer-reco {
-  border-top: 1px solid var(--border-warm);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(to right, transparent, var(--line), transparent) 1;
   padding-top: var(--space-2);
 }
 
@@ -561,7 +563,8 @@
 
 .mw-docs-section {
   padding: var(--space-4);
-  border-top: 1px solid var(--border-warm);
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(to right, transparent, var(--line), transparent) 1;
 }
 
 .mw-docs-section h3 {
@@ -707,8 +710,8 @@
 
 .mw-chat-form button {
   border: 1px solid var(--brand-tint-border);
-  background: linear-gradient(160deg, #ef8f37, var(--mw-brand));
-  color: #fff;
+  background: linear-gradient(160deg, var(--mw-brand), var(--mw-brand-strong));
+  color: #1c1917;
   border-radius: var(--radius-lg);
   font-weight: 700;
   padding: var(--space-2) var(--space-3);
@@ -905,6 +908,7 @@
 
 .tree-node:hover {
   border-color: var(--brand, #f59e0b);
+  background: var(--bg-soft);
 }
 
 .tree-node-title {
@@ -950,6 +954,10 @@
   cursor: pointer;
 }
 
+.trace-list-item:hover {
+  border-color: var(--line-strong);
+}
+
 .trace-list-item + .trace-list-item {
   margin-top: var(--space-2);
 }
@@ -979,6 +987,14 @@
   padding: var(--space-2);
   text-align: left;
   font-size: var(--text-sm);
+}
+
+.timeline-table tbody tr {
+  transition: background-color 100ms ease-out;
+}
+
+.timeline-table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.015);
 }
 
 .topology-endpoint-card {

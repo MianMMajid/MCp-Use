@@ -207,6 +207,11 @@ function createRedisTransport(config) {
     try {
       // Lazy-load ioredis to avoid hard dependency
       const { default: Redis } = await import("ioredis");
+
+      // Re-check after async gap: if close() ran while we were awaiting
+      // the import, bail out to avoid creating orphaned clients.
+      if (closed) return false;
+
       pubClient = new Redis(redisUrl);
       subClient = new Redis(redisUrl);
 

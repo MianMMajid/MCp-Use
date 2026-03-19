@@ -189,7 +189,7 @@
     if (!executionId) return;
     const p = await loadJson(`/api/orchestrations/executions/${executionId}/snapshot`).catch(() => null);
     if (!p) return;
-    runtimeStatus = p?.execution?.status || 'unknown';
+    runtimeStatus = p?.execution?.status || 'pending';
     runtimeLoop = p?.loopState || null;
   }
 
@@ -383,7 +383,7 @@
         invalidateCache(`/api/orchestrations/executions/${executionId}`);
         const graph = await loadJson(`/api/orchestrations/executions/${executionId}/graph?${cacheBust}`);
         const snap = await loadJson(`/api/orchestrations/executions/${executionId}/snapshot?${cacheBust}`);
-        const status = snap?.execution?.status || 'unknown';
+        const status = snap?.execution?.status || 'pending';
         runtimeStatus = status;
         const nodes = graph?.nodes || [];
         const ts = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
