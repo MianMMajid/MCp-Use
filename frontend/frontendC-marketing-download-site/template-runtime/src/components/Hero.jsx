@@ -103,7 +103,7 @@ export function Hero() {
           style={{ animationDelay: '0.25s' }}
         >
           One security layer across every agent and provider. No-code rules your
-          ops team can manage — no engineering tickets required.
+          ops team can manage - no engineering tickets required.
         </p>
         <div
           className="animate-fade-in-up mt-12 flex flex-wrap justify-center gap-x-5 gap-y-4"

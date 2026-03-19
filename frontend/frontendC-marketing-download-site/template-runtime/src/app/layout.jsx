@@ -8,7 +8,7 @@ export const metadata = {
     default: 'Mayple - The Firewall for AI Agent Tool Calls',
   },
   description:
-    'Mayple is a runtime firewall for AI agent tool calls. Intercept, block, and approve every action across any provider — no code required.',
+    'Mayple is a runtime firewall for AI agent tool calls. Intercept, block, and approve every action across any provider - no code required.',
   icons: {
     icon: [
       { url: '/maple-favicon.svg', type: 'image/svg+xml' },

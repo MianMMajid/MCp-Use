@@ -46,7 +46,7 @@ const features = [
     name: 'Pre-execution blocking',
     summary: 'Stop risky actions before they happen.',
     description:
-      'Mayple intercepts tool calls before execution — not after. Observability tools alert you post-fact. We prevent the damage.',
+      'Mayple intercepts tool calls before execution - not after. Observability tools alert you post-fact. We prevent the damage.',
     preview: 'blocking',
     icon: function InventoryIcon() {
       return (
@@ -232,9 +232,9 @@ function BlockingPreview() {
     {
       agent: 'hr-agent',
       tool: 'email.send',
-      payload: 'to: all@company.com — Employee SSNs attached',
+      payload: 'to: all@company.com - Employee SSNs attached',
       verdict: 'blocked',
-      reason: 'PII detected in attachment — blocked by "pii-guard" policy',
+      reason: 'PII detected in attachment - blocked by "pii-guard" policy',
       latency: '< 1 ms',
     },
   ]
@@ -473,7 +473,7 @@ export function SecondaryFeatures() {
             </h2>
             <p className="mt-4 text-lg tracking-tight text-zinc-700">
               Cross-agent visibility, pre-execution blocking, and no-code
-              policies — the three things no other platform gives you together.
+              policies - the three things no other platform gives you together.
             </p>
           </div>
         </ScrollReveal>

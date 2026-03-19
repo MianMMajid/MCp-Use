@@ -10,12 +10,12 @@ const faqs = [
   {
     question: 'What does Mayple do?',
     answer:
-      'Mayple is a runtime firewall for AI agent tool calls. It intercepts every action your agents take — emails, API calls, database queries — and checks it against your policies before execution. Unlike observability tools that report damage after the fact, Mayple prevents it.',
+      'Mayple is a runtime firewall for AI agent tool calls. It intercepts every action your agents take - emails, API calls, database queries - and checks it against your policies before execution. Unlike observability tools that report damage after the fact, Mayple prevents it.',
   },
   {
     question: 'Does it work with my existing agents?',
     answer:
-      'Yes. Mayple is provider-agnostic and MCP-native. It works with OpenAI, Anthropic, Google, or any custom framework as a proxy layer — zero code changes required to your agents.',
+      'Yes. Mayple is provider-agnostic and MCP-native. It works with OpenAI, Anthropic, Google, or any custom framework as a proxy layer - zero code changes required to your agents.',
   },
   {
     question: 'Do I need to write code to set up policies?',
@@ -25,7 +25,7 @@ const faqs = [
   {
     question: 'How do blocks and approvals work?',
     answer:
-      'Blocked actions are stopped immediately — they never execute. Approval rules pause the action and notify a human reviewer with full context. The agent waits until the reviewer approves or rejects. Every decision is logged for audit.',
+      'Blocked actions are stopped immediately - they never execute. Approval rules pause the action and notify a human reviewer with full context. The agent waits until the reviewer approves or rejects. Every decision is logged for audit.',
   },
   {
     question: 'How quickly can I get started?',

@@ -675,7 +675,7 @@ function SkillsDiagram() {
           <div className="space-y-1">
             {testPassed && (
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2 py-1">
-                <p className="text-[11px] text-emerald-300">browser — PASS</p>
+                <p className="text-[11px] text-emerald-300">browser - PASS</p>
                 <p className="text-xs text-zinc-600">just now</p>
               </div>
             )}
@@ -1133,7 +1133,7 @@ function TaskBuilderDiagram() {
                         'rounded-lg border bg-white/5 px-2 py-0.5 text-xs transition-all duration-500',
                         scheduleVisible ? 'border-white/10 text-zinc-300' : 'border-white/5 text-zinc-600',
                       )}>
-                        {scheduleVisible ? field.value : '—'}
+                        {scheduleVisible ? field.value : '-'}
                       </div>
                     </div>
                   ))}
@@ -1261,7 +1261,7 @@ const features = [
   {
     title: 'Build agentic workflows',
     description:
-      'Drag agents onto a visual canvas and wire them into orchestrations. Set delegation policies, risk ceilings, and approval gates — then execute with one click.',
+      'Drag agents onto a visual canvas and wire them into orchestrations. Set delegation policies, risk ceilings, and approval gates - then execute with one click.',
     diagram: OrchestrationDiagram,
   },
   {
@@ -1354,7 +1354,7 @@ function DesktopFeatures() {
           <Container className="relative flex flex-1 flex-col py-12">
             <div className="max-w-2xl md:mx-auto md:text-center xl:max-w-none">
               <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">One layer. Every agent. Full control.</h2>
-              <p className="mt-4 text-lg tracking-tight text-zinc-400">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules — all in one place.</p>
+              <p className="mt-4 text-lg tracking-tight text-zinc-400">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules - all in one place.</p>
             </div>
             <div className="mt-8 grid flex-1 grid-cols-12 items-stretch gap-8">
               <div className="col-span-5 flex flex-col justify-center">
@@ -1394,7 +1394,7 @@ export function PrimaryFeatures() {
         <Container className="relative">
           <div className="max-w-2xl md:mx-auto md:text-center xl:max-w-none">
             <h2 className="font-display text-3xl tracking-tight text-white sm:text-4xl md:text-5xl">One layer. Every agent. Full control.</h2>
-            <p className="mt-6 text-lg tracking-tight text-zinc-400">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules — all in one place.</p>
+            <p className="mt-6 text-lg tracking-tight text-zinc-400">Mayple is the only platform that combines a no-code UI, MCP support, a runtime firewall, and per-user rules - all in one place.</p>
           </div>
           <div className="mt-12"><MobileFeatures /></div>
         </Container>

@@ -51,7 +51,7 @@ const testimonials = [
   [
     {
       content:
-        'Setting up policy controls for our MCP-compatible agents took minutes, not days. Mayple works as a transparent proxy — no agent modifications needed.',
+        'Setting up policy controls for our MCP-compatible agents took minutes, not days. Mayple works as a transparent proxy - no agent modifications needed.',
       author: {
         name: 'Elena Vasquez',
         role: 'Platform Engineer at Orion Tech',
