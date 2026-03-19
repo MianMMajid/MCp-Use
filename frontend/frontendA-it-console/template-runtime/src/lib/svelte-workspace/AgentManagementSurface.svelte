@@ -27,6 +27,9 @@
     selectedSessionId = sessions[0].sessionId ?? sessions[0].id ?? ''
   }
   $: selectedSession = sessions.find((item) => (item.sessionId ?? item.id) === selectedSessionId) ?? null
+  $: selectedRuns = Array.isArray(selectedAgentDetail?.session?.runs)
+    ? selectedAgentDetail.session.runs
+    : (Array.isArray(selectedAgentDetail?.runs) ? selectedAgentDetail.runs : [])
 
   async function refresh() {
     loading = true
@@ -44,7 +47,7 @@
   async function loadSession(sessionId) {
     if (!sessionId) return
     try {
-      selectedAgentDetail = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}`)
+      selectedAgentDetail = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}?include=runs`)
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
       selectedAgentDetail = null
@@ -57,8 +60,9 @@
     error = ''
     try {
       const payload = await loadJson(fetch, `/api/openclaw/agent/runs/${encodeURIComponent(runId)}/artifacts`)
-      selectedArtifactsRunId = payload?.runId ?? runId
-      selectedArtifacts = Array.isArray(payload?.artifacts) ? payload.artifacts : []
+      const runPayload = payload?.run ?? payload ?? {}
+      selectedArtifactsRunId = runPayload?.runId ?? runId
+      selectedArtifacts = Array.isArray(runPayload?.artifacts) ? runPayload.artifacts : []
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
     } finally {
@@ -178,7 +182,7 @@
         <div class="chain-strip">
           {#each [
             ['Session', selectedSession.sessionId ?? selectedSession.id ?? '--'],
-            ['Runs', Array.isArray(selectedAgentDetail?.runs) ? selectedAgentDetail.runs.length : 0],
+            ['Runs', selectedRuns.length],
             ['Artifacts', selectedArtifactsRunId ? selectedArtifacts.length : 0],
           ] as [label, value], index}
             <article class="chain-node">
@@ -191,8 +195,8 @@
           {/each}
         </div>
         <div class="run-stack">
-          {#if Array.isArray(selectedAgentDetail?.runs) && selectedAgentDetail.runs.length > 0}
-            {#each selectedAgentDetail.runs as run}
+          {#if selectedRuns.length > 0}
+            {#each selectedRuns as run}
               <article class="run-card">
                 <div>
                   <strong>{run.runId ?? run.id ?? 'run'}</strong>
