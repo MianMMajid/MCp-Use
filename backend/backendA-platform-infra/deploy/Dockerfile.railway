@@ -21,7 +21,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Cache bust — change this value to force a fresh COPY
-ARG CACHE_BUST=4
+ARG CACHE_BUST=5
 # Copy source and build
 COPY . .
 
