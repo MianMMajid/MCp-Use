@@ -2,15 +2,15 @@
   import { onMount, tick } from 'svelte'
   import { browser } from '$app/environment'
   import { humanizeError } from '../utils/error-display.js'
-  import { requestMonitoringChat } from '../maple-workspace/monitoring-chat.js'
   import MaypleCharacter from './MaypleCharacter.svelte'
 
   export let authMe = null
-  export let executionId = ''
+  /** @type {string} */ export const executionId = ''
   export let sessionId = ''
-  export let routeTitle = ''
+  /** @type {string} */ export const routeTitle = ''
 
   const CHAT_SCROLL_KEY = 'mayple_it_chat_scroll'
+  const CHAT_SESSION_KEY = 'mayple_it_chat_session'
 
   let messages = []
   let message = ''
@@ -19,6 +19,21 @@
   let runError = ''
   let scrollContainer
   let abortController = null
+
+  function getChatSessionId() {
+    if (sessionId) return sessionId
+    if (!browser) return ''
+    try {
+      let stored = localStorage.getItem(CHAT_SESSION_KEY)
+      if (!stored) {
+        stored = `it-console-${crypto.randomUUID?.() ?? Date.now().toString(36)}`
+        localStorage.setItem(CHAT_SESSION_KEY, stored)
+      }
+      return stored
+    } catch {
+      return `it-console-${Date.now().toString(36)}`
+    }
+  }
 
   $: showCenteredComposer = messages.length === 0 && !streaming
   $: userName = authMe?.username || authMe?.email?.split('@')[0] || 'You'
@@ -57,8 +72,8 @@
   function submit() {
     const text = message.trim()
     if (!text || streaming) return
-    sendMessage(text)
     message = ''
+    sendMessage(text).catch(() => {})
   }
 
   function onKeyDown(event) {
@@ -97,40 +112,74 @@
     }
   }
 
+  function buildChatRequestBody() {
+    const history = messages
+      .filter(m => !m.streaming && !m.error && m.content)
+      .map(({ role, content }) => ({ role, content }))
+    return {
+      sessionId: getChatSessionId() || undefined,
+      messages: history,
+    }
+  }
+
   async function streamResponse(prompt, signal, onChunk) {
+    const requestBody = buildChatRequestBody()
+
+    let res
     try {
-      const res = await fetch('/api/chat/stream', {
+      res = await fetch('/api/chat/stream', {
         method: 'POST', credentials: 'same-origin', signal,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
+        body: JSON.stringify(requestBody),
       })
-      if (res.ok && res.body) {
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = '', fullText = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() ?? ''
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            const data = line.slice(6).trim()
-            if (!data || data === '[DONE]') continue
-            try {
-              const p = JSON.parse(data)
-              const c = p.content || p.reply || p.text || ''
-              if (c) { fullText += c; onChunk(c) }
-            } catch { if (data !== '[DONE]') { fullText += data; onChunk(data) } }
-          }
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err
+      throw new Error('Network error. Check your connection and try again.')
+    }
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}))
+      const detail = errorBody?.error || errorBody?.message || ''
+      if (res.status === 401) throw new Error(detail || 'Authentication required. Please sign in.')
+      if (res.status === 403) throw new Error(detail || 'Message blocked by security policy.')
+      if (res.status === 503) throw new Error(detail || 'Chat is temporarily unavailable.')
+      throw new Error(detail || `Chat request failed (${res.status})`)
+    }
+
+    if (!res.body) {
+      const payload = await res.json().catch(() => ({}))
+      const text = payload?.reply ?? payload?.content ?? payload?.text ?? ''
+      if (text) onChunk(text)
+      return text
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = '', fullText = ''
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6).trim()
+          if (!data || data === '[DONE]') continue
+          try {
+            const p = JSON.parse(data)
+            const c = p.content || p.reply || p.text || ''
+            if (c) { fullText += c; onChunk(c) }
+          } catch { if (data !== '[DONE]') { fullText += data; onChunk(data) } }
         }
-        return fullText
       }
-    } catch (e) { if (e.name === 'AbortError') throw e }
-    const reply = await requestMonitoringChat(prompt, signal)
-    onChunk(reply)
-    return reply
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err
+      if (fullText) return fullText
+      throw new Error('Connection lost during response.')
+    }
+    return fullText
   }
 
   function stopStreaming() { abortController?.abort() }
@@ -184,7 +233,10 @@
           {/if}
           <div class="msg-bubble" class:msg-bubble-user={isUser} class:msg-bubble-agent={!isUser}>
             {#if item.streaming && !text}
-              <div class="typing-dots"><span></span><span></span><span></span></div>
+              <div class="thinking-state">
+                <div class="typing-dots"><span></span><span></span><span></span></div>
+                <span class="thinking-label">Thinking...</span>
+              </div>
             {:else}
               <p>{text}</p>
             {/if}
@@ -209,7 +261,10 @@
         <div class="msg-row msg-agent">
           <span class="msg-avatar">M</span>
           <div class="msg-bubble msg-bubble-agent">
-            <div class="typing-dots"><span></span><span></span><span></span></div>
+            <div class="thinking-state">
+              <div class="typing-dots"><span></span><span></span><span></span></div>
+              <span class="thinking-label">Thinking...</span>
+            </div>
           </div>
         </div>
       {/if}
