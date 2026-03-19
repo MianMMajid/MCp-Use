@@ -535,7 +535,7 @@ function shouldTrySemanticLeakageAssist(text, toolName = "") {
         return false;
     }
     const normalizedToolName = String(toolName ?? "").trim().toLowerCase();
-    if (normalizedToolName === "web_search" || normalizedToolName === "web_fetch") {
+    if (normalizedToolName === "web_search" || normalizedToolName === "web_fetch" || normalizedToolName === "openai_web_search") {
         return true;
     }
     return /\b(where i live|my address|home address|call me at|email me at|patient|medical record|mrn|dob|contact me|reddit|google|restaurants|recommend|near me|search)\b/i.test(source);

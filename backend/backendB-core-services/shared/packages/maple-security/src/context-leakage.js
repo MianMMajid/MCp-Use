@@ -391,7 +391,8 @@ function decideMatchAction(match, context = {}) {
   const isResearchLike =
     /search|find|look up|research|recommend|restaurants|reddit|google|where i live|near me/.test(text) ||
     toolName === "web_search" ||
-    toolName === "web_fetch";
+    toolName === "web_fetch" ||
+    toolName === "openai_web_search";
 
   if (category === "phone" || category === "email") {
     if (isResearchLike) {
