@@ -1545,9 +1545,6 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
   if (!runtimeState.bootstrapped) {
     await bootstrapOpenClawRuntime();
   }
-  if (!runtimeState.cliAvailable) {
-    throw new Error(runtimeState.lastError || "OpenClaw CLI is unavailable.");
-  }
 
   const resolved = resolveRuntimeOptions(options);
   const message = asString(options.message);
@@ -1668,6 +1665,10 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
         ...resultPayload,
         runId: run.runId,
       };
+    }
+
+    if (!runtimeState.cliAvailable) {
+      throw new Error(runtimeState.lastError || "OpenClaw CLI is unavailable.");
     }
 
     const clawCmd = resolveClawCommand(args, options);
