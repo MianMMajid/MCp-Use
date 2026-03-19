@@ -15,6 +15,32 @@ export function handleError({ error, event, status, message }) {
 
 const PUBLIC_PATH_PREFIXES = ['/login', '/forgot-password', '/reset-password', '/health', '/api', '/admin/api']
 const SESSION_CHECK_TIMEOUT_MS = 3000
+const SESSION_CACHE_TTL_MS = 30_000
+
+// Cache validated sessions so we don't hit the gateway on every single request.
+// Key: session cookie value, Value: { user, expiresAt }
+const sessionCache = new Map()
+
+function getCachedSession(cookie) {
+  const entry = sessionCache.get(cookie)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) {
+    sessionCache.delete(cookie)
+    return null
+  }
+  return entry.user
+}
+
+function setCachedSession(cookie, user) {
+  sessionCache.set(cookie, { user, expiresAt: Date.now() + SESSION_CACHE_TTL_MS })
+  // Evict stale entries periodically
+  if (sessionCache.size > 100) {
+    const now = Date.now()
+    for (const [key, val] of sessionCache) {
+      if (now > val.expiresAt) sessionCache.delete(key)
+    }
+  }
+}
 
 const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
@@ -68,6 +94,15 @@ export async function handle({ event, resolve }) {
     throw redirect(307, '/login')
   }
 
+  // Use cached session to avoid blocking the dev server with gateway round-trips
+  const cachedUser = getCachedSession(sessionCookie)
+  if (cachedUser) {
+    console.log(`[hooks] session cache HIT for ${pathname}`)
+    event.locals.user = cachedUser
+    return resolveWithHeaders(event, resolve, 'verified')
+  }
+  console.log(`[hooks] session cache MISS for ${pathname} — checking gateway`)
+
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), SESSION_CHECK_TIMEOUT_MS)
@@ -82,24 +117,24 @@ export async function handle({ event, resolve }) {
       try {
         body = await res.json()
       } catch {
-        // JSON parse failure: fail open
         return resolveWithHeaders(event, resolve, 'degraded')
       }
       if (!body.authenticated) {
         event.cookies.delete('maple_session', { path: '/' })
+        sessionCache.delete(sessionCookie)
         throw redirect(307, '/login')
       }
       event.locals.user = body.user ?? null
+      setCachedSession(sessionCookie, body.user ?? null)
       return resolveWithHeaders(event, resolve, 'verified')
     } else if (res.status === 401) {
       event.cookies.delete('maple_session', { path: '/' })
+      sessionCache.delete(sessionCookie)
       throw redirect(307, '/login')
     }
-    // 5xx: fail open — let client-side handle
     return resolveWithHeaders(event, resolve, 'degraded')
   } catch (err) {
-    if (err?.status === 307) throw err // re-throw redirects
-    // Network/timeout: fail open
+    if (err?.status === 307) throw err
   }
 
   return resolveWithHeaders(event, resolve, 'degraded')

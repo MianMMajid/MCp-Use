@@ -1246,7 +1246,9 @@
     }
     window.addEventListener('maple:shell-refresh', onShellRefresh)
     const intervalMs = POLL_INTERVALS[routePath]
-    if (!intervalMs) {
+    // Chat route manages its own data via streaming — skip background polling
+    // to avoid saturating the SvelteKit dev server's single thread.
+    if (!intervalMs || routePath === '/maple/chat') {
       return () => {
         window.removeEventListener('maple:shell-refresh', onShellRefresh)
       }

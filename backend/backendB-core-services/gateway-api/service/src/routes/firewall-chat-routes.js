@@ -126,75 +126,70 @@ export function registerFirewallChatRoutes() {
             verifiedTenantId: streamScope.verified ? streamScope.tenantId : "default",
             sessionId,
         });
-        // Use secure chat runtime: policy gate + native execution with memory
-        const secureChatResult = await runSecureChatTurn({
-            message,
-            sessionId,
-            requestContext,
-            provider: asString(body.provider) || undefined,
-            model: asString(body.model) || undefined,
-        });
-        if (secureChatResult.mode === "error") {
-            return c.json({
-                ok: false,
-                error: secureChatResult.reply,
-                mode: secureChatResult.mode,
-            }, 503);
-        }
-        if (secureChatResult.blocked) {
-            return c.json({
-                ok: false,
-                error: secureChatResult.reply,
-                mode: secureChatResult.mode,
-                blocked: true,
-            }, 403);
-        }
-        const reply = secureChatResult.reply;
+        // Stream starts immediately so the proxy's await fetch() resolves on
+        // the first byte instead of blocking for the entire LLM call duration.
+        // This prevents SvelteKit's single-threaded dev server from freezing.
         const encoder = new TextEncoder();
         let closed = false;
         let timer;
+        let heartbeatTimer;
         const stream = new ReadableStream({
-            start(controller) {
+            async start(controller) {
+                const safeClose = () => {
+                    if (closed) return;
+                    closed = true;
+                    clearTimeout(timer);
+                    clearInterval(heartbeatTimer);
+                    try { controller.close(); } catch {}
+                };
+                const safeEnqueue = (payload) => {
+                    if (closed) return false;
+                    try { controller.enqueue(payload); return true; }
+                    catch { closed = true; clearTimeout(timer); clearInterval(heartbeatTimer); return false; }
+                };
+
+                // Send an immediate heartbeat so the HTTP response starts flowing
+                safeEnqueue(encoder.encode(`data: ${JSON.stringify({ status: "thinking" })}\n\n`));
+
+                // Keep-alive heartbeats every 3s while LLM is processing
+                heartbeatTimer = setInterval(() => {
+                    safeEnqueue(encoder.encode(`data: ${JSON.stringify({ status: "thinking" })}\n\n`));
+                }, 3000);
+
+                // Run the LLM call
+                let secureChatResult;
+                try {
+                    secureChatResult = await runSecureChatTurn({
+                        message,
+                        sessionId,
+                        requestContext,
+                        provider: asString(body.provider) || undefined,
+                        model: asString(body.model) || undefined,
+                    });
+                } catch (err) {
+                    clearInterval(heartbeatTimer);
+                    safeEnqueue(encoder.encode(`data: ${JSON.stringify({ content: "Chat is temporarily unavailable. Please try again." })}\n\n`));
+                    safeEnqueue(encoder.encode(`data: [DONE]\n\n`));
+                    safeClose();
+                    return;
+                }
+                clearInterval(heartbeatTimer);
+
+                if (secureChatResult.mode === "error" || secureChatResult.blocked) {
+                    const errorMsg = secureChatResult.reply || "Request could not be completed.";
+                    safeEnqueue(encoder.encode(`data: ${JSON.stringify({ content: errorMsg })}\n\n`));
+                    safeEnqueue(encoder.encode(`data: [DONE]\n\n`));
+                    safeClose();
+                    return;
+                }
+
+                // Stream the reply word by word
+                const reply = secureChatResult.reply || "";
                 const words = reply.split(" ");
                 let i = 0;
                 const chunkSize = 3;
-                const safeClose = () => {
-                    if (closed) {
-                        return;
-                    }
-                    closed = true;
-                    if (timer) {
-                        clearTimeout(timer);
-                        timer = undefined;
-                    }
-                    try {
-                        controller.close();
-                    }
-                    catch {
-                        // Ignore closed stream errors.
-                    }
-                };
-                const safeEnqueue = (payload) => {
-                    if (closed) {
-                        return false;
-                    }
-                    try {
-                        controller.enqueue(payload);
-                        return true;
-                    }
-                    catch {
-                        closed = true;
-                        if (timer) {
-                            clearTimeout(timer);
-                            timer = undefined;
-                        }
-                        return false;
-                    }
-                };
                 function pushChunk() {
-                    if (closed) {
-                        return;
-                    }
+                    if (closed) return;
                     if (i >= words.length) {
                         const donePayload = secureChatResult.attachments
                             ? JSON.stringify({ done: true, attachments: secureChatResult.attachments })
@@ -204,9 +199,7 @@ export function registerFirewallChatRoutes() {
                         return;
                     }
                     const chunk = words.slice(i, i + chunkSize).join(" ") + (i + chunkSize < words.length ? " " : "");
-                    if (!safeEnqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`))) {
-                        return;
-                    }
+                    if (!safeEnqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`))) return;
                     i += chunkSize;
                     timer = setTimeout(pushChunk, 30);
                 }
@@ -214,10 +207,8 @@ export function registerFirewallChatRoutes() {
             },
             cancel() {
                 closed = true;
-                if (timer) {
-                    clearTimeout(timer);
-                    timer = undefined;
-                }
+                clearTimeout(timer);
+                clearInterval(heartbeatTimer);
             },
         });
         return new Response(stream, {

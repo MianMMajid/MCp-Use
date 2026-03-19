@@ -89,9 +89,13 @@
   function submit() {
     const text = message.trim()
     if (!text || streaming) return
+    console.log('[chat] submit:', text)
+    console.time('[chat] total-round-trip')
     message = ''
-    streaming = true
-    sendMessage(text).catch(() => { streaming = false })
+    // Let the click event fully unwind before we mutate the chat surface.
+    setTimeout(() => {
+      sendMessage(text).catch(() => { streaming = false })
+    }, 0)
   }
 
   function onKeyDown(event) {
@@ -99,41 +103,12 @@
   }
 
   async function sendMessage(text) {
+    console.log('[chat] sendMessage: adding user message to DOM')
     runError = ''
+    // Add user message — this flips showCenteredComposer to false
     messages = [...messages, { role: 'user', content: text, timestamp: new Date().toISOString() }]
-
-    streaming = true
-    streamingText = ''
-    const assistantIdx = messages.length
-    messages = [...messages, { role: 'assistant', content: '', timestamp: new Date().toISOString(), streaming: true }]
-
-    abortController = new AbortController()
-    let timedOut = false
-    // Timeout after 90s if no response starts (LLM calls can be slow)
-    const timeoutId = setTimeout(() => { timedOut = true; abortController?.abort() }, 90_000)
-    try {
-      const reply = await streamResponse(text, abortController.signal, (chunk) => {
-        clearTimeout(timeoutId)
-        streamingText += chunk
-        messages[assistantIdx] = { ...messages[assistantIdx], content: streamingText }
-        messages = messages
-      })
-      messages[assistantIdx] = { ...messages[assistantIdx], content: reply || streamingText, streaming: false }
-      messages = messages
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        const abortMsg = streamingText || (timedOut ? 'Request timed out. The agent may be busy — try again.' : 'Stopped.')
-        messages[assistantIdx] = { ...messages[assistantIdx], content: abortMsg, streaming: false, error: timedOut }
-      } else {
-        messages[assistantIdx] = { ...messages[assistantIdx], content: 'Unable to reach the monitoring agent.', streaming: false, error: true }
-        runError = err instanceof Error ? err.message : 'Request failed.'
-      }
-      messages = messages
-    } finally {
-      clearTimeout(timeoutId)
-      streaming = false
-      abortController = null
-    }
+    await tick()
+    console.log('[chat] user-only experiment complete')
   }
 
   function buildChatRequestBody() {
@@ -149,6 +124,13 @@
   async function streamResponse(prompt, signal, onChunk) {
     const requestBody = buildChatRequestBody()
 
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    const stubText = `stub reply for ${requestBody.messages?.[requestBody.messages.length - 1]?.content || prompt}`
+    onChunk(stubText)
+    return stubText
+
+    console.log('[chat] fetch: starting POST /api/chat/stream')
+    console.time('[chat] fetch-response')
     let res
     try {
       res = await fetch('/api/chat/stream', {
@@ -157,13 +139,18 @@
         body: JSON.stringify(requestBody),
       })
     } catch (err) {
+      console.timeEnd('[chat] fetch-response')
+      console.error('[chat] fetch failed:', err.name, err.message)
       if (err?.name === 'AbortError') throw err
       throw new Error('Network error. Check your connection and try again.')
     }
+    console.timeEnd('[chat] fetch-response')
+    console.log('[chat] fetch: response status', res.status, 'streaming:', !!res.body)
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({}))
       const detail = errorBody?.error || errorBody?.message || ''
+      console.error('[chat] fetch error:', res.status, detail)
       if (res.status === 401) throw new Error(detail || 'Authentication required. Please sign in.')
       if (res.status === 403) throw new Error(detail || 'Message blocked by security policy.')
       if (res.status === 503) throw new Error(detail || 'Chat is temporarily unavailable.')
@@ -171,12 +158,16 @@
     }
 
     if (!res.body) {
+      console.log('[chat] no stream body, reading JSON')
       const payload = await res.json().catch(() => ({}))
       const text = payload?.reply ?? payload?.content ?? payload?.text ?? ''
       if (text) onChunk(text)
       return text
     }
 
+    console.log('[chat] reading stream...')
+    console.time('[chat] first-stream-byte')
+    let firstByte = true
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer = '', fullText = ''
@@ -184,15 +175,17 @@
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        if (firstByte) { console.timeEnd('[chat] first-stream-byte'); firstByte = false }
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const data = line.slice(6).trim()
-          if (!data || data === '[DONE]') continue
+          if (!data || data === '[DONE]') { if (data === '[DONE]') console.log('[chat] stream: [DONE]'); continue }
           try {
             const p = JSON.parse(data)
+            if (p.status) { console.log('[chat] stream: heartbeat', p.status); continue }
             const c = p.content || p.reply || p.text || ''
             if (c) { fullText += c; onChunk(c) }
           } catch { if (data !== '[DONE]') { fullText += data; onChunk(data) } }

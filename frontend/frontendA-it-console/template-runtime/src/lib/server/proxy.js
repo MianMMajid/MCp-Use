@@ -88,16 +88,20 @@ async function proxyRequest({ request, fetch, targetUrl }) {
   const streamTimeoutId = setTimeout(() => controller.abort(), STREAMING_MAX_MS)
   init.signal = controller.signal
 
+  const proxyStart = Date.now()
+  console.log(`[proxy] streaming fetch start: ${targetUrl}`)
   let response
   try {
     response = await fetch(targetUrl, init)
   } catch (err) {
+    console.log(`[proxy] streaming fetch failed after ${Date.now() - proxyStart}ms:`, err.name)
     clearTimeout(streamTimeoutId)
     if (err.name === 'AbortError') {
       return errorResponse(504, 'Gateway timeout', requestId)
     }
     return errorResponse(502, 'Bad gateway', requestId)
   }
+  console.log(`[proxy] streaming fetch resolved in ${Date.now() - proxyStart}ms, status: ${response.status}`)
 
   const respHeaders = new Headers(response.headers)
   respHeaders.delete('content-encoding')

@@ -25,11 +25,23 @@ if (typeof window !== 'undefined') {
   })
 
   // ── Offline / online detection ──
+  // Validate with a real fetch before marking offline — Chrome fires spurious
+  // offline events when DevTools opens or when the dev server HMR reconnects.
+  let offlineTimer
   window.addEventListener('offline', () => {
-    document.dispatchEvent(new CustomEvent('maple:connectivity', { detail: { online: false } }))
+    clearTimeout(offlineTimer)
+    offlineTimer = setTimeout(async () => {
+      // Double-check with a real network probe instead of trusting navigator.onLine
+      try {
+        const probe = await fetch('/health', { method: 'HEAD', cache: 'no-store' })
+        if (probe.ok) return // false alarm
+      } catch { /* genuinely offline */ }
+      document.dispatchEvent(new CustomEvent('maple:connectivity', { detail: { online: false } }))
+    }, 3000)
   })
 
   window.addEventListener('online', () => {
+    clearTimeout(offlineTimer)
     document.dispatchEvent(new CustomEvent('maple:connectivity', { detail: { online: true } }))
   })
 }
