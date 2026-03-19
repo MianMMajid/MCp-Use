@@ -105,9 +105,11 @@ fi
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ── Core ─────────────────────────────────────────────────────────────────────
-# Railway should run as production runtime by default so mcp-use mounts widgets
-# in production mode (no dev-time resources directory creation under /app).
-export NODE_ENV="${MAPLE_NODE_ENV:-production}"
+# Railway staging should still use production runtime semantics so mcp-use does
+# not attempt dev-time widget watching or create writable resources under /app.
+# Keep the deployment stage separate from the Node runtime mode.
+export MAPLE_NODE_ENV="${MAPLE_NODE_ENV:-${RAILWAY_ENVIRONMENT_NAME:-staging}}"
+export NODE_ENV="${NODE_ENV:-production}"
 export MAPLE_DISABLE_TLS="${MAPLE_DISABLE_TLS:-true}"
 # In Railway, requests arrive through a trusted edge proxy.
 export MAPLE_BEHIND_TRUSTED_PROXY="${MAPLE_BEHIND_TRUSTED_PROXY:-true}"
