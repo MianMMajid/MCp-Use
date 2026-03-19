@@ -140,7 +140,7 @@
   .org-switcher { position: relative; }
   .org-switcher-trigger {
     display: flex; align-items: center; gap: 6px;
-    background: none; border: 1px solid transparent; border-radius: 8px;
+    background: none; border: 1px solid transparent; border-radius: var(--radius-pill);
     padding: 4px 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
     color: var(--ink, #1a1a1a); transition: background 150ms, border-color 150ms;
   }
@@ -149,7 +149,7 @@
   }
   .org-switcher-trigger:disabled { opacity: 0.5; cursor: default; }
   .org-avatar {
-    width: 22px; height: 22px; border-radius: 6px;
+    width: 22px; height: 22px; border-radius: var(--radius-sm);
     background: var(--brand, #e8740c); color: white;
     display: grid; place-items: center; font-size: 0.7rem; font-weight: 700;
     flex-shrink: 0;
@@ -161,7 +161,7 @@
   .org-dropdown {
     position: absolute; top: calc(100% + 4px); left: 0;
     width: 260px; background: var(--panel, #fff);
-    border: 1px solid var(--line, #e0e0e0); border-radius: 10px;
+    border: 1px solid var(--line); border-radius: var(--radius-xl);
     box-shadow: var(--shadow-strong, 0 8px 24px rgba(0,0,0,0.1));
     z-index: 9999; overflow: hidden; animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
@@ -177,7 +177,7 @@
   .org-option:hover { background: rgba(232, 116, 12, 0.05); }
   .org-option.is-active { background: rgba(232, 116, 12, 0.08); }
   .org-option-avatar {
-    width: 28px; height: 28px; border-radius: 6px;
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
     background: var(--bg-soft, #f0f0f0); color: var(--ink, #333);
     display: grid; place-items: center; font-size: 0.75rem; font-weight: 700;
     flex-shrink: 0;

@@ -12,9 +12,9 @@
   --muted: #a1a1aa;
   --line: #3f3f46;
   --line-strong: #52525b;
-  --brand: #fb923c;
-  --brand-strong: #f97316;
-  --accent: #fdba74;
+  --brand: #ff8c52;
+  --brand-strong: #f26522;
+  --accent: #ffab76;
   --ok: #34d399;
   --ok-soft: rgba(52, 211, 153, 0.12);
   --ok-border: rgba(52, 211, 153, 0.30);
@@ -38,8 +38,8 @@
   --mw-ink: #fafafa;
   --mw-muted: #a1a1aa;
   --mw-line: #3f3f46;
-  --mw-brand: #fb923c;
-  --mw-brand-strong: #f97316;
+  --mw-brand: #ff8c52;
+  --mw-brand-strong: #f26522;
   --mw-glass: rgba(24, 24, 27, 0.78);
   --mw-surface: rgba(18, 18, 21, 0.9);
   --mw-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -49,10 +49,10 @@
   --surface-overlay: rgba(0, 0, 0, 0.6);
   --border-warm: rgba(63, 63, 70, 0.6);
   --border-warm-strong: rgba(63, 63, 70, 0.95);
-  --brand-ring: 0 0 0 2px rgba(251, 146, 60, 0.25);
-  --brand-tint: rgba(251, 146, 60, 0.12);
-  --brand-tint-strong: rgba(251, 146, 60, 0.22);
-  --brand-tint-border: rgba(251, 146, 60, 0.40);
+  --brand-ring: 0 0 0 2px rgba(242, 101, 34, 0.25);
+  --brand-tint: rgba(242, 101, 34, 0.10);
+  --brand-tint-strong: rgba(242, 101, 34, 0.20);
+  --brand-tint-border: rgba(242, 101, 34, 0.35);
   --danger-tint: rgba(248, 113, 113, 0.35);
   --danger-tint-bg: rgba(248, 113, 113, 0.12);
 
@@ -74,20 +74,29 @@
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at 12% 8%, rgba(251, 146, 60, 0.04), transparent 34%),
-    radial-gradient(circle at 92% 88%, rgba(249, 115, 22, 0.03), transparent 30%),
+    radial-gradient(circle at 12% 8%, rgba(242, 101, 34, 0.04), transparent 34%),
+    radial-gradient(circle at 92% 88%, rgba(242, 101, 34, 0.03), transparent 30%),
     linear-gradient(165deg, #09090b 0%, #0c0c0e 46%, #121215 100%);
   color: var(--ink);
 }
 
 /* Top bar dark mode */
 [data-theme="dark"] .top-bar {
-  background: var(--bg);
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: rgba(24, 24, 27, 0.82);
+  border-color: var(--line);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .mw-topbar-button:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .search-palette {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .search-backdrop {
+  background: rgba(0, 0, 0, 0.6);
 }
 
 /* Panels and cards */

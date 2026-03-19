@@ -103,22 +103,22 @@
   }
 
   .user-trigger {
-    width: 36px;
-    height: 36px;
-    border-radius: 999px;
-    border: 2px solid var(--line, #e0e0e0);
-    background: var(--bg-soft, #f5f5f0);
-    color: var(--ink, #333);
-    font-size: 0.72rem;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-pill);
+    border: none;
+    background: var(--brand);
+    color: #fff;
+    font-size: var(--text-2xs);
     font-weight: 700;
     cursor: pointer;
     display: grid;
     place-items: center;
-    transition: border-color 150ms;
+    transition: opacity 100ms ease-out;
   }
 
   .user-trigger:hover {
-    border-color: var(--brand, #e8740c);
+    opacity: 0.85;
   }
 
   .user-avatar {
@@ -133,30 +133,31 @@
 
   .user-dropdown {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + var(--space-2));
     right: 0;
-    width: 270px;
-    background: var(--panel, #fff);
-    border: 1px solid var(--line, #e0e0e0);
-    border-radius: 12px;
-    box-shadow: var(--shadow-strong, 0 8px 24px rgba(0, 0, 0, 0.1));
+    width: 260px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-strong);
     z-index: 9999;
     overflow: hidden;
-    padding: 4px 0;
+    padding: var(--space-1) 0;
+    animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
 
   .user-info {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
   }
 
   .user-info-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 999px;
-    background: var(--brand, #e8740c);
+    border-radius: var(--radius-pill);
+    background: var(--brand);
     color: white;
     display: grid;
     place-items: center;
@@ -186,15 +187,15 @@
   }
 
   .user-role-badge {
-    font-size: 0.6rem;
-    font-weight: 700;
+    font-size: var(--text-2xs);
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--bg-soft, #f0f0f0);
-    color: var(--muted, #888);
-    border: 1px solid var(--line, #e0e0e0);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-pill);
+    background: var(--bg-soft);
+    color: var(--muted);
+    border: 1px solid var(--line);
     flex-shrink: 0;
   }
 

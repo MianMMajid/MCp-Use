@@ -9,6 +9,7 @@ import { validateOrgCreate, validateOrgUpdate } from "../contracts/org-contract.
 import { validateMemberInvite, validateRoleUpdate } from "../contracts/rbac-contract.js";
 import { emitAuditEvent } from "../audit-emitter.js";
 import { mapleLog } from "../logging.js";
+import { allowNoAuth } from "../config.js";
 
 function parseIntOrUndefined(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -29,6 +30,16 @@ function positiveIntOrUndefined(value) {
 async function requireSession(c) {
   const session = await findRequestSession(database, c.req.header("cookie"));
   if (!session) {
+    if (allowNoAuth) {
+      return {
+        session: {
+          user: { id: "no-auth-user", username: "no-auth-user", email: "no-auth@localhost", role: "admin" },
+          userId: "no-auth-user",
+          method: "no_auth",
+          role: "admin",
+        },
+      };
+    }
     return { error: c.json({ error: "Authentication required." }, 401) };
   }
   return { session };
@@ -158,7 +169,13 @@ export function registerPlatformProxyRoutes(app) {
     }
     const store = getStore();
     const items = await store.listOrganizationsForUser(auth.session.user.id);
-    return c.json({ ok: true, items: items.map((org) => normalizeOrgSummary(org)) });
+    const itemsWithRole = await Promise.all(
+      items.map(async (org) => {
+        const memberRole = await store.getMemberRole(org.orgId, auth.session.user.id).catch(() => null);
+        return { ...normalizeOrgSummary(org), memberRole: memberRole || null };
+      }),
+    );
+    return c.json({ ok: true, items: itemsWithRole });
   });
 
   app.post("/api/org", async (c) => {

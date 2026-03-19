@@ -174,7 +174,6 @@
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(humanizeError(error));
     } finally {
       creating = false;
     }
@@ -183,42 +182,33 @@
   async function assignTask(taskId, nextType, nextId) {
     try {
       const payload = nextType === 'agent' ? { agentId: nextId } : { orchestrationId: nextId };
-      const response = await postJson(`/api/tasks/${taskId}/assign`, payload, { silent: true });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to assign task');
+      await postJson(`/api/tasks/${taskId}/assign`, payload, { silent: true });
       invalidateCache('/api/tasks');
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(humanizeError(error));
     }
   }
 
   async function commandTask(taskId, command) {
     try {
-      const response = await postJson(`/api/tasks/${taskId}/${command}`, {}, { silent: true });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) throw new Error(data?.error || `Failed to ${command}`);
+      await postJson(`/api/tasks/${taskId}/${command}`, {}, { silent: true });
       invalidateCache('/api/tasks');
       toastStore.success(`Task ${command} successful`);
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(humanizeError(error));
     }
   }
 
   async function updateTask(taskId, updates) {
     try {
-      const response = await patchJson(`/api/tasks/${taskId}`, updates, { silent: true });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.ok === false) throw new Error(data?.error || 'Failed to update task');
+      await patchJson(`/api/tasks/${taskId}`, updates, { silent: true });
       invalidateCache('/api/tasks');
       toastStore.success('Task updated');
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(humanizeError(error));
     }
   }
 
@@ -245,7 +235,6 @@
       await refresh();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-      toastStore.error(humanizeError(error));
     } finally {
       deletingTask = false;
     }
@@ -431,10 +420,10 @@
 />
 
 {#if editTaskId}
-  <div class="edit-overlay" role="dialog" aria-modal="true" aria-label="Edit Task"
+  <div class="edit-overlay" role="dialog" aria-modal="true" aria-label="Edit Task" tabindex="-1"
     on:click={(e) => { if (e.target === e.currentTarget) editTaskId = ''; }}
     on:keydown={(e) => { if (e.key === 'Escape') editTaskId = ''; }}>
-    <div class="edit-dialog card" on:click|stopPropagation>
+    <div class="edit-dialog card">
       <h3>Edit Task</h3>
       <label><span>Title</span>
         <input bind:value={editTitle} placeholder="Task title" /></label>

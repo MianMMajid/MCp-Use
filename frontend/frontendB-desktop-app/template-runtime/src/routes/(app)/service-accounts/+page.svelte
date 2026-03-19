@@ -56,23 +56,30 @@
   }
 
   $: hasOrg = Boolean(orgId);
+  $: currentOrg = orgs.find((o) => (o.orgId || o.id) === orgId) ?? null;
+  $: canManageAccounts = hasOrg && (
+    currentOrg?.memberRole === 'admin'
+    || currentOrg?.memberRole === 'owner'
+    || currentOrg?.memberRole === undefined
+  );
 
   async function createAccount() {
     if (!newName.trim() || !orgId) return;
     creating = true;
+    error = '';
     try {
-      const response = await postJson(`/api/org/${orgId}/service-accounts`, {
+      await postJson(`/api/org/${orgId}/service-accounts`, {
         name: newName,
         description: newDesc
-      });
-      if (response.ok) {
-        newName = '';
-        newDesc = '';
-        showCreate = false;
-        message = 'Service account created.';
-        invalidateCache('/api/org');
-        await fetchAccounts();
-      }
+      }, { silent: true });
+      newName = '';
+      newDesc = '';
+      showCreate = false;
+      message = 'Service account created.';
+      invalidateCache('/api/org');
+      await fetchAccounts();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     } finally {
       creating = false;
     }
@@ -158,7 +165,7 @@
             {/each}
           </select>
         {/if}
-        {#if hasOrg}
+        {#if canManageAccounts}
           <button class="pill" on:click={() => (showCreate = !showCreate)}>{showCreate ? 'Close' : 'New Service Account'}</button>
         {/if}
       </div>

@@ -5,8 +5,8 @@
   --mw-ink: var(--ink, #18181b);
   --mw-muted: var(--muted, #71717a);
   --mw-line: var(--line, #e4e4e7);
-  --mw-brand: var(--brand, #f59e0b);
-  --mw-brand-strong: var(--brand-strong, #d97706);
+  --mw-brand: var(--brand, #f26522);
+  --mw-brand-strong: var(--brand-strong, #c9461a);
   --mw-glass: var(--panel, rgba(255, 255, 255, 0.78));
   --mw-surface: var(--bg, rgba(255, 250, 244, 0.9));
   --mw-shadow: var(--shadow-soft, 0 1px 3px rgba(0, 0, 0, 0.06));
@@ -17,8 +17,8 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 5% 5%, rgba(215, 104, 25, 0.16), transparent 30%),
-    radial-gradient(circle at 96% 12%, rgba(238, 151, 69, 0.12), transparent 38%),
+    radial-gradient(circle at 5% 5%, rgba(242, 101, 34, 0.16), transparent 30%),
+    radial-gradient(circle at 96% 12%, rgba(242, 101, 34, 0.12), transparent 38%),
     linear-gradient(160deg, var(--mw-bg-0) 0%, var(--mw-bg-1) 45%, var(--mw-bg-2) 100%);
 }
 
@@ -45,7 +45,7 @@
   height: 0.85rem;
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg, #ffd8a3, var(--mw-brand));
-  box-shadow: 0 0 0 6px rgba(215, 104, 25, 0.18);
+  box-shadow: 0 0 0 6px rgba(242, 101, 34, 0.18);
 }
 
 .mw-brand-label {
@@ -86,7 +86,7 @@
 }
 
 .mw-status-dot.degraded {
-  background: var(--caution, #d97706);
+  background: var(--caution, #ca8a04);
   animation-name: statusPulseCaution;
 }
 
@@ -907,7 +907,7 @@
 }
 
 .tree-node:hover {
-  border-color: var(--brand, #f59e0b);
+  border-color: var(--brand, #f26522);
   background: var(--bg-soft);
 }
 
@@ -929,7 +929,7 @@
 }
 
 .tree-node.risk-high {
-  border-color: var(--caution, #d97706);
+  border-color: var(--caution, #ca8a04);
 }
 
 .tree-node.risk-critical,
@@ -939,7 +939,7 @@
 }
 
 .tree-node.selected {
-  box-shadow: 0 0 0 2px rgba(232, 116, 12, 0.2);
+  box-shadow: 0 0 0 2px rgba(242, 101, 34, 0.2);
 }
 
 .trace-list-item {
@@ -963,7 +963,7 @@
 }
 
 .trace-list-item.is-active {
-  border-color: var(--brand, #f59e0b);
+  border-color: var(--brand, #f26522);
   background: var(--bg-soft, #f4f4f5);
 }
 

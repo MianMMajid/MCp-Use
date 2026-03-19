@@ -893,7 +893,6 @@
   .empty-state strong { color: var(--fg); }
   .empty-state p { margin: 0; font-size: 13px; max-width: 32ch; }
   .empty-state .pill { margin-top: 8px; }
-  .empty-icon { font-size: 2.5rem; line-height: 1; opacity: 0.5; }
   .empty-detail {
     display: grid;
     place-items: center;

@@ -171,7 +171,7 @@
 
 <div class="notification-container">
   <button type="button" class="mw-topbar-button notification-bell" on:click={toggle} aria-label="Notifications" title="Notifications">
-    <span>Alerts</span>
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6a4 4 0 018 0c0 3 1.5 4.5 2 5H2c.5-.5 2-2 2-5z"/><path d="M6.5 13a1.5 1.5 0 003 0"/></svg>
     {#if unreadCount > 0}
       <span class="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
     {/if}
@@ -235,16 +235,21 @@
   }
 
   .notification-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
     display: inline-grid;
     place-items: center;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    border-radius: 999px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-pill);
     background: var(--critical);
     color: white;
-    font-size: var(--text-2xs);
+    font-size: 10px;
     font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
   }
 
   .notification-backdrop {
@@ -255,16 +260,17 @@
 
   .notification-dropdown {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + var(--space-2));
     right: 0;
-    width: 380px;
+    width: min(380px, calc(100vw - var(--space-4)));
     max-height: 500px;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-strong);
     z-index: 9999;
     overflow: hidden;
+    animation: dropdownReveal var(--dur-dropdown) var(--ease-dropdown);
   }
 
   .notification-header {
