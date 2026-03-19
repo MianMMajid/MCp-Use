@@ -42,7 +42,7 @@
 
   const ROUTE_REQUESTS = Object.freeze({
     '/maple/chat': [
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
       ['leakageEntities', '/api/firewall/context-leakage/entities?activeOnly=true'],
     ],
     '/maple/observability': [
@@ -51,7 +51,7 @@
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=25'],
       ['alertWebhooks', '/api/observability/orchestrations/alert-webhooks'],
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/audit': [
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=100'],
@@ -91,16 +91,16 @@
     ],
     '/maple/agent': [
       ['agentStatus', '/api/openclaw/agent/status'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/topology': [
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
       ['runtimeStatus', '/api/runtime/status'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/runs': [
       ['runs', '/api/runs'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/forks': [
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=100'],
@@ -273,6 +273,22 @@
     const incidentState = String(item?.state ?? '').toLowerCase()
     return !['closed', 'resolved'].includes(incidentState) && (severity.includes('high') || severity.includes('critical'))
   })
+
+  function getSessionKey(session) {
+    return session?.sessionId ?? session?.id ?? ''
+  }
+
+  function getSessionRuntime(session) {
+    return session?.runtime === 'native' ? 'native' : 'openclaw'
+  }
+
+  function getSelectedSessionRecord(sessionId) {
+    return agentSessions.find((item) => getSessionKey(item) === sessionId) ?? null
+  }
+
+  function getSelectedObservabilitySessionRecord(sessionId) {
+    return observabilitySessions.find((item) => getSessionKey(item) === sessionId) ?? null
+  }
 
   function getNestedCyberScan(item) {
     const rawArtifact = item?.metadata?.rawArtifact
@@ -595,6 +611,11 @@
       observabilityStreamState = 'unsupported'
       return
     }
+    const sessionRecord = getSelectedObservabilitySessionRecord(sessionId)
+    if (getSessionRuntime(sessionRecord) !== 'openclaw') {
+      observabilityStreamState = 'idle'
+      return
+    }
     const cursor = encodeURIComponent(observabilityLatestCursor || '0')
     const url = `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/stream?cursor=${cursor}&timeoutMs=25000`
     const source = new EventSource(url)
@@ -648,7 +669,9 @@
     const preserveRun = options.preserveRun === true
     const preserveStream = options.preserveStream === true
     try {
-      const payload = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}?include=steps,runs`)
+      const sessionRecord = getSelectedObservabilitySessionRecord(sessionId)
+      const runtime = getSessionRuntime(sessionRecord)
+      const payload = await loadJson(fetch, `/api/agents/sessions/registry/${encodeURIComponent(sessionId)}?runtime=${encodeURIComponent(runtime)}`)
       const detail = payload?.session ?? payload ?? null
       observabilitySessionDetail = detail
       observabilitySelectedSessionId = sessionId
@@ -700,8 +723,10 @@
         observabilityArtifacts = []
       }
 
-      if (!preserveStream) {
+      if (!preserveStream && runtime === 'openclaw') {
         openObservabilityStream(sessionId)
+      } else if (runtime !== 'openclaw') {
+        observabilityStreamState = 'idle'
       }
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
@@ -727,7 +752,9 @@
   async function loadAgentSession(sessionId) {
     if (!sessionId) return
     try {
-      selectedAgentDetail = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}`)
+      const sessionRecord = getSelectedSessionRecord(sessionId)
+      const runtime = getSessionRuntime(sessionRecord)
+      selectedAgentDetail = await loadJson(fetch, `/api/agents/sessions/registry/${encodeURIComponent(sessionId)}?runtime=${encodeURIComponent(runtime)}`)
     } catch {
       selectedAgentDetail = null
     }
@@ -933,6 +960,8 @@
   }
 
   async function handleAgentCancel(sessionId) {
+    const sessionRecord = getSelectedSessionRecord(sessionId)
+    if (getSessionRuntime(sessionRecord) !== 'openclaw') return
     await runAction(`agent:${sessionId}:cancel`, () =>
       sendJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/cancel`, {}),
     )
@@ -1793,10 +1822,12 @@
         {#each agentSessions as session}
           <div class="list-card static">
             <strong>{session.sessionId ?? session.id ?? 'session'}</strong>
-            <span>{session.status ?? 'unknown'} · updated={formatDate(session.updatedAt ?? session.createdAt)}</span>
+            <span>{getSessionRuntime(session)} · {session.status ?? 'unknown'} · updated={formatDate(session.updatedAt ?? session.createdAt)}</span>
             <div class="actions">
               <button type="button" class="action-btn" on:click={() => { selectedSessionId = session.sessionId ?? session.id ?? ''; loadAgentSession(selectedSessionId) }}>Inspect</button>
-              <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleAgentCancel(session.sessionId ?? session.id ?? '')}>Cancel</button>
+              {#if getSessionRuntime(session) === 'openclaw'}
+                <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleAgentCancel(session.sessionId ?? session.id ?? '')}>Cancel</button>
+              {/if}
             </div>
           </div>
         {/each}
@@ -1808,9 +1839,9 @@
         <span class="chip">{selectedSessionId || '--'}</span>
       </div>
       <pre class="mono panel-json">{JSON.stringify(selectedAgentDetail ?? {}, null, 2)}</pre>
-      {#if Array.isArray(selectedAgentDetail?.runs)}
+      {#if Array.isArray(selectedAgentDetail?.runs) || Array.isArray(selectedAgentDetail?.session?.runs)}
         <div class="actions">
-          {#each selectedAgentDetail.runs as run}
+          {#each (selectedAgentDetail?.runs ?? selectedAgentDetail?.session?.runs ?? []) as run}
             <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => loadArtifacts(run.runId ?? run.id)}>
               Load artifacts {run.runId ?? run.id}
             </button>

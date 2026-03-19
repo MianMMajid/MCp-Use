@@ -31,6 +31,7 @@
   let hoveredSkillId = '';
   let agentProvider = '';
   let agentModel = '';
+  let runtimeMode = 'native';
 
   // ── Marketplace state ──
   let importOpen = false;
@@ -270,6 +271,12 @@
       agentName = String(agentPayload?.name || agentPayload?.displayName || data.id || '');
       agentProvider = agentPayload?.config?.provider || '';
       agentModel = agentPayload?.config?.model || '';
+      runtimeMode = agentPayload?.config?.useOpenClaw === true
+        || agentPayload?.config?.openclawAgentId
+        || agentPayload?.config?.targetAgentId
+        || agentPayload?.config?.runtimeAgentId
+        ? 'openclaw'
+        : 'native';
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -397,13 +404,29 @@
         : equippedToolIds;
       agent = { ...agent, equippedToolIds: equippedToolIds.slice() };
       if (agentProvider || agentModel || agent?.config?.provider || agent?.config?.model) {
-        const config = { ...(agent.config || {}), provider: agentProvider || undefined, model: agentModel || undefined };
+        const config = {
+          ...(agent.config || {}),
+          useOpenClaw: runtimeMode === 'openclaw',
+          provider: agentProvider || undefined,
+          model: agentModel || undefined
+        };
         const configRes = await patchJson(`/api/agents/${agentId}`, { config }, { silent: true });
         const configPayload = await configRes.json().catch(() => ({}));
         if (configRes.ok) {
           agent = { ...agent, config };
         } else {
           toastStore.error('Failed to save model configuration');
+        }
+      } else {
+        const config = {
+          ...(agent.config || {}),
+          useOpenClaw: runtimeMode === 'openclaw'
+        };
+        const configRes = await patchJson(`/api/agents/${agentId}`, { config }, { silent: true });
+        if (configRes.ok) {
+          agent = { ...agent, config };
+        } else {
+          toastStore.error('Failed to save runtime configuration');
         }
       }
       invalidateCache('/api/agents');
@@ -462,6 +485,13 @@
         <h2>Model Configuration</h2>
         <p class="muted">Override the default LLM provider and model for this agent.</p>
         <div class="model-fields">
+          <label class="field">
+            <span>Runtime</span>
+            <select bind:value={runtimeMode}>
+              <option value="native">Native</option>
+              <option value="openclaw">OpenClaw</option>
+            </select>
+          </label>
           <label class="field">
             <span>Provider</span>
             <select bind:value={agentProvider} on:change={() => { agentModel = ''; }}>

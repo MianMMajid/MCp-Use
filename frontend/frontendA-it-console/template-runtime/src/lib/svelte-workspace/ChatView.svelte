@@ -1,5 +1,5 @@
 <script>
-  import { onMount, tick } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
   import { browser } from '$app/environment'
   import { humanizeError } from '../utils/error-display.js'
   import MaypleCharacter from './MaypleCharacter.svelte'
@@ -29,6 +29,9 @@
   let runError = ''
   let scrollContainer
   let abortController = null
+  let roundTripTimerActive = false
+  let scrollSaveTimer
+  let scrollRaf = 0
 
   function getChatSessionId() {
     if (sessionId) return sessionId
@@ -63,10 +66,17 @@
     setTimeout(() => { copiedId = '' }, 1500)
   }
 
-  $: if (scrollContainer && messages.length > 0) {
-    tick().then(() => {
+  function scheduleScrollToBottom() {
+    if (!browser) return
+    if (scrollRaf) cancelAnimationFrame(scrollRaf)
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = 0
       if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight
     })
+  }
+
+  $: if (scrollContainer && (messages.length > 0 || streaming)) {
+    scheduleScrollToBottom()
   }
 
   onMount(() => {
@@ -76,7 +86,6 @@
     }
   })
 
-  let scrollSaveTimer
   function onScroll(event) {
     if (!browser) return
     const scrollTop = event.currentTarget?.scrollTop || 0
@@ -89,8 +98,9 @@
   function submit() {
     const text = message.trim()
     if (!text || streaming) return
-    console.log('[chat] submit:', text)
+    console.log('[chat] submit len:', text.length)
     console.time('[chat] total-round-trip')
+    roundTripTimerActive = true
     message = ''
     // Let the click event fully unwind before we mutate the chat surface.
     setTimeout(() => {
@@ -105,10 +115,58 @@
   async function sendMessage(text) {
     console.log('[chat] sendMessage: adding user message to DOM')
     runError = ''
-    // Add user message — this flips showCenteredComposer to false
-    messages = [...messages, { role: 'user', content: text, timestamp: new Date().toISOString() }]
-    await tick()
-    console.log('[chat] user-only experiment complete')
+    const userMessage = { role: 'user', content: text, timestamp: new Date().toISOString() }
+    const replyTimestamp = new Date().toISOString()
+    const assistantPlaceholder = { role: 'assistant', content: '', timestamp: replyTimestamp, streaming: true }
+
+    abortController = new AbortController()
+    streaming = true
+    streamingText = ''
+    // Do not wait for the first DOM flush before starting the request.
+    // The prior await tick() made the network path depend on the initial
+    // empty-state -> chat render transition, which matches the observed hang.
+    messages = [...messages, userMessage, assistantPlaceholder]
+    console.log('[chat] user message queued; starting stream')
+
+    try {
+      const fullText = await streamResponse(text, abortController.signal, (chunk) => {
+        streamingText += chunk
+        messages = messages.map((item, idx) => idx === messages.length - 1
+          ? { ...item, content: streamingText, streaming: true }
+          : item)
+      })
+
+      messages = messages.map((item, idx) => idx === messages.length - 1
+        ? { ...item, content: fullText || streamingText || 'No response received.', streaming: false }
+        : item)
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        const partial = streamingText.trim()
+        if (partial) {
+          messages = messages.map((item, idx) => idx === messages.length - 1
+            ? { ...item, content: partial, streaming: false }
+            : item)
+        } else {
+          messages = messages.slice(0, -1)
+        }
+        return
+      }
+
+      const errorMessage = humanizeError(err)
+      runError = errorMessage
+      messages = [
+        ...messages.slice(0, -1),
+        { role: 'assistant', content: errorMessage, timestamp: new Date().toISOString(), error: true },
+      ]
+    } finally {
+      abortController = null
+      streaming = false
+      streamingText = ''
+      if (roundTripTimerActive) {
+        console.timeEnd('[chat] total-round-trip')
+        roundTripTimerActive = false
+      }
+    }
   }
 
   function buildChatRequestBody() {
@@ -124,16 +182,11 @@
   async function streamResponse(prompt, signal, onChunk) {
     const requestBody = buildChatRequestBody()
 
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    const stubText = `stub reply for ${requestBody.messages?.[requestBody.messages.length - 1]?.content || prompt}`
-    onChunk(stubText)
-    return stubText
-
     console.log('[chat] fetch: starting POST /api/chat/stream')
     console.time('[chat] fetch-response')
     let res
     try {
-      res = await fetch('/api/chat/stream', {
+      res = await fetch(`${getChatOrigin()}/api/chat/stream`, {
         method: 'POST', credentials: 'same-origin', signal,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -200,6 +253,11 @@
   }
 
   function stopStreaming() { abortController?.abort() }
+
+  onDestroy(() => {
+    clearTimeout(scrollSaveTimer)
+    if (scrollRaf) cancelAnimationFrame(scrollRaf)
+  })
 </script>
 
 <section class="workspace">
@@ -212,26 +270,6 @@
           </div>
           <h2>How can Mayple help?</h2>
           <p class="empty-sub">Ask about firewall posture, risk analysis, pending approvals, trace investigations, or intervention recommendations.</p>
-
-          <div class="empty-composer">
-            <div class="composer-shell">
-              <div class="composer-bottom">
-                <textarea
-                  class="composer"
-                  rows="1"
-                  bind:value={message}
-                  on:keydown={onKeyDown}
-                  placeholder="Ask Mayple..."
-                ></textarea>
-                {#if message.trim() || streaming}
-                  <button type="button" class="send" on:click={submit} disabled={streaming} aria-label="Send">
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 2L7 9M14 2l-5 12-2-5-5-2 12-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                {/if}
-              </div>
-            </div>
-          </div>
-
         </div>
       {/if}
 
@@ -295,31 +333,29 @@
     </div>
   </div>
 
-  {#if !showCenteredComposer}
-    <footer class="composer-wrap">
-      <div class="composer-inner">
-        <div class="composer-shell">
-          <textarea
-            class="composer"
-            rows="1"
-            bind:value={message}
-            on:keydown={onKeyDown}
-            placeholder="Ask Mayple..."
-            disabled={streaming}
-          ></textarea>
-          {#if streaming}
-            <button type="button" class="send stop" on:click={stopStreaming} aria-label="Stop">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="2" width="10" height="10" rx="1.5"/></svg>
-            </button>
-          {:else if message.trim()}
-            <button type="button" class="send" on:click={submit} aria-label="Send">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 2L7 9M14 2l-5 12-2-5-5-2 12-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-          {/if}
-        </div>
+  <footer class="composer-wrap">
+    <div class="composer-inner">
+      <div class="composer-shell">
+        <textarea
+          class="composer"
+          rows="1"
+          bind:value={message}
+          on:keydown={onKeyDown}
+          placeholder="Ask Mayple..."
+          disabled={streaming}
+        ></textarea>
+        {#if streaming}
+          <button type="button" class="send stop" on:click={stopStreaming} aria-label="Stop">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="2" width="10" height="10" rx="1.5"/></svg>
+          </button>
+        {:else if message.trim()}
+          <button type="button" class="send" on:click={submit} aria-label="Send">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M14 2L7 9M14 2l-5 12-2-5-5-2 12-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        {/if}
       </div>
-    </footer>
-  {/if}
+    </div>
+  </footer>
 </section>
 
 <style>

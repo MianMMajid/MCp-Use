@@ -1,5 +1,5 @@
 import { get, writable } from 'svelte/store';
-import { loadJson, postJson, invalidateCache } from '@/lib/api';
+import { loadJson, postJson, patchJson, invalidateCache } from '@/lib/api';
 import {
   getOrchestrationConversation,
   listOrchestrations,
@@ -31,6 +31,11 @@ function normalizeStackMode(value) {
 function normalizePanel(value) {
   const panel = String(value || '').toLowerCase();
   return VALID_PANELS.has(panel) ? panel : 'tasks';
+}
+
+function createAgentSessionId(agentId) {
+  const normalizedAgentId = String(agentId || '').trim() || 'agent';
+  return `${normalizedAgentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function readWorkspaceQuery() {
@@ -132,8 +137,13 @@ function createChatStore() {
   }
 
   async function loadSessions(agentId) {
+    const normalizedAgentId = String(agentId || '').trim();
+    if (!normalizedAgentId) {
+      patch({ sessions: [], sessionsLoading: false });
+      return [];
+    }
     patch({ sessionsLoading: true });
-    const payload = await loadJson('/api/openclaw/agent/sessions').catch(() => ({ items: [] }));
+    const payload = await loadJson(`/api/agents/${encodeURIComponent(normalizedAgentId)}/sessions`).catch(() => ({ items: [] }));
     const items = payload?.items ?? payload ?? [];
     patch({ sessions: items, sessionsLoading: false });
     return items;
@@ -309,6 +319,54 @@ function createChatStore() {
     await loadSessions(nextId);
   }
 
+  async function setSelectedAgentRuntime(runtime) {
+    const nextRuntime = String(runtime || '').toLowerCase() === 'openclaw' ? 'openclaw' : 'native';
+    const state = get({ subscribe });
+    const agentId = String(state.selectedAgentId || '').trim();
+    if (!agentId) return;
+
+    const selectedAgent = state.selectedAgent || state.agents.find((a) => String(a.agentId || a.id) === agentId) || null;
+    const nextConfig = {
+      ...(selectedAgent?.config || {}),
+      useOpenClaw: nextRuntime === 'openclaw'
+    };
+
+    patch({
+      selectedAgent: selectedAgent ? { ...selectedAgent, config: nextConfig } : selectedAgent,
+      agents: state.agents.map((agent) =>
+        String(agent.agentId || agent.id) === agentId
+          ? { ...agent, config: nextConfig }
+          : agent
+      )
+    });
+
+    try {
+      const response = await patchJson(`/api/agents/${encodeURIComponent(agentId)}`, { config: nextConfig }, { silent: true });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || `Failed to update runtime (${response.status})`);
+      }
+      const savedAgent = payload?.id || payload?.agentId ? payload : { ...(selectedAgent || {}), config: nextConfig };
+      patch({
+        selectedAgent: savedAgent,
+        agents: get({ subscribe }).agents.map((agent) =>
+          String(agent.agentId || agent.id) === agentId
+            ? { ...agent, ...(payload || {}), config: savedAgent.config || nextConfig }
+            : agent
+        )
+      });
+      invalidateCache('/api/agents');
+      invalidateCache(`/api/agents/${encodeURIComponent(agentId)}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      patch({
+        runError: message,
+        selectedAgent,
+        agents: state.agents
+      });
+    }
+  }
+
   async function selectOrchestration(orchestrationId) {
     const nextId = String(orchestrationId || '');
     const state = get({ subscribe });
@@ -418,9 +476,13 @@ function createChatStore() {
     try {
       patch({ busyStatus: 'Agent is executing...' });
       const agentId = state.selectedAgentId;
+      const sessionId = state.sessionId || createAgentSessionId(agentId);
+      if (!state.sessionId) {
+        patch({ sessionId });
+      }
       const response = await postJson(`/api/agents/${encodeURIComponent(agentId)}/run`, {
         message: content,
-        sessionId: state.sessionId || undefined
+        sessionId
       });
       patch({ busyStatus: 'Processing governed response...' });
       const payload = await response.json().catch(() => ({}));
@@ -443,12 +505,13 @@ function createChatStore() {
           }
         ], MAX_MESSAGES)
       });
+      invalidateCache(`/api/agents/${encodeURIComponent(agentId)}/sessions`);
       invalidateCache('/api/openclaw/agent/sessions');
       if (payload?.sessionId) {
-        await loadSessions('');
+        await loadSessions(agentId);
         void hydrateSessionMessages(payload.sessionId, { clear: false });
       } else {
-        await loadSessions('');
+        await loadSessions(agentId);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -664,6 +727,7 @@ function createChatStore() {
     destroy,
     selectAgent,
     restoreSelectedAgent,
+    setSelectedAgentRuntime,
     selectOrchestration,
     setChatTarget,
     setOrchestrationPanelTab,

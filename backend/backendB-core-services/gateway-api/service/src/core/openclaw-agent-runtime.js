@@ -846,6 +846,17 @@ function getContextWallClient() {
   return getGrpcClients()?.contextWall ?? null;
 }
 
+function hasGrpcMethod(clientOrPool, methodName) {
+  if (!clientOrPool || !methodName) {
+    return false;
+  }
+  const client =
+    typeof clientOrPool.getClient === "function"
+      ? clientOrPool.getClient()
+      : clientOrPool;
+  return typeof client?.[methodName] === "function";
+}
+
 async function sanitizePromptViaContextWall(prompt, options = {}, dependencies = {}) {
   if (typeof dependencies.sanitizePromptImpl === "function") {
     return dependencies.sanitizePromptImpl(prompt, options);
@@ -888,7 +899,7 @@ async function sanitizeStructuredContentViaContextWall(content, options = {}, de
     return dependencies.sanitizeStructuredContentImpl(content, options);
   }
   const contextWall = getContextWallClient();
-  if (!contextWall) {
+  if (!contextWall || !hasGrpcMethod(contextWall, "sanitizeStructuredContent")) {
     return {
       allowed: true,
       blockedReason: "",

@@ -6,7 +6,7 @@
 
   const REQUESTS = Object.freeze([
     ['runs', '/api/runs'],
-    ['agentSessions', '/api/openclaw/agent/sessions'],
+    ['agentSessions', '/api/agents/sessions/registry'],
   ])
 
   let loading = true

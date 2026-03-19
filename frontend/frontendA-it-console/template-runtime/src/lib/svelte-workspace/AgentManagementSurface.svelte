@@ -6,7 +6,7 @@
 
   const REQUESTS = Object.freeze([
     ['agentStatus', '/api/openclaw/agent/status'],
-    ['agentSessions', '/api/openclaw/agent/sessions'],
+    ['agentSessions', '/api/agents/sessions/registry'],
   ])
 
   let loading = true
@@ -47,7 +47,8 @@
   async function loadSession(sessionId) {
     if (!sessionId) return
     try {
-      selectedAgentDetail = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}?include=runs`)
+      const runtime = selectedSession?.runtime ? `?runtime=${encodeURIComponent(selectedSession.runtime)}` : ''
+      selectedAgentDetail = await loadJson(fetch, `/api/agents/sessions/registry/${encodeURIComponent(sessionId)}${runtime}`)
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
       selectedAgentDetail = null
@@ -95,7 +96,7 @@
   }
 
   async function handleCancel(sessionId) {
-    if (!sessionId) return
+    if (!sessionId || selectedSession?.runtime !== 'openclaw') return
     await runAction(`cancel:${sessionId}`, () =>
       sendJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/cancel`, {}),
     )
@@ -115,6 +116,10 @@
     selectedArtifacts = []
     selectedArtifactsRunId = ''
     loadSession(sessionId)
+  }
+
+  function runtimeLabel(session) {
+    return session?.runtime === 'native' ? 'native' : 'openclaw'
   }
 
   onMount(() => {
@@ -164,7 +169,7 @@
           {#each sessions as session}
             <button type="button" class="session-card" class:active={(session.sessionId ?? session.id) === selectedSessionId} on:click={() => selectSession(session.sessionId ?? session.id ?? '')}>
               <strong>{session.sessionId ?? session.id ?? '--'}</strong>
-              <span>{session.status ?? 'unknown'} · {formatDate(session.updatedAt ?? session.createdAt)}</span>
+              <span>{runtimeLabel(session)} · {session.status ?? 'unknown'} · {formatDate(session.updatedAt ?? session.createdAt)}</span>
             </button>
           {/each}
         {/if}
@@ -202,13 +207,13 @@
                   <strong>{run.runId ?? run.id ?? 'run'}</strong>
                   <span>{run.status ?? run.state ?? '--'}</span>
                 </div>
-                <button type="button" class="action-btn" on:click={() => loadArtifacts(run.runId ?? run.id)} disabled={Boolean(busy)}>Load artifacts</button>
-              </article>
-            {/each}
-          {:else}
-            <p class="empty-row">No runs recorded for this session.</p>
-          {/if}
-        </div>
+              <button type="button" class="action-btn" on:click={() => loadArtifacts(run.runId ?? run.id)} disabled={Boolean(busy)}>Load artifacts</button>
+            </article>
+          {/each}
+        {:else}
+          <p class="empty-row">No runs recorded for this session.</p>
+        {/if}
+      </div>
       {/if}
     </article>
 
@@ -226,7 +231,7 @@
       {:else}
         <p class="empty-row">Run artifacts and session evidence render here.</p>
       {/if}
-      {#if selectedSessionId}
+      {#if selectedSessionId && selectedSession?.runtime === 'openclaw'}
         <button type="button" class="action-btn danger" on:click={() => handleCancel(selectedSessionId)} disabled={Boolean(busy)}>Cancel session</button>
       {/if}
     </article>
