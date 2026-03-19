@@ -101,7 +101,8 @@ RUN chmod +x /app/railway-entrypoint.sh
 
 # Create non-root user
 RUN groupadd -f -g 1000 maple && (useradd -u 1000 -g 1000 -s /bin/sh -m maple 2>/dev/null || true) \
-    && mkdir -p /tmp/tls && chown 1000:1000 /tmp/tls
+    && mkdir -p /tmp/tls && chown 1000:1000 /tmp/tls \
+    && mkdir -p /app/.maple-security/quarantine && chown 1000:1000 /app/.maple-security/quarantine
 
 ENV HOST=0.0.0.0
 

@@ -10,8 +10,6 @@ set -euo pipefail
 #   gateway-api (default), context-wall, mcp-proxy,
 #   cyber-proxy, audit-writer,
 #   frontendA, frontendB, frontendC
-# Retired (stub only): tool-runner, admin-console-api, business-api,
-#   model-router, secrets-broker
 # ──────────────────────────────────────────────────────────────────────────────
 
 MAPLE_SERVICE="${MAPLE_SERVICE:-gateway-api}"
@@ -47,25 +45,6 @@ validate_production_env() {
   fi
 }
 
-# ── Retired service compatibility shim ────────────────────────────────────────
-# Some Railway services may still reference retired MAPLE_SERVICE values
-# (model-router, secrets-broker). Keep those deployments healthy while the
-# services are removed from Railway topology.
-# Deprecation: these stubs are scheduled for removal after 2026-06-01.
-run_retired_service_stub() {
-  local service_name="${1}"
-  local replacement_hint="${2}"
-  local hp="${PORT:-3000}"
-  start_health_sidecar "${hp}"
-  echo "[railway-entrypoint] Service '${service_name}' is retired."
-  echo "[railway-entrypoint] Replacement: ${replacement_hint}"
-  echo "[railway-entrypoint] Running compatibility health stub on ${hp}."
-  exec node -e "
-    setInterval(() => {
-      console.log('[railway-entrypoint] retired service stub alive: ${service_name}');
-    }, 60000);
-  "
-}
 
 TLS_DIR="/tmp/tls"
 mkdir -p "${TLS_DIR}"
@@ -159,8 +138,6 @@ export MCP_PROXY_ADDRESS="${MCP_PROXY_ADDRESS:-localhost:9200}"
 export CYBER_PROXY_ADDRESS="${CYBER_PROXY_ADDRESS:-localhost:8090}"
 # Note: cyber-proxy defaults to port 8090 to avoid conflict with Railway's PORT (8080)
 export AUDIT_WRITER_ADDRESS="${AUDIT_WRITER_ADDRESS:-localhost:9400}"
-export MAPLE_MODEL_ROUTER_RETIRED="${MAPLE_MODEL_ROUTER_RETIRED:-true}"
-export MAPLE_SECRETS_BROKER_RETIRED="${MAPLE_SECRETS_BROKER_RETIRED:-true}"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SERVICE DISPATCH
@@ -300,11 +277,6 @@ case "${MAPLE_SERVICE}" in
     exec node backend/backendB-core-services/gateway-api/service/src/main.js
     ;;
 
-  # ────────────────────────────────────────────────────────────────────────────
-  admin-console-api) # Deprecated 2025-12 — remove after 2026-06-01
-  # ────────────────────────────────────────────────────────────────────────────
-    run_retired_service_stub "admin-console-api" "gateway-api /admin/api/* routes"
-    ;;
 
   # ────────────────────────────────────────────────────────────────────────────
   context-wall)
@@ -346,11 +318,6 @@ case "${MAPLE_SERVICE}" in
     exec node backend/backendB-core-services/mcp-proxy/service/src/main.js
     ;;
 
-  # ────────────────────────────────────────────────────────────────────────────
-  tool-runner) # Deprecated 2025-11 — remove after 2026-06-01
-  # ────────────────────────────────────────────────────────────────────────────
-    run_retired_service_stub "tool-runner" "mcp-proxy inlined tool execution"
-    ;;
 
   # ────────────────────────────────────────────────────────────────────────────
   cyber-proxy)
@@ -384,11 +351,6 @@ case "${MAPLE_SERVICE}" in
     exec node backend/backendB-core-services/audit-writer/service/src/main.js
     ;;
 
-  # ────────────────────────────────────────────────────────────────────────────
-  business-api) # Deprecated 2025-12 — remove after 2026-06-01
-  # ────────────────────────────────────────────────────────────────────────────
-    run_retired_service_stub "business-api" "gateway-api direct database logic"
-    ;;
 
   # ────────────────────────────────────────────────────────────────────────────
   frontendA)
@@ -463,25 +425,12 @@ case "${MAPLE_SERVICE}" in
     exec npx next start -p "${FRONTEND_PORT}" -H 0.0.0.0
     ;;
 
-  # ────────────────────────────────────────────────────────────────────────────
-  model-router) # Deprecated 2025-10 — remove after 2026-06-01
-  # ────────────────────────────────────────────────────────────────────────────
-    run_retired_service_stub "model-router" "context-wall"
-    ;;
-
-  # ────────────────────────────────────────────────────────────────────────────
-  secrets-broker) # Deprecated 2025-10 — remove after 2026-06-01
-  # ────────────────────────────────────────────────────────────────────────────
-    run_retired_service_stub "secrets-broker" "gateway-managed secret flows"
-    ;;
 
   # ────────────────────────────────────────────────────────────────────────────
   *)
     echo "[railway-entrypoint] ERROR: Unknown MAPLE_SERVICE='${MAPLE_SERVICE}'"
     echo "Valid values: gateway-api, context-wall, mcp-proxy, cyber-proxy, audit-writer,"
-    echo "  frontendA, frontendB, frontendC,"
-    echo "  tool-runner(retired), admin-console-api(retired), business-api(retired),"
-    echo "  model-router(retired), secrets-broker(retired)"
+    echo "  frontendA, frontendB, frontendC"
     exit 1
     ;;
 esac
