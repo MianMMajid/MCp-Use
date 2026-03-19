@@ -42,6 +42,7 @@
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=25'],
       ['alertWebhooks', '/api/observability/orchestrations/alert-webhooks'],
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
+      ['agentSessions', '/api/openclaw/agent/sessions'],
     ],
     '/maple/audit': [
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=100'],
@@ -86,6 +87,7 @@
     '/maple/topology': [
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
       ['runtimeStatus', '/api/runtime/status'],
+      ['agentSessions', '/api/openclaw/agent/sessions'],
     ],
     '/maple/runs': [
       ['runs', '/api/runs'],
@@ -180,6 +182,16 @@
   let selectedOrgId = ''
   let selectedServiceAccountId = ''
   let selectedMemberId = ''
+  let observabilitySelectedSessionId = ''
+  let observabilitySelectedRunId = ''
+  let observabilitySessionDetail = null
+  let observabilityArtifacts = []
+  let observabilityArtifactsByRun = {}
+  let observabilityArtifactsRunId = ''
+  let observabilityStreamState = 'idle'
+  let observabilityLatestCursor = '0'
+  let observabilityEventSource = null
+  let topologyObservedTargets = []
   let currentPassword = ''
   let newPassword = ''
   let newWebhookUrl = ''
@@ -222,6 +234,7 @@
   $: leakageDocuments = pickItems(state.leakageDocuments?.value)
   $: leakageEntities = pickItems(state.leakageEntities?.value)
   $: leakageEvents = pickItems(state.leakageEvents?.value)
+  $: observabilitySessions = pickItems(state.agentSessions?.value, ['sessions', 'items'])
   $: selectedOrg = organizations.find((item) => (item.orgId ?? item.id) === selectedOrgId) ?? null
   $: selectedServiceAccount = serviceAccounts.find((item) => (item.id ?? item.serviceAccountId) === selectedServiceAccountId) ?? null
   $: selectedMember = orgMembers.find((item) => (item.userId ?? item.id) === selectedMemberId) ?? null
@@ -240,6 +253,9 @@
   }
   $: if (!selectedMemberId && orgMembers.length > 0) {
     selectedMemberId = orgMembers[0].userId ?? orgMembers[0].id ?? ''
+  }
+  $: if (routePath === '/maple/observability' && !observabilitySelectedSessionId && observabilitySessions.length > 0) {
+    observabilitySelectedSessionId = observabilitySessions[0].sessionId ?? observabilitySessions[0].id ?? ''
   }
   $: sourceFilterLabel = sourceFilter === 'all' ? 'All sources' : sourceFilter
   $: severityOpenIncidents = cyberIncidents.filter((item) => {
@@ -277,6 +293,138 @@
       ?? '--'
   }
 
+  function safeHostname(value) {
+    if (!value) return ''
+    try {
+      return new URL(String(value).replace(/",$/, '')).hostname
+    } catch {
+      return ''
+    }
+  }
+
+  function normalizeExternalUrl(value) {
+    if (!value) return ''
+    const raw = String(value).trim().replace(/",$/, '')
+    try {
+      return new URL(raw).toString()
+    } catch {
+      return ''
+    }
+  }
+
+  function isExternalHost(hostname) {
+    if (!hostname) return false
+    return !['localhost', '127.0.0.1'].includes(hostname)
+  }
+
+  function collectArtifactUrls(artifact) {
+    const urls = []
+    const content = artifact?.content ?? {}
+    const pushUrl = (value, meta = {}) => {
+      const url = normalizeExternalUrl(value)
+      const hostname = safeHostname(url)
+      if (!url || !isExternalHost(hostname)) return
+      urls.push({ url, hostname, ...meta })
+    }
+
+    pushUrl(artifact?.url, { source: artifact?.artifactType ?? 'artifact' })
+    pushUrl(content?.url, { source: artifact?.artifactType ?? 'artifact' })
+    pushUrl(content?.policy?.step?.externalUrl, { source: artifact?.artifactType ?? 'policy-step' })
+    pushUrl(content?.result?.structuredContent?.data?.url, { source: artifact?.artifactType ?? 'structured-result' })
+
+    const results = content?.result?.structuredContent?.data?.results
+    if (Array.isArray(results)) {
+      results.forEach((item) => {
+        pushUrl(item?.url, {
+          source: artifact?.artifactType ?? 'search-result',
+          title: item?.title ?? '',
+          snippet: item?.snippet ?? '',
+        })
+      })
+    }
+
+    return urls
+  }
+
+  function deriveTopologyTargets(sessions, artifactsByRun, runtimeStatusPayload) {
+    const targetMap = new Map()
+    const recentSessions = sessions.slice(0, 14)
+
+    recentSessions.forEach((session, sessionIndex) => {
+      const sessionId = session?.sessionId ?? session?.id ?? `session-${sessionIndex + 1}`
+      const runId = session?.lastRunId ?? ''
+      const artifacts = Array.isArray(artifactsByRun[runId]) ? artifactsByRun[runId] : []
+      artifacts.forEach((artifact) => {
+        collectArtifactUrls(artifact).forEach((urlRecord) => {
+          const existing = targetMap.get(urlRecord.hostname)
+          const scan = artifact?.content?.result?.scan ?? artifact?.content?.scan ?? artifact?.scan ?? {}
+          const next = {
+            id: `target-${urlRecord.hostname.replace(/[^a-z0-9]+/gi, '-')}`,
+            host: urlRecord.hostname,
+            label: urlRecord.hostname,
+            url: urlRecord.url,
+            path: (() => {
+              try { return new URL(urlRecord.url).pathname || '/' } catch { return '/' }
+            })(),
+            sessionId,
+            runId,
+            source: urlRecord.source,
+            title: urlRecord.title || '',
+            snippet: urlRecord.snippet || '',
+            blocked: scan?.blocked === true || scan?.quarantined === true || contentLooksBlocked(artifact),
+            verdict: scan?.verdict || '',
+            count: (existing?.count ?? 0) + 1,
+            lastSeenAt: session?.updatedAt ?? session?.createdAt ?? '',
+            artifactType: artifact?.artifactType ?? '',
+          }
+          targetMap.set(urlRecord.hostname, { ...existing, ...next })
+        })
+      })
+    })
+
+    if (!targetMap.size) {
+      const apps = Array.isArray(runtimeStatusPayload?.status?.activeDownstreamApps)
+        ? runtimeStatusPayload.status.activeDownstreamApps
+        : []
+      apps.forEach((app) => {
+        const mcpUrl = normalizeExternalUrl(app?.mcpUrl)
+        const hostname = safeHostname(mcpUrl)
+        targetMap.set(
+          app?.id ?? app?.name ?? hostname,
+          {
+            id: `target-${(app?.id ?? hostname ?? 'downstream').replace(/[^a-z0-9]+/gi, '-')}`,
+            host: hostname || app?.name || 'downstream',
+            label: app?.name ?? hostname ?? 'Downstream app',
+            url: mcpUrl,
+            path: mcpUrl ? new URL(mcpUrl).pathname || '/' : '/',
+            sessionId: '',
+            runId: '',
+            source: 'downstream-app',
+            title: app?.name ?? '',
+            snippet: '',
+            blocked: false,
+            verdict: '',
+            count: 1,
+            lastSeenAt: '',
+            artifactType: '',
+          },
+        )
+      })
+    }
+
+    return Array.from(targetMap.values())
+      .sort((a, b) => {
+        if ((b.count ?? 0) !== (a.count ?? 0)) return (b.count ?? 0) - (a.count ?? 0)
+        return String(b.lastSeenAt ?? '').localeCompare(String(a.lastSeenAt ?? ''))
+      })
+      .slice(0, 12)
+  }
+
+  function contentLooksBlocked(artifact) {
+    const content = artifact?.content ?? {}
+    return content?.ok === false || /blocked|quarantined/i.test(JSON.stringify(content?.result ?? content))
+  }
+
   async function refresh() {
     loading = true
     error = ''
@@ -303,6 +451,29 @@
             downstreamDispatch = { ...downstreamDispatch, appId }
           }
         }
+      }
+
+      if (routePath === '/maple/topology') {
+        const topologySessions = pickItems(nextState.agentSessions?.value, ['sessions', 'items'])
+        const recentRuns = topologySessions
+          .map((item) => item?.lastRunId)
+          .filter(Boolean)
+          .slice(0, 14)
+
+        const artifactsByRun = Object.fromEntries(
+          await Promise.all(
+            recentRuns.map(async (runId) => {
+              try {
+                const artifactPayload = await loadJson(fetch, `/api/openclaw/agent/runs/${encodeURIComponent(runId)}/artifacts`)
+                const runPayload = artifactPayload?.run ?? artifactPayload ?? {}
+                return [runPayload?.runId ?? runId, Array.isArray(runPayload?.artifacts) ? runPayload.artifacts : []]
+              } catch {
+                return [runId, []]
+              }
+            }),
+          ),
+        )
+        topologyObservedTargets = deriveTopologyTargets(topologySessions, artifactsByRun, nextState.runtimeStatus?.value ?? {})
       }
 
       if (routePath === '/maple/api-keys' || routePath === '/maple/org') {
@@ -351,10 +522,185 @@
       if (routePath === '/maple/agent' && selectedSessionId) {
         await loadAgentSession(selectedSessionId)
       }
+
+      if (routePath === '/maple/observability' && observabilitySelectedSessionId) {
+        await loadObservabilitySession(observabilitySelectedSessionId, {
+          preserveRun: true,
+          preserveStream: Boolean(observabilityEventSource),
+        })
+      }
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
     } finally {
       loading = false
+    }
+  }
+
+  function closeObservabilityStream() {
+    if (observabilityEventSource) {
+      observabilityEventSource.close()
+      observabilityEventSource = null
+    }
+  }
+
+  function deriveObservabilityRuns(detail) {
+    if (Array.isArray(detail?.session?.runs)) return detail.session.runs
+    if (Array.isArray(detail?.runs)) return detail.runs
+    return []
+  }
+
+  function deriveObservabilityEvents(detail) {
+    if (Array.isArray(detail?.session?.events)) return detail.session.events
+    if (Array.isArray(detail?.events)) return detail.events
+    return []
+  }
+
+  async function loadObservabilityArtifacts(runId) {
+    if (!runId) return
+    busy = `observability-artifacts:${runId}`
+    error = ''
+    try {
+      const payload = await loadJson(fetch, `/api/openclaw/agent/runs/${encodeURIComponent(runId)}/artifacts`)
+      const runPayload = payload?.run ?? payload ?? {}
+      observabilityArtifactsByRun = {
+        ...observabilityArtifactsByRun,
+        [runPayload?.runId ?? runId]: Array.isArray(runPayload?.artifacts) ? runPayload.artifacts : [],
+      }
+      observabilityArtifactsRunId = runPayload?.runId ?? runId
+      observabilityArtifacts = Array.isArray(runPayload?.artifacts) ? runPayload.artifacts : []
+      observabilitySelectedRunId = observabilityArtifactsRunId
+    } catch (requestError) {
+      error = requestError instanceof Error ? requestError.message : String(requestError)
+      observabilityArtifacts = []
+      observabilityArtifactsRunId = runId
+      observabilitySelectedRunId = runId
+    } finally {
+      busy = ''
+    }
+  }
+
+  function openObservabilityStream(sessionId) {
+    closeObservabilityStream()
+    if (!sessionId || typeof EventSource === 'undefined') {
+      observabilityStreamState = 'unsupported'
+      return
+    }
+    const cursor = encodeURIComponent(observabilityLatestCursor || '0')
+    const url = `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/stream?cursor=${cursor}&timeoutMs=25000`
+    const source = new EventSource(url)
+    observabilityEventSource = source
+    observabilityStreamState = 'connecting'
+
+    const refreshDetail = async (event) => {
+      try {
+        const payload = event?.data ? JSON.parse(event.data) : {}
+        if (payload?.cursor) observabilityLatestCursor = String(payload.cursor)
+      } catch {
+        // best effort
+      }
+      observabilityStreamState = 'live'
+      await loadObservabilitySession(sessionId, { preserveRun: true, preserveStream: true })
+    }
+
+    source.addEventListener('ready', (event) => {
+      try {
+        const payload = event?.data ? JSON.parse(event.data) : {}
+        if (payload?.cursor) observabilityLatestCursor = String(payload.cursor)
+      } catch {
+        // best effort
+      }
+      observabilityStreamState = 'live'
+    })
+    source.addEventListener('run_started', refreshDetail)
+    source.addEventListener('run_completed', refreshDetail)
+    source.addEventListener('run_failed', refreshDetail)
+    source.addEventListener('run_canceled', refreshDetail)
+    source.addEventListener('cancel_requested', refreshDetail)
+    source.addEventListener('gap', refreshDetail)
+    source.addEventListener('done', (event) => {
+      try {
+        const payload = event?.data ? JSON.parse(event.data) : {}
+        if (payload?.cursor) observabilityLatestCursor = String(payload.cursor)
+      } catch {
+        // best effort
+      }
+      observabilityStreamState = 'idle'
+      closeObservabilityStream()
+    })
+    source.onerror = () => {
+      observabilityStreamState = 'polling'
+      closeObservabilityStream()
+    }
+  }
+
+  async function loadObservabilitySession(sessionId, options = {}) {
+    if (!sessionId) return
+    const preserveRun = options.preserveRun === true
+    const preserveStream = options.preserveStream === true
+    try {
+      const payload = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}?include=steps,runs`)
+      const detail = payload?.session ?? payload ?? null
+      observabilitySessionDetail = detail
+      observabilitySelectedSessionId = sessionId
+      observabilityArtifactsByRun = {}
+      const runs = deriveObservabilityRuns(detail)
+      const latestCursor = detail?.latestEventCursor
+        ?? deriveObservabilityEvents(detail).at(-1)?.cursor
+        ?? '0'
+      observabilityLatestCursor = String(latestCursor)
+
+      const preferredRunId = preserveRun ? (observabilitySelectedRunId || observabilityArtifactsRunId) : ''
+      const activeRun =
+        runs.find((run) => (run.runId ?? run.id) === preferredRunId)
+        ?? runs[0]
+        ?? null
+
+      if (runs.length > 0) {
+        const artifactPayloads = await Promise.all(
+          runs.map(async (run) => {
+            const runId = run.runId ?? run.id ?? ''
+            if (!runId) return null
+            try {
+              const artifactPayload = await loadJson(fetch, `/api/openclaw/agent/runs/${encodeURIComponent(runId)}/artifacts`)
+              const runPayload = artifactPayload?.run ?? artifactPayload ?? {}
+              return {
+                runId: runPayload?.runId ?? runId,
+                artifacts: Array.isArray(runPayload?.artifacts) ? runPayload.artifacts : [],
+              }
+            } catch {
+              return { runId, artifacts: [] }
+            }
+          }),
+        )
+        observabilityArtifactsByRun = Object.fromEntries(
+          artifactPayloads
+            .filter(Boolean)
+            .map((item) => [item.runId, item.artifacts]),
+        )
+      }
+
+      if (activeRun) {
+        const activeRunId = activeRun.runId ?? activeRun.id ?? ''
+        observabilitySelectedRunId = activeRunId
+        observabilityArtifactsRunId = activeRunId
+        observabilityArtifacts = observabilityArtifactsByRun[activeRunId] ?? []
+      } else {
+        observabilitySelectedRunId = ''
+        observabilityArtifactsRunId = ''
+        observabilityArtifacts = []
+      }
+
+      if (!preserveStream) {
+        openObservabilityStream(sessionId)
+      }
+    } catch (requestError) {
+      error = requestError instanceof Error ? requestError.message : String(requestError)
+      observabilitySessionDetail = null
+      observabilityArtifacts = []
+      observabilityArtifactsRunId = ''
+      observabilitySelectedRunId = ''
+      observabilityStreamState = 'error'
+      closeObservabilityStream()
     }
   }
 
@@ -389,6 +735,23 @@
       error = requestError instanceof Error ? requestError.message : String(requestError)
     } finally {
       busy = ''
+    }
+  }
+
+  function selectObservabilitySession(sessionId) {
+    observabilitySelectedSessionId = sessionId
+    observabilitySelectedRunId = ''
+    observabilityArtifacts = []
+    observabilityArtifactsRunId = ''
+    void loadObservabilitySession(sessionId, { preserveRun: false, preserveStream: false })
+  }
+
+  function selectObservabilityRun(runId) {
+    observabilitySelectedRunId = runId
+    observabilityArtifactsRunId = runId
+    observabilityArtifacts = observabilityArtifactsByRun[runId] ?? []
+    if (!(runId in observabilityArtifactsByRun)) {
+      void loadObservabilityArtifacts(runId)
     }
   }
 
@@ -882,6 +1245,7 @@
     return () => {
       window.removeEventListener('maple:shell-refresh', onShellRefresh)
       window.clearInterval(intervalId)
+      closeObservabilityStream()
     }
   })
 </script>
@@ -981,6 +1345,16 @@
     slo={state.slo?.value ?? {}}
     auditEvents={observabilityAudit}
     runtimeCapabilities={pickItems(state.runtimeCapabilities?.value)}
+    openclawSessions={observabilitySessions}
+    openclawSessionDetail={observabilitySessionDetail}
+    openclawSelectedSessionId={observabilitySelectedSessionId}
+    openclawSelectedRunId={observabilitySelectedRunId}
+    openclawArtifacts={observabilityArtifacts}
+    openclawArtifactsByRun={observabilityArtifactsByRun}
+    openclawArtifactsRunId={observabilityArtifactsRunId}
+    openclawStreamState={observabilityStreamState}
+    selectOpenclawSession={selectObservabilitySession}
+    selectOpenclawRun={selectObservabilityRun}
   />
 {:else if routePath === '/maple/topology'}
   <WorkspaceViewHost
@@ -988,6 +1362,7 @@
     state={{ category: 'observe', view: 'topology', routePath, routeRecord }}
     {routeRecord}
     topologyEndpoints={pickItems(state.runtimeCapabilities?.value, ['endpoints', 'items'])}
+    topologyObservedTargets={topologyObservedTargets}
     runtimeCapabilities={pickItems(state.runtimeCapabilities?.value)}
   />
 {:else if routePath === '/maple/forks'}

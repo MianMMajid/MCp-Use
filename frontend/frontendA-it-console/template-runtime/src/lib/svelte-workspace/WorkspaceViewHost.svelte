@@ -20,6 +20,8 @@
   export let auditEvents = []
   export let approvals = []
   export let topologyEndpoints = []
+  export let topologyObservedTargets = []
+  export let filesystemMutations = []
   export let executions = []
   export let runtimeCapabilities = []
   export let integrationCatalog = []
@@ -27,6 +29,14 @@
   export let downstreamApps = []
   export let downstreamTools = []
   export let openclawCatalog = []
+  export let openclawSessions = []
+  export let openclawSessionDetail = null
+  export let openclawSelectedSessionId = ''
+  export let openclawSelectedRunId = ''
+  export let openclawArtifacts = []
+  export let openclawArtifactsByRun = {}
+  export let openclawArtifactsRunId = ''
+  export let openclawStreamState = 'idle'
   export let firewallRules = []
   export let firewallRulesSource = 'loading'
   export let cyberStatus = null
@@ -67,6 +77,8 @@
   export let confirmStop = () => {}
   export let blockActionRule = () => {}
   export let queueInterventionHandoff = () => {}
+  export let selectOpenclawSession = () => {}
+  export let selectOpenclawRun = () => {}
 
   const INITIAL_CHAT_MESSAGE = Object.freeze({
     id: 'observe-chat-initial',
@@ -174,6 +186,11 @@
   let orgSettingsNotice = ''
   let orgSettingsBusy = false
   let orgSettingsInit = ''
+  let observabilityZoom = 1
+  let observabilityPanX = 0
+  let observabilityPanY = 0
+  let observabilityPanning = false
+  let selectedGraphNodeId = ''
 
   $: if (currentOrgId && currentOrgId !== orgSettingsInit && orgMembers.length > 0) {
     // Re-derive org info when org changes — pull from the first member's org data or defaults
@@ -416,71 +433,196 @@
     sessionId: activeSessionId,
     routeTitle: routeRecord?.title ?? '',
   })
-  $: liveNodes = (() => {
-    const rows = auditEvents.slice(0, 5).map((event, index) => {
-      const rawStatus = String(event.guardDecision ?? event.status ?? event.severity ?? 'observed').toLowerCase()
-      const tone =
-        rawStatus.includes('block') || rawStatus.includes('fail')
-          ? 'blocked'
-          : rawStatus.includes('warn')
-            ? 'fork'
-            : 'main'
-      const risk = String(event.riskLabel ?? event.risk ?? event.severity ?? 'medium').toLowerCase()
-      const riskBand = risk.includes('critical') ? 'critical' : risk.includes('high') ? 'high' : 'medium'
-      return {
-        id: event.id ?? `live-${index}`,
-        title: `#${index} ${event.eventType ?? event.type ?? 'tool_call'} · ${event.actor ?? 'agent'}`,
-        command: event.command ?? event.url ?? event.endpoint ?? event.traceId ?? event.executionId ?? 'runtime action',
-        risk: `risk ${riskBand === 'critical' ? '100' : riskBand === 'high' ? '65' : '35'} · ${riskBand}`,
-        tone,
-        sessionId:
-          String(event.sessionId ?? event.session ?? event.session_id ?? '').trim() ||
-          (event.executionId ? `session-for-${event.executionId}` : `session-live-${index + 1}`),
-      }
-    })
-    return rows.length > 0 ? rows : LIVE_FALLBACK_NODES
-  })()
+  function truncateText(value, limit = 58) {
+    const text = String(value ?? '').trim()
+    if (!text) return '--'
+    return text.length > limit ? `${text.slice(0, limit - 3)}...` : text
+  }
 
-  $: isolatedForkRows = auditEvents
-    .filter((event) => {
-      const status = String(event.guardDecision ?? event.status ?? event.severity ?? '').toLowerCase()
-      const risk = String(event.riskLabel ?? event.risk ?? '').toLowerCase()
-      return status.includes('block') || status.includes('fail') || status.includes('warn') || risk.includes('high') || risk.includes('critical')
-    })
-    .slice(0, 2)
-    .map((event, index) => ({
-      id: event.id ?? `fork-${index}`,
-      title: `Fork #${index + 2} ${event.eventType ?? event.type ?? 'tool_call'} · ${event.actor ?? 'agent'}`,
-      command: event.command ?? event.url ?? event.endpoint ?? 'echo "blocked untrusted remote script"; exit 1',
-      risk: `risk ${String(event.riskLabel ?? event.risk ?? 'medium').toLowerCase().includes('high') ? '65' : '35'} · ${String(event.riskLabel ?? event.risk ?? 'medium').toLowerCase().includes('high') ? 'high' : 'medium'}`,
-      sessionId:
-        String(event.sessionId ?? event.session ?? event.session_id ?? '').trim() ||
-        (event.executionId ? `session-for-${event.executionId}` : `session-fork-${index + 1}`),
-    }))
+  function trimWorkspacePath(value) {
+    return truncateText(String(value ?? '').replace('/Users/omarramadan/Desktop/mcp_firewall/', ''), 54)
+  }
 
-  $: forkMainNodes = liveNodes.slice(0, 4).map((node, index) => ({
-    ...node,
-    id: `main-${index}`,
-    tone: index === 2 ? 'fork' : 'main',
-  }))
-  $: forkBranchNodes = isolatedForkRows.length
-    ? isolatedForkRows
-    : [
+  function currentForkRisk(plan) {
+    const ops = Array.isArray(plan?.plan?.operations) ? plan.plan.operations.length : 0
+    const lane = String(plan?.lane ?? plan?.status ?? 'review').replace(/_/g, ' ')
+    return `${ops || 1} file ${ops === 1 ? 'operation' : 'operations'} · ${lane}`
+  }
+
+  $: currentForkPlan = Array.isArray(filesystemMutations) ? filesystemMutations[0] ?? null : null
+  $: forkMainNodes = currentForkPlan
+    ? [
+        {
+          id: 'main-0',
+          title: `#0 ${currentForkPlan.sourceType ?? 'agent_prompt'} · ${currentForkPlan.sourceSurface ?? 'frontendB'}`,
+          command: truncateText(currentForkPlan.taskText ?? currentForkPlan.planId, 66),
+          risk: currentForkRisk(currentForkPlan),
+          tone: 'main',
+          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
+        },
+        {
+          id: 'main-1',
+          title: `#1 ${currentForkPlan.plan?.toolName ?? 'filesystem'} · mayple`,
+          command: trimWorkspacePath(currentForkPlan.plan?.operations?.[0]?.path ?? currentForkPlan.workspaceRoot),
+          risk: truncateText(currentForkPlan.plan?.laneMessage ?? 'Mayple isolated the mutation path for review.', 62),
+          tone: 'main',
+          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
+        },
+        {
+          id: 'main-2',
+          title: `#2 ${currentForkPlan.lane ?? 'fork_required'} · mayple`,
+          command:
+            String(currentForkPlan.status ?? '').includes('pending')
+              ? 'Fork created and held for operator review.'
+              : truncateText(currentForkPlan.status ?? currentForkPlan.lane ?? 'fork review', 62),
+          risk: `${currentForkPlan.status ?? 'pending_review'} · ${truncateText(currentForkPlan.traceId || currentForkPlan.runId || '--', 28)}`,
+          tone: 'fork',
+          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
+        },
+        {
+          id: 'main-3',
+          title: `#3 ${currentForkPlan.status ?? 'pending_review'} · operator`,
+          command:
+            String(currentForkPlan.status ?? '').includes('pending')
+              ? 'Awaiting operator decision before promotion.'
+              : truncateText(currentForkPlan.status ?? 'review complete', 62),
+          risk: `session ${truncateText(currentForkPlan.sessionId || '--', 24)}`,
+          tone: String(currentForkPlan.status ?? '').includes('restore') || String(currentForkPlan.status ?? '').includes('deny') ? 'blocked' : 'main',
+          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
+        },
+      ]
+    : []
+  $: forkBranchNodes = currentForkPlan
+    ? [
         {
           id: 'fork-2',
-          title: 'Fork #2 tool_call · agent',
-          command: "echo 'blocked untrusted remote script'; exit 1",
-          risk: 'risk 35 · medium',
-          sessionId: 'session-fork-2',
+          title: `Fork #2 ${currentForkPlan.plan?.toolName ?? 'filesystem'} · mayple`,
+          command: trimWorkspacePath(currentForkPlan.plan?.operations?.[0]?.path ?? currentForkPlan.workspaceRoot),
+          risk: `${currentForkPlan.sourceSurface ?? 'frontendB'} · isolated branch`,
+          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
         },
         {
           id: 'fork-3',
-          title: 'Fork #3 system · system',
-          command: 'Forked from step #2 via Mayple node modal.',
-          risk: 'risk 35 · medium',
-          sessionId: 'session-fork-3',
+          title: 'Fork #3 operator review · system',
+          command:
+            String(currentForkPlan.status ?? '').includes('pending')
+              ? 'Pending review before promotion.'
+              : truncateText(currentForkPlan.status ?? 'review complete', 62),
+          risk: truncateText(currentForkPlan.traceId || currentForkPlan.runId || currentForkPlan.planId, 30),
+          sessionId: currentForkPlan.sessionId ?? currentForkPlan.runId ?? currentForkPlan.planId,
         },
       ]
+    : []
+
+  function formatDateTime(value) {
+    if (!value) return '--'
+    try {
+      return new Date(value).toLocaleString()
+    } catch {
+      return String(value)
+    }
+  }
+
+  function formatRelativeTime(value) {
+    if (!value) return 'stale'
+    const millis = Date.now() - Date.parse(value)
+    if (!Number.isFinite(millis)) return formatDateTime(value)
+    const seconds = Math.max(0, Math.round(millis / 1000))
+    if (seconds < 60) return `${seconds}s ago`
+    const minutes = Math.round(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 48) return `${hours}h ago`
+    const days = Math.round(hours / 24)
+    return `${days}d ago`
+  }
+
+  function artifactTypeLabel(value) {
+    return String(value ?? 'artifact')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+
+  function sessionDetailPayload(detail) {
+    return detail?.session ?? detail ?? null
+  }
+
+  function getDetailRuns(detail) {
+    const payload = sessionDetailPayload(detail)
+    if (Array.isArray(payload?.runs)) return payload.runs
+    if (Array.isArray(detail?.runs)) return detail.runs
+    return []
+  }
+
+  function getDetailEvents(detail) {
+    const payload = sessionDetailPayload(detail)
+    if (Array.isArray(payload?.events)) return payload.events
+    if (Array.isArray(detail?.events)) return detail.events
+    return []
+  }
+
+  function describeRunRelationship(run) {
+    const childCount = Array.isArray(run?.childRunIds) ? run.childRunIds.length : 0
+    if (run?.parentRunId && childCount > 0) return `child of ${run.parentRunId} · forks ${childCount}`
+    if (run?.parentRunId) return `child of ${run.parentRunId}`
+    if (childCount > 0) return `root · forks ${childCount}`
+    return 'root'
+  }
+
+  function nodeToneForEvent(event) {
+    const type = String(event?.eventType ?? '').toLowerCase()
+    if (type.includes('failed') || type.includes('canceled')) return 'blocked'
+    if (type.includes('cancel')) return 'fork'
+    return 'main'
+  }
+
+  function buildChainLabel(event, runsById) {
+    const type = String(event?.eventType ?? 'event')
+    const payload = event?.payload ?? {}
+    const run = runsById.get(payload?.runId)
+    switch (type) {
+      case 'run_started':
+        return {
+          title: `Prompt submitted · ${run?.type ?? payload?.type ?? 'run'}`,
+          subtitle: payload?.parentRunId ? `Forked from ${payload.parentRunId}` : 'Governed execution began',
+        }
+      case 'run_completed':
+        return {
+          title: `Reply emitted · ${run?.type ?? payload?.type ?? 'run'}`,
+          subtitle: 'Run completed and evidence was persisted',
+        }
+      case 'run_failed':
+        return {
+          title: `Run failed · ${run?.type ?? payload?.type ?? 'run'}`,
+          subtitle: String(payload?.error ?? 'Execution failed'),
+        }
+      case 'run_canceled':
+        return {
+          title: `Run canceled · ${run?.type ?? payload?.type ?? 'run'}`,
+          subtitle: 'Operator or session cancel stopped execution',
+        }
+      case 'cancel_requested':
+        return {
+          title: 'Cancel requested',
+          subtitle: 'Session entered operator cancel flow',
+        }
+      default:
+        return {
+          title: artifactTypeLabel(type),
+          subtitle: payload?.runId ? `Run ${payload.runId}` : 'Session event',
+        }
+    }
+  }
+
+  function buildArtifactNodeSummary(artifact) {
+    const type = String(artifact?.artifactType ?? 'artifact')
+    if (type === 'network_mediation') return 'network mediation'
+    if (type === 'context_leakage_prompt') return 'context leakage'
+    if (type === 'filesystem_mediation') return 'filesystem mediation'
+    if (type === 'reply') return 'reply'
+    if (type === 'raw') return 'raw'
+    return artifactTypeLabel(type)
+  }
   function extractUserCandidates(record) {
     if (!record || typeof record !== 'object') return []
     const values = [
@@ -527,6 +669,141 @@
     return rows
   })()
   $: userRows = [...seededUsers, ...manualUserRows]
+  $: openclawDetail = sessionDetailPayload(openclawSessionDetail)
+  $: observabilityRuns = getDetailRuns(openclawSessionDetail)
+  $: observabilityEvents = getDetailEvents(openclawSessionDetail)
+  $: observabilityRunsById = new Map(observabilityRuns.map((run) => [String(run.runId ?? run.id ?? ''), run]))
+  $: selectedObservabilityRun =
+    observabilityRuns.find((run) => String(run.runId ?? run.id ?? '') === String(openclawSelectedRunId ?? openclawArtifactsRunId ?? ''))
+    ?? observabilityRuns[0]
+    ?? null
+  $: observabilityChain = observabilityEvents.map((event, index) => {
+    const runId = String(event?.payload?.runId ?? '')
+    const run = observabilityRunsById.get(runId) ?? null
+    const label = buildChainLabel(event, observabilityRunsById)
+    return {
+      id: event?.id ?? `session-event-${index}`,
+      title: label.title,
+      subtitle: label.subtitle,
+      runId,
+      timestamp: event?.timestamp ?? '',
+      cursor: event?.cursor ?? '',
+      tone: nodeToneForEvent(event),
+      status: run?.status ?? '',
+    }
+  })
+  $: artifactTypeSummary = Array.from(
+    new Set((Array.isArray(openclawArtifacts) ? openclawArtifacts : []).map((artifact) => String(artifact?.artifactType ?? 'artifact'))),
+  )
+  $: observabilityGraph = (() => {
+    const nodes = []
+    const edges = []
+    const runsById = new Map(observabilityRuns.map((run) => [String(run.runId ?? run.id ?? ''), run]))
+    const eventsByRunId = new Map()
+
+    for (const event of observabilityEvents) {
+      const runId = String(event?.payload?.runId ?? '')
+      if (!runId) continue
+      const bucket = eventsByRunId.get(runId) ?? []
+      bucket.push(event)
+      eventsByRunId.set(runId, bucket)
+    }
+
+    observabilityRuns.forEach((run, runIndex) => {
+      const runId = String(run.runId ?? run.id ?? '')
+      const x = 220 + runIndex * 260
+      const startEvent = (eventsByRunId.get(runId) ?? []).find((event) => String(event?.eventType ?? '') === 'run_started')
+      const endEvent = (eventsByRunId.get(runId) ?? []).find((event) => {
+        const type = String(event?.eventType ?? '')
+        return type.startsWith('run_') && type !== 'run_started'
+      })
+      const artifacts = Array.isArray(openclawArtifactsByRun?.[runId]) ? openclawArtifactsByRun[runId] : []
+
+      if (startEvent) {
+        nodes.push({
+          id: `event:${startEvent.id}`,
+          kind: 'event',
+          runId,
+          tone: 'main',
+          x,
+          y: 80,
+          label: 'prompt',
+          title: 'Prompt submitted',
+          subtitle: formatDateTime(startEvent.timestamp),
+          data: startEvent,
+        })
+      }
+
+      nodes.push({
+        id: `run:${runId}`,
+        kind: 'run',
+        runId,
+        tone: run.status === 'failed' || run.status === 'canceled' ? 'blocked' : run.parentRunId ? 'fork' : 'main',
+        x,
+        y: 220,
+        label: run.type ?? 'run',
+        title: runId,
+        subtitle: run.status ?? '--',
+        data: run,
+      })
+
+      if (startEvent) {
+        edges.push({ id: `edge:event:${startEvent.id}:run:${runId}`, from: `event:${startEvent.id}`, to: `run:${runId}` })
+      }
+
+      artifacts.forEach((artifact, artifactIndex) => {
+        const nodeId = `artifact:${runId}:${artifactIndex}`
+        nodes.push({
+          id: nodeId,
+          kind: 'artifact',
+          runId,
+          tone:
+            artifact?.artifactType === 'context_leakage_prompt'
+              ? 'fork'
+              : artifact?.scan?.verdict === 'malicious'
+                ? 'blocked'
+                : 'main',
+          x,
+          y: 380 + artifactIndex * 120,
+          label: buildArtifactNodeSummary(artifact),
+          title: artifactTypeLabel(artifact.artifactType),
+          subtitle: artifact?.scan?.verdict ?? artifact?.scan?.stage ?? 'evidence',
+          data: artifact,
+        })
+        edges.push({ id: `edge:run:${runId}:${nodeId}`, from: `run:${runId}`, to: nodeId })
+      })
+
+      if (endEvent) {
+        const endLabel = buildChainLabel(endEvent, runsById)
+        nodes.push({
+          id: `event:${endEvent.id}`,
+          kind: 'event',
+          runId,
+          tone: nodeToneForEvent(endEvent),
+          x,
+          y: 380 + artifacts.length * 120,
+          label: endEvent.eventType,
+          title: endLabel.title,
+          subtitle: endLabel.subtitle,
+          data: endEvent,
+        })
+        edges.push({ id: `edge:run:${runId}:event:${endEvent.id}`, from: `run:${runId}`, to: `event:${endEvent.id}` })
+      }
+
+      if (run.parentRunId) {
+        edges.push({ id: `edge:parent:${run.parentRunId}:${runId}`, from: `run:${run.parentRunId}`, to: `run:${runId}` })
+      }
+    })
+
+    return { nodes, edges }
+  })()
+  $: if (!selectedGraphNodeId && observabilityGraph.nodes.length > 0) {
+    selectedGraphNodeId = observabilityGraph.nodes[0].id
+  }
+  $: if (selectedGraphNodeId && !observabilityGraph.nodes.some((node) => node.id === selectedGraphNodeId)) {
+    selectedGraphNodeId = observabilityGraph.nodes[0]?.id ?? ''
+  }
+  $: selectedGraphNode = observabilityGraph.nodes.find((node) => node.id === selectedGraphNodeId) ?? null
 
   async function sendChatPrompt(rawPrompt) {
     const prompt = String(rawPrompt ?? '').trim()
@@ -680,6 +957,10 @@
     liveZoom = clampZoom(liveZoom + delta)
   }
 
+  function nudgeObservabilityZoom(delta) {
+    observabilityZoom = clampZoom(observabilityZoom + delta)
+  }
+
   function nudgeForksZoom(delta) {
     forksZoom = clampZoom(forksZoom + delta)
   }
@@ -692,6 +973,11 @@
   function onForksWheel(event) {
     event.preventDefault()
     nudgeForksZoom(event.deltaY > 0 ? -0.08 : 0.08)
+  }
+
+  function onObservabilityWheel(event) {
+    event.preventDefault()
+    nudgeObservabilityZoom(event.deltaY > 0 ? -0.08 : 0.08)
   }
 
   /** Svelte action: attaches wheel listener with { passive: false } to suppress Chrome warning */
@@ -711,11 +997,12 @@
       type,
       x: event.clientX,
       y: event.clientY,
-      startX: type === 'live' ? livePanX : forksPanX,
-      startY: type === 'live' ? livePanY : forksPanY,
+      startX: type === 'live' ? livePanX : type === 'forks' ? forksPanX : observabilityPanX,
+      startY: type === 'live' ? livePanY : type === 'forks' ? forksPanY : observabilityPanY,
     }
     if (type === 'live') livePanning = true
     if (type === 'forks') forksPanning = true
+    if (type === 'observability') observabilityPanning = true
     window.addEventListener('mousemove', onPanMove)
     window.addEventListener('mouseup', endPan)
   }
@@ -730,6 +1017,9 @@
     } else if (panDrag.type === 'forks') {
       forksPanX = panDrag.startX + dx
       forksPanY = panDrag.startY + dy
+    } else if (panDrag.type === 'observability') {
+      observabilityPanX = panDrag.startX + dx
+      observabilityPanY = panDrag.startY + dy
     }
   }
 
@@ -737,6 +1027,7 @@
     panDrag = null
     livePanning = false
     forksPanning = false
+    observabilityPanning = false
     window.removeEventListener('mousemove', onPanMove)
     window.removeEventListener('mouseup', endPan)
   }
@@ -751,59 +1042,100 @@
 
 {#key state.category + '-' + state.view}
 {#if panelOpen && state.category === 'observe' && state.view === 'live'}
-  <section class="view-panel live-view panel">
-    <header class="mw-view-header">
-      <h1>Observability & Alerts</h1>
-      <p>Monitor Frontend B orchestration runtime and intervene when risk escalates.</p>
-    </header>
-    <article class="panel tree-panel">
-      <div class="tree-shell">
-        <div class="tree-legend">
-          <span><i class="legend-dot legend-main"></i> Main</span>
-          <span><i class="legend-dot legend-fork"></i> Fork</span>
-          <span><i class="legend-dot legend-block"></i> Blocked</span>
-        </div>
-        <div class="action-tree-wrap">
-          <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
-          <div
-            class="action-tree-canvas"
-            class:is-panning={livePanning}
-            use:nonPassiveWheel={onLiveWheel}
-            on:mousedown={(event) => startPan(event, 'live')}
-          >
-            <div class="canvas-zoom-controls" aria-label="Live canvas zoom controls">
-              <button type="button" class="zoom-btn" on:click={() => nudgeLiveZoom(-0.1)}>−</button>
-              <button type="button" class="zoom-btn" on:click={() => { liveZoom = 0.75; livePanX = 0; livePanY = 0; }}>Reset</button>
-              <button type="button" class="zoom-btn" on:click={() => nudgeLiveZoom(0.1)}>+</button>
-            </div>
-            <div class="canvas-zoom-layer" style={`transform: translate(${livePanX}px, ${livePanY}px) scale(${liveZoom});`}>
-              <div class="monitor-step-stack">
-                {#each liveNodes as node, index}
-                  <button
-                    type="button"
-                    class="monitor-step-node monitor-step-{node.tone}"
-                    style={`animation-delay:${index * 80}ms;`}
-                    on:click={() =>
-                      queueInterventionHandoff({
-                        sessionId: node.sessionId,
-                        label: node.title,
-                      })}
-                  >
-                    <strong>{node.title}</strong>
-                    <span>{node.command}</span>
-                    <em>{node.risk}</em>
-                  </button>
-                  {#if index < liveNodes.length - 1}
-                    <div class="monitor-step-arrow">↓</div>
-                  {/if}
-                {/each}
-              </div>
+  <section class="view-panel live-view panel observability-plain-view">
+    <div class="observability-toolbar">
+      <select
+        class="select observability-session-picker"
+        bind:value={openclawSelectedSessionId}
+        on:change={(event) => selectOpenclawSession(event.currentTarget.value)}
+      >
+        {#if openclawSessions.length === 0}
+          <option value="">No sessions</option>
+        {:else}
+          {#each openclawSessions as session}
+            <option value={session.sessionId ?? session.id ?? ''}>
+              {session.sessionId ?? session.id ?? '--'} · {session.status ?? 'unknown'}
+            </option>
+          {/each}
+        {/if}
+      </select>
+      <div class="observability-toolbar-meta">
+        <span class="chip">{openclawStreamState}</span>
+        <span class="chip">{formatRelativeTime(openclawDetail?.updatedAt)}</span>
+      </div>
+    </div>
+
+    {#if !openclawSelectedSessionId || observabilityGraph.nodes.length === 0}
+      <p class="empty-row">No real agent chain to render yet.</p>
+    {:else}
+      <div class="plain-graph-shell">
+        <div
+          class="plain-graph-canvas"
+          class:is-panning={observabilityPanning}
+          role="presentation"
+          aria-label="Observability graph canvas"
+          use:nonPassiveWheel={onObservabilityWheel}
+          on:mousedown={(event) => startPan(event, 'observability')}
+        >
+          <div class="canvas-zoom-controls" aria-label="Observability graph zoom controls">
+            <button type="button" class="zoom-btn" on:click={() => nudgeObservabilityZoom(-0.1)}>−</button>
+            <button type="button" class="zoom-btn" on:click={() => { observabilityZoom = 1; observabilityPanX = 0; observabilityPanY = 0; }}>Reset</button>
+            <button type="button" class="zoom-btn" on:click={() => nudgeObservabilityZoom(0.1)}>+</button>
+          </div>
+          <div class="canvas-zoom-layer" style={`transform: translate(${observabilityPanX}px, ${observabilityPanY}px) scale(${observabilityZoom});`}>
+            <svg class="plain-graph-edges" viewBox="0 0 2200 1600" preserveAspectRatio="xMinYMin meet">
+              <defs>
+                <marker id="graph-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#6be082"></path>
+                </marker>
+              </defs>
+              {#each observabilityGraph.edges as edge}
+                {@const from = observabilityGraph.nodes.find((node) => node.id === edge.from)}
+                {@const to = observabilityGraph.nodes.find((node) => node.id === edge.to)}
+                {#if from && to}
+                  <line
+                    x1={from.x}
+                    y1={from.y + 28}
+                    x2={to.x}
+                    y2={to.y - 28}
+                    class="plain-graph-line"
+                    marker-end="url(#graph-arrow)"
+                  />
+                {/if}
+              {/each}
+            </svg>
+
+            <div class="plain-graph-nodes">
+              {#each observabilityGraph.nodes as node}
+                <button
+                  type="button"
+                  class="plain-graph-node plain-graph-node-{node.tone}"
+                  class:is-selected={node.id === selectedGraphNodeId}
+                  style={`left:${node.x - 90}px; top:${node.y - 44}px;`}
+                  on:click={() => {
+                    selectedGraphNodeId = node.id
+                    if (node.runId) selectOpenclawRun(node.runId)
+                  }}
+                >
+                  <strong>{node.title}</strong>
+                  <span>{node.subtitle}</span>
+                </button>
+              {/each}
             </div>
           </div>
         </div>
+
+        {#if selectedGraphNode}
+          <article class="plain-graph-inspector">
+            <div class="panel-head">
+              <h2 class="panel-title">{selectedGraphNode.title}</h2>
+              <span class="chip">{selectedGraphNode.kind}</span>
+            </div>
+            <pre>{JSON.stringify(selectedGraphNode.data, null, 2)}</pre>
+          </article>
+        {/if}
       </div>
-    </article>
-    <p data-testid="monitoring-context-explainer" class="empty-row">Monitoring context and live runtime posture.</p>
+    {/if}
   </section>
 {/if}
 
@@ -959,7 +1291,11 @@
 {/if}
 
 {#if panelOpen && state.category === 'observe' && state.view === 'topology'}
-  <TopologyView endpoints={topologyEndpoints} {queueInterventionHandoff} />
+  <TopologyView
+    endpoints={topologyEndpoints}
+    observedTargets={topologyObservedTargets}
+    {queueInterventionHandoff}
+  />
 {/if}
 
 {#if panelOpen && state.category === 'admin' && state.view === 'marketplace'}
@@ -1172,52 +1508,56 @@
               <button type="button" class="zoom-btn" on:click={() => nudgeForksZoom(0.1)}>+</button>
             </div>
             <div class="canvas-zoom-layer" style={`transform: translate(${forksPanX}px, ${forksPanY}px) scale(${forksZoom});`}>
-              <div class="fork-layout">
-                <div class="monitor-step-stack fork-main-stack">
-                  {#each forkMainNodes as node, index}
-                    <button
-                      type="button"
-                      class="monitor-step-node monitor-step-{node.tone}"
-                      style={`animation-delay:${index * 80}ms;`}
-                      on:click={() =>
-                        queueInterventionHandoff({
-                          sessionId: node.sessionId,
-                          label: node.title,
-                        })}
-                    >
-                      <strong>{node.title}</strong>
-                      <span>{node.command}</span>
-                      <em>{node.risk}</em>
-                    </button>
-                    {#if index < forkMainNodes.length - 1}
-                      <div class="monitor-step-arrow">↓</div>
-                    {/if}
-                  {/each}
-                </div>
+              {#if !currentForkPlan}
+                <p class="empty-row">No live fork plans yet.</p>
+              {:else}
+                <div class="fork-layout">
+                  <div class="monitor-step-stack fork-main-stack">
+                    {#each forkMainNodes as node, index}
+                      <button
+                        type="button"
+                        class="monitor-step-node monitor-step-{node.tone}"
+                        style={`animation-delay:${index * 80}ms;`}
+                        on:click={() =>
+                          queueInterventionHandoff({
+                            sessionId: node.sessionId,
+                            label: node.title,
+                          })}
+                      >
+                        <strong>{node.title}</strong>
+                        <span>{node.command}</span>
+                        <em>{node.risk}</em>
+                      </button>
+                      {#if index < forkMainNodes.length - 1}
+                        <div class="monitor-step-arrow">↓</div>
+                      {/if}
+                    {/each}
+                  </div>
 
-                <div class="fork-branch-stack">
-                  <div class="fork-link-arrow">↪</div>
-                  {#each forkBranchNodes as node, index}
-                    <button
-                      type="button"
-                      class="monitor-step-node monitor-step-branch"
-                      style={`animation-delay:${index * 120}ms;`}
-                      on:click={() =>
-                        queueInterventionHandoff({
-                          sessionId: node.sessionId,
-                          label: node.title,
-                        })}
-                    >
-                      <strong>{node.title}</strong>
-                      <span>{node.command}</span>
-                      <em>{node.risk}</em>
-                    </button>
-                    {#if index < forkBranchNodes.length - 1}
-                      <div class="monitor-step-arrow monitor-step-arrow-branch">↓</div>
-                    {/if}
-                  {/each}
+                  <div class="fork-branch-stack">
+                    <div class="fork-link-arrow">↪</div>
+                    {#each forkBranchNodes as node, index}
+                      <button
+                        type="button"
+                        class="monitor-step-node monitor-step-branch"
+                        style={`animation-delay:${index * 120}ms;`}
+                        on:click={() =>
+                          queueInterventionHandoff({
+                            sessionId: node.sessionId,
+                            label: node.title,
+                          })}
+                      >
+                        <strong>{node.title}</strong>
+                        <span>{node.command}</span>
+                        <em>{node.risk}</em>
+                      </button>
+                      {#if index < forkBranchNodes.length - 1}
+                        <div class="monitor-step-arrow monitor-step-arrow-branch">↓</div>
+                      {/if}
+                    {/each}
+                  </div>
                 </div>
-              </div>
+              {/if}
             </div>
           </div>
         </div>
@@ -1538,3 +1878,156 @@
   />
 {/if}
 {/key}
+
+<style>
+  .observability-plain-view {
+    display: grid;
+    gap: 12px;
+  }
+
+  .observability-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .observability-toolbar-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .observability-session-picker {
+    min-width: 320px;
+    max-width: 560px;
+  }
+
+  .plain-graph-shell {
+    position: relative;
+    min-height: 76vh;
+    border: 1px solid var(--line, #eadfd5);
+    border-radius: 28px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .plain-graph-canvas {
+    position: relative;
+    min-height: 76vh;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at center, rgba(239, 159, 56, 0.08) 0, rgba(239, 159, 56, 0.08) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(180deg, #fffdfb 0%, #fff8f2 100%);
+  }
+
+  .plain-graph-canvas.is-panning {
+    cursor: grabbing;
+  }
+
+  .plain-graph-edges {
+    position: absolute;
+    inset: 0;
+    width: 2200px;
+    height: 1600px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .plain-graph-line {
+    stroke: #6be082;
+    stroke-width: 4;
+    opacity: 0.95;
+  }
+
+  .plain-graph-nodes {
+    position: absolute;
+    inset: 0;
+    width: 2200px;
+    height: 1600px;
+  }
+
+  .plain-graph-node {
+    position: absolute;
+    width: 180px;
+    min-height: 88px;
+    border-radius: 20px;
+    border: 3px solid transparent;
+    padding: 0.8rem 0.9rem;
+    font: inherit;
+    text-align: left;
+    display: grid;
+    gap: 6px;
+    box-shadow: 0 12px 28px rgba(58, 39, 21, 0.12);
+  }
+
+  .plain-graph-node strong {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+
+  .plain-graph-node span {
+    font-size: 0.84rem;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  .plain-graph-node-main {
+    background: #165c1f;
+    color: #f7fff7;
+    border-color: #2ef05f;
+  }
+
+  .plain-graph-node-fork {
+    background: #7a4a05;
+    color: #fff6e8;
+    border-color: #ef9f38;
+  }
+
+  .plain-graph-node-blocked {
+    background: #601f1f;
+    color: #fff1f1;
+    border-color: #ff6b6b;
+  }
+
+  .plain-graph-node.is-selected {
+    box-shadow: 0 0 0 4px rgba(239, 159, 56, 0.24), 0 12px 28px rgba(58, 39, 21, 0.18);
+  }
+
+  .plain-graph-inspector {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: min(420px, calc(100% - 32px));
+    max-height: calc(100% - 32px);
+    overflow: auto;
+    border: 1px solid var(--line, #eadfd5);
+    border-radius: 24px;
+    background: rgba(255, 250, 245, 0.96);
+    backdrop-filter: blur(18px);
+    padding: 1rem;
+    box-shadow: 0 18px 36px rgba(58, 39, 21, 0.16);
+  }
+
+  .plain-graph-inspector pre {
+    margin: 0;
+    max-height: 52vh;
+    overflow: auto;
+    border-radius: 18px;
+    background: #231c15;
+    color: #f7f2eb;
+    padding: 1rem;
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 1200px) {
+    .observability-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .observability-session-picker {
+      min-width: 0;
+      max-width: none;
+    }
+  }
+</style>
