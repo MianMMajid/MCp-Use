@@ -25,7 +25,7 @@
   --caution-border: rgba(202, 138, 4, 0.25);
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-strong: 0 2px 4px rgba(0, 0, 0, 0.04), 0 8px 16px rgba(0, 0, 0, 0.06);
-  --top-bar-h: 56px;
+  --top-bar-h: 48px;
   --ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1);
   --dur-spring: 0.4s;
 
@@ -142,7 +142,7 @@ body {
   max-width: 1720px;
   height: 100%;
   margin: 0 auto;
-  padding: var(--space-3) var(--space-4) 0;
+  padding: 0 0 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
@@ -154,16 +154,15 @@ body {
   align-items: center;
   justify-content: space-between;
   position: relative;
-  z-index: 120;
+  z-index: var(--z-topbar);
   isolation: isolate;
   overflow: visible;
   height: var(--top-bar-h);
   padding: 0 var(--space-4);
-  background: var(--panel);
-  backdrop-filter: blur(20px) saturate(180%);
-  border-radius: var(--radius-xl);
-  border-bottom: 1px solid var(--line);
-  transition: border-radius var(--dur-spring) var(--ease-spring), opacity 0.25s, transform 0.25s;
+  background: var(--bg);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0;
+  transition: opacity 0.15s ease-out;
 }
 
 .top-bar.panel-connected {
@@ -1205,11 +1204,10 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
 @media (max-width: 640px) {
   .product-shell {
-    padding: var(--space-2) var(--space-2) 0;
+    padding: 0;
   }
 
   .top-bar {
-    border-radius: var(--radius-lg);
     padding: 0 var(--space-3);
   }
 
@@ -1220,6 +1218,10 @@ code { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
   .bottom-nav-stack {
     bottom: 12px;
   }
+
+  .monitor-step-node strong { font-size: 1.4rem; }
+  .monitor-step-node span { font-size: 1.2rem; }
+  .monitor-step-node em { font-size: 1.1rem; }
 }
 
 /* a1 parity: live/timeline/topology/marketplace */

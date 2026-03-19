@@ -40,25 +40,16 @@
 
 <header class="top-bar mw-topbar" class:panel-connected={connected}>
   <div class="mw-topbar-brand">
-    <span class="mw-brand-orb" aria-hidden="true"></span>
-    <div>
-      <p class="mw-brand-label">{activeCategoryLabel}</p>
-      <p class="mw-brand-route">{currentRouteTitle}</p>
-    </div>
-  </div>
-
-  <div class="mw-topbar-status">
-    <span class="mw-status-dot" class:degraded={statusTone === 'degraded'}></span>
-    <span>{statusLabel}</span>
-    <span class="mw-source-badge">{sourceText}</span>
+    <span class="mw-status-dot" class:degraded={statusTone === 'degraded'} title={statusLabel}></span>
+    <nav class="mw-breadcrumb" aria-label="Location">
+      <span class="mw-breadcrumb-category">{activeCategoryLabel}</span>
+      <span class="mw-breadcrumb-sep" aria-hidden="true">/</span>
+      <span class="mw-breadcrumb-page">{currentRouteTitle}</span>
+    </nav>
   </div>
 
   <div class="mw-topbar-actions">
     <GlobalSearch />
-
-    <button class="mw-topbar-button" type="button" on:click={refresh} aria-label="Refresh workspace" title="Refresh workspace">
-      <svg class="mw-btn-icon" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 0 1 9.3-4"/><path d="M13.5 8a5.5 5.5 0 0 1-9.3 4"/><path d="M11.8 2v2.2H14"/><path d="M4.2 14v-2.2H2"/></svg>
-    </button>
 
     <button class="mw-topbar-button" type="button" on:click={toggleThemeMode} aria-label="Switch theme" title="Theme: {themeLabel}">
       {#if resolvedTheme === 'dark'}
@@ -78,58 +69,24 @@
     position: sticky;
     top: 0;
     z-index: 60;
-    margin: 12px auto 0;
-    width: min(1440px, calc(100vw - 24px));
-    border-radius: 18px;
-    border: 1px solid var(--line);
-    background: var(--glass-bg);
-    backdrop-filter: blur(16px) saturate(160%);
-    box-shadow: var(--shadow-soft);
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0;
+    background: var(--bg);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 16px;
-    gap: 12px;
+    padding: 0 var(--space-4);
+    gap: var(--space-4);
   }
 
   .mw-topbar-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-2);
     flex-shrink: 0;
-  }
-
-  .mw-brand-orb {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--brand);
-    flex-shrink: 0;
-  }
-
-  .mw-brand-label {
-    margin: 0;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-  }
-
-  .mw-brand-route {
-    margin: 0;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--ink);
-  }
-
-  .mw-topbar-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.72rem;
-    color: var(--muted);
-    flex-shrink: 1;
     min-width: 0;
   }
 
@@ -145,68 +102,81 @@
     background: var(--warn);
   }
 
-  .mw-source-badge {
-    font-size: 0.65rem;
-    padding: 2px 8px;
-    border-radius: var(--radius-pill);
-    background: var(--bg-soft);
-    border: 1px solid var(--line);
+  .mw-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .mw-breadcrumb-category {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .mw-breadcrumb-sep {
+    font-size: var(--text-sm);
+    color: var(--muted);
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+
+  .mw-breadcrumb-page {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--ink);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 240px;
   }
 
   .mw-topbar-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex-shrink: 0;
   }
 
   .mw-topbar-button {
-    border: 1px solid var(--line);
-    background: var(--panel);
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--muted);
-    border-radius: var(--radius-pill);
-    padding: 6px;
-    width: 34px;
-    height: 34px;
+    border-radius: var(--radius-sm);
+    padding: 0;
+    width: 32px;
+    height: 32px;
     display: inline-grid;
     place-items: center;
     cursor: pointer;
-    transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
+    transition: background 100ms ease-out, color 100ms ease-out;
   }
 
   .mw-topbar-button:hover {
-    border-color: var(--brand);
+    background: rgba(0, 0, 0, 0.04);
     color: var(--ink);
-    transform: translateY(-1px);
+  }
+
+  .mw-topbar-button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
 
   .mw-btn-icon {
     display: block;
   }
 
-  @media (max-width: 1023px) {
+  @media (max-width: 640px) {
     .mw-topbar {
-      width: calc(100vw - 16px);
-      margin-top: 8px;
-      padding-inline: 12px;
+      padding: 0 var(--space-3);
     }
 
-    .mw-topbar-status {
+    .mw-breadcrumb-category {
       display: none;
     }
 
-    .mw-topbar-actions {
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .mw-topbar-brand {
+    .mw-breadcrumb-sep {
       display: none;
     }
   }

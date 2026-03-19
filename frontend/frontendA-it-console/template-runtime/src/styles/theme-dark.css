@@ -82,8 +82,12 @@
 
 /* Top bar dark mode */
 [data-theme="dark"] .top-bar {
-  background: rgba(30, 30, 30, 0.82);
-  border-color: var(--line);
+  background: var(--bg);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .mw-topbar-button:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Panels and cards */
