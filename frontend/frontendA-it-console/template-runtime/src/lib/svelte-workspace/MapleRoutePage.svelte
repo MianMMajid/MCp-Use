@@ -1456,7 +1456,7 @@
         </div>
         {#if selectedForkPlan.plan?.pathClassifications?.length}
           <div class="stack-list">
-            {#each selectedForkPlan.plan.pathClassifications as pc}
+            {#each (selectedForkPlan.plan?.pathClassifications ?? []) as pc}
               <div class="list-card static">
                 <strong>{pc.classification}</strong>
                 <span class="mono">{pc.path}</span>

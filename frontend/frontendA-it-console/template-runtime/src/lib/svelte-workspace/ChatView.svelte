@@ -5,9 +5,9 @@
   import MaypleCharacter from './MaypleCharacter.svelte'
 
   export let authMe = null
-  /** @type {string} */ export const executionId = ''
+  export let executionId = ''
   export let sessionId = ''
-  /** @type {string} */ export const routeTitle = ''
+  export let routeTitle = ''
 
   const CHAT_SCROLL_KEY = 'mayple_it_chat_scroll'
   const CHAT_SESSION_KEY = 'mayple_it_chat_session'
@@ -73,7 +73,8 @@
     const text = message.trim()
     if (!text || streaming) return
     message = ''
-    sendMessage(text).catch(() => {})
+    streaming = true
+    sendMessage(text).catch(() => { streaming = false })
   }
 
   function onKeyDown(event) {
@@ -90,8 +91,12 @@
     messages = [...messages, { role: 'assistant', content: '', timestamp: new Date().toISOString(), streaming: true }]
 
     abortController = new AbortController()
+    let timedOut = false
+    // Timeout after 90s if no response starts (LLM calls can be slow)
+    const timeoutId = setTimeout(() => { timedOut = true; abortController?.abort() }, 90_000)
     try {
       const reply = await streamResponse(text, abortController.signal, (chunk) => {
+        clearTimeout(timeoutId)
         streamingText += chunk
         messages[assistantIdx] = { ...messages[assistantIdx], content: streamingText }
         messages = messages
@@ -100,13 +105,15 @@
       messages = messages
     } catch (err) {
       if (err.name === 'AbortError') {
-        messages[assistantIdx] = { ...messages[assistantIdx], content: streamingText || 'Stopped.', streaming: false }
+        const abortMsg = streamingText || (timedOut ? 'Request timed out. The agent may be busy — try again.' : 'Stopped.')
+        messages[assistantIdx] = { ...messages[assistantIdx], content: abortMsg, streaming: false, error: timedOut }
       } else {
         messages[assistantIdx] = { ...messages[assistantIdx], content: 'Unable to reach the monitoring agent.', streaming: false, error: true }
         runError = err instanceof Error ? err.message : 'Request failed.'
       }
       messages = messages
     } finally {
+      clearTimeout(timeoutId)
       streaming = false
       abortController = null
     }
@@ -125,9 +132,14 @@
   async function streamResponse(prompt, signal, onChunk) {
     const requestBody = buildChatRequestBody()
 
+    // Fetch directly from gateway to avoid blocking SvelteKit's server worker.
+    // The proxy route (+server.js) works but occupies the single-threaded dev
+    // server for the entire LLM turn (10-30s), freezing the page.
+    const chatEndpoint = '/api/chat/stream'
+
     let res
     try {
-      res = await fetch('/api/chat/stream', {
+      res = await fetch(chatEndpoint, {
         method: 'POST', credentials: 'same-origin', signal,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -382,6 +394,9 @@
   .retry-btn:hover { text-decoration: underline; }
 
   /* ── Typing dots ── */
+  .thinking-state { display: flex; align-items: center; gap: 8px; }
+  .thinking-label { font-size: 12px; color: var(--muted, #a1a1aa); font-style: italic; animation: thinking-pulse 2s ease-in-out infinite; }
+  @keyframes thinking-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
   .typing-dots { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
   .typing-dots span { width: 6px; height: 6px; border-radius: 999px; background: var(--muted, #a1a1aa); animation: typing-bounce 1.2s ease-in-out infinite; }
   .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
