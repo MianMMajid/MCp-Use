@@ -24,11 +24,20 @@
     '/maple/interventions': 20000,
     '/maple/cyber': 20000,
     '/maple/hitl': 15000,
+    '/maple/modifier-approvals': 20000,
     '/maple/agent': 20000,
     '/maple/downstream': 30000,
     '/maple/policies': 20000,
     '/maple/topology': 30000,
     '/maple/forks': 20000,
+    '/maple/settings': 30000,
+    '/maple/escalation': 30000,
+    '/maple/auth-admin': 30000,
+    '/maple/api-keys': 30000,
+    '/maple/org': 30000,
+    '/maple/integrations': 30000,
+    '/maple/tenants': 30000,
+    '/maple/runtime': 30000,
   })
 
   const ROUTE_REQUESTS = Object.freeze({
@@ -148,7 +157,6 @@
       ['authMe', '/api/auth/me'],
       ['mfaStatus', '/api/auth/mfa/status'],
     ],
-    '/maple/demo': [],
   })
 
   let loading = true
@@ -239,6 +247,8 @@
   $: selectedServiceAccount = serviceAccounts.find((item) => (item.id ?? item.serviceAccountId) === selectedServiceAccountId) ?? null
   $: selectedMember = orgMembers.find((item) => (item.userId ?? item.id) === selectedMemberId) ?? null
   $: selectedPlan = interventionPlans.find((item) => item.planId === selectedPlanId) ?? selectedPlan
+  $: selectedForkPlan = interventionPlans.find((item) => item.planId === selectedPlanId) ?? interventionPlans[0] ?? null
+  $: settingsNotifPrefs = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}
   $: if (!selectedPlanId && interventionPlans.length > 0) {
     selectedPlanId = interventionPlans[0].planId
   }
@@ -1371,7 +1381,126 @@
     state={{ category: 'observe', view: 'forks', routePath, routeRecord }}
     {routeRecord}
     auditEvents={filterRecordsBySource(pickItems(state.auditLog?.value), sourceFilter)}
+    filesystemMutations={selectedForkPlan ? [selectedForkPlan] : []}
   />
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Containment Forks</h2>
+        <span class="chip">{interventionPlans.length} plans</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Mode</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).guard?.mode ?? '--'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Pending</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).counts?.pending ?? interventionPlans.filter((p) => String(p.status).includes('pending')).length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Denied</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).counts?.denied ?? interventionPlans.filter((p) => p.lane === 'hard_deny').length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Total</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).counts?.total ?? interventionPlans.length}</strong>
+        </article>
+      </div>
+      <div class="stack-list">
+        {#if interventionPlans.length === 0}
+          <p class="empty-row">No containment forks yet. Forks are created when the firewall isolates risky filesystem mutations.</p>
+        {:else}
+          {#each interventionPlans as plan}
+            <button type="button" class="list-card" class:static={plan.planId === selectedForkPlan?.planId} on:click={() => { selectedPlanId = plan.planId }}>
+              <strong>{plan.plan?.toolName || plan.sourceType || 'filesystem'} · {plan.lane}</strong>
+              <span>{plan.taskText || plan.planId}</span>
+              <span class="mono">{plan.status} · {plan.sourceSurface} · {formatDate(plan.createdAt)}</span>
+            </button>
+          {/each}
+        {/if}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Fork Detail</h2>
+        <span class="chip">{selectedForkPlan?.lane ?? 'none'}</span>
+      </div>
+      {#if selectedForkPlan}
+        <div class="utility-stat-strip">
+          <article class="route-overview-card">
+            <span class="route-overview-label">Lane</span>
+            <strong>{selectedForkPlan.lane}</strong>
+          </article>
+          <article class="route-overview-card">
+            <span class="route-overview-label">Status</span>
+            <strong>{selectedForkPlan.status}</strong>
+          </article>
+          <article class="route-overview-card">
+            <span class="route-overview-label">Intent</span>
+            <strong>{selectedForkPlan.modelAssessment?.intentClass ?? '--'}</strong>
+          </article>
+          <article class="route-overview-card">
+            <span class="route-overview-label">Blast radius</span>
+            <strong>{selectedForkPlan.modelAssessment?.blastRadiusAssessment ?? '--'}</strong>
+          </article>
+        </div>
+        <div class="stack-list">
+          {#each selectedForkPlan.plan?.operations ?? [] as op, i}
+            <div class="list-card static">
+              <strong>#{i + 1} {op.op}</strong>
+              <span class="mono">{op.path}{op.to ? ` → ${op.to}` : ''}</span>
+              <span>{op.sizeBytes ? `${op.sizeBytes} bytes` : ''}{op.recursive ? ' · recursive' : ''}</span>
+            </div>
+          {/each}
+        </div>
+        {#if selectedForkPlan.plan?.pathClassifications?.length}
+          <div class="stack-list">
+            {#each selectedForkPlan.plan.pathClassifications as pc}
+              <div class="list-card static">
+                <strong>{pc.classification}</strong>
+                <span class="mono">{pc.path}</span>
+                <span>{pc.reasons?.join(', ') ?? '--'}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if selectedForkPlan.modelAssessment?.available}
+          <pre class="mono panel-json">{JSON.stringify({
+            provider: selectedForkPlan.modelAssessment.provider,
+            model: selectedForkPlan.modelAssessment.model,
+            intentClass: selectedForkPlan.modelAssessment.intentClass,
+            taskAlignment: selectedForkPlan.modelAssessment.taskAlignment,
+            userAuthoredRisk: selectedForkPlan.modelAssessment.userAuthoredRisk,
+            rebuildability: selectedForkPlan.modelAssessment.rebuildability,
+            blastRadiusAssessment: selectedForkPlan.modelAssessment.blastRadiusAssessment,
+            suspiciousSignals: selectedForkPlan.modelAssessment.suspiciousSignals,
+            recommendedLane: selectedForkPlan.modelAssessment.recommendedLane,
+          }, null, 2)}</pre>
+        {/if}
+        <div class="actions">
+          {#if String(selectedForkPlan.status).includes('pending')}
+            <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:approve`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/decision`, { decision: 'approve' }))}>
+              Approve
+            </button>
+            <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:deny`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/decision`, { decision: 'deny' }))}>
+              Deny
+            </button>
+          {/if}
+          {#if selectedForkPlan.status === 'approved'}
+            <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:promote`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/promote`, {}))}>
+              Promote
+            </button>
+            <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:restore`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/restore`, {}))}>
+              Restore
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <p class="empty-row">Select a fork plan from the list to view details.</p>
+      {/if}
+    </article>
+  </section>
 {:else if routePath === '/maple/runs'}
   <section class="docs-grid">
     <article class="panel">
@@ -2171,7 +2300,7 @@
         {#each ['approvals', 'escalations', 'run_failures', 'system_alerts'] as cat}
           <article class="route-overview-card">
             <span class="route-overview-label">{cat.replace(/_/g, ' ')}</span>
-            <strong>{['email', 'in_app'].filter((ch) => { const p = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}; return p[`${cat}.${ch}`] ?? p?.[cat]?.[ch] ?? false }).length} / 2</strong>
+            <strong>{['email', 'in_app'].filter((ch) => settingsNotifPrefs[`${cat}.${ch}`] ?? settingsNotifPrefs?.[cat]?.[ch] ?? false).length} / 2</strong>
           </article>
         {/each}
       </div>
@@ -2184,13 +2313,12 @@
           </div>
         </div>
         {#each ['approvals', 'escalations', 'run_failures', 'system_alerts'] as cat}
-          {@const prefs = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}}
           <div class="list-card static">
             <strong>{cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</strong>
             <div class="actions">
               {#each ['email', 'in_app'] as channel}
-                <button type="button" class="action-btn" class:primary={prefs[`${cat}.${channel}`] ?? prefs?.[cat]?.[channel] ?? false} disabled={Boolean(busy)} on:click={() => handleSaveNotifPrefs(cat, channel)}>
-                  {(prefs[`${cat}.${channel}`] ?? prefs?.[cat]?.[channel] ?? false) ? 'On' : 'Off'}
+                <button type="button" class="action-btn" class:primary={settingsNotifPrefs[`${cat}.${channel}`] ?? settingsNotifPrefs?.[cat]?.[channel] ?? false} disabled={Boolean(busy)} on:click={() => handleSaveNotifPrefs(cat, channel)}>
+                  {(settingsNotifPrefs[`${cat}.${channel}`] ?? settingsNotifPrefs?.[cat]?.[channel] ?? false) ? 'On' : 'Off'}
                 </button>
               {/each}
             </div>
