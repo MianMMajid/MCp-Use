@@ -143,9 +143,14 @@ export AUDIT_WRITER_ADDRESS="${AUDIT_WRITER_ADDRESS:-localhost:9400}"
 # SERVICE DISPATCH
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Validate critical env vars in production before starting any service
+# Validate critical env vars in production — only for backend services that need them.
+# Frontends (A, B, C) don't require DATABASE_URL or signing keys.
 if [ "${NODE_ENV}" = "production" ]; then
-  validate_production_env
+  case "${MAPLE_SERVICE}" in
+    gateway-api|context-wall|mcp-proxy|cyber-proxy|audit-writer)
+      validate_production_env
+      ;;
+  esac
 fi
 
 case "${MAPLE_SERVICE}" in
