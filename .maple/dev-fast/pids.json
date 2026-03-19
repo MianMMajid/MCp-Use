@@ -1,102 +1,72 @@
 {
-  "generatedAt": "2026-03-19T06:03:06.027Z",
+  "generatedAt": "2026-03-19T08:27:33.312Z",
   "rootDir": "/Users/alexnoh/Desktop/YC/MCp-Use",
   "processes": [
     {
       "name": "audit-writer",
-      "pid": 16437,
+      "pid": 22357,
       "command": "node backend/backendB-core-services/audit-writer/service/src/main.js",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/audit-writer.log"
     },
     {
       "name": "context-wall",
-      "pid": 16452,
+      "pid": 22373,
       "command": "node backend/backendB-core-services/context-wall/service/src/main.js",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/context-wall.log"
     },
     {
       "name": "mcp-proxy",
-      "pid": 16468,
+      "pid": 22388,
       "command": "node backend/backendB-core-services/mcp-proxy/service/src/main.js",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/mcp-proxy.log"
     },
     {
       "name": "cyber-proxy",
-      "pid": 16485,
+      "pid": 22404,
       "command": "node backend/backendB-core-services/cyber-proxy/service/src/main.js",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/cyber-proxy.log"
     },
     {
       "name": "toolhub",
-      "pid": 16500,
+      "pid": 22419,
       "command": "node backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/toolhub.log"
     },
     {
       "name": "openclaw-gateway",
-      "pid": 16517,
+      "pid": 22437,
       "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
     },
     {
       "name": "openclaw-bridge",
-      "pid": 16533,
+      "pid": 22453,
       "command": "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-bridge.log"
     },
     {
       "name": "gateway-api",
-      "pid": 16580,
+      "pid": 22497,
       "command": "node backend/backendB-core-services/gateway-api/service/src/main.js",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/gateway-api.log"
     },
     {
       "name": "frontendA",
-      "pid": 16598,
+      "pid": 22515,
       "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/frontendA.log"
     },
     {
       "name": "frontendB",
-      "pid": 16612,
+      "pid": 22529,
       "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/frontendB.log"
     },
     {
       "name": "frontendC",
-      "pid": 16628,
+      "pid": 22546,
       "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103",
       "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/frontendC.log"
-    },
-    {
-      "name": "openclaw-gateway",
-      "pid": 51184,
-      "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
-    },
-    {
-      "name": "openclaw-gateway",
-      "pid": 64206,
-      "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
-    },
-    {
-      "name": "openclaw-gateway",
-      "pid": 64486,
-      "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
-    },
-    {
-      "name": "openclaw-gateway",
-      "pid": 67730,
-      "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
-    },
-    {
-      "name": "openclaw-gateway",
-      "pid": 67933,
-      "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
-      "logPath": "/Users/alexnoh/Desktop/YC/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
     }
   ]
 }

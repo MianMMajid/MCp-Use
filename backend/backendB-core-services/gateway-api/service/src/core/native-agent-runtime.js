@@ -324,13 +324,13 @@ async function executeBuiltinTool(toolName, args) {
           Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "dall-e-3",
+          model: "gpt-image-1",
           prompt,
           n: 1,
           size: args.size || "1024x1024",
-          quality: args.quality || "standard",
+          quality: args.quality || "high",
         }),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(120_000),
       });
       if (!res.ok) {
         const errBody = await res.text().catch(() => "");
@@ -340,24 +340,29 @@ async function executeBuiltinTool(toolName, args) {
       const image = data.data?.[0];
       if (!image) return "No image was generated.";
 
-      // Download and persist image to avoid SAS token URLs triggering secret detection.
-      // Save to Postgres (persistent across deploys), fall back to local disk, then raw URL.
-      let localUrl = image.url;
+      // gpt-image-1 returns base64 by default; dall-e-3 returns a URL.
+      // Handle both formats and persist to Postgres (or disk fallback).
+      let localUrl = "";
       try {
-        const imgRes = await fetch(image.url, { signal: AbortSignal.timeout(30_000) });
-        if (imgRes.ok) {
-          const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
-          const imgId = randomUUID();
+        const imgId = randomUUID();
+        let imgBuffer;
 
+        if (image.b64_json) {
+          imgBuffer = Buffer.from(image.b64_json, "base64");
+        } else if (image.url) {
+          const imgRes = await fetch(image.url, { signal: AbortSignal.timeout(30_000) });
+          if (imgRes.ok) imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+        }
+
+        if (imgBuffer) {
           if (database?.pool) {
             await database.pool.query(
               `INSERT INTO generated_assets (id, mime_type, data, metadata_json) VALUES ($1, $2, $3, $4)
                ON CONFLICT (id) DO NOTHING`,
-              [imgId, "image/png", imgBuffer, JSON.stringify({ source: "openai_image_generation" })],
+              [imgId, "image/png", imgBuffer, JSON.stringify({ source: "openai_image_generation", model: "gpt-image-1" })],
             );
             localUrl = `/api/generated-images/${imgId}.png`;
           } else {
-            // Fallback: save to disk (local dev without DB)
             const imgDir = join(process.cwd(), ".maple", "generated-images");
             await mkdir(imgDir, { recursive: true });
             await writeFile(join(imgDir, `${imgId}.png`), imgBuffer);
@@ -365,8 +370,10 @@ async function executeBuiltinTool(toolName, args) {
           }
         }
       } catch (dlErr) {
-        mapleLog("warn", "native_agent.image_download_failed", { error: dlErr.message });
+        mapleLog("warn", "native_agent.image_persist_failed", { error: dlErr.message });
       }
+
+      if (!localUrl) localUrl = image.url || "";
 
       const revisedPrompt = image.revised_prompt
         ? `\nRevised prompt: ${image.revised_prompt}`
@@ -731,8 +738,9 @@ export async function runNativeAgentTurn(options = {}) {
   const systemPrompt = options.systemPrompt || [
     `You are ${agentName}.`,
     agentDesc ? agentDesc : "",
+    `Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`,
     tools.length > 0
-      ? `You have ${tools.length} tools available. Use them when the user's request requires external data or actions.`
+      ? `You have ${tools.length} tools available. Always use your tools for questions about current events, real-time data, weather, news, or anything that may have changed since your training. Never guess time-sensitive information.`
       : "",
   ]
     .filter(Boolean)
