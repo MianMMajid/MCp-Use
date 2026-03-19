@@ -285,8 +285,10 @@ export async function runSecureChatTurn(options = {}) {
     model: llmResult.model,
     blocked: false,
     policyChecks,
+    sessionId: llmResult.sessionId || sessionId,
+    runId: llmResult.runId || null,
     toolCalls: llmResult.toolCalls,
-    attachments: llmResult.attachments,
+    attachments: llmResult.attachments || [],
     usage: llmResult.usage,
   };
 }

@@ -918,7 +918,9 @@ export function registerOrchestrationRoutes(app) {
     if (unauthorized) return unauthorized;
 
     const executionId = asString(c.req.param("executionId")) ?? "";
-    const graph = (await readExecutionGraphFromDb(executionId)) ?? getOrchestrationExecutionGraph(executionId);
+    // Prefer in-memory graph (has full data including attachments) over DB read
+    // (DB does not persist attachments column yet). Fall back to DB for historical executions.
+    const graph = getOrchestrationExecutionGraph(executionId) ?? (await readExecutionGraphFromDb(executionId));
     if (!graph) {
       return c.json({ ok: false, error: "Execution not found." }, 404);
     }

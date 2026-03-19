@@ -48,6 +48,25 @@
   let taskInput = '';
   let outputLog = [];
   let showOutput = false;
+  let showSteps = false;
+
+  function escapeAttr(s) {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function renderOutputText(text) {
+    if (!text) return '';
+    let safe = String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    safe = safe.replace(/!\[([^\]]*)\]\(((?:https?:\/\/|\/)[^\s)"]+)\)/g,
+      (_, alt, url) => `<img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}" class="output-img" loading="lazy" />`);
+    safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)"]+)\)/g,
+      (_, label, url) => `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+    safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return safe;
+  }
 
   $: selectedNode = mapFlowNodeToPanel(flowNodes.find((item) => item.id === selectedNodeId) || null);
   $: selectedEdge = mapFlowEdgeToPanel(flowEdges.find((item) => item.id === selectedEdgeId) || null);
@@ -224,9 +243,11 @@
         if (p.eventType || p.event) {
           const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
           const type = p.eventType || p.event || 'event';
-          const nodeId = p.nodeId || '';
-          const preview = p.outputPreview || p.error || p.reason || '';
-          outputLog = [...outputLog, { ts, type, nodeId, preview: preview.slice(0, 300) }];
+          const pl = p.payload || p;
+          const nodeId = pl.nodeId || p.nodeId || '';
+          const preview = pl.outputPreview || pl.error || pl.reason || '';
+          const atts = Array.isArray(pl.attachments) ? pl.attachments : [];
+          outputLog = [...outputLog, { ts, type, nodeId, preview: preview.slice(0, 10000), attachments: atts }];
         }
       } catch {}
     };
@@ -404,7 +425,8 @@
               ts: ts(),
               type: n.status === 'succeeded' ? 'node_succeeded' : 'node_failed',
               nodeId: nodeLabel,
-              preview: (n.outputPreview || n.error || 'No output').slice(0, 800),
+              preview: (n.outputPreview || n.error || 'No output').slice(0, 10000),
+              attachments: n.attachments || [],
             }];
           }
         }
@@ -419,7 +441,8 @@
                 ts: ts(),
                 type: n.status === 'succeeded' ? 'node_succeeded' : 'node_failed',
                 nodeId: nodeLabel,
-                preview: (n.outputPreview || n.error || 'No output').slice(0, 800),
+                preview: (n.outputPreview || n.error || 'No output').slice(0, 10000),
+                attachments: n.attachments || [],
               }];
             }
           }
@@ -528,6 +551,7 @@
         <span class="control-note">{controlPlaneNote}</span>
       {/if}
       <div class="control-links">
+        <button class="pill tiny" class:pill-active={showOutput} on:click={() => { showOutput = !showOutput; }} disabled={outputLog.length === 0}>Output</button>
         <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}`}>Observability</a>
         <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}#audit`}>Audit</a>
       </div>
@@ -597,37 +621,67 @@
 
       <!-- Output panel -->
       {#if showOutput}
-        {@const finalOutput = outputLog.filter((e) => e.type === 'node_succeeded' && e.preview).pop()}
+        {@const succeededEntries = outputLog.filter((e) => e.type === 'node_succeeded' && e.preview)}
+        {@const finalOutput = succeededEntries[succeededEntries.length - 1] || null}
+        {@const allAttachments = succeededEntries.flatMap((e) => e.attachments || [])}
         <aside class="output-panel">
           <div class="output-header">
             <h3>Output</h3>
             <button class="pill tiny" on:click={() => { showOutput = false; }}>Close</button>
           </div>
 
-          {#if finalOutput}
-            <div class="final-answer">
-              <p class="final-text">{finalOutput.preview}</p>
-            </div>
-          {:else if runtimeLive}
-            <div class="final-answer waiting">
-              <span class="spinner"></span>
-              <p class="final-text dim">Running agents...</p>
-            </div>
-          {/if}
-
-          <div class="output-log">
-            {#each outputLog as entry}
-              <div class="log-entry" class:is-error={entry.type.includes('fail')} class:is-success={entry.type.includes('succeed') || entry.type.includes('complete')}>
-                <div class="log-meta">
-                  <span class="log-ts">{entry.ts}</span>
-                  <span class="log-type">{entry.type.replace(/_/g, ' ')}</span>
-                  {#if entry.nodeId}<span class="log-node">{entry.nodeId}</span>{/if}
-                </div>
-                {#if entry.preview}<p class="log-preview">{entry.preview}</p>{/if}
+          <div class="output-body">
+            {#if finalOutput}
+              <div class="final-answer">
+                <div class="final-text">{@html renderOutputText(finalOutput.preview)}</div>
+                {#each allAttachments as att}
+                  {#if att.type === 'image' && att.url}
+                    <img src={att.url} alt={att.alt || att.name || 'Generated image'} class="output-img" loading="lazy" />
+                  {:else if att.url}
+                    <a class="attachment-link" href={att.url} target="_blank" rel="noopener noreferrer">
+                      {att.name || att.type || 'Attachment'}
+                    </a>
+                  {/if}
+                {/each}
               </div>
-            {/each}
-            {#if outputLog.length === 0}
-              <p class="log-empty">Waiting for execution events...</p>
+            {:else if runtimeLive}
+              <div class="final-answer waiting">
+                <span class="spinner"></span>
+                <p class="final-text dim">Running agents...</p>
+              </div>
+            {/if}
+
+            {#if succeededEntries.length > 1 || outputLog.some((e) => e.type.includes('fail'))}
+              <button class="step-toggle" on:click={() => { showSteps = !showSteps; }}>
+                {showSteps ? 'Hide' : 'Show'} step-by-step ({outputLog.length} events)
+              </button>
+            {/if}
+
+            {#if showSteps || !finalOutput}
+              <div class="output-log">
+                {#each outputLog as entry}
+                  <div class="log-entry" class:is-error={entry.type.includes('fail')} class:is-success={entry.type.includes('succeed') || entry.type.includes('complete')}>
+                    <div class="log-meta">
+                      <span class="log-ts">{entry.ts}</span>
+                      <span class="log-type">{entry.type.replace(/_/g, ' ')}</span>
+                      {#if entry.nodeId}<span class="log-node">{entry.nodeId}</span>{/if}
+                    </div>
+                    {#if entry.preview}<div class="log-preview">{@html renderOutputText(entry.preview)}</div>{/if}
+                    {#each entry.attachments || [] as att}
+                      {#if att.type === 'image' && att.url}
+                        <img src={att.url} alt={att.alt || ''} class="output-img step-img" loading="lazy" />
+                      {:else if att.url}
+                        <a class="attachment-link" href={att.url} target="_blank" rel="noopener noreferrer">
+                          {att.name || att.type || 'Attachment'}
+                        </a>
+                      {/if}
+                    {/each}
+                  </div>
+                {/each}
+                {#if outputLog.length === 0}
+                  <p class="log-empty">Waiting for execution events...</p>
+                {/if}
+              </div>
             {/if}
           </div>
         </aside>
@@ -651,6 +705,7 @@
   .control-actions { display: flex; gap: 6px; }
   .control-links { display: flex; gap: 6px; margin-left: auto; }
   .control-bar .pill { cursor: pointer; }
+  .control-bar .pill-active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .control-bar a.pill { text-decoration: none; display: inline-flex; align-items: center; }
   .control-note { font-size: 11px; color: var(--muted); }
 
@@ -724,11 +779,18 @@
   .output-header { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .output-header h3 { margin: 0; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
   .output-header .pill { padding: 3px 8px; font-size: 11px; cursor: pointer; }
-  .final-answer { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .output-body { flex: 1; overflow-y: auto; }
+  .final-answer { padding: 14px 16px; }
   .final-answer.waiting { display: flex; align-items: center; gap: 10px; }
-  .final-text { margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+  .final-text { margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
   .final-text.dim { color: var(--muted); }
-  .output-log { flex: 1; overflow-y: auto; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  :global(.output-img) { max-width: 100%; border-radius: 8px; margin: 10px 0; display: block; }
+  :global(.step-img) { max-width: 200px; }
+  .attachment-link { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); color: var(--accent); font-size: 12px; text-decoration: none; margin: 4px 0; }
+  .attachment-link:hover { background: var(--accent-soft); }
+  .step-toggle { display: block; width: 100%; padding: 8px 16px; border: none; border-top: 1px solid var(--border); background: var(--bg-elevated); color: var(--muted); font-size: 11px; cursor: pointer; text-align: left; transition: color .15s; }
+  .step-toggle:hover { color: var(--fg); }
+  .output-log { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--border); }
   .log-entry { padding: 6px 8px; border-radius: 8px; background: var(--bg-elevated); border: 1px solid var(--border); display: grid; gap: 3px; }
   .log-entry.is-error { border-color: rgba(251,113,133,.3); }
   .log-entry.is-success { border-color: rgba(16,185,129,.3); }

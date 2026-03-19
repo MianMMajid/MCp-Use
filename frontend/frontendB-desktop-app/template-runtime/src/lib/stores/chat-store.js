@@ -404,6 +404,9 @@ function createChatStore() {
     if (!content) return;
 
     const state = get({ subscribe });
+    if (!state.selectedAgentId) {
+      return sendGlobalChatMessage(content);
+    }
 
     patch({
       runError: '',
@@ -414,7 +417,8 @@ function createChatStore() {
 
     try {
       patch({ busyStatus: 'Agent is executing...' });
-      const response = await postJson('/api/openclaw/agent/turn', {
+      const agentId = state.selectedAgentId;
+      const response = await postJson(`/api/agents/${encodeURIComponent(agentId)}/run`, {
         message: content,
         sessionId: state.sessionId || undefined
       });

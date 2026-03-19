@@ -158,6 +158,7 @@ function normalizeNode(input, idx = 0) {
     ),
     runId: "",
     outputPreview: "",
+    attachments: [],
     error: "",
     startedAt: "",
     completedAt: "",
@@ -320,6 +321,13 @@ function toPublicNode(node) {
     maxRetries: node.maxRetries,
     runId: node.runId,
     outputPreview: node.outputPreview,
+    attachments: (node.attachments || []).map((a) => ({
+      type: String(a.type || "unknown"),
+      url: String(a.url || ""),
+      name: String(a.name || ""),
+      alt: String(a.alt || ""),
+      mimeType: String(a.mimeType || ""),
+    })).filter((a) => a.url),
     error: node.error,
     startedAt: node.startedAt,
     completedAt: node.completedAt,
@@ -646,6 +654,14 @@ async function runNode(execution, node) {
   try {
     const nodeTools = getAgentCapabilities(node._agentRecord);
     const useNative = node._agentRecord && agentRequiresNativeRuntime(node._agentRecord);
+    console.log("[ORCH_DEBUG] node_dispatch", JSON.stringify({
+      nodeId: node.id,
+      label: node.label,
+      agentId: node.agentId,
+      agentName: node._agentRecord?.name,
+      useNative,
+      tools: nodeTools,
+    }));
     const result = useNative
       ? await runNativeAgentTurn({
           message: buildNodeMessage(execution, node),
@@ -666,6 +682,13 @@ async function runNode(execution, node) {
 
     node.runId = asString(result.runId) ?? "";
     node.outputPreview = asString(result.reply) ?? asString(result.output) ?? "";
+    node.attachments = Array.isArray(result.attachments) ? result.attachments : [];
+    console.log("[ORCH_DEBUG] node_result", JSON.stringify({
+      nodeId: node.id,
+      label: node.label,
+      attachmentCount: node.attachments.length,
+      attachments: node.attachments.map((a) => ({ type: a.type, url: a.url })),
+    }));
     execution.lastRunId = node.runId || execution.lastRunId;
     if (node.runId) execution.runIds.push(node.runId);
 
@@ -692,6 +715,7 @@ async function runNode(execution, node) {
       nodeId: node.id,
       runId: node.runId,
       outputPreview: node.outputPreview,
+      attachments: node.attachments || [],
     });
     markControlChanged(execution);
   } catch (error) {
@@ -1342,6 +1366,7 @@ function applyMutation(execution, mutationBody = {}) {
         node.completedAt = "";
         node.runId = "";
         node.outputPreview = "";
+        node.attachments = [];
       }
     }
     if (TERMINAL_EXECUTION_STATUSES.has(execution.status)) {
