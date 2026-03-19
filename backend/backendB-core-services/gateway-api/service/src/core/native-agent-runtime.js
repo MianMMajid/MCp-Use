@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { asString } from "../helpers.js";
 import { mapleLog } from "../logging.js";
 import { database } from "../state.js";
+import { ToolGovernanceStore } from "./tool-governance-store.js";
 import { downstreamAppRegistry } from "../config.js";
 
 // ── Config ──────────────────────────────────────────
@@ -881,6 +882,9 @@ export function agentRequiresNativeRuntime(agent) {
 export async function bootstrapMcpDownstreamApps() {
   try {
     if (!database?.pool) return;
+
+    const governanceStore = new ToolGovernanceStore({ database });
+    await governanceStore.ensureInitialized();
 
     const result = await database.pool.query(
       `SELECT tool_id, name, description, schema_json FROM gateway_tool_registry WHERE source = 'mcp-registry'`

@@ -85,6 +85,10 @@ COPY --from=build --chown=1000:1000 /app/backend ./backend
 COPY --from=build --chown=1000:1000 /app/frontend ./frontend
 COPY --from=build --chown=1000:1000 /app/.mcp.json ./.mcp.json
 COPY --from=build --chown=1000:1000 /app/README.md ./README.md
+# mcp-use looks for built widget artifacts under /app/dist in production.
+# The monolith build already emits the widget bundle there; copy it into the
+# Railway runtime image so gateway startup does not fall back to an empty set.
+COPY --from=build --chown=1000:1000 /app/backend/backendB-core-services/maple-monolith/dist ./dist
 
 # Copy Railway entrypoint
 COPY backend/backendA-platform-infra/deploy/railway-entrypoint.sh /app/railway-entrypoint.sh
