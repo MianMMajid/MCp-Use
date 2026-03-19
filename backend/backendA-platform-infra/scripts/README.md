@@ -34,6 +34,15 @@ These are intentionally not promoted to root aliases.
 - `bash backend/backendA-platform-infra/deploy/northflank/generate-northflank-tls.sh`
 - `node backend/backendA-platform-infra/deploy/northflank/generate-args.mjs`
 - `node backend/backendA-platform-infra/deploy/northflank/render-template.mjs`
+- `bash backend/backendA-platform-infra/scripts/sync-railway-env.sh all`
+- `bash backend/backendA-platform-infra/scripts/railway-local-run.sh gateway --build`
+
+### Railway env standardization
+
+- Local Railway-style runs read `.env`
+- Railway sync reads `.env` and then `.env.railway`, with `.env.railway` taking precedence
+- Start from `.env.railway.example` when preparing Railway values
+- Do not reuse localhost addresses from `.env` for Railway sync
 
 ### Legacy/demo helpers
 

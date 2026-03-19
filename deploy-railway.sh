@@ -27,6 +27,8 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/backend/backendA-platform-infra/scripts/lib/railway-env.sh"
 
 # ── Preflight checks ────────────────────────────────────────────────────────
 if ! command -v railway &>/dev/null; then
@@ -81,49 +83,16 @@ echo -e "${CYAN}[3/5] Setting environment variables${NC}"
 
 # Load user's .env if it exists (for API keys etc)
 if [ -f ".env" ]; then
-  echo "  Loading values from .env file..."
-  set -a; source .env 2>/dev/null || true; set +a
+  echo "  Loading values from .env / .env.railway..."
+  maple_load_railway_sync_env
 fi
 
-# Core variables — the entrypoint handles all other defaults
-railway variables set \
-  NODE_ENV=production \
-  MAPLE_ALLOW_NO_AUTH="${MAPLE_ALLOW_NO_AUTH:-true}" \
-  MAPLE_ENABLE_DEMO_ROUTES="${MAPLE_ENABLE_DEMO_ROUTES:-false}" \
-  MAPLE_ENABLE_JUDGE_UI="${MAPLE_ENABLE_JUDGE_UI:-true}" \
-  MAPLE_OPENCLAW_AGENT_ENABLED=true \
-  MAPLE_OPENCLAW_AGENT_MODE=local \
-  MAPLE_OPENCLAW_AGENT_AUTOSTART_GATEWAY=true \
-  MAPLE_EVENT_TRANSPORT_BACKEND=pg \
-  MAPLE_MCP_ROUTE_LOCK=false \
-  MAPLE_AUTH_ALLOW_SELF_SIGNUP=true \
-  CORS_ORIGIN="*" \
-  2>/dev/null
-
-# Set API keys if available in environment
-if [ -n "${OPENAI_API_KEY:-}" ] && [ "${OPENAI_API_KEY}" != "not-configured" ]; then
-  railway variables set OPENAI_API_KEY="${OPENAI_API_KEY}" 2>/dev/null
-  echo "  ✓ OPENAI_API_KEY set"
-fi
-if [ -n "${ANTHROPIC_API_KEY:-}" ] && [ "${ANTHROPIC_API_KEY}" != "not-configured" ]; then
-  railway variables set ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" 2>/dev/null
-  echo "  ✓ ANTHROPIC_API_KEY set"
-fi
-if [ -n "${STRIPE_SECRET_KEY:-}" ] && [ "${STRIPE_SECRET_KEY}" != "sk_test_not_configured" ]; then
-  railway variables set \
-    STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}" \
-    STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}" \
-    STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}" \
-    STRIPE_PRICE_PRO="${STRIPE_PRICE_PRO:-price_placeholder}" \
-    STRIPE_PRICE_TEAM="${STRIPE_PRICE_TEAM:-price_placeholder}" \
-    STRIPE_PRICE_ENTERPRISE="${STRIPE_PRICE_ENTERPRISE:-price_placeholder}" \
-    2>/dev/null
-  echo "  ✓ Stripe keys set"
-fi
-if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ "${GOOGLE_CLIENT_ID}" != "not-configured" ]; then
-  railway variables set GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" 2>/dev/null
-  echo "  ✓ GOOGLE_CLIENT_ID set"
-fi
+cmd=(railway variables --skip-deploys)
+while IFS= read -r kv; do
+  [ -n "${kv}" ] || continue
+  cmd+=(--set "${kv}")
+done < <(maple_emit_env_file "maple-gateway" railway)
+"${cmd[@]}" 2>/dev/null
 
 echo -e "${GREEN}✓ Environment variables configured${NC}"
 

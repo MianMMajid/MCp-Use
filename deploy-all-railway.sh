@@ -25,8 +25,11 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/backend/backendA-platform-infra/scripts/lib/railway-env.sh"
 
 FILTER="${1:-all}"
+maple_load_railway_sync_env
 
 # ── Preflight ─────────────────────────────────────────────────────────────────
 if ! command -v railway &>/dev/null; then
@@ -45,23 +48,12 @@ echo ""
 # SERVICE DEFINITIONS
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Internal networking addresses (Railway private DNS)
-# Format: <service-name>.railway.internal:<grpc-port>
-CW_ADDR="maple-context-wall.railway.internal:9000"
-MP_ADDR="maple-mcp-proxy.railway.internal:9200"
-CP_ADDR="maple-cyber-proxy.railway.internal:8090"
-AW_ADDR="maple-audit-writer.railway.internal:9400"
-GW_ADDR="maple-gateway.railway.internal:3000"
-
 # ── Helper: create service, set vars, deploy ──────────────────────────────────
 deploy_service() {
   local name="$1"
-  local maple_service="$2"
-  shift 2
-  # Remaining args are KEY=VALUE pairs
 
   echo ""
-  echo -e "${CYAN}━━━ Deploying: ${name} (MAPLE_SERVICE=${maple_service}) ━━━${NC}"
+  echo -e "${CYAN}━━━ Deploying: ${name} (MAPLE_SERVICE=$(maple_service_runtime_name "${name}")) ━━━${NC}"
 
   # Create service if it doesn't exist
   echo "  Creating service..."
@@ -73,21 +65,12 @@ deploy_service() {
 
   # Set MAPLE_SERVICE + common vars
   echo "  Setting variables..."
-  railway variables \
-    --set "MAPLE_SERVICE=${maple_service}" \
-    --set "MAPLE_DISABLE_TLS=true" \
-    --set "MAPLE_NODE_ENV=staging" \
-    --skip-deploys \
-    2>/dev/null || true
-
-  # Set service-specific vars
-  if [ $# -gt 0 ]; then
-    local set_args=""
-    for kv in "$@"; do
-      set_args="${set_args} --set \"${kv}\""
-    done
-    eval "railway variables ${set_args} --skip-deploys" 2>/dev/null || true
-  fi
+  local cmd=(railway variables --skip-deploys)
+  while IFS= read -r kv; do
+    [ -n "${kv}" ] || continue
+    cmd+=(--set "${kv}")
+  done < <(maple_emit_env_file "${name}" railway)
+  "${cmd[@]}" 2>/dev/null || true
 
   # Deploy
   echo "  Deploying..."
@@ -122,33 +105,16 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "gateway" || "${FILTER}" == "backen
   echo ""
   echo -e "${CYAN}[2/4] Deploying backend services${NC}"
 
-  deploy_service "maple-gateway" "gateway-api" \
-    "CONTEXT_WALL_ADDRESS=${CW_ADDR}" \
-    "MCP_PROXY_ADDRESS=${MP_ADDR}" \
-    "CYBER_PROXY_ADDRESS=${CP_ADDR}" \
-    "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
-    "CORS_ORIGIN=*" \
-    "MAPLE_ALLOW_NO_AUTH=true" \
-    "MAPLE_ENABLE_DEMO_ROUTES=false" \
-    "MAPLE_EVENT_TRANSPORT_BACKEND=pg"
+  deploy_service "maple-gateway"
 fi
 
 # ── gRPC Microservices ───────────────────────────────────────────────────────
 if [[ "${FILTER}" == "all" || "${FILTER}" == "grpc" || "${FILTER}" == "backends" ]]; then
 
-  deploy_service "maple-context-wall" "context-wall" \
-    "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
-    "MCP_PROXY_ADDRESS=${MP_ADDR}"
-
-  deploy_service "maple-mcp-proxy" "mcp-proxy" \
-    "AUDIT_WRITER_ADDRESS=${AW_ADDR}" \
-    "CONTEXT_WALL_ADDRESS=${CW_ADDR}" \
-    "CYBER_PROXY_ADDRESS=${CP_ADDR}"
-
-  deploy_service "maple-cyber-proxy" "cyber-proxy" \
-    "AUDIT_WRITER_ADDRESS=${AW_ADDR}"
-
-  deploy_service "maple-audit-writer" "audit-writer"
+  deploy_service "maple-context-wall"
+  deploy_service "maple-mcp-proxy"
+  deploy_service "maple-cyber-proxy"
+  deploy_service "maple-audit-writer"
 
 fi
 
@@ -159,11 +125,8 @@ if [[ "${FILTER}" == "all" || "${FILTER}" == "frontends" ]]; then
   echo ""
   echo -e "${CYAN}[3/4] Deploying frontends${NC}"
 
-  deploy_service "maple-frontend-a" "frontendA" \
-    "MAPLE_GATEWAY_ORIGIN=http://${GW_ADDR}"
-
-  deploy_service "maple-frontend-b" "frontendB" \
-    "MAPLE_GATEWAY_ORIGIN=http://${GW_ADDR}"
+  deploy_service "maple-frontend-a"
+  deploy_service "maple-frontend-b"
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
