@@ -512,38 +512,27 @@
       </div>
     </header>
 
-    <section class="card control-plane">
-      <div class="control-head">
-        <div>
-          <h2>Runtime Control Plane</h2>
-          <p class="muted">Validate, publish, execute, and observe the canonical orchestration runtime.</p>
-        </div>
-        <div class="control-links">
-          <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}`}>Open Observability</a>
-          <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}#audit`}>Open Audit</a>
-        </div>
-      </div>
-
+    <div class="control-bar">
       <div class="control-actions">
-        <button class="pill tiny" on:click={validateDefinition} disabled={!mounted || runtimeBusy}>Validate</button>
-        <button class="pill tiny" on:click={publishVersion} disabled={!mounted || runtimeBusy}>Publish Version</button>
         <button class="pill tiny" on:click={() => execute('dry-run')} disabled={!mounted || runtimeBusy}>Dry Run</button>
-        <button class="pill tiny cta" on:click={() => execute('live')} disabled={!mounted || runtimeBusy}>Execute Live</button>
-        {#if currentExecutionId}
+        <button class="pill tiny cta" on:click={() => execute('live')} disabled={!mounted || runtimeBusy}>Run</button>
+        {#if currentExecutionId && runtimeLive}
           {#if runtimeStatus === 'paused'}
             <button class="pill tiny" on:click={resumeExecution} disabled={!mounted || runtimeBusy}>Resume</button>
           {:else}
-            <button class="pill tiny" on:click={pauseExecution} disabled={!mounted || runtimeBusy || !runtimeLive}>Pause</button>
+            <button class="pill tiny" on:click={pauseExecution} disabled={!mounted || runtimeBusy}>Pause</button>
           {/if}
-          <button class="pill tiny danger" on:click={cancelExecution} disabled={!mounted || runtimeBusy}>Cancel</button>
-          <button class="pill tiny" on:click={addDynamicNode} disabled={!mounted || runtimeBusy}>Add Dynamic Node</button>
+          <button class="pill tiny danger" on:click={cancelExecution} disabled={!mounted || runtimeBusy}>Stop</button>
         {/if}
       </div>
-
       {#if controlPlaneNote}
-        <p class="muted">{controlPlaneNote}</p>
+        <span class="control-note">{controlPlaneNote}</span>
       {/if}
-    </section>
+      <div class="control-links">
+        <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}`}>Observability</a>
+        <a class="pill tiny" href={`/?mode=orchestration&panel=timeline${currentExecutionId ? `&executionId=${encodeURIComponent(currentExecutionId)}` : ''}#audit`}>Audit</a>
+      </div>
+    </div>
 
     <!-- Main area: palette + canvas + output -->
     <div class="workspace card" class:has-output={showOutput}>
@@ -653,20 +642,18 @@
 
 <style>
   .page {
-    min-height: calc(100svh - 24px);
+    height: calc(100svh - 24px);
     display: grid;
-    gap: 10px;
-    align-content: start;
-    grid-template-rows: auto 1fr;
+    gap: 8px;
+    grid-template-rows: auto auto 1fr;
   }
 
-  .control-plane { padding: 10px 12px; display: grid; gap: 10px; }
-  .control-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; flex-wrap: wrap; }
-  .control-head h2 { margin: 0; font-size: 0.98rem; }
-  .control-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .control-links { display: flex; gap: 8px; flex-wrap: wrap; }
-  .control-plane .pill { cursor: pointer; }
-  .control-plane a.pill { text-decoration: none; display: inline-flex; align-items: center; }
+  .control-bar { padding: 6px 12px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); }
+  .control-actions { display: flex; gap: 6px; }
+  .control-links { display: flex; gap: 6px; margin-left: auto; }
+  .control-bar .pill { cursor: pointer; }
+  .control-bar a.pill { text-decoration: none; display: inline-flex; align-items: center; }
+  .control-note { font-size: 11px; color: var(--muted); }
 
   /* ── Top bar ────────────────────── */
   .topbar { padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
