@@ -16,7 +16,6 @@ const DEFAULT_DELEGATION_POLICY = {
   allowedTools: [],
   deniedTools: [],
   riskCeiling: "medium",
-  requiresApproval: false,
   constraints: {
     timeboxSeconds: 300,
     rowLimit: 100,
@@ -552,34 +551,6 @@ function isNodeReady(execution, node) {
   return true;
 }
 
-async function waitForApprovalDecision(execution, approvalId) {
-  const startedAt = Date.now();
-  while (true) {
-    if (execution.cancelRequested) return "canceled";
-    const approval = execution.approvals.find((item) => item.approvalId === approvalId);
-    if (!approval) return "missing";
-    if (approval.status === "approved" || approval.status === "rejected") {
-      return approval.status;
-    }
-    if (Date.now() - startedAt > 20 * 60 * 1000) {
-      approval.status = "rejected";
-      approval.reason = approval.reason || "Approval timed out.";
-      approval.decidedAt = nowIso();
-      approval.action = "reject";
-      execution.approvalDecisions.set(approval.edgeId, "rejected");
-      emitExecutionEvent(execution, "approval_decided", {
-        approvalId: approval.approvalId,
-        nodeId: approval.nodeId,
-        edgeId: approval.edgeId,
-        action: "reject",
-        reason: approval.reason,
-      });
-      markControlChanged(execution);
-      return "rejected";
-    }
-    await sleep(250);
-  }
-}
 
 /**
  * Evaluate a node's output through the context-wall firewall (output policy).
@@ -626,74 +597,10 @@ async function evaluateNodeOutputPolicy(execution, node) {
   }
 }
 
-async function ensureApprovalsForNode(execution, node) {
-  const incoming = getIncomingActiveEdges(execution, node.id).filter(
-    (edge) => edge.delegationPolicy?.requiresApproval === true,
-  );
-  if (incoming.length === 0) return true;
-
-  for (const edge of incoming) {
-    const decision = execution.approvalDecisions.get(edge.id);
-    if (decision === "approved") continue;
-    if (decision === "rejected") return false;
-
-    let approval = execution.approvals.find((item) => item.edgeId === edge.id && item.nodeId === node.id && item.status === "pending");
-    if (!approval) {
-      approval = {
-        approvalId: randomUUID(),
-        executionId: execution.executionId,
-        nodeId: node.id,
-        edgeId: edge.id,
-        status: "pending",
-        requestedAt: nowIso(),
-        decidedAt: "",
-        challengeRequired: true,
-        reason: "",
-        action: "",
-      };
-      execution.approvals.push(approval);
-      emitExecutionEvent(execution, "approval_requested", {
-        approvalId: approval.approvalId,
-        nodeId: node.id,
-        edgeId: edge.id,
-        source: edge.source,
-        target: edge.target,
-        challengeRequired: approval.challengeRequired,
-      });
-      markControlChanged(execution);
-    }
-
-    execution.status = "waiting_approval";
-    const approvalStatus = await waitForApprovalDecision(execution, approval.approvalId);
-    if (approvalStatus !== "approved") {
-      return false;
-    }
-  }
-
-  if (!execution.paused && !execution.cancelRequested) {
-    execution.status = "running";
-  }
-  return true;
-}
-
 async function runNode(execution, node) {
   if (execution.cancelRequested) {
     node.status = "canceled";
     node.completedAt = nowIso();
-    return;
-  }
-
-  const canRun = await ensureApprovalsForNode(execution, node);
-  if (!canRun) {
-    node.status = "failed";
-    node.error = "Approval rejected for delegation edge.";
-    node.completedAt = nowIso();
-    emitExecutionEvent(execution, "node_failed", {
-      nodeId: node.id,
-      error: node.error,
-      reason: "approval_rejected",
-    });
-    execution.status = "failed";
     return;
   }
 
@@ -850,7 +757,11 @@ async function decomposeObjective(execution) {
   }
 
   const nodeList = nodes
-    .map((n) => `  - id: ${n.id}, label: ${n.label || n.id}, agent: ${n.agentId || "unassigned"}`)
+    .map((n) => {
+      const tools = getAgentCapabilities(n._agentRecord);
+      const toolStr = tools.length > 0 ? `, tools: [${tools.join(", ")}]` : "";
+      return `  - id: ${n.id}, label: ${n.label || n.id}${toolStr}`;
+    })
     .join("\n");
   const edgeList = edges.map((e) => `  - ${e.source} → ${e.target}`).join("\n");
 
@@ -859,18 +770,20 @@ async function decomposeObjective(execution) {
     "",
     `OBJECTIVE: ${fullObjective}`,
     "",
-    "GRAPH NODES:",
+    "GRAPH NODES (with available tools):",
     nodeList,
     "",
     "GRAPH EDGES (execution order):",
     edgeList,
     "",
     "Rules:",
-    "- Each node should get a clear, actionable sub-task that contributes to the full objective.",
-    "- Respect the graph order: upstream nodes produce inputs that downstream nodes consume.",
-    "- Be specific about what each node should produce as output.",
+    "- Each node should get a clear, actionable sub-task that uses its listed tools.",
+    "- Respect the graph order: upstream nodes produce outputs that downstream nodes consume.",
+    "- Be specific: tell each node exactly what to produce and in what format so the next node can use it.",
+    "- If a node has image generation tools, instruct it to call the tool and return the result URL.",
+    "- If a node has web search tools, instruct it to search and return structured findings.",
     "- Respond with ONLY a JSON object mapping node id to sub-task string. No markdown, no explanation.",
-    '- Example: {"node-1": "Research topic X and produce a structured summary", "node-2": "Create a visual diagram from the research"}',
+    '- Example: {"node-1": "Use openai_image_generation to create an image of X. Return the image URL.", "node-2": "Use openai_web_search to find similar images. Return top 3 results with URLs."}',
   ].join("\n");
 
   try {

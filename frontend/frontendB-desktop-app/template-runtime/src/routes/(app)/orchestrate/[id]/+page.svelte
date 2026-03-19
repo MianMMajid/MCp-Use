@@ -60,12 +60,8 @@
 
   // ── Helpers ────────────────────────────
 
-  // Default delegation policy: no manual approval required — firewall policy evaluates automatically.
-  const DEFAULT_DELEGATION_POLICY = { riskCeiling: 'medium', requiresApproval: false };
-
-  function edgeLabel(dp) {
-    return dp?.requiresApproval ? 'approval' : dp?.riskCeiling || 'open';
-  }
+  // Default delegation policy — firewall evaluates transitions automatically, no manual gates.
+  const DEFAULT_DELEGATION_POLICY = { riskCeiling: 'medium' };
 
   function makeInstructionNode() {
     return {
@@ -134,7 +130,7 @@
 
   function fromApiEdge(e) {
     const dp = { ...DEFAULT_DELEGATION_POLICY, ...(e.delegationPolicy || {}) };
-    return { id: e.id, source: e.source, target: e.target, markerEnd: { type: MarkerType.ArrowClosed }, data: { delegationPolicy: dp }, label: edgeLabel(dp) };
+    return { id: e.id, source: e.source, target: e.target, markerEnd: { type: MarkerType.ArrowClosed }, data: { delegationPolicy: dp } };
   }
   function toApiEdge(e) {
     return { id: e.id, source: e.source, target: e.target, delegationPolicy: { ...DEFAULT_DELEGATION_POLICY, ...(e.data?.delegationPolicy || {}) } };
@@ -144,7 +140,7 @@
   function persistentFlowNodes(nodes) { return ensureInstructionNode(nodes).filter((n) => !SPECIAL_IDS.has(String(n.id)) && !n.data?.isInstruction && !n.data?.isOutput); }
   function persistentFlowEdges(edges) { return edges.filter((e) => !SPECIAL_IDS.has(String(e.source)) && !SPECIAL_IDS.has(String(e.target))); }
   function mapFlowNodeToPanel(n) { if (!n) return null; return { id: n.id, agentId: n.data?.agentId, label: n.data?.label || n.id, role: n.data?.role || '', isInstruction: Boolean(n.data?.isInstruction), x: Number(n.position?.x ?? 0), y: Number(n.position?.y ?? 0), config: n.data?.config || {} }; }
-  function mapFlowEdgeToPanel(e) { if (!e) return null; return { id: e.id, source: e.source, target: e.target, delegationPolicy: e.data?.delegationPolicy || { riskCeiling: 'medium', requiresApproval: true } }; }
+  function mapFlowEdgeToPanel(e) { if (!e) return null; return { id: e.id, source: e.source, target: e.target, delegationPolicy: e.data?.delegationPolicy || { ...DEFAULT_DELEGATION_POLICY } }; }
 
   function applyNodeVisualContext() {
     flowNodes = ensureInstructionNode(flowNodes.map((n) => {
@@ -460,7 +456,7 @@
   function onConnect(connection) {
     const id = `edge-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const dp = { ...DEFAULT_DELEGATION_POLICY };
-    flowEdges = addEdge({ ...connection, id, markerEnd: { type: MarkerType.ArrowClosed }, data: { delegationPolicy: dp }, label: edgeLabel(dp) }, flowEdges);
+    flowEdges = addEdge({ ...connection, id, markerEnd: { type: MarkerType.ArrowClosed }, data: { delegationPolicy: dp } }, flowEdges);
   }
 
   function onFlowDrop(event) {
@@ -489,7 +485,7 @@
     if (selectedNodeId === nodeId) selectedNodeId = '';
   }
   function updateEdge(e) {
-    flowEdges = flowEdges.map((i) => { if (i.id !== e.id) return i; const dp = { ...DEFAULT_DELEGATION_POLICY, ...(e.delegationPolicy || {}) }; return { ...i, data: { ...(i.data || {}), delegationPolicy: dp }, label: edgeLabel(dp) }; });
+    flowEdges = flowEdges.map((i) => { if (i.id !== e.id) return i; const dp = { ...DEFAULT_DELEGATION_POLICY, ...(e.delegationPolicy || {}) }; return { ...i, data: { ...(i.data || {}), delegationPolicy: dp } }; });
   }
   function removeEdge(edgeId) { flowEdges = flowEdges.filter((i) => i.id !== edgeId); if (selectedEdgeId === edgeId) selectedEdgeId = ''; }
 </script>
