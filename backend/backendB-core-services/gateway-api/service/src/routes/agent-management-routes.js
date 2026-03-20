@@ -270,6 +270,52 @@ export function registerAgentManagementRoutes(app) {
                     provider: useNemoClaw ? "nvidia" : requestProvider,
                     model: requestModel,
                 });
+                // Persist session + run to Postgres so frontendA (IT console) can see them
+                if (database?.pool && result) {
+                    const now = new Date().toISOString();
+                    const sid = result.sessionId || requestContext.sessionId;
+                    const rid = result.runId || `run-${Date.now()}`;
+                    try {
+                        await database.pool.query(`
+                            CREATE TABLE IF NOT EXISTS openclaw_agent_sessions (
+                                session_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT '', org_id TEXT NOT NULL DEFAULT '',
+                                status TEXT NOT NULL DEFAULT 'idle', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                                last_run_id TEXT NOT NULL DEFAULT '', last_error TEXT NOT NULL DEFAULT '',
+                                cancel_requested BOOLEAN NOT NULL DEFAULT FALSE, run_ids_json TEXT NOT NULL DEFAULT '[]'
+                            )`);
+                        await database.pool.query(`
+                            CREATE TABLE IF NOT EXISTS openclaw_agent_runs (
+                                run_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT '', org_id TEXT NOT NULL DEFAULT '',
+                                session_id TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL,
+                                created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                                input_json TEXT NOT NULL DEFAULT '{}', output_json TEXT NOT NULL DEFAULT 'null',
+                                error TEXT NOT NULL DEFAULT '', cost_json TEXT NOT NULL DEFAULT 'null',
+                                parent_run_id TEXT, child_run_ids_json TEXT NOT NULL DEFAULT '[]'
+                            )`);
+                        await database.pool.query(`
+                            INSERT INTO openclaw_agent_sessions (session_id, tenant_id, status, created_at, updated_at, last_run_id, run_ids_json)
+                            VALUES ($1, $2, 'idle', $3, $3, $4, $5)
+                            ON CONFLICT (session_id) DO UPDATE SET
+                                updated_at = EXCLUDED.updated_at,
+                                last_run_id = EXCLUDED.last_run_id,
+                                run_ids_json = EXCLUDED.run_ids_json`,
+                            [sid, requestContext.tenantId || 'default', now, rid, JSON.stringify([rid])]);
+                        await database.pool.query(`
+                            INSERT INTO openclaw_agent_runs (run_id, tenant_id, session_id, type, status, created_at, updated_at, input_json, output_json, cost_json)
+                            VALUES ($1, $2, $3, 'chat', 'completed', $4, $4, $5, $6, $7)
+                            ON CONFLICT (run_id) DO UPDATE SET
+                                status = EXCLUDED.status,
+                                updated_at = EXCLUDED.updated_at,
+                                output_json = EXCLUDED.output_json,
+                                cost_json = EXCLUDED.cost_json`,
+                            [rid, requestContext.tenantId || 'default', sid, now,
+                             JSON.stringify({ message: message || objective, agentId }),
+                             JSON.stringify({ reply: result.reply || '', attachments: result.attachments || [] }),
+                             JSON.stringify(result.usage || null)]);
+                    } catch (persistErr) {
+                        mapleLog("warn", "agent.run_persist_failed", { error: persistErr.message });
+                    }
+                }
             } else if (mode === "longform" && objective) {
                 result = await runOpenClawLongform({
                     objective,

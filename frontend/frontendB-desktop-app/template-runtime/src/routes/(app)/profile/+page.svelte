@@ -577,6 +577,7 @@
     cursor: pointer;
   }
 
+
   /* ── Responsive ── */
   @media (max-width: 640px) {
     .settings-layout { grid-template-columns: 1fr; gap: 16px; }

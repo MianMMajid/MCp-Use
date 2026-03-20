@@ -31,6 +31,7 @@
   let hoveredSkillId = '';
   let agentProvider = '';
   let agentModel = '';
+  let connectedProviders = [];
 
   // ── Marketplace state ──
   let importOpen = false;
@@ -255,10 +256,13 @@
     loading = true;
     error = '';
     try {
-      const [agentPayload, toolsPayload] = await Promise.all([
+      const [agentPayload, toolsPayload, integrationsPayload] = await Promise.all([
         loadJson(`/api/agents/${data.id}`),
         loadJson(`/api/agents/${data.id}/tools`).catch(() => ({ items: [], equippedToolIds: [] })),
+        loadJson('/api/integrations').catch(() => ({ integrations: [] })),
       ]);
+      const connected = integrationsPayload?.integrations || integrationsPayload?.items || [];
+      connectedProviders = connected.filter((i) => i.status === 'connected').map((i) => i.provider);
 
       agent = agentPayload;
       openclawTools = Array.isArray(toolsPayload?.items)
@@ -460,16 +464,16 @@
 
       <section class="card panel model-config">
         <h2>Model Configuration</h2>
-        <p class="muted">Override the default LLM provider and model for this agent.</p>
+        <p class="muted">Select from connected AI providers. <a href="/connect">Manage connections</a></p>
         <div class="model-fields">
           <label class="field">
             <span>Provider</span>
             <select bind:value={agentProvider} on:change={() => { agentModel = ''; }}>
-              <option value="">Default (env)</option>
-              <option value="openai">OpenAI</option>
-              <option value="nvidia">NVIDIA (Cloud)</option>
-              <option value="nemoclaw">NemoClaw (Local)</option>
-              <option value="anthropic">Anthropic</option>
+              <option value="">Default (server)</option>
+              {#each CHAT_MODEL_FAMILIES.reduce((acc, f) => acc.includes(f.provider) ? acc : [...acc, f.provider], []) as prov}
+                {@const family = CHAT_MODEL_FAMILIES.find((f) => f.provider === prov)}
+                <option value={prov}>{family?.providerLabel || prov}</option>
+              {/each}
             </select>
           </label>
           <label class="field">

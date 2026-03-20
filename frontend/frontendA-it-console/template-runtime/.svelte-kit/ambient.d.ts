@@ -47,6 +47,7 @@ declare module '$env/static/private' {
 	export const NoDefaultCurrentDirectoryInExePath: string;
 	export const MAPLE_VIRUSTOTAL_ANALYSIS_POLL_ATTEMPTS: string;
 	export const DOWNSTREAM_APPS: string;
+	export const MAPLE_GOOGLE_WORKSPACE_OAUTH_CLIENT_ID: string;
 	export const MAPLE_AUDIT_WRITER_HTTP_ORIGIN: string;
 	export const SENDGRID_API_KEY: string;
 	export const VSCODE_CRASH_REPORTER_PROCESS_TYPE: string;
@@ -113,6 +114,7 @@ declare module '$env/static/private' {
 	export const MAPLE_MFA_ENFORCE_FOR_ADMINS: string;
 	export const TOOL_RUNNER_ADDRESS: string;
 	export const MAPLE_ALLOW_BRIDGE_OVERRIDE: string;
+	export const MAPLE_INTEGRATION_OAUTH_REDIRECT_BASE_URL: string;
 	export const MAPLE_TENANT_CLAIM_SIGNING_KEY: string;
 	export const MAPLE_OTLP_FLUSH_INTERVAL_MS: string;
 	export const MAPLE_GATEWAY_TLS_CERT: string;
@@ -201,6 +203,7 @@ declare module '$env/static/private' {
 	export const OPENCLAW_BRIDGE_REQUIRE_AUTH: string;
 	export const RESEND_API_KEY: string;
 	export const MAPLE_DISABLE_AUDIT_EMIT: string;
+	export const MAPLE_GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET: string;
 	export const MAPLE_OPENCLAW_MODIFIER_MAX_TIMEOUT_SECONDS: string;
 	export const NODE_ENV: string;
 	export const TWILIO_ACCOUNT_SID: string;
@@ -394,6 +397,7 @@ declare module '$env/dynamic/private' {
 		NoDefaultCurrentDirectoryInExePath: string;
 		MAPLE_VIRUSTOTAL_ANALYSIS_POLL_ATTEMPTS: string;
 		DOWNSTREAM_APPS: string;
+		MAPLE_GOOGLE_WORKSPACE_OAUTH_CLIENT_ID: string;
 		MAPLE_AUDIT_WRITER_HTTP_ORIGIN: string;
 		SENDGRID_API_KEY: string;
 		VSCODE_CRASH_REPORTER_PROCESS_TYPE: string;
@@ -460,6 +464,7 @@ declare module '$env/dynamic/private' {
 		MAPLE_MFA_ENFORCE_FOR_ADMINS: string;
 		TOOL_RUNNER_ADDRESS: string;
 		MAPLE_ALLOW_BRIDGE_OVERRIDE: string;
+		MAPLE_INTEGRATION_OAUTH_REDIRECT_BASE_URL: string;
 		MAPLE_TENANT_CLAIM_SIGNING_KEY: string;
 		MAPLE_OTLP_FLUSH_INTERVAL_MS: string;
 		MAPLE_GATEWAY_TLS_CERT: string;
@@ -548,6 +553,7 @@ declare module '$env/dynamic/private' {
 		OPENCLAW_BRIDGE_REQUIRE_AUTH: string;
 		RESEND_API_KEY: string;
 		MAPLE_DISABLE_AUDIT_EMIT: string;
+		MAPLE_GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET: string;
 		MAPLE_OPENCLAW_MODIFIER_MAX_TIMEOUT_SECONDS: string;
 		NODE_ENV: string;
 		TWILIO_ACCOUNT_SID: string;

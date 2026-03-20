@@ -21,6 +21,7 @@
   let agentMode = 'turn'
   let agentPrompt = ''
   let agentReply = null
+  let activeController = null
 
   $: sessions = pickItems(state.agentSessions?.value, ['sessions', 'items'])
   $: if (!selectedSessionId && sessions.length > 0) {
@@ -88,10 +89,21 @@
     if (!agentPrompt.trim()) return
     const endpoint = agentMode === 'longform' ? '/api/openclaw/agent/longform' : '/api/openclaw/agent/turn'
     const body = agentMode === 'longform' ? { objective: agentPrompt } : { message: agentPrompt }
+    const controller = new AbortController()
+    activeController = controller
     await runAction(`prompt:${agentMode}`, async () => {
-      agentReply = await sendJson(fetch, endpoint, body)
+      agentReply = await sendJson(fetch, endpoint, body, { signal: controller.signal })
       notice = `Agent ${agentMode} request completed.`
     })
+    activeController = null
+  }
+
+  function stopPrompt() {
+    activeController?.abort()
+    activeController = null
+    busy = ''
+    error = ''
+    notice = 'Request cancelled.'
   }
 
   async function handleCancel(sessionId) {
@@ -148,7 +160,13 @@
       <button type="button" class:active={agentMode === 'longform'} on:click={() => (agentMode = 'longform')}>Longform</button>
     </div>
     <textarea bind:value={agentPrompt} placeholder="Submit a governed agent request from Frontend A."></textarea>
-    <button type="button" class="action-btn primary" on:click={handlePrompt} disabled={Boolean(busy) || !agentPrompt.trim()}>Send</button>
+    {#if busy.startsWith('prompt:')}
+      <button type="button" class="action-btn stop-btn" on:click={stopPrompt}>
+        <span class="btn-spinner"></span>Stop
+      </button>
+    {:else}
+      <button type="button" class="action-btn primary" on:click={handlePrompt} disabled={Boolean(busy) || !agentPrompt.trim()}>Send</button>
+    {/if}
   </section>
 
   <section class="agent-grid">
@@ -215,9 +233,14 @@
     <article class="surface-panel evidence-panel">
       <div class="panel-head">
         <h2>Evidence rail</h2>
-        <span class="chip">{selectedArtifactsRunId || (agentReply ? 'last reply' : 'idle')}</span>
+        <span class="chip">{busy.startsWith('prompt:') ? 'waiting for agent…' : selectedArtifactsRunId || (agentReply ? 'last reply' : 'idle')}</span>
       </div>
-      {#if selectedArtifactsRunId}
+      {#if busy.startsWith('prompt:')}
+        <div class="agent-waiting">
+          <div class="agent-spinner"></div>
+          <p>Agent is processing your request…</p>
+        </div>
+      {:else if selectedArtifactsRunId}
         <pre>{JSON.stringify({ runId: selectedArtifactsRunId, artifacts: selectedArtifacts }, null, 2)}</pre>
       {:else if agentReply}
         <pre>{JSON.stringify(agentReply, null, 2)}</pre>
@@ -249,6 +272,7 @@
   .mode-tabs button.active { background:#fff4e8; border-color:#ef9f38; }
   .prompt-bar textarea { min-height:92px; border:1px solid #eadfd5; background:#fffaf7; border-radius:20px; padding:0.95rem; font:inherit; resize:vertical; }
   .action-btn.primary { background:#ef9f38; color:#fff; border-color:#ef9f38; }
+  .action-btn.stop-btn { background:#fff0ef; color:#9f443a; border-color:#f1cec9; display:flex; align-items:center; gap:8px; }
   .action-btn.danger { background:#fff0ef; color:#9f443a; border-color:#f1cec9; }
   .agent-grid { display:grid; grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.1fr) minmax(320px, 0.95fr); gap:20px; }
   .surface-panel { background:#fff; border:1px solid #eadfd5; border-radius:28px; padding:1rem; box-shadow:0 18px 36px rgba(113,79,45,0.08); }
@@ -267,6 +291,12 @@
   .run-card { display:flex; justify-content:space-between; gap:12px; align-items:center; }
   .evidence-panel pre { margin:0 0 12px; max-height:520px; overflow:auto; background:#1f1914; color:#f9f3ec; border-radius:20px; padding:1rem; font-size:0.82rem; }
   .empty-row { margin:0; color:#6f6b67; }
+  .agent-waiting { display:flex; flex-direction:column; align-items:center; gap:12px; padding:2.5rem 1rem; color:#7a6f67; }
+  .agent-waiting p { margin:0; font-size:0.9rem; }
+  .agent-spinner { width:28px; height:28px; border:3px solid #eadfd5; border-top-color:#ef9f38; border-radius:50%; animation:spin 0.9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .action-btn.primary.sending { background:#d4882a; border-color:#d4882a; display:flex; align-items:center; gap:8px; }
+  .btn-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.4); border-top-color:#fff; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0; }
   @media (max-width: 1180px) {
     .agent-grid { grid-template-columns:1fr; }
     .prompt-bar { grid-template-columns:1fr; }

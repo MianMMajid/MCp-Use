@@ -1818,12 +1818,27 @@ export async function runOpenClawLongform(options = {}) {
   }
 }
 
+function extractUserPrompt(run) {
+  if (!run) return "";
+  // Prefer explicit user prompt fields over raw LLM message
+  const candidates = [
+    run.input?.userPrompt,
+    run.input?.objective,
+    run.input?.goal,
+    run.input?.message,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim() && !c.startsWith("You are")) return c.trim();
+  }
+  return "";
+}
+
 function toPublicSession(session) {
   let lastInputPreview = "";
   if (session.lastRunId) {
     const lastRun = runStore.get(session.lastRunId);
-    const msg = lastRun?.input?.message ?? lastRun?.input?.objective ?? "";
-    lastInputPreview = msg.length > 80 ? msg.slice(0, 80) + "..." : msg;
+    const msg = extractUserPrompt(lastRun);
+    lastInputPreview = msg.length > 120 ? msg.slice(0, 120) + "..." : msg;
   }
   return {
     sessionId: session.sessionId,
@@ -1865,6 +1880,8 @@ function toPublicRun(run) {
     cost: run.cost ?? null,
     parentRunId: run.parentRunId ?? null,
     childRunIds: run.childRunIds ?? [],
+    input: run.input ?? null,
+    output: run.output ?? null,
   };
 }
 
@@ -1915,8 +1932,8 @@ export async function listOpenClawSessions(options = {}) {
       );
       const items = result.rows.map((row) => {
         const input = parseJson(row.last_input_json, {});
-        const msg = String(input?.message ?? input?.objective ?? "");
-        const preview = msg.length > 80 ? `${msg.slice(0, 80)}...` : msg;
+        const msg = extractUserPrompt({ input });
+        const preview = msg.length > 120 ? `${msg.slice(0, 120)}...` : msg;
         return toPublicSessionFromRow(row, preview);
       });
       const nextCursor = result.rows.length === limit ? String(offset + result.rows.length) : "";

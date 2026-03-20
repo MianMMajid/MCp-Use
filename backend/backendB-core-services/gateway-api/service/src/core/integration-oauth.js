@@ -14,7 +14,7 @@ const OAUTH_PROVIDER_DEFAULTS = {
     revokeUrl: "https://oauth2.googleapis.com/revoke",
     userInfoUrl: "https://www.googleapis.com/oauth2/v3/userinfo",
     scope:
-      "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+      "openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/documents",
     tokenExtraParams: { access_type: "offline", prompt: "consent" },
     accountIdPath: "sub",
     displayNamePath: "name",

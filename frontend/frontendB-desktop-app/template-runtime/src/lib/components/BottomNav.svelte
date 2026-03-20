@@ -61,6 +61,7 @@
     { key: 'chat', label: 'Chat', icon: 'chat', href: '/' },
     { key: 'builder', label: 'Builder', icon: 'builder', href: '/orchestrate' },
     { key: 'firewalls', label: 'Firewalls', icon: 'firewall', href: '/firewalls' },
+    { key: 'connect', label: 'Connect', icon: 'skills', href: '/connect' },
     { key: 'tasks', label: 'Tasks', icon: 'tasks', href: '/tasks' },
   ];
 
@@ -80,8 +81,9 @@
     if (path === '/' || path.startsWith('/?')) return 0;
     if (path.startsWith('/orchestrate')) return 1;
     if (path.startsWith('/firewalls')) return 2;
-    if (path.startsWith('/tasks')) return 3;
-    if (moreRoutes.some((r) => path.startsWith(r)) || path.startsWith('/agents')) return 4;
+    if (path.startsWith('/connect')) return 3;
+    if (path.startsWith('/tasks')) return 4;
+    if (moreRoutes.some((r) => path.startsWith(r)) || path.startsWith('/agents')) return 5;
     return -1;
   })();
 
@@ -306,8 +308,8 @@
 
       <button
         class="nav-pill"
-        class:active={activeIndex === 4}
-        bind:this={pillEls[4]}
+        class:active={activeIndex === 5}
+        bind:this={pillEls[5]}
         on:click={() => { moreOpen = !moreOpen; }}
         aria-label="More"
       >
