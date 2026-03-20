@@ -240,27 +240,33 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding-bottom: 80px; /* space for fixed bottom dock */
   }
 
   .bottom-unified-strip {
-    flex-shrink: 0;
-    background: var(--panel);
-    backdrop-filter: blur(20px) saturate(180%);
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
   }
 
   .strip-sub-tabs {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 8px 16px;
-    min-height: 44px;
-    border-top: 1px solid var(--line);
+    pointer-events: auto;
   }
 
   .strip-categories {
     display: flex;
     justify-content: center;
-    padding: 0 16px 8px;
+    pointer-events: auto;
   }
 
   .offline-banner {
@@ -275,6 +281,6 @@
   }
 
   :global(.mayple-shell-root .product-shell) {
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
  </style>

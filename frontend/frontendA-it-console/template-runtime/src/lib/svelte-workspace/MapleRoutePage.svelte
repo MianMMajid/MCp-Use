@@ -24,16 +24,25 @@
     '/maple/interventions': 20000,
     '/maple/cyber': 20000,
     '/maple/hitl': 15000,
+    '/maple/modifier-approvals': 20000,
     '/maple/agent': 20000,
     '/maple/downstream': 30000,
     '/maple/policies': 20000,
     '/maple/topology': 30000,
     '/maple/forks': 20000,
+    '/maple/settings': 30000,
+    '/maple/escalation': 30000,
+    '/maple/auth-admin': 30000,
+    '/maple/api-keys': 30000,
+    '/maple/org': 30000,
+    '/maple/integrations': 30000,
+    '/maple/tenants': 30000,
+    '/maple/runtime': 30000,
   })
 
   const ROUTE_REQUESTS = Object.freeze({
     '/maple/chat': [
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
       ['leakageEntities', '/api/firewall/context-leakage/entities?activeOnly=true'],
     ],
     '/maple/observability': [
@@ -42,7 +51,7 @@
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=25'],
       ['alertWebhooks', '/api/observability/orchestrations/alert-webhooks'],
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/audit': [
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=100'],
@@ -82,16 +91,16 @@
     ],
     '/maple/agent': [
       ['agentStatus', '/api/openclaw/agent/status'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/topology': [
       ['runtimeCapabilities', '/api/runtime/feature-capabilities'],
       ['runtimeStatus', '/api/runtime/status'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/runs': [
       ['runs', '/api/runs'],
-      ['agentSessions', '/api/openclaw/agent/sessions'],
+      ['agentSessions', '/api/agents/sessions/registry'],
     ],
     '/maple/forks': [
       ['auditLog', '/api/observability/orchestrations/audit-log?offset=0&limit=100'],
@@ -148,7 +157,6 @@
       ['authMe', '/api/auth/me'],
       ['mfaStatus', '/api/auth/mfa/status'],
     ],
-    '/maple/demo': [],
   })
 
   let loading = true
@@ -239,6 +247,8 @@
   $: selectedServiceAccount = serviceAccounts.find((item) => (item.id ?? item.serviceAccountId) === selectedServiceAccountId) ?? null
   $: selectedMember = orgMembers.find((item) => (item.userId ?? item.id) === selectedMemberId) ?? null
   $: selectedPlan = interventionPlans.find((item) => item.planId === selectedPlanId) ?? selectedPlan
+  $: selectedForkPlan = interventionPlans.find((item) => item.planId === selectedPlanId) ?? interventionPlans[0] ?? null
+  $: settingsNotifPrefs = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}
   $: if (!selectedPlanId && interventionPlans.length > 0) {
     selectedPlanId = interventionPlans[0].planId
   }
@@ -263,6 +273,22 @@
     const incidentState = String(item?.state ?? '').toLowerCase()
     return !['closed', 'resolved'].includes(incidentState) && (severity.includes('high') || severity.includes('critical'))
   })
+
+  function getSessionKey(session) {
+    return session?.sessionId ?? session?.id ?? ''
+  }
+
+  function getSessionRuntime(session) {
+    return session?.runtime === 'native' ? 'native' : 'openclaw'
+  }
+
+  function getSelectedSessionRecord(sessionId) {
+    return agentSessions.find((item) => getSessionKey(item) === sessionId) ?? null
+  }
+
+  function getSelectedObservabilitySessionRecord(sessionId) {
+    return observabilitySessions.find((item) => getSessionKey(item) === sessionId) ?? null
+  }
 
   function getNestedCyberScan(item) {
     const rawArtifact = item?.metadata?.rawArtifact
@@ -585,6 +611,11 @@
       observabilityStreamState = 'unsupported'
       return
     }
+    const sessionRecord = getSelectedObservabilitySessionRecord(sessionId)
+    if (getSessionRuntime(sessionRecord) !== 'openclaw') {
+      observabilityStreamState = 'idle'
+      return
+    }
     const cursor = encodeURIComponent(observabilityLatestCursor || '0')
     const url = `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/stream?cursor=${cursor}&timeoutMs=25000`
     const source = new EventSource(url)
@@ -638,7 +669,9 @@
     const preserveRun = options.preserveRun === true
     const preserveStream = options.preserveStream === true
     try {
-      const payload = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}?include=steps,runs`)
+      const sessionRecord = getSelectedObservabilitySessionRecord(sessionId)
+      const runtime = getSessionRuntime(sessionRecord)
+      const payload = await loadJson(fetch, `/api/agents/sessions/registry/${encodeURIComponent(sessionId)}?runtime=${encodeURIComponent(runtime)}`)
       const detail = payload?.session ?? payload ?? null
       observabilitySessionDetail = detail
       observabilitySelectedSessionId = sessionId
@@ -690,8 +723,10 @@
         observabilityArtifacts = []
       }
 
-      if (!preserveStream) {
+      if (!preserveStream && runtime === 'openclaw') {
         openObservabilityStream(sessionId)
+      } else if (runtime !== 'openclaw') {
+        observabilityStreamState = 'idle'
       }
     } catch (requestError) {
       error = requestError instanceof Error ? requestError.message : String(requestError)
@@ -717,7 +752,9 @@
   async function loadAgentSession(sessionId) {
     if (!sessionId) return
     try {
-      selectedAgentDetail = await loadJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}`)
+      const sessionRecord = getSelectedSessionRecord(sessionId)
+      const runtime = getSessionRuntime(sessionRecord)
+      selectedAgentDetail = await loadJson(fetch, `/api/agents/sessions/registry/${encodeURIComponent(sessionId)}?runtime=${encodeURIComponent(runtime)}`)
     } catch {
       selectedAgentDetail = null
     }
@@ -923,6 +960,8 @@
   }
 
   async function handleAgentCancel(sessionId) {
+    const sessionRecord = getSelectedSessionRecord(sessionId)
+    if (getSessionRuntime(sessionRecord) !== 'openclaw') return
     await runAction(`agent:${sessionId}:cancel`, () =>
       sendJson(fetch, `/api/openclaw/agent/sessions/${encodeURIComponent(sessionId)}/cancel`, {}),
     )
@@ -1236,7 +1275,9 @@
     }
     window.addEventListener('maple:shell-refresh', onShellRefresh)
     const intervalMs = POLL_INTERVALS[routePath]
-    if (!intervalMs) {
+    // Chat route manages its own data via streaming — skip background polling
+    // to avoid saturating the SvelteKit dev server's single thread.
+    if (!intervalMs || routePath === '/maple/chat') {
       return () => {
         window.removeEventListener('maple:shell-refresh', onShellRefresh)
       }
@@ -1371,7 +1412,126 @@
     state={{ category: 'observe', view: 'forks', routePath, routeRecord }}
     {routeRecord}
     auditEvents={filterRecordsBySource(pickItems(state.auditLog?.value), sourceFilter)}
+    filesystemMutations={selectedForkPlan ? [selectedForkPlan] : []}
   />
+  <section class="docs-grid utility-grid">
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Containment Forks</h2>
+        <span class="chip">{interventionPlans.length} plans</span>
+      </div>
+      <div class="utility-stat-strip">
+        <article class="route-overview-card">
+          <span class="route-overview-label">Mode</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).guard?.mode ?? '--'}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Pending</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).counts?.pending ?? interventionPlans.filter((p) => String(p.status).includes('pending')).length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Denied</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).counts?.denied ?? interventionPlans.filter((p) => p.lane === 'hard_deny').length}</strong>
+        </article>
+        <article class="route-overview-card">
+          <span class="route-overview-label">Total</span>
+          <strong>{(state.filesystemStatus?.value ?? {}).counts?.total ?? interventionPlans.length}</strong>
+        </article>
+      </div>
+      <div class="stack-list">
+        {#if interventionPlans.length === 0}
+          <p class="empty-row">No containment forks yet. Forks are created when the firewall isolates risky filesystem mutations.</p>
+        {:else}
+          {#each interventionPlans as plan}
+            <button type="button" class="list-card" class:static={plan.planId === selectedForkPlan?.planId} on:click={() => { selectedPlanId = plan.planId }}>
+              <strong>{plan.plan?.toolName || plan.sourceType || 'filesystem'} · {plan.lane}</strong>
+              <span>{plan.taskText || plan.planId}</span>
+              <span class="mono">{plan.status} · {plan.sourceSurface} · {formatDate(plan.createdAt)}</span>
+            </button>
+          {/each}
+        {/if}
+      </div>
+    </article>
+    <article class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Fork Detail</h2>
+        <span class="chip">{selectedForkPlan?.lane ?? 'none'}</span>
+      </div>
+      {#if selectedForkPlan}
+        <div class="utility-stat-strip">
+          <article class="route-overview-card">
+            <span class="route-overview-label">Lane</span>
+            <strong>{selectedForkPlan.lane}</strong>
+          </article>
+          <article class="route-overview-card">
+            <span class="route-overview-label">Status</span>
+            <strong>{selectedForkPlan.status}</strong>
+          </article>
+          <article class="route-overview-card">
+            <span class="route-overview-label">Intent</span>
+            <strong>{selectedForkPlan.modelAssessment?.intentClass ?? '--'}</strong>
+          </article>
+          <article class="route-overview-card">
+            <span class="route-overview-label">Blast radius</span>
+            <strong>{selectedForkPlan.modelAssessment?.blastRadiusAssessment ?? '--'}</strong>
+          </article>
+        </div>
+        <div class="stack-list">
+          {#each selectedForkPlan.plan?.operations ?? [] as op, i}
+            <div class="list-card static">
+              <strong>#{i + 1} {op.op}</strong>
+              <span class="mono">{op.path}{op.to ? ` → ${op.to}` : ''}</span>
+              <span>{op.sizeBytes ? `${op.sizeBytes} bytes` : ''}{op.recursive ? ' · recursive' : ''}</span>
+            </div>
+          {/each}
+        </div>
+        {#if selectedForkPlan.plan?.pathClassifications?.length}
+          <div class="stack-list">
+            {#each (selectedForkPlan.plan?.pathClassifications ?? []) as pc}
+              <div class="list-card static">
+                <strong>{pc.classification}</strong>
+                <span class="mono">{pc.path}</span>
+                <span>{pc.reasons?.join(', ') ?? '--'}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if selectedForkPlan.modelAssessment?.available}
+          <pre class="mono panel-json">{JSON.stringify({
+            provider: selectedForkPlan.modelAssessment.provider,
+            model: selectedForkPlan.modelAssessment.model,
+            intentClass: selectedForkPlan.modelAssessment.intentClass,
+            taskAlignment: selectedForkPlan.modelAssessment.taskAlignment,
+            userAuthoredRisk: selectedForkPlan.modelAssessment.userAuthoredRisk,
+            rebuildability: selectedForkPlan.modelAssessment.rebuildability,
+            blastRadiusAssessment: selectedForkPlan.modelAssessment.blastRadiusAssessment,
+            suspiciousSignals: selectedForkPlan.modelAssessment.suspiciousSignals,
+            recommendedLane: selectedForkPlan.modelAssessment.recommendedLane,
+          }, null, 2)}</pre>
+        {/if}
+        <div class="actions">
+          {#if String(selectedForkPlan.status).includes('pending')}
+            <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:approve`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/decision`, { decision: 'approve' }))}>
+              Approve
+            </button>
+            <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:deny`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/decision`, { decision: 'deny' }))}>
+              Deny
+            </button>
+          {/if}
+          {#if selectedForkPlan.status === 'approved'}
+            <button type="button" class="action-btn primary" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:promote`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/promote`, {}))}>
+              Promote
+            </button>
+            <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => runAction(`fork:${selectedForkPlan.planId}:restore`, () => sendJson(fetch, `/api/firewall/filesystem/mutations/${encodeURIComponent(selectedForkPlan.planId)}/restore`, {}))}>
+              Restore
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <p class="empty-row">Select a fork plan from the list to view details.</p>
+      {/if}
+    </article>
+  </section>
 {:else if routePath === '/maple/runs'}
   <section class="docs-grid">
     <article class="panel">
@@ -1662,10 +1822,12 @@
         {#each agentSessions as session}
           <div class="list-card static">
             <strong>{session.sessionId ?? session.id ?? 'session'}</strong>
-            <span>{session.status ?? 'unknown'} · updated={formatDate(session.updatedAt ?? session.createdAt)}</span>
+            <span>{getSessionRuntime(session)} · {session.status ?? 'unknown'} · updated={formatDate(session.updatedAt ?? session.createdAt)}</span>
             <div class="actions">
               <button type="button" class="action-btn" on:click={() => { selectedSessionId = session.sessionId ?? session.id ?? ''; loadAgentSession(selectedSessionId) }}>Inspect</button>
-              <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleAgentCancel(session.sessionId ?? session.id ?? '')}>Cancel</button>
+              {#if getSessionRuntime(session) === 'openclaw'}
+                <button type="button" class="action-btn danger" disabled={Boolean(busy)} on:click={() => handleAgentCancel(session.sessionId ?? session.id ?? '')}>Cancel</button>
+              {/if}
             </div>
           </div>
         {/each}
@@ -1677,9 +1839,9 @@
         <span class="chip">{selectedSessionId || '--'}</span>
       </div>
       <pre class="mono panel-json">{JSON.stringify(selectedAgentDetail ?? {}, null, 2)}</pre>
-      {#if Array.isArray(selectedAgentDetail?.runs)}
+      {#if Array.isArray(selectedAgentDetail?.runs) || Array.isArray(selectedAgentDetail?.session?.runs)}
         <div class="actions">
-          {#each selectedAgentDetail.runs as run}
+          {#each (selectedAgentDetail?.runs ?? selectedAgentDetail?.session?.runs ?? []) as run}
             <button type="button" class="action-btn" disabled={Boolean(busy)} on:click={() => loadArtifacts(run.runId ?? run.id)}>
               Load artifacts {run.runId ?? run.id}
             </button>
@@ -2171,7 +2333,7 @@
         {#each ['approvals', 'escalations', 'run_failures', 'system_alerts'] as cat}
           <article class="route-overview-card">
             <span class="route-overview-label">{cat.replace(/_/g, ' ')}</span>
-            <strong>{['email', 'in_app'].filter((ch) => { const p = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}; return p[`${cat}.${ch}`] ?? p?.[cat]?.[ch] ?? false }).length} / 2</strong>
+            <strong>{['email', 'in_app'].filter((ch) => settingsNotifPrefs[`${cat}.${ch}`] ?? settingsNotifPrefs?.[cat]?.[ch] ?? false).length} / 2</strong>
           </article>
         {/each}
       </div>
@@ -2184,13 +2346,12 @@
           </div>
         </div>
         {#each ['approvals', 'escalations', 'run_failures', 'system_alerts'] as cat}
-          {@const prefs = state.notifPrefs?.value?.preferences ?? state.notifPrefs?.value ?? {}}
           <div class="list-card static">
             <strong>{cat.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</strong>
             <div class="actions">
               {#each ['email', 'in_app'] as channel}
-                <button type="button" class="action-btn" class:primary={prefs[`${cat}.${channel}`] ?? prefs?.[cat]?.[channel] ?? false} disabled={Boolean(busy)} on:click={() => handleSaveNotifPrefs(cat, channel)}>
-                  {(prefs[`${cat}.${channel}`] ?? prefs?.[cat]?.[channel] ?? false) ? 'On' : 'Off'}
+                <button type="button" class="action-btn" class:primary={settingsNotifPrefs[`${cat}.${channel}`] ?? settingsNotifPrefs?.[cat]?.[channel] ?? false} disabled={Boolean(busy)} on:click={() => handleSaveNotifPrefs(cat, channel)}>
+                  {(settingsNotifPrefs[`${cat}.${channel}`] ?? settingsNotifPrefs?.[cat]?.[channel] ?? false) ? 'On' : 'Off'}
                 </button>
               {/each}
             </div>

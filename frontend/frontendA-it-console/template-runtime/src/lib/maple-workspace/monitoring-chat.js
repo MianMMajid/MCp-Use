@@ -18,13 +18,20 @@ function collectChunks(buffer, onChunk) {
   return remainder
 }
 
-export async function requestMonitoringChat(prompt, signal) {
+export async function requestMonitoringChat(prompt, signal, options = {}) {
+  const body = {
+    messages: Array.isArray(options.messages) && options.messages.length > 0
+      ? options.messages
+      : [{ role: 'user', content: String(prompt ?? '') }],
+  }
+  if (options.sessionId) body.sessionId = options.sessionId
+
   const response = await fetch('/api/chat/stream', {
     method: 'POST',
     credentials: 'same-origin',
     signal,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: String(prompt ?? '') }] }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {

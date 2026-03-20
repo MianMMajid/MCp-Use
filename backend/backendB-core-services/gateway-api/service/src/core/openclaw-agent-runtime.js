@@ -846,6 +846,17 @@ function getContextWallClient() {
   return getGrpcClients()?.contextWall ?? null;
 }
 
+function hasGrpcMethod(clientOrPool, methodName) {
+  if (!clientOrPool || !methodName) {
+    return false;
+  }
+  const client =
+    typeof clientOrPool.getClient === "function"
+      ? clientOrPool.getClient()
+      : clientOrPool;
+  return typeof client?.[methodName] === "function";
+}
+
 async function sanitizePromptViaContextWall(prompt, options = {}, dependencies = {}) {
   if (typeof dependencies.sanitizePromptImpl === "function") {
     return dependencies.sanitizePromptImpl(prompt, options);
@@ -888,7 +899,7 @@ async function sanitizeStructuredContentViaContextWall(content, options = {}, de
     return dependencies.sanitizeStructuredContentImpl(content, options);
   }
   const contextWall = getContextWallClient();
-  if (!contextWall) {
+  if (!contextWall || !hasGrpcMethod(contextWall, "sanitizeStructuredContent")) {
     return {
       allowed: true,
       blockedReason: "",
@@ -1534,9 +1545,6 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
   if (!runtimeState.bootstrapped) {
     await bootstrapOpenClawRuntime();
   }
-  if (!runtimeState.cliAvailable) {
-    throw new Error(runtimeState.lastError || "OpenClaw CLI is unavailable.");
-  }
 
   const resolved = resolveRuntimeOptions(options);
   const message = asString(options.message);
@@ -1657,6 +1665,10 @@ export async function runOpenClawTurn(options = {}, dependencies = {}) {
         ...resultPayload,
         runId: run.runId,
       };
+    }
+
+    if (!runtimeState.cliAvailable) {
+      throw new Error(runtimeState.lastError || "OpenClaw CLI is unavailable.");
     }
 
     const clawCmd = resolveClawCommand(args, options);
