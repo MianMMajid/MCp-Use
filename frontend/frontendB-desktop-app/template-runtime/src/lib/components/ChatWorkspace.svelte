@@ -239,14 +239,6 @@
               options={agentOptionsWithNone}
               on:change={(e) => chatStore.selectAgent(e.detail)}
             />
-            <SelectorPill
-              label="Runtime"
-              icon="spark"
-              value={selectedRuntime}
-              options={runtimeOptions}
-              disabled={!$chatStore.selectedAgentId}
-              on:change={(e) => chatStore.setSelectedAgentRuntime(e.detail)}
-            />
           {/if}
           <SelectorPill
             label="Mode"
