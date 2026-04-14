@@ -12,12 +12,16 @@ export class ApprovalQueue {
     resolved = new Map();
     watchers = new Set();
     maxResolvedSize = 1000;
+    pollIntervalMs = 250;
     pool;
     initialized = false;
     constructor(options = {}) {
         const connectionString = typeof options === "string" ? options : options.databaseUrl;
         if (connectionString) {
             this.pool = new Pool({ connectionString });
+        }
+        if (Number.isFinite(options.pollIntervalMs)) {
+            this.pollIntervalMs = Math.max(50, Number(options.pollIntervalMs));
         }
     }
     key(traceId, stepIndex) {
@@ -57,6 +61,7 @@ export class ApprovalQueue {
             status: "pending",
         };
         this.pending.set(this.key(traceId, stepIndex), approval);
+        this.resolved.delete(this.key(traceId, stepIndex));
         if (this.pool) {
             await this.initialize();
             await this.pool.query(`
@@ -84,6 +89,116 @@ export class ApprovalQueue {
         }
         return approval;
     }
+    addWaiter(k, waiter) {
+        const existing = this.waiters.get(k);
+        if (existing) {
+            existing.add(waiter);
+            return existing;
+        }
+        const waiters = new Set([waiter]);
+        this.waiters.set(k, waiters);
+        return waiters;
+    }
+    removeWaiter(k, waiter) {
+        const waiters = this.waiters.get(k);
+        if (!waiters) {
+            return;
+        }
+        waiters.delete(waiter);
+        if (waiters.size === 0) {
+            this.waiters.delete(k);
+        }
+    }
+    cacheResolution(k, result) {
+        if (this.resolved.size >= this.maxResolvedSize) {
+            const oldestKey = this.resolved.keys().next().value;
+            this.resolved.delete(oldestKey);
+        }
+        this.resolved.set(k, result);
+    }
+    settleWaiters(k, result) {
+        const waiters = this.waiters.get(k);
+        if (!waiters || waiters.size === 0) {
+            return false;
+        }
+        this.waiters.delete(k);
+        for (const waiter of waiters) {
+            try {
+                waiter.finish(result);
+            }
+            catch {
+                // best effort
+            }
+        }
+        return true;
+    }
+    parseStep(row) {
+        try {
+            return JSON.parse(String(row?.step_json || "{}"));
+        }
+        catch {
+            return {};
+        }
+    }
+    toResolutionRecord(row) {
+        if (!row || row.status !== "resolved") {
+            return null;
+        }
+        return {
+            action: String(row.action || ""),
+            reason: String(row.reason || ""),
+            approverId: String(row.approver_id || row.approverId || ""),
+            resolvedAt: String(row.resolved_at || row.resolvedAt || ""),
+        };
+    }
+    async readRecord(traceId, stepIndex) {
+        const k = this.key(traceId, stepIndex);
+        if (!this.pool) {
+            const pending = this.pending.get(k);
+            if (pending) {
+                return { ...pending, status: "pending" };
+            }
+            const resolved = this.resolved.get(k);
+            if (resolved) {
+                return {
+                    traceId,
+                    stepIndex,
+                    status: "resolved",
+                    action: resolved.action,
+                    reason: resolved.reason,
+                    approver_id: resolved.approverId,
+                    resolved_at: resolved.resolvedAt,
+                };
+            }
+            return null;
+        }
+        await this.initialize();
+        const result = await this.pool.query(`
+      SELECT approval_id, trace_id, step_index, status, requested_at, resolved_at,
+             expires_at, action, reason, approver_id, step_json
+        FROM context_wall_approvals
+       WHERE trace_id = $1
+         AND step_index = $2
+       LIMIT 1
+    `, [traceId, stepIndex]);
+        if (result.rows.length === 0) {
+            return null;
+        }
+        const row = result.rows[0];
+        return {
+            approvalId: row.approval_id,
+            traceId: row.trace_id,
+            stepIndex: Number(row.step_index),
+            status: row.status,
+            requestedAt: row.requested_at,
+            resolvedAt: row.resolved_at,
+            expiresAt: row.expires_at,
+            action: row.action,
+            reason: row.reason,
+            approver_id: row.approver_id,
+            step: this.parseStep(row),
+        };
+    }
     async resolve(traceId, stepIndex, action, reason, approverId) {
         const k = this.key(traceId, stepIndex);
         const result = { action, reason, approverId, resolvedAt: nowIso() };
@@ -103,6 +218,14 @@ export class ApprovalQueue {
          RETURNING approval_id
       `, [traceId, stepIndex, result.resolvedAt, action, reason || "", approverId || ""]);
             accepted = update.rows.length > 0;
+            if (!accepted) {
+                const existing = await this.readRecord(traceId, stepIndex);
+                if (existing?.status === "resolved") {
+                    const normalized = this.toResolutionRecord(existing);
+                    return normalized ?? null;
+                }
+                return null;
+            }
         }
         else {
             accepted = this.pending.has(k) || this.waiters.has(k);
@@ -110,18 +233,8 @@ export class ApprovalQueue {
         if (!accepted)
             return null;
         this.pending.delete(k);
-        const waiter = this.waiters.get(k);
-        if (waiter) {
-            clearTimeout(waiter.timer);
-            this.waiters.delete(k);
-            waiter.resolve(result);
-        }
-        else {
-            if (this.resolved.size >= this.maxResolvedSize) {
-                const oldestKey = this.resolved.keys().next().value;
-                this.resolved.delete(oldestKey);
-            }
-            this.resolved.set(k, result);
+        if (!this.settleWaiters(k, result)) {
+            this.cacheResolution(k, result);
         }
         return result;
     }
@@ -160,21 +273,64 @@ export class ApprovalQueue {
             this.resolved.delete(k);
             return resolved;
         }
-        if (!(await this.hasPendingRecord(traceId, stepIndex))) {
+        const initialRecord = await this.readRecord(traceId, stepIndex);
+        if (!initialRecord) {
+            return null;
+        }
+        if (initialRecord.status === "resolved") {
+            return this.toResolutionRecord(initialRecord);
+        }
+        if (initialRecord.status !== "pending") {
             return null;
         }
         return new Promise((resolve) => {
-            const timer = setTimeout(async () => {
-                this.waiters.delete(k);
+            let settled = false;
+            const finish = (value) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                clearTimeout(timeoutTimer);
+                clearInterval(pollTimer);
+                this.removeWaiter(k, waiter);
+                resolve(value);
+            };
+            const poll = async () => {
+                if (settled) {
+                    return;
+                }
+                const record = await this.readRecord(traceId, stepIndex).catch(() => null);
+                if (!record) {
+                    finish(null);
+                    return;
+                }
+                if (record.status === "resolved") {
+                    const resolution = this.toResolutionRecord(record);
+                    if (resolution) {
+                        finish(resolution);
+                    }
+                    else {
+                        finish(null);
+                    }
+                    return;
+                }
+                if (record.status !== "pending") {
+                    finish(null);
+                }
+            };
+            const timeoutTimer = setTimeout(async () => {
                 this.pending.delete(k);
                 await this.markTimedOut(traceId, stepIndex).catch(() => {});
-                resolve(null);
+                finish(null);
             }, Math.max(1000, timeoutMs));
-            const existing = this.waiters.get(k);
-            if (existing) {
-                clearTimeout(existing.timer);
-            }
-            this.waiters.set(k, { resolve, timer });
+            const pollTimer = setInterval(() => {
+                poll().catch(() => {});
+            }, this.pollIntervalMs);
+            const waiter = { finish };
+            this.addWaiter(k, waiter);
+            queueMicrotask(() => {
+                poll().catch(() => {});
+            });
         });
     }
     watch(callback) {

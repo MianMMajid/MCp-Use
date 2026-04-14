@@ -167,6 +167,7 @@ export const escalationCheckIntervalMs = requireEnvInt("MAPLE_ESCALATION_CHECK_I
 export const retentionCheckIntervalMs = requireEnvInt("MAPLE_RETENTION_CHECK_INTERVAL_MS", { min: 60000 });
 export const modifierGovernanceEnabled = requireEnvBool("MAPLE_MODIFIER_GOVERNANCE_ENABLED");
 export const leaderElectionEnabled = requireEnvBool("MAPLE_LEADER_ELECTION_ENABLED");
+export const orchestrationOutputPolicyFailOpen = optionalEnvBool("MAPLE_ORCHESTRATION_OUTPUT_POLICY_FAIL_OPEN", !isProductionRuntime);
 // OTLP trace exporter
 export const otlpEndpoint = requireEnv("MAPLE_OTLP_ENDPOINT");
 export const otlpServiceName = requireEnv("MAPLE_OTLP_SERVICE_NAME");

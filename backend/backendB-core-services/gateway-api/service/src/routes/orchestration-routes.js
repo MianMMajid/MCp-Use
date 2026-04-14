@@ -209,6 +209,10 @@ function parseBoolean(value, fallback = false) {
   return text === "1" || text === "true" || text === "yes";
 }
 
+function isTerminalExecutionStatus(status) {
+  return ["completed", "failed", "canceled"].includes(String(status ?? ""));
+}
+
 function toSseEvent(name, payload) {
   return `event: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
@@ -265,6 +269,57 @@ async function enforceSensitiveOperationGate(c, operation) {
     stepUpStatus: stepUp,
     replacement: "/api/operations/orchestrations/step-up/challenge",
   });
+}
+
+async function resolveExecutionRequestScope(c, { allowDefault = true } = {}) {
+  const scope = await resolveVerifiedTenantScope({
+    tenantId: asString(c.req.header("x-tenant-id")) ?? "",
+    orgId: asString(c.req.header("x-org-id")) ?? "",
+    tenantClaimSignature: asString(c.req.header("x-maple-tenant-claim")) ?? "",
+  });
+  if (!scope.verified && scope.tenantId) {
+    return { error: true, tenantId: "", orgId: "", verified: false, userId: scope.userId ?? "" };
+  }
+  if (!scope.tenantId && !allowDefault) {
+    return { error: true, tenantId: "", orgId: "", verified: false, userId: scope.userId ?? "" };
+  }
+  return {
+    error: false,
+    tenantId: scope.tenantId || "default",
+    orgId: scope.orgId || "default",
+    verified: scope.verified === true,
+    userId: scope.userId ?? "",
+  };
+}
+
+function buildExecutionContextFromRequest(c, rawContext, requestedBy, scope) {
+  const baseContext =
+    rawContext && typeof rawContext === "object" && !Array.isArray(rawContext)
+      ? { ...rawContext }
+      : {};
+  const existingScope =
+    baseContext.scope && typeof baseContext.scope === "object" && !Array.isArray(baseContext.scope)
+      ? baseContext.scope
+      : {};
+  const requestContext = typeof c.get === "function" ? c.get("mapleRequestContext") : null;
+
+  return {
+    ...baseContext,
+    tenantId: scope.tenantId,
+    orgId: scope.orgId,
+    tenantVerified: scope.verified === true,
+    userId: asString(baseContext.userId) ?? scope.userId ?? requestedBy,
+    requestId: asString(baseContext.requestId) ?? requestContext?.requestId ?? "",
+    sessionId: asString(baseContext.sessionId) ?? requestContext?.sessionId ?? "",
+    traceId: asString(baseContext.traceId) ?? requestContext?.traceId ?? "",
+    deviceId: asString(baseContext.deviceId) ?? requestContext?.deviceId ?? "orchestration",
+    scope: {
+      ...existingScope,
+      tenantId: scope.tenantId,
+      orgId: scope.orgId,
+      verified: scope.verified === true,
+    },
+  };
 }
 
 function parsePayload(raw, fallback) {
@@ -415,6 +470,10 @@ async function readExecutionFromDb(executionId) {
   return toDbExecutionPublic(rowResult.rows[0], metricMap.get(executionId) ?? {});
 }
 
+async function readLatestExecutionDetail(executionId) {
+  return (await readExecutionFromDb(executionId)) ?? getOrchestrationExecution(executionId);
+}
+
 async function readExecutionGraphFromDb(executionId) {
   if (!database?.pool) return null;
   const [nodesResult, edgesResult, versionResult] = await Promise.all([
@@ -556,136 +615,154 @@ async function persistExecutionSnapshot(executionId) {
       eventType: event.eventType ?? "",
       timestamp: event.timestamp ?? "",
     }));
-
-  if (typeof database.updateOrchestrationExecutionRecord === "function") {
-    await database.updateOrchestrationExecutionRecord(execution.executionId, {
-      status: execution.status,
-      startedAt: execution.startedAt || null,
-      completedAt: execution.completedAt || null,
-      runLineage,
-    });
-  }
-
-  await database.pool.query(`DELETE FROM orchestration_execution_nodes WHERE execution_id = $1`, [execution.executionId]);
-  await database.pool.query(`DELETE FROM orchestration_execution_edges WHERE execution_id = $1`, [execution.executionId]);
-
-  const nodes = graph.nodes ?? [];
-  if (nodes.length > 0) {
-    const ids = [], execIds = [], nodeIds = [], statuses = [], retryCounts = [];
-    const startedAts = [], completedAts = [], errorTexts = [], outputPreviews = [], nodeMetadata = [];
-    for (const node of nodes) {
-      ids.push(`${execution.executionId}:${node.id}`);
-      execIds.push(execution.executionId);
-      nodeIds.push(node.id);
-      statuses.push(node.status ?? "pending");
-      retryCounts.push(Number(node.retryCount ?? 0));
-      startedAts.push(node.startedAt || null);
-      completedAts.push(node.completedAt || null);
-      errorTexts.push(node.error ?? "");
-      outputPreviews.push(node.outputPreview ?? "");
-      nodeMetadata.push(JSON.stringify({
-        label: node.label ?? node.id,
-        agentId: node.agentId ?? "",
-        role: node.role ?? "",
-        nodeObjective: node.nodeObjective ?? "",
-        isInstruction: node.isInstruction === true || node.metadata?.isInstruction === true,
-      }));
-    }
-    await database.pool.query(
-      `INSERT INTO orchestration_execution_nodes
-         (id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
-       SELECT
-         t.id,
-         t.execution_id,
-         t.node_id,
-         t.status,
-         t.retry_count,
-         t.started_at,
-         t.completed_at,
-         t.error_text,
-         t.output_preview,
-         t.cost_json
-       FROM UNNEST(
-         $1::text[], $2::text[], $3::text[], $4::text[], $5::int[],
-         $6::timestamptz[], $7::timestamptz[], $8::text[], $9::text[], $10::text[]
-       ) AS t(id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
-       ON CONFLICT (id) DO UPDATE
-       SET status = EXCLUDED.status,
-           retry_count = EXCLUDED.retry_count,
-           started_at = EXCLUDED.started_at,
-           completed_at = EXCLUDED.completed_at,
-           error_text = EXCLUDED.error_text,
-           output_preview = EXCLUDED.output_preview,
-           cost_json = EXCLUDED.cost_json`,
-      [ids, execIds, nodeIds, statuses, retryCounts, startedAts, completedAts, errorTexts, outputPreviews, nodeMetadata],
-    );
-  }
-
-  const edges = graph.edges ?? [];
-  if (edges.length > 0) {
-    const ids = [], execIds = [], edgeIds = [], sources = [], targets = [];
-    const actives = [], policies = [];
-    for (const edge of edges) {
-      ids.push(`${execution.executionId}:${edge.id}`);
-      execIds.push(execution.executionId);
-      edgeIds.push(edge.id);
-      sources.push(edge.source ?? "");
-      targets.push(edge.target ?? "");
-      actives.push(edge.active !== false);
-      policies.push(JSON.stringify(edge.delegationPolicy ?? {}));
-    }
-    await database.pool.query(
-      `INSERT INTO orchestration_execution_edges
-         (id, execution_id, edge_id, source_node_id, target_node_id, active, delegation_policy_json, rewired_at)
-       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]),
-              unnest($4::text[]), unnest($5::text[]), unnest($6::bool[]),
-              unnest($7::jsonb[]), NULL
-       ON CONFLICT (id) DO UPDATE
-       SET source_node_id = EXCLUDED.source_node_id,
-           target_node_id = EXCLUDED.target_node_id,
-           active = EXCLUDED.active,
-           delegation_policy_json = EXCLUDED.delegation_policy_json`,
-      [ids, execIds, edgeIds, sources, targets, actives, policies],
-    );
-  }
-
-  for (const mutation of mutations) {
-    await database.pool.query(
-      `INSERT INTO orchestration_mutations
-         (id, execution_id, op, payload_json, runtime_graph_version, applied_at)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (id) DO UPDATE
-       SET op = EXCLUDED.op,
-           payload_json = EXCLUDED.payload_json,
-           runtime_graph_version = EXCLUDED.runtime_graph_version,
-           applied_at = EXCLUDED.applied_at`,
+  const client = await database.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE orchestration_executions
+          SET status = $2,
+              started_at = $3,
+              completed_at = $4,
+              run_lineage_json = $5,
+              updated_at = $6
+        WHERE id = $1`,
       [
-        mutation.mutationId,
         execution.executionId,
-        mutation.op ?? "mutation",
-        JSON.stringify(mutation.payload ?? {}),
-        Number(execution.runtimeGraphVersion ?? 1),
-        mutation.appliedAt ?? execution.updatedAt ?? execution.createdAt,
+        execution.status,
+        execution.startedAt || null,
+        execution.completedAt || null,
+        JSON.stringify(runLineage),
+        execution.updatedAt ?? execution.createdAt,
       ],
     );
-  }
 
-  for (const event of timeline) {
-    await database.pool.query(
-      `INSERT INTO orchestration_timeline_events
-         (id, execution_id, orchestration_id, sequence, event_type, payload_json, event_ts)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        event.id,
-        execution.executionId,
-        execution.orchestrationId,
-        Number(event.sequence ?? 0),
-        event.eventType ?? "event",
-        JSON.stringify(event.payload ?? {}),
-        event.timestamp ?? execution.updatedAt ?? execution.createdAt,
-      ],
-    );
+    await client.query(`DELETE FROM orchestration_execution_nodes WHERE execution_id = $1`, [execution.executionId]);
+    await client.query(`DELETE FROM orchestration_execution_edges WHERE execution_id = $1`, [execution.executionId]);
+
+    const nodes = graph.nodes ?? [];
+    if (nodes.length > 0) {
+      const ids = [], execIds = [], nodeIds = [], statuses = [], retryCounts = [];
+      const startedAts = [], completedAts = [], errorTexts = [], outputPreviews = [], nodeMetadata = [];
+      for (const node of nodes) {
+        ids.push(`${execution.executionId}:${node.id}`);
+        execIds.push(execution.executionId);
+        nodeIds.push(node.id);
+        statuses.push(node.status ?? "pending");
+        retryCounts.push(Number(node.retryCount ?? 0));
+        startedAts.push(node.startedAt || null);
+        completedAts.push(node.completedAt || null);
+        errorTexts.push(node.error ?? "");
+        outputPreviews.push(node.outputPreview ?? "");
+        nodeMetadata.push(JSON.stringify({
+          label: node.label ?? node.id,
+          agentId: node.agentId ?? "",
+          role: node.role ?? "",
+          nodeObjective: node.nodeObjective ?? "",
+          isInstruction: node.isInstruction === true || node.metadata?.isInstruction === true,
+        }));
+      }
+      await client.query(
+        `INSERT INTO orchestration_execution_nodes
+           (id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
+         SELECT
+           t.id,
+           t.execution_id,
+           t.node_id,
+           t.status,
+           t.retry_count,
+           t.started_at,
+           t.completed_at,
+           t.error_text,
+           t.output_preview,
+           t.cost_json
+         FROM UNNEST(
+           $1::text[], $2::text[], $3::text[], $4::text[], $5::int[],
+           $6::timestamptz[], $7::timestamptz[], $8::text[], $9::text[], $10::text[]
+         ) AS t(id, execution_id, node_id, status, retry_count, started_at, completed_at, error_text, output_preview, cost_json)
+         ON CONFLICT (id) DO UPDATE
+         SET status = EXCLUDED.status,
+             retry_count = EXCLUDED.retry_count,
+             started_at = EXCLUDED.started_at,
+             completed_at = EXCLUDED.completed_at,
+             error_text = EXCLUDED.error_text,
+             output_preview = EXCLUDED.output_preview,
+             cost_json = EXCLUDED.cost_json`,
+        [ids, execIds, nodeIds, statuses, retryCounts, startedAts, completedAts, errorTexts, outputPreviews, nodeMetadata],
+      );
+    }
+
+    const edges = graph.edges ?? [];
+    if (edges.length > 0) {
+      const ids = [], execIds = [], edgeIds = [], sources = [], targets = [];
+      const actives = [], policies = [];
+      for (const edge of edges) {
+        ids.push(`${execution.executionId}:${edge.id}`);
+        execIds.push(execution.executionId);
+        edgeIds.push(edge.id);
+        sources.push(edge.source ?? "");
+        targets.push(edge.target ?? "");
+        actives.push(edge.active !== false);
+        policies.push(JSON.stringify(edge.delegationPolicy ?? {}));
+      }
+      await client.query(
+        `INSERT INTO orchestration_execution_edges
+           (id, execution_id, edge_id, source_node_id, target_node_id, active, delegation_policy_json, rewired_at)
+         SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]),
+                unnest($4::text[]), unnest($5::text[]), unnest($6::bool[]),
+                unnest($7::jsonb[]), NULL
+         ON CONFLICT (id) DO UPDATE
+         SET source_node_id = EXCLUDED.source_node_id,
+             target_node_id = EXCLUDED.target_node_id,
+             active = EXCLUDED.active,
+             delegation_policy_json = EXCLUDED.delegation_policy_json`,
+        [ids, execIds, edgeIds, sources, targets, actives, policies],
+      );
+    }
+
+    for (const mutation of mutations) {
+      await client.query(
+        `INSERT INTO orchestration_mutations
+           (id, execution_id, op, payload_json, runtime_graph_version, applied_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE
+         SET op = EXCLUDED.op,
+             payload_json = EXCLUDED.payload_json,
+             runtime_graph_version = EXCLUDED.runtime_graph_version,
+             applied_at = EXCLUDED.applied_at`,
+        [
+          mutation.mutationId,
+          execution.executionId,
+          mutation.op ?? "mutation",
+          JSON.stringify(mutation.payload ?? {}),
+          Number(execution.runtimeGraphVersion ?? 1),
+          mutation.appliedAt ?? execution.updatedAt ?? execution.createdAt,
+        ],
+      );
+    }
+
+    for (const event of timeline) {
+      await client.query(
+        `INSERT INTO orchestration_timeline_events
+           (id, execution_id, orchestration_id, sequence, event_type, payload_json, event_ts)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          event.id,
+          execution.executionId,
+          execution.orchestrationId,
+          Number(event.sequence ?? 0),
+          event.eventType ?? "event",
+          JSON.stringify(event.payload ?? {}),
+          event.timestamp ?? execution.updatedAt ?? execution.createdAt,
+        ],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -1001,10 +1078,13 @@ export function registerOrchestrationRoutes(app) {
     const encoder = new TextEncoder();
     const startedCursor = asString(c.req.query("cursor")) ?? "0";
     const timeoutMs = parseBoundedInteger(c.req.query("timeoutMs"), 25_000, 1_000, 120_000);
+    const pollIntervalMs = parseBoundedInteger(c.req.query("pollIntervalMs"), 1_000, 250, 5_000);
 
     let closed = false;
     let timeout;
+    let pollTimer;
     let unsubscribe = () => {};
+    let runtimeSubscribed = false;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -1028,6 +1108,10 @@ export function registerOrchestrationRoutes(app) {
             clearTimeout(timeout);
             timeout = undefined;
           }
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = undefined;
+          }
           try {
             unsubscribe();
           } catch {
@@ -1048,49 +1132,82 @@ export function registerOrchestrationRoutes(app) {
             limit: 1000,
           });
         };
-
-        writeEvent("ready", { executionId, cursor });
-        try {
+        const attachRuntimeSubscription = () => {
+          if (runtimeSubscribed || !getOrchestrationExecution(executionId)) {
+            return;
+          }
+          runtimeSubscribed = true;
+          unsubscribe = subscribeOrchestrationExecutionEvents(executionId, (event) => {
+            if (!writeEvent(event.eventType, event)) {
+              closeStream();
+              return;
+            }
+            cursor = event.cursor;
+            const next = getOrchestrationExecution(executionId);
+            if (next && isTerminalExecutionStatus(next.status)) {
+              writeEvent("done", {
+                executionId,
+                status: next.status,
+                cursor,
+              });
+              closeStream();
+            }
+          });
+        };
+        const emitPendingBacklog = async () => {
           const backlog = await fetchBacklog();
           if (backlog && !closed) {
             for (const item of backlog.items ?? []) {
-              if (!writeEvent(item.eventType, item)) return;
+              if (!writeEvent(item.eventType, item)) return false;
             }
             cursor = backlog.latestCursor;
           }
+          return true;
+        };
+        const maybeCloseIfTerminal = async () => {
+          const detail = await readLatestExecutionDetail(executionId).catch(() => null);
+          if (!detail) {
+            return false;
+          }
+          if (!isTerminalExecutionStatus(detail.status)) {
+            return false;
+          }
+          writeEvent("done", {
+            executionId,
+            status: detail.status,
+            cursor,
+          });
+          closeStream();
+          return true;
+        };
+
+        writeEvent("ready", { executionId, cursor });
+        try {
+          const emitted = await emitPendingBacklog();
+          if (!emitted) return;
         } catch {
           // best effort backlog
         }
 
         if (closed) return;
-
-        const detail = getOrchestrationExecution(executionId);
-        if (!detail || ["completed", "failed", "canceled"].includes(detail.status)) {
-          writeEvent("done", {
-            executionId,
-            status: detail?.status ?? "completed",
-            cursor,
-          });
-          closeStream();
+        if (await maybeCloseIfTerminal()) {
           return;
         }
+        attachRuntimeSubscription();
 
-        unsubscribe = subscribeOrchestrationExecutionEvents(executionId, (event) => {
-          if (!writeEvent(event.eventType, event)) {
-            closeStream();
-            return;
-          }
-          cursor = event.cursor;
-          const next = getOrchestrationExecution(executionId);
-          if (!next || ["completed", "failed", "canceled"].includes(next.status)) {
-            writeEvent("done", {
-              executionId,
-              status: next?.status ?? "completed",
-              cursor,
+        pollTimer = setInterval(() => {
+          emitPendingBacklog()
+            .then(async (emitted) => {
+              if (!emitted || closed) return;
+              if (await maybeCloseIfTerminal()) return;
+              if (!runtimeSubscribed && getOrchestrationExecution(executionId)) {
+                attachRuntimeSubscription();
+              }
+            })
+            .catch(() => {
+              // best effort poll
             });
-            closeStream();
-          }
-        });
+        }, pollIntervalMs);
 
         timeout = setTimeout(() => {
           writeEvent("done", { executionId, status: "timeout", cursor });
@@ -1685,10 +1802,15 @@ export function registerOrchestrationRoutes(app) {
       const resolved = await resolveDefinitionForRuntime(orchestration, requestedVersion);
       const authContext = authContextStorage.getStore();
       const requestedBy = asString(body.requestedBy) ?? asString(authContext?.userId) ?? "operator";
+      const executionScope = await resolveExecutionRequestScope(c);
+      if (executionScope.error) {
+        return c.json({ ok: false, error: "Unverified tenant scope rejected for execution." }, 403);
+      }
+      const executionContext = buildExecutionContextFromRequest(c, body.context, requestedBy, executionScope);
       const result = createOrchestrationExecution(resolved.orchestration, {
         mode: asString(body.mode) === "dry_run" ? "dry_run" : "live",
         input: buildExecutionInput(body),
-        context: body.context,
+        context: executionContext,
         startNodeId: asString(body.startNodeId) ?? "",
         mutationPolicy: body.mutationPolicy,
         requestedBy,
@@ -1710,7 +1832,7 @@ export function registerOrchestrationRoutes(app) {
             mode: asString(body.mode) === "dry_run" ? "dry_run" : "live",
             requestedBy,
             input: buildExecutionInput(body),
-            context: body.context && typeof body.context === "object" ? body.context : {},
+            context: executionContext,
             runLineage: [],
             createdAt: result.createdAt,
             startedAt: result.startedAt || null,
@@ -1728,6 +1850,8 @@ export function registerOrchestrationRoutes(app) {
         orchestrationId: id,
         executionId: result.executionId,
         mode: body.mode,
+        tenantId: executionContext.tenantId,
+        orgId: executionContext.orgId,
       });
       await ensureExecutionPersistenceWatch(result.executionId);
 

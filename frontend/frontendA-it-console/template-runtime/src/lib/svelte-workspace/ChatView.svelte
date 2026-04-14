@@ -107,6 +107,9 @@
     runError = ''
     // Add user message — this flips showCenteredComposer to false
     messages = [...messages, { role: 'user', content: text, timestamp: new Date().toISOString() }]
+    // Let Svelte flush the DOM change before continuing — prevents the
+    // centered composer from being destroyed mid-click which causes
+    // ERR_INTERNET_DISCONNECTED in Chrome.
     await tick()
     console.log('[chat] user-only experiment complete')
   }
@@ -123,11 +126,6 @@
 
   async function streamResponse(prompt, signal, onChunk) {
     const requestBody = buildChatRequestBody()
-
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    const stubText = `stub reply for ${requestBody.messages?.[requestBody.messages.length - 1]?.content || prompt}`
-    onChunk(stubText)
-    return stubText
 
     console.log('[chat] fetch: starting POST /api/chat/stream')
     console.time('[chat] fetch-response')
