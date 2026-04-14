@@ -6,6 +6,7 @@ import { startRetentionWorker, stopRetentionWorker } from "../core/retention-wor
 import { startBillingQueueWorker, stopBillingQueueWorker } from "../core/billing-cache.js";
 import { startTraceExporter, stopTraceExporter } from "../core/trace-exporter.js";
 import { startFrontendBTaskWorker, stopFrontendBTaskWorker } from "../core/frontend-b-task-worker.js";
+import { leaderElectionEnabled } from "../config.js";
 
 function isTruthyEnv(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -30,7 +31,7 @@ export function startGatewayWorkers({ database, transportBackend, redisUrl }) {
   startRetentionWorker({ database });
   startBillingQueueWorker({ database });
   startTraceExporter();
-  startFrontendBTaskWorker();
+  startFrontendBTaskWorker({ database, leaderElectionEnabled });
 
   return async function stopGatewayWorkers() {
     stopHitlBroker();

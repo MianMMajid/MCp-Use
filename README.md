@@ -208,6 +208,7 @@ Railway topology is parity-checked against mesh and K8s via:
 ## Additional Docs
 
 - `docs/repo-topology.md`
+- `docs/backend-state-retry-walkthrough.md`
 - `docs/command-surface.md`
 - `docs/release-readiness-checklist.md`
 - `docs/lockfile-policy.md`

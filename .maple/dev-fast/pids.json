@@ -1,70 +1,70 @@
 {
-  "generatedAt": "2026-03-19T14:14:54.483Z",
+  "generatedAt": "2026-03-19T16:40:09.859Z",
   "rootDir": "/Users/qubitmac/Documents/MCP-use/MCp-Use",
   "processes": [
     {
       "name": "audit-writer",
-      "pid": 48921,
+      "pid": 63787,
       "command": "node backend/backendB-core-services/audit-writer/service/src/main.js",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/audit-writer.log"
     },
     {
       "name": "context-wall",
-      "pid": 48945,
+      "pid": 63816,
       "command": "node backend/backendB-core-services/context-wall/service/src/main.js",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/context-wall.log"
     },
     {
       "name": "mcp-proxy",
-      "pid": 48969,
+      "pid": 63841,
       "command": "node backend/backendB-core-services/mcp-proxy/service/src/main.js",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/mcp-proxy.log"
     },
     {
       "name": "cyber-proxy",
-      "pid": 48995,
+      "pid": 63866,
       "command": "node backend/backendB-core-services/cyber-proxy/service/src/main.js",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/cyber-proxy.log"
     },
     {
       "name": "toolhub",
-      "pid": 49021,
+      "pid": 63892,
       "command": "node backend/backendA-platform-infra/scripts/hackathon-toolhub.mjs",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/toolhub.log"
     },
     {
       "name": "openclaw-gateway",
-      "pid": 49045,
+      "pid": 63916,
       "command": "openclaw --dev gateway run --port 19001 --allow-unconfigured --verbose",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/openclaw-gateway.log"
     },
     {
       "name": "openclaw-bridge",
-      "pid": 49071,
+      "pid": 63941,
       "command": "node backend/backendA-platform-infra/scripts/openclaw-bridge-hardcoded.mjs",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/openclaw-bridge.log"
     },
     {
       "name": "gateway-api",
-      "pid": 49132,
+      "pid": 64018,
       "command": "node backend/backendB-core-services/gateway-api/service/src/main.js",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/gateway-api.log"
     },
     {
       "name": "frontendA",
-      "pid": 49178,
+      "pid": 64049,
       "command": "npm --prefix frontend/frontendA-it-console/template-runtime run dev -- --port 4101",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendA.log"
     },
     {
       "name": "frontendB",
-      "pid": 49203,
+      "pid": 64072,
       "command": "NEXT_PUBLIC_DISABLE_REACTFLOW=1 npm --prefix frontend/frontendB-desktop-app/template-runtime run dev -- --port 4102",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendB.log"
     },
     {
       "name": "frontendC",
-      "pid": 49228,
+      "pid": 64099,
       "command": "npm --prefix frontend/frontendC-marketing-download-site/template-runtime run dev -- --port 4103",
       "logPath": "/Users/qubitmac/Documents/MCP-use/MCp-Use/.maple/dev-fast/logs/frontendC.log"
     }

@@ -4,6 +4,8 @@ import { runOpenClawTurn } from "./openclaw-agent-runtime.js";
 import { runNativeAgentTurn, agentRequiresNativeRuntime } from "./native-agent-runtime.js";
 import { database, getGrpcClients } from "../state.js";
 import { grpcUnaryProtected } from "../grpc-clients.js";
+import { mapleLog } from "../logging.js";
+import { orchestrationOutputPolicyFailOpen } from "../config.js";
 
 const executionStore = new Map();
 const agentCache = new Map();
@@ -47,6 +49,19 @@ function asFinite(value, fallback) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function getExecutionScope(execution) {
+  const context = execution?.context && typeof execution.context === "object" ? execution.context : {};
+  const nestedScope = context.scope && typeof context.scope === "object" ? context.scope : {};
+  return {
+    tenantId: asString(context.tenantId) ?? asString(nestedScope.tenantId) ?? "default",
+    orgId: asString(context.orgId) ?? asString(nestedScope.orgId) ?? "default",
+    userId: asString(context.userId) ?? asString(execution?.requestedBy) ?? "orchestration",
+    requestId: asString(context.requestId) ?? randomUUID().slice(0, 12),
+    deviceId: asString(context.deviceId) ?? "orchestration",
+    verified: context.tenantVerified === true || nestedScope.verified === true,
+  };
 }
 
 function toExecutionEvent(execution, eventType, payload = {}) {
@@ -572,7 +587,22 @@ async function evaluateNodeOutputPolicy(execution, node) {
   if (!output) return { allowed: true };
 
   const clients = getGrpcClients();
-  if (!clients?.contextWall) return { allowed: true }; // No context-wall → fail open
+  const scope = getExecutionScope(execution);
+  if (!clients?.contextWall) {
+    if (orchestrationOutputPolicyFailOpen) {
+      mapleLog("warn", "orchestration.output_policy_unavailable", {
+        executionId: execution.executionId,
+        nodeId: node.id,
+        fallback: "allow",
+      });
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      blockedReason: "Output policy service unavailable.",
+      reason: "output_policy_unavailable",
+    };
+  }
 
   try {
     const response = await grpcUnaryProtected(clients.contextWall, "evaluateStep", {
@@ -586,22 +616,42 @@ async function evaluateNodeOutputPolicy(execution, node) {
         command: "",
       },
       context: {
-        requestId: randomUUID().slice(0, 12),
+        requestId: scope.requestId,
         sessionId: execution.sessionId,
         sourceService: "orchestration-runtime",
-        userId: execution.requestedBy || "orchestration",
-        tenantId: "default",
-        deviceId: "orchestration",
+        userId: scope.userId,
+        tenantId: scope.tenantId,
+        orgId: scope.orgId,
+        deviceId: scope.deviceId,
       },
     }, { deadlineMs: 10_000 });
 
     const action = String(response?.decision?.action || "").replace("FIREWALL_ACTION_", "").toLowerCase();
     if (action === "deny" || action === "block") {
-      return { allowed: false, blockedReason: response?.decision?.message || "Output blocked by firewall policy." };
+      return {
+        allowed: false,
+        blockedReason: response?.decision?.message || "Output blocked by firewall policy.",
+        reason: "output_policy_blocked",
+      };
     }
     return { allowed: true };
-  } catch {
-    return { allowed: true }; // Fail open if context-wall is unavailable
+  } catch (error) {
+    if (orchestrationOutputPolicyFailOpen) {
+      mapleLog("warn", "orchestration.output_policy_eval_failed", {
+        executionId: execution.executionId,
+        nodeId: node.id,
+        tenantId: scope.tenantId,
+        orgId: scope.orgId,
+        fallback: "allow",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      blockedReason: "Output policy check failed.",
+      reason: "output_policy_unavailable",
+    };
   }
 }
 
@@ -654,14 +704,15 @@ async function runNode(execution, node) {
   try {
     const nodeTools = getAgentCapabilities(node._agentRecord);
     const useNative = node._agentRecord && agentRequiresNativeRuntime(node._agentRecord);
-    console.log("[ORCH_DEBUG] node_dispatch", JSON.stringify({
+    mapleLog("debug", "orchestration.node_dispatch", {
+      executionId: execution.executionId,
       nodeId: node.id,
       label: node.label,
       agentId: node.agentId,
       agentName: node._agentRecord?.name,
       useNative,
       tools: nodeTools,
-    }));
+    });
     const result = useNative
       ? await runNativeAgentTurn({
           message: buildNodeMessage(execution, node),
@@ -683,12 +734,13 @@ async function runNode(execution, node) {
     node.runId = asString(result.runId) ?? "";
     node.outputPreview = asString(result.reply) ?? asString(result.output) ?? "";
     node.attachments = Array.isArray(result.attachments) ? result.attachments : [];
-    console.log("[ORCH_DEBUG] node_result", JSON.stringify({
+    mapleLog("debug", "orchestration.node_result", {
+      executionId: execution.executionId,
       nodeId: node.id,
       label: node.label,
       attachmentCount: node.attachments.length,
-      attachments: node.attachments.map((a) => ({ type: a.type, url: a.url })),
-    }));
+      attachmentTypes: node.attachments.map((attachment) => attachment?.type ?? "unknown"),
+    });
     execution.lastRunId = node.runId || execution.lastRunId;
     if (node.runId) execution.runIds.push(node.runId);
 
@@ -702,7 +754,7 @@ async function runNode(execution, node) {
       emitExecutionEvent(execution, "node_failed", {
         nodeId: node.id,
         error: node.error,
-        reason: "output_policy_blocked",
+        reason: outputPolicy.reason ?? "output_policy_blocked",
       });
       execution.status = "failed";
       markControlChanged(execution);
